@@ -137,7 +137,7 @@ describe("exit 2", () => {
     expect(ran.code).toBe(2);
     expect(lines(ran)[0].diagnostics[0]).toMatchObject({ code: "cli/elements-version" });
     expect(lines(ran)[0].diagnostics[0].message).toContain("0.3.1");
-    expect(lines(ran)[0].diagnostics[0].message).toContain(">=0.4.0 <0.5.0");
+    expect(lines(ran)[0].diagnostics[0].message).toContain(">=0.4.0 <0.6.0");
   });
 
   it("for outputs that collide", async () => {

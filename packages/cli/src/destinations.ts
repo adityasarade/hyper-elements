@@ -72,7 +72,8 @@ export function outputBase(inputs: Input[], cwd: string, given?: string): string
   }
   for (const input of inputs) {
     if (input.stdin) continue;
-    const path = relative(base, input.file);
+    // A values file's outputs are named from it, not from its template module.
+    const path = relative(base, input.values?.file ?? input.file);
     if (path === ".." || path.startsWith(`..${sep}`) || isAbsolute(path)) {
       const where = given === undefined ? "the current folder" : `--base ${given}`;
       throw new UsageError(`${input.display} is outside ${where}, which outputs keep their path relative to: run from a folder that holds it, or give --base.`);
@@ -119,8 +120,9 @@ export function planDestinations(inputs: Input[], base: string, out: string, cwd
     inputsByKey.set(foldPath(canonicalPath(input.file)), input);
   }
   for (const input of inputs) {
-    const folder = relative(base, dirname(input.file));
-    const stem = basename(input.file, extname(input.file));
+    // A values file's input: named from the values file, with its format (`launch.square.png`).
+    const folder = relative(base, input.output?.folder ?? dirname(input.file));
+    const stem = input.output ? `${input.output.stem}${input.templateFormat ? `.${input.templateFormat}` : ""}` : basename(input.file, extname(input.file));
     const paths: Record<string, string> = {};
     for (const extension of extensions) {
       const path = join(resolve(cwd, out), folder, `${stem}.${extension}`);

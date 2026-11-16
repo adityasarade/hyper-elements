@@ -41,6 +41,14 @@ describe("fit", () => {
     expect(ranged.fits).toEqual(all.fits);
   });
 
+  it("isn't said to be degraded where it's measured: the image's diagnostics don't repeat the HTML preview's", async () => {
+    const design = headline({ sizes: [88, 76, 64], maxLines: 3 });
+    const preview = (d: { code: string; path: string }) => d.code === "web/degraded" && d.path.endsWith(".props.fit");
+    expect(validate(design).diagnostics.some(preview)).toBe(true);
+    expect((await layoutImage(design, { fonts })).diagnostics.some(preview)).toBe(false);
+    expect((await renderImage(design, { fonts })).diagnostics.some(preview)).toBe(false);
+  });
+
   it("reports the range that fits as drawing shows it: each size in it fits, and the next one doesn't", async () => {
     const sizes = [96, 88, 80, 72, 64, 56, 48];
     const { fits } = await layoutImage(headline({ sizes, maxLines: 3 }), { fonts });

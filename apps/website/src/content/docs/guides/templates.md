@@ -347,6 +347,9 @@ object is merged (JSON Merge Patch: `null` removes a key), and a list is replace
 for a field the template doesn't have or a bad value. `design(values, { format })` returns the plain root element for
 code that has values in hand.
 
+From the shell, the [CLI](/docs/cli#templates) reads and writes values files: `design new` and `design set` write
+them, and `check` and `render` take them, one input per format (`out/orbit.square.png`).
+
 ## Discovering a template
 
 `describe()` returns what whoever fills a template needs before starting, synchronously: its formats, every field (its

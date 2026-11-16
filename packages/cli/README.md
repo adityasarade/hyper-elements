@@ -25,6 +25,8 @@ npx hyper-elements check emails/ --json    # validate() and the email client che
 npx hyper-elements outline emails/welcome.tsx
 npx hyper-elements preview emails/welcome.tsx   # out/clients/emails/welcome/outlook.html, …
 npx hyper-elements describe Button --root Email --json
+npx hyper-elements design new templates/launch.tsx -o designs/orbit.values.json --values brief.json
+npx hyper-elements render designs/orbit.values.json   # out/designs/orbit.square.png, out/designs/orbit.landscape.png
 npx @hyper-elements/cli check email.html   # any HTML email: the email client checks, with nothing installed
 npx hyper-elements dev emails/ docs/       # a page on 127.0.0.1 showing each design, rendered again on each change
 ```
@@ -55,12 +57,14 @@ Welcome.PreviewProps = { name: "Ada" };
 | `outline <file>` | Prints the design laid out: each block with its width. |
 | `preview <files or folders…>` | Writes each Email as the email clients draw it, with the project's `@hyper-elements/email-clients` (`renderInEmailClients()`): one self-contained HTML file per client and variant, in `<out>/clients/<its path>/<name>/` (its path from the current folder, or `--base`), named by the preview (`outlook.html`, `gmail.mac.html`, `apple-mail.dark.html`). `--clients`, `--dark` and `--fonts inline` are `renderInEmailClients()`'s options. `--findings` draws each file in Chromium and reports what it found; `--screenshots` also writes a PNG of each; `--serve` serves them on `127.0.0.1`. See [Previews](#previews); an HTML email is previewed too ([Any HTML email](#any-html-email)). |
 | `inspect <files or folders…>` | Lists what each design holds, as `inspect()` gives it: each component at its path, what it's given, whether its root takes it, and the problems found on it. |
-| `describe [Component]` | Lists every component a design can use (or one), with its props and styles, from `describeComponents()` (or `describeComponent()`); `--root Email` narrows it to what that root takes. No design is loaded: it reads the `@hyper-elements/react` the current folder resolves. |
+| `describe [Component \| template.tsx]` | Lists every component a design can use (or one), with its props and styles, from `describeComponents()` (or `describeComponent()`); `--root Email` narrows it to what that root takes. No design is loaded: it reads the `@hyper-elements/react` the current folder resolves. Given a template module (a path, or a name ending in `.tsx`, `.ts`, `.jsx`, `.js`), what the template's `describe()` says: its formats, each field with its kind, guidance and image regions, its rules, and `valuesSchema`. See [Templates](#templates). |
+| `design new <template> -o <name.values.json>` | Writes a values file, a design made from a template: `--values brief.json` and `--set field=value` give the values, checked by the template in every format; nothing is written where they fail (exit 1), unless `--draft`. See [Templates](#templates). |
+| `design set <name.values.json> <field=value>…` | Changes some of a values file's values, checked as `design new` checks them: the file is rewritten only if they pass, and only the values named change. |
 | `dev <files or folders…>` | Serves a page on `127.0.0.1` that shows each design, and renders them again when the project changes, until Ctrl-C. See [dev](#dev). |
 | `migrate …` | Runs [`@hyper-elements/migrate`](https://www.npmjs.com/package/@hyper-elements/migrate) with the arguments given, unchanged: the project's, else `npx @hyper-elements/migrate`. Its output and exit codes are migrate's. |
 
-A folder is searched for designs, leaving out `node_modules`, build output, and folders whose name starts with `.` or
-`_` (shared parts).
+A folder is searched for designs (and, for `render`, `check`, `inspect` and `outline`, values files), leaving out
+`node_modules`, build output, and folders whose name starts with `.` or `_` (shared parts).
 
 ## PDFs and images
 
@@ -90,6 +94,58 @@ draw fails with `image/font`. A Document without one is drawn in standard PDF fo
 
 With an Elements from before `templateAssets()` (0.4.3 adds it), a Document and a Canvas still write their HTML, with
 a `cli/html-only` note.
+
+## Templates
+
+A template (`template()` from `@hyper-elements/react/template`) is a design with fields: what may change, and the
+rules each value must meet. A design made from one is a values file, `name.values.json`: its template's module, id and
+version, the formats wanted, and the values.
+
+```bash
+npx hyper-elements describe templates/launch.tsx --json        # its formats, fields, image regions and rules
+npx hyper-elements design new templates/launch.tsx -o designs/orbit.values.json \
+  --values brief.json --set artwork=@art/waves.png --source artwork=source.json
+npx hyper-elements check designs/orbit.values.json --json      # values, images against their files, fit, each format
+npx hyper-elements render designs/orbit.values.json            # out/designs/orbit.square.png, orbit.landscape.png
+npx hyper-elements design set designs/orbit.values.json launchDate=2026-12-10   # one value; the rest as it was
+```
+
+```json
+{
+  "version": 1,
+  "template": { "module": "../templates/launch.tsx", "id": "acme.LaunchGraphic", "version": "1.0.0", "sha256": "…" },
+  "formats": ["square", "landscape"],
+  "values": { "headline": "Meet Orbit", "launchDate": "2026-12-03", "artwork": { "src": "../art/waves.png", "width": 2160, "height": 1360 } },
+  "assets": { "artwork": { "sha256": "…", "source": { "kind": "generated" } } }
+}
+```
+
+- **Each format is an input.** `render`, `check`, `inspect` and `outline` run a values file once per format it lists,
+  each with its own line (`templateFormat`) and file, `<name>.<format>.<ext>`. `--template-format square` runs one;
+  `--format` is still a Canvas's png or svg. `outline` and `--stdout` take one input, so a file of two formats needs
+  `--template-format`. A template with formats checks a file that lists none as `template/format`.
+- **What's checked.** The template reads the values (`template/…` diagnostics, each with its `field`), then its
+  design is checked as any design is. A Canvas is drawn strict (a font that isn't given fails) and measured at the
+  scale it's rendered at (the format's, or `--scale`): fitted text, and each image against its region and its file
+  (`template/asset-pixels`, `template/asset-cropped`, `template/asset-type`). `check --json` adds `fits`, `regions`
+  (each image's box and the pixels it needs), `rules` and `review` (what a reviewer looks at by eye; never an error).
+  `render` checks the same, and writes nothing for an input that fails.
+- **Paths.** The module is relative to the values file (or a package specifier, kept as given), and so are its
+  images. A module changed under the same version is `template/changed`; a newer minor version is read again, a
+  newer major through the template's migrations, and an older one is `template/version`.
+- **A template module** is an input too: `check`, `inspect` and `outline` run it with its `example` in each format, its
+  diagnostics each with its `templateFormat`. `render` of one is `cli/render-template` (exit 2): render a values file.
+- **`design new` and `design set`.** A value is JSON where it parses, else text; `@path` is an image file, whose size is
+  read from it and whose hash goes in `assets`, and `--source field=source.json` records where it came from. An
+  image's entry follows its file: moved to another field, it keeps its hash and source; changed under the same name,
+  it has no source until one is given (`template/asset-changed`), and `check`'s `review` lists an image with no
+  source. A value the template refuses exits 1 and leaves the file's bytes as they were. `--draft` writes the file
+  anyway, with `"draft": true` and what's `missing`; `render` refuses a draft (`cli/draft`), and a `design set` that
+  completes it removes both. With `--json`, one line: the file, its template, the paths that `changed`, the
+  diagnostics.
+
+Templates need `@hyper-elements/react` 0.5 (its `/template` entry); with 0.4, a template module or a values file is
+`cli/elements-version` (exit 2). Loading a values file runs its template's code, as loading any design does.
 
 ## Previews
 
@@ -247,20 +303,24 @@ opening "Email" tag`; on Bun, in Bun's words), with "(and N more errors)" where 
 {"version":1,"summary":{"templates":1,"errors":0,"warnings":0,"skipped":0,"late":[]},"exitCode":0}
 ```
 
-An HTML email's line has `"input": "html"` and `"root": null` ([Any HTML email](#any-html-email)).
+An HTML email's line has `"input": "html"` and `"root": null` ([Any HTML email](#any-html-email)); a values file's
+`"input": "values"`, its `templateFormat` and its `template` ([Templates](#templates)).
 `inspect --json` writes `{"version":1,"command":"inspect","file","status","inspection"}` per design, `inspection`
 being `inspect()`'s result as it is (`null`, with `diagnostics` and `error`, where the design didn't load), then the
 summary line. `describe --json` writes one line, `describeComponents()`'s or `describeComponent()`'s result as it is,
 with its own `version`. `outline` is text only.
 
 - **0**: every design rendered, checked or previewed without errors.
-- **1**: a design has errors, failed to load or threw, loads two copies of React, ran past `--timeout`, needs a PDF
+- **1**: a design has errors, failed to load or threw; a values file is wrong (`cli/values-file`), a draft
+  (`cli/draft`), or its values fail its template; loads two copies of React, ran past `--timeout`, needs a PDF
   or image engine that isn't installed, or names a URL that isn't cached with `--offline`; an HTML email isn't a whole
   email, or the email client models can't be used for it (see [Any HTML email](#any-html-email)); a preview failed in
   the browser; or the run passed `--max-warnings`.
 - **2**: the run couldn't do what it was asked: a usage error, an unsupported runtime, no designs (none found in the
   folders given, or no input, folder or file, that turned out to be one: each is still listed, as skipped), Elements
-  missing or outside the supported range, outputs that would collide, a design that called `process.exit`, design
+  missing or outside the supported range (or too old for templates), outputs that would collide, `render` of a
+  template module, `outline` of a template's formats without `--template-format`, a Canvas `check` can't measure
+  without the image engines, a design that called `process.exit`, design
   code that threw outside a render, or a Document's PDF on Bun; `preview` without email-clients, or `--findings` with
   no browser found; `describe` for a component or root there isn't. A run with at least one design skips the inputs
   that aren't designs and exits as its designs do.
@@ -286,7 +346,7 @@ byte for byte, and where Bun can't, the CLI says so rather than write something 
 
 Under Bun a design resolves only what its project has installed (no auto-install).
 
-The project needs `@hyper-elements/react` 0.4.
+The project needs `@hyper-elements/react` 0.4 or 0.5 (0.5 for templates).
 
 ## License
 
