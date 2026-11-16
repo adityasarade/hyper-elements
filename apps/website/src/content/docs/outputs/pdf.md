@@ -62,7 +62,7 @@ npm install @hyper-elements/react @react-pdf/renderer react react-dom
 
 `/pdf` is an entry of `@hyper-elements/react`. Its engine is an optional peer dependency, so a project that doesn't import `/pdf` installs nothing for it, and the main entry never loads it.
 
-It runs in Node.js only. If it loads a second copy of `@hyper-elements/react` that lays templates out in another version, `renderPdf()` throws an `ElementsError` (`pdf/version`) rather than drawing the template wrong.
+It runs in Node.js only. If it loads a second copy of `@hyper-elements/react` that lays designs out in another version, `renderPdf()` throws an `ElementsError` (`pdf/version`) rather than drawing the design wrong.
 
 ## The Document
 
@@ -116,7 +116,7 @@ Open it in a browser to look at the pages, or print it. If you print it to PDF w
 
 `renderPdf(element, options)` returns `{ pdf, diagnostics }`: the file's bytes, and the warnings and notes. Errors reject with an `ElementsError` listing them. Its pages, header, footer and page numbers are the print HTML's, laid out at the same widths.
 
-The same template writes the same bytes. The `date` option is when the PDF says it was made: a fixed date by default, which is what keeps the bytes the same. Pass `new Date()` if you want the real one.
+The same design writes the same bytes. The `date` option is when the PDF says it was made: a fixed date by default, which is what keeps the bytes the same. Pass `new Date()` if you want the real one.
 
 | Option | What it takes |
 |--------|---------------|
@@ -126,10 +126,10 @@ The same template writes the same bytes. The `date` option is when the PDF says 
 
 ### Fonts and images
 
-Nothing is fetched. Give each file the template needs, as bytes:
+Nothing is fetched. Give each file the design needs, as bytes:
 
 - **Fonts** in `fonts`: `{ family, src, weight?, style? }`, one entry per file. `src` is a TTF, OTF or WOFF file's bytes. `family` is the name your `fontFamily` stacks use. The files in a Document's `fonts` prop are for its HTML: `renderPdf()` doesn't load them, `data:` URIs included.
-- **Images** in `images`, by the URL the template gives them (`{ "https://…/logo.png": bytes }`), or as `data:` URIs in the template. A PDF draws PNG and JPEG.
+- **Images** in `images`, by the URL the design gives them (`{ "https://…/logo.png": bytes }`), or as `data:` URIs in the design. A PDF draws PNG and JPEG.
 
 Text whose `fontFamily` has no file given is drawn in a standard PDF font: Helvetica, Times or Courier, whichever is closest. Those draw Western European characters only. For any other script, give a font file that has it.
 
@@ -139,8 +139,8 @@ A `Video` shows its thumbnail where its file is given (its own, or a YouTube vid
 
 | Code | Severity | When |
 |------|----------|------|
-| `pdf/root` | error | The template isn't a Document |
-| `pdf/version` | error | A second copy of `@hyper-elements/react` lays the template out in another version |
+| `pdf/root` | error | The design isn't a Document |
+| `pdf/version` | error | A second copy of `@hyper-elements/react` lays the design out in another version |
 | `pdf/image` | error | An image isn't given, or its file isn't a PNG or JPEG |
 | `pdf/image` | warning | An image is SVG: its alt text is shown in its box |
 | `pdf/font` | warning | A font in the Document's `fonts` isn't given, a file given is WOFF2, or text in a standard PDF font has characters it can't draw |

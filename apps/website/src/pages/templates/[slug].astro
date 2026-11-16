@@ -24,10 +24,10 @@ const renderSnippet = isDoc
   ? `import { renderImage } from "@hyper-elements/react/image";\nimport ${name} from "./${t.slug}";\n\n// fonts: the font files the card uses, as bytes ({ family, src, weight? })\nconst { image } = await renderImage(<${name} />, { fonts });`
   : `import { render } from "@hyper-elements/react";\nimport ${name} from "./${t.slug}";\n\nconst { html, text } = await render(<${name} />);`;
 ---
-<Base title={`${t.title} template`} description={t.description}>
+<Base title={`${t.title} design`} description={t.description}>
   <section class="t-hero">
     <div class="wrap">
-      <a class="back" href="/templates">← Templates</a>
+      <a class="back" href="/templates">← Designs</a>
       <div class="t-head">
         <div>
           <h1 class="h-page" style="margin:0 0 10px">{t.title}</h1>
@@ -47,7 +47,7 @@ const renderSnippet = isDoc
     </div>
   </div>
   <section class="wrap more">
-    <h2 class="cg-title">More templates</h2>
+    <h2 class="cg-title">More designs</h2>
     <div class="more-list">
       {others.map((o) => <a class="chip" href={`/templates/${o.slug}`}>{o.title}</a>)}
     </div>

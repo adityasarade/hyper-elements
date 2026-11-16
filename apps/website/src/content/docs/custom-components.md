@@ -1,9 +1,9 @@
 ---
 title: "Custom components"
-description: "Build templates from your own function components, make named blocks with typed props using component() and prop, and write raw markup with Html."
+description: "Build designs from your own function components, make named blocks with typed props using component() and prop, and write raw markup with Html."
 ---
 
-There are two ways to make components of your own. A plain function that returns components is enough for most templates. `component()` makes a named block with typed, validated props, and `<Html>` writes markup no component says.
+There are two ways to make components of your own. A plain function that returns components is enough for most designs. `component()` makes a named block with typed, validated props, and `<Html>` writes markup no component says.
 
 ```tsx
 import { Text } from "@hyper-elements/react";

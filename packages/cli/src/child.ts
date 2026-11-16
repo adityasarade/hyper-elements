@@ -191,7 +191,7 @@ class Session {
           const where = relative(this.message.cwd, folder) || ".";
           return this.result(input, {
             status: "error",
-            diagnostics: [cliDiagnostic("read-only", "error", `Can't write in ${where}: the CLI loads a template through a module it writes beside it (and deletes once it's loaded)`, `make ${where} writable`)],
+            diagnostics: [cliDiagnostic("read-only", "error", `Can't write in ${where}: the CLI loads a design through a module it writes beside it (and deletes once it's loaded)`, `make ${where} writable`)],
           });
         }
         return this.result(input, { status: "error", error: errorLine(error) });
@@ -270,7 +270,7 @@ class Session {
         .join("; ");
       return this.result(input, {
         status: "error",
-        diagnostics: [cliDiagnostic("two-reacts", "error", `This template loads ${copies.length} copies of React: ${list}. Hooks and context don't work across copies`, "install one React for the template, Elements and the packages it imports (one version, deduplicated)")],
+        diagnostics: [cliDiagnostic("two-reacts", "error", `This design loads ${copies.length} copies of React: ${list}. Hooks and context don't work across copies`, "install one React for the design, Elements and the packages it imports (one version, deduplicated)")],
       }, loaded);
     }
     const value = defaultExport(loader.template);
@@ -284,7 +284,7 @@ class Session {
       return this.result(input, { status: "error", error: errorText(error, this.message.cwd) }, loaded);
     }
     if (!template) {
-      return this.result(input, { status: "skipped", notTemplate: true, diagnostics: [cliDiagnostic("not-a-template", "info", "Its default export isn't a component: not a template")] }, loaded);
+      return this.result(input, { status: "skipped", notTemplate: true, diagnostics: [cliDiagnostic("not-a-template", "info", "Its default export isn't a component: not a design")] }, loaded);
     }
     const props = this.message.options.props ?? template.props;
     try {
@@ -292,7 +292,7 @@ class Session {
       const inspection = loaded.inspect.inspect(element);
       const root = inspection.root && ROOTS.has(inspection.root) ? (inspection.root as Root) : null;
       if (!root && !hasErrors(inspection.diagnostics)) {
-        return this.result(input, { status: "skipped", notTemplate: true, diagnostics: [cliDiagnostic("not-a-template", "info", "It renders no root Elements knows (Email, Page, Document or Canvas): not a template")] }, loaded);
+        return this.result(input, { status: "skipped", notTemplate: true, diagnostics: [cliDiagnostic("not-a-template", "info", "It renders no root Elements knows (Email, Page, Document or Canvas): not a design")] }, loaded);
       }
       const context: TemplateContext = {
         element,
@@ -351,7 +351,7 @@ class Session {
     if (!loaded.emailClients) {
       return {
         diagnostics: clients
-          ? [cliDiagnostic("email-clients", "warning", "--clients asks for email client checks, which come from @hyper-elements/email-clients: it isn't installed where this template is", "npm i -D @hyper-elements/email-clients")]
+          ? [cliDiagnostic("email-clients", "warning", "--clients asks for email client checks, which come from @hyper-elements/email-clients: it isn't installed where this design is", "npm i -D @hyper-elements/email-clients")]
           : [],
       };
     }
@@ -386,7 +386,7 @@ class Session {
         cliDiagnostic(
           "elements-version",
           "error",
-          `This template's @hyper-elements/react is ${version ?? "of an unknown version"}; the CLI renders with ${ELEMENTS_RANGE}`,
+          `This design's @hyper-elements/react is ${version ?? "of an unknown version"}; the CLI renders with ${ELEMENTS_RANGE}`,
           "install a version of @hyper-elements/react the CLI supports, or a CLI that supports yours",
         ),
       ],
@@ -414,7 +414,7 @@ class Session {
       usage: true,
       diagnostics: [cliDiagnostic("elements-missing", "error", this.message.command === "describe"
         ? `@hyper-elements/react isn't installed where this command runs: describe reads the project's (${ELEMENTS_RANGE}), run it in the project's folder`
-        : `@hyper-elements/react isn't installed where this template is: the CLI renders with the project's (${ELEMENTS_RANGE})`, "npm i @hyper-elements/react react react-dom")],
+        : `@hyper-elements/react isn't installed where this design is: the CLI renders with the project's (${ELEMENTS_RANGE})`, "npm i @hyper-elements/react react react-dom")],
     });
   }
 

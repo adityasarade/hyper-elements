@@ -249,6 +249,6 @@ for (const [i, page] of pages.entries()) {
 }
 await writeFile(
   join(refDir, "overview.md"),
-  `---\ntitle: "Components"\ngroup: "Overview"\norder: -1\nsummary: "Every component, what it holds, and every prop and style it takes."\n---\n\n${intro.replace("[GUIDE.md](./GUIDE.md)", "[Templates and roots](/docs/templates)")}\n`,
+  `---\ntitle: "Components"\ngroup: "Overview"\norder: -1\nsummary: "Every component, what it holds, and every prop and style it takes."\n---\n\n${intro.replace("[GUIDE.md](./GUIDE.md)", "[Designs and roots](/docs/templates)")}\n`,
 );
 console.log(`wrote src/generated/`);

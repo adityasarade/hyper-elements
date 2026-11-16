@@ -8,7 +8,7 @@ Five components arrange blocks: `Section`, `Row`, `Column`, `Grid` and `Layer`. 
 ```tsx
 import { Column, Email, Text, Row } from "@hyper-elements/react";
 
-const template = (
+const design = (
   <Email width={600}>
     <Row style={{ gap: 16 }}>
       <Column style={{ width: 180 }}><Text>Fixed</Text></Column>
@@ -19,7 +19,7 @@ const template = (
 );
 ```
 
-`outline(template)` shows the widths the layout worked out:
+`outline(design)` shows the widths the layout worked out:
 
 ```text
 Email 600px

@@ -18,7 +18,7 @@ const WRITTEN: SupportByTarget = { email: { level: "full", source: "writer" }, w
 
 /** A block of text's own direction, beside its neighbours' (an Arabic paragraph in an English email). */
 const TEXT_DIR = {
-  dir: prop(enumOf(["ltr", "rtl", "auto"]), { support: WRITTEN, label: "Text direction", description: "Its text's direction, where it differs from the template's; it starts on that side unless aligned otherwise." }),
+  dir: prop(enumOf(["ltr", "rtl", "auto"]), { support: WRITTEN, label: "Text direction", description: "Its text's direction, where it differs from the design's; it starts on that side unless aligned otherwise." }),
 };
 
 const SPACING_EDITOR = { title: "Spacing", paths: ["style.padding"] };

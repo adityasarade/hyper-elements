@@ -3,7 +3,7 @@
  */
 import type { Command } from "./protocol";
 
-export const USAGE = `Render and check Hyper Elements templates.
+export const USAGE = `Render and check Hyper Elements designs.
 
 Usage:
   hyper-elements render <files or folders...> [options]
@@ -15,38 +15,38 @@ Usage:
   hyper-elements dev <files or folders...> [options]
   hyper-elements migrate [migrate's arguments...]
 
-A template is a module whose default export is a component that renders an
+A design file is a module whose default export is a component that renders an
 <Email>, a <Page>, a <Document> or a <Canvas>. Its props are, first to last:
---props, the component's PreviewProps, {}. A folder is searched for templates,
+--props, the component's PreviewProps, {}. A folder is searched for designs,
 leaving out node_modules, build output, and folders whose name starts with
 "." or "_".
 
-render   writes each template's output under --out, at its path relative to
+render   writes each design's output under --out, at its path relative to
          the current folder (or --base): an Email's HTML and plain text
          (name.html, name.txt), a Page's HTML (name.html), a Document's PDF
          (name.pdf), a Canvas's image (name.png). A Document's and a Canvas's
-         fonts and images are loaded from what the template names: data: URIs,
-         files relative to the template, /paths from --public, and http(s)
+         fonts and images are loaded from what the design names: data: URIs,
+         files relative to the design, /paths from --public, and http(s)
          URLs, fetched once and cached.
-check    validates each template (with @hyper-elements/email-clients' email
+check    validates each design (with @hyper-elements/email-clients' email
          client checks where the project has it, and @hyper-elements/lint's
          checks of an Email or a Page) and writes nothing. Given an HTML email
          (a .html or .htm file by name, or - for stdin), it runs the email
          client checks and lint's HTML checks on it.
-outline  prints a template laid out: each block with its width.
+outline  prints a design laid out: each block with its width.
 preview  writes each Email as the email clients draw it, one file per client
          and variant (with @hyper-elements/email-clients), under
          out/clients/<its path>/<name>/, its path relative to the current
          folder (or --base). --findings opens each in Chromium and reports
          what it found. An HTML email (a .html or .htm file, or - for stdin,
          under out/clients/stdin/) is previewed as it is.
-inspect  lists what a template holds: each component, what it's given,
+inspect  lists what a design holds: each component, what it's given,
          whether its root takes it, and the problems found on it.
-describe lists the components a template can use (or one), with their props
+describe lists the components a design can use (or one), with their props
          and styles; --root narrows it to what a root takes.
 migrate  runs @hyper-elements/migrate (the project's, else npx's) with the
          arguments given.
-dev      serves a page on 127.0.0.1 showing each template (an Email or a Page
+dev      serves a page on 127.0.0.1 showing each design (an Email or a Page
          at desktop and phone widths, a Document's PDF, a Canvas's image, the
          diagnostics, and the email client previews where the project has
          @hyper-elements/email-clients), rendered again when the project's
@@ -56,9 +56,9 @@ Options:
   --out <dir>           Where render and preview write (default: out)
   --base <dir>          render, preview: outputs keep their path relative to
                         this folder (default: the current folder)
-  --props <file.json>   Props for every template given, over PreviewProps
-  --json                One JSON line per template, then a summary line
-  --stdout              render: write the one template's HTML, PDF or image
+  --props <file.json>   Props for every design given, instead of PreviewProps
+  --json                One JSON line per design, then a summary line
+  --stdout              render: write the one design's HTML, PDF or image
                         to stdout
   --pretty              render: indent the HTML
   --html                render: also write a Document's print HTML
@@ -66,7 +66,7 @@ Options:
   --scale <n>           render: a Canvas's pixels per px (default: 1)
   --public <dir>        render, dev: where /paths are read from (default: the
                         first public/ beside a package.json, from the
-                        template's folder up to the workspace root)
+                        design's folder up to the workspace root)
   --refresh             render: fetch http(s) fonts and images again
   --offline             render, dev: fetch nothing; a URL not in the cache
                         fails
@@ -97,14 +97,14 @@ Options:
                         free one)
   --root <root>         describe: only what this root takes (Email, Page,
                         Document or Canvas)
-  --timeout <seconds>   How long a process rendering templates may run: past
-                        it, the template it's on fails and the rest go on in
+  --timeout <seconds>   How long a process rendering designs may run: past
+                        it, the design it's on fails and the rest go on in
                         a new one (default: 60)
   -h, --help            Show this help
   -v, --version         Show the version
 
-Exit codes: 0 when every template rendered or checked without errors, 1 when
-a template has errors or failed, 2 when the run couldn't do what it was asked.
+Exit codes: 0 when every design rendered or checked without errors, 1 when
+a design has errors or failed, 2 when the run couldn't do what it was asked.
 Runs on Node.js 20.6 or later (npx hyper-elements), or Bun 1.3 or later
 (bunx --bun hyper-elements; a Document's PDF is written on Node only).
 `;
@@ -299,9 +299,9 @@ export function parseArgs(argv: string[]): Args {
     if (positional.length > 1) throw new UsageError("describe takes one component, or none for all of them.");
     return args;
   }
-  if (!positional.length) throw new UsageError(`Give ${command} the templates: files or folders.`);
+  if (!positional.length) throw new UsageError(`Give ${command} the designs: files or folders.`);
   if (args.command === "outline" && args.json) throw new UsageError("outline is text only: it has no --json.");
-  if (args.command === "outline" && positional.length > 1) throw new UsageError("outline takes one template.");
+  if (args.command === "outline" && positional.length > 1) throw new UsageError("outline takes one design.");
   if (args.stdout && args.json) throw new UsageError("--stdout and --json both write to stdout: give one.");
   return args;
 }

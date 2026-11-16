@@ -267,7 +267,7 @@ export function readProps(path: string, cwd: string): Record<string, unknown> {
   } catch (error) {
     throw new UsageError(`--props ${path} isn't JSON: ${errorLine(error)}`);
   }
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new UsageError(`--props ${path} must hold a JSON object, the template's props.`);
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new UsageError(`--props ${path} must hold a JSON object, the design's props.`);
   return value as Record<string, unknown>;
 }
 
@@ -319,8 +319,8 @@ export async function run(args: Args, io: Io, state: RunState = { folders: new S
   // HTML emails run in this process (no template code, no loader module); templates in children.
   const templates = inputs.filter((input) => input.kind !== "html");
   const htmlInputs = inputs.filter((input) => input.kind === "html");
-  if (args.command === "outline" && inputs.length !== 1) throw new UsageError(`outline takes one template; ${args.positional[0]} holds ${inputs.length}.`);
-  if (args.stdout && inputs.length !== 1) throw new UsageError(`--stdout writes one template's output: this run has ${inputs.length} templates.`);
+  if (args.command === "outline" && inputs.length !== 1) throw new UsageError(`outline takes one design; ${args.positional[0]} holds ${inputs.length}.`);
+  if (args.stdout && inputs.length !== 1) throw new UsageError(`--stdout writes one design's output: this run has ${inputs.length} designs.`);
   for (const link of found.links) io.stderr(`- ${displayPath(cwd, link)}: a symbolic link to a folder, not followed (give the folder itself to include what's in it)\n`);
   let planned: Planned | undefined;
   // Outputs keep their path relative to the current folder (or --base), whatever else is given with them.
@@ -411,10 +411,10 @@ export async function run(args: Args, io: Io, state: RunState = { folders: new S
         root: null,
         status: "error",
         outputs: [],
-        diagnostics: [cliDiagnostic("timeout", "error", `It didn't finish within ${args.timeout} ms: the process running it was ended (the templates after it ran in a new one)`, "make the template finish sooner, or give a longer --timeout")],
+        diagnostics: [cliDiagnostic("timeout", "error", `It didn't finish within ${args.timeout} ms: the process running it was ended (the designs after it ran in a new one)`, "make the design finish sooner, or give a longer --timeout")],
       });
     } else {
-      outcomes.set(input.id, { file: input.display, root: null, status: "error", outputs: [], diagnostics: [], error: ended?.error || "child ended before this template's result" });
+      outcomes.set(input.id, { file: input.display, root: null, status: "error", outputs: [], diagnostics: [], error: ended?.error || "child ended before this design's result" });
     }
   };
   /** What a child left for the summary: late throws, and a child that ended badly after sending every result. */
@@ -543,7 +543,7 @@ export async function run(args: Args, io: Io, state: RunState = { folders: new S
   const none = inputs.length > 0 && inputs.every((input) => notTemplates.has(input.id));
   if (none) {
     const which = inputs.length === 1 ? "the input isn't one" : `none of the ${inputs.length} inputs is one`;
-    io.stderr(`hyper-elements: no templates: ${which} (a template is a module whose default export is a component that renders an Email, a Page, a Document or a Canvas).\n`);
+    io.stderr(`hyper-elements: no designs: ${which} (a design file is a module whose default export is a component that renders an Email, a Page, a Document or a Canvas).\n`);
   }
   const exitCode: 0 | 1 | 2 = usage.size || late.length || noBrowser || none ? 2 : errors || (args.maxWarnings !== undefined && warnings > args.maxWarnings) ? 1 : 0;
   const summary: SummaryLine = { version: 1, summary: { templates: all.length, errors, warnings, skipped, late }, exitCode };
@@ -566,7 +566,7 @@ export async function run(args: Args, io: Io, state: RunState = { folders: new S
     if (args.command !== "outline" || exitCode !== 0) io.stderr(summaryText(summary));
     if (stdoutText !== undefined) await io.stdout(stdoutText);
   } else {
-    await io.stdout(all.map(inputText).join("") + summaryText(summary, htmlInputs.length ? (templates.length ? "input" : "email") : "template"));
+    await io.stdout(all.map(inputText).join("") + summaryText(summary, htmlInputs.length ? (templates.length ? "input" : "email") : "design"));
   }
   if (args.maxWarnings !== undefined && warnings > args.maxWarnings && !args.json) {
     io.stderr(`✗ ${warnings} warnings, more than --max-warnings ${args.maxWarnings}\n`);

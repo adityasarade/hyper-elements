@@ -1,9 +1,9 @@
 ---
-title: "Templates and roots"
-description: "Every template has one root (Email, Page, Document or Canvas) that decides its output. Root props, your own components, and sharing content."
+title: "Designs and roots"
+description: "Every design has one root (Email, Page, Document or Canvas) that decides its output. Root props, your own components, and sharing content."
 ---
 
-A template is JSX with one root, and the root decides what `render()` writes. This page covers the four roots, their props, and how to build templates out of your own components.
+A design is JSX with one root, and the root decides what `render()` writes. This page covers the four roots, their props, and how to build designs out of your own components.
 
 ```tsx
 import { Email, Heading, Text } from "@hyper-elements/react";
@@ -27,7 +27,7 @@ That is a whole email. A root stacks its children down its content width, center
 | [`Document`](/docs/components/document) | Print-ready HTML on pages of its size, and a PDF with `@hyper-elements/react/pdf` | From its `size`, `orientation` and `margin` |
 | [`Canvas`](/docs/components/canvas) | An image with `@hyper-elements/react/image` (and HTML from `render()`, to look at) | `width` 1200 and `height` 630 by default |
 
-A template has exactly one root. A `<div>` or any other HTML element around it is an error.
+A design has exactly one root. A `<div>` or any other HTML element around it is an error.
 
 ## Root props
 
@@ -40,7 +40,7 @@ A template has exactly one root. A `<div>` or any other HTML element around it i
 | `title` | all | The document's `<title>`, shown in a browser tab and by some email clients |
 | `lang` | all | The language, as a BCP 47 tag (`"en"`, `"ar"`) |
 | `dir` | all | `"ltr"`, `"rtl"` or `"auto"`. Text starts on that side unless you align it |
-| `fonts` | all | The font files the template loads. See [Styles](/docs/styles#fonts) |
+| `fonts` | all | The font files the design loads. See [Styles](/docs/styles#fonts) |
 | `size` | Document | `"A3"`, `"A4"`, `"A5"`, `"Letter"`, `"Legal"` or `"Tabloid"`, `"A4"` by default |
 | `orientation` | Document | `"portrait"` or `"landscape"`, `"portrait"` by default |
 | `margin` | Document | Around each page's content, 48px on each side by default (96px to the inch) |
@@ -78,11 +78,11 @@ Text is components, not HTML. Inside a `Text`, a `Span` styles a run, a `Link` l
 </Text>
 ```
 
-`<b>`, `<br>`, `<div>` and other HTML elements in a template are errors (`jsx/markup`). For markup no component says, there's [`<Html>`](/docs/custom-components#html-markup-as-it-is).
+`<b>`, `<br>`, `<div>` and other HTML elements in a design are errors (`jsx/markup`). For markup no component says, there's [`<Html>`](/docs/custom-components#html-markup-as-it-is).
 
 ## Your own components
 
-A function that returns components is a component of your own. Write templates the way you write the rest of your React app:
+A function that returns components is a component of your own. Write designs the way you write the rest of your React app:
 
 ```tsx
 import { Column, Email, Heading, Text } from "@hyper-elements/react";
