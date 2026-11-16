@@ -381,7 +381,7 @@ function guide(example: string): string {
     "",
     "- `<Box as=\"header\">` is its general element (`as`: div, section, header, footer, nav, main, article, aside, figure, figcaption, blockquote, address, ul, ol, li). A flex column with its `gap` until its styles say otherwise: `display: \"grid\", gridTemplateColumns: \"repeat(auto-fill, minmax(16rem, 1fr))\"`, or `flexDirection: \"row\"` (a flex box is a column unless it says row). Directly in a Page it spans the window, like a Section; give it `maxWidth` and `padding` for its content.",
     "- Lengths on a Page also take rem, em, %, vw, vh and calc(), min(), max(), clamp(): `fontSize: \"clamp(2rem, 5vw, 3.5rem)\"`, `padding: \"4rem 1.5rem\"`. A number is still px.",
-    "- Page style groups, as components list them: " + PAGE_GROUPS.map(([group, members]) => `*${group}* ${members.join(", ")}`).join("; ") + ".",
+    "- Page style groups, as elements list them: " + PAGE_GROUPS.map(([group, members]) => `*${group}* ${members.join(", ")}`).join("; ") + ".",
     "- `Span as=\"strong\"` (strong, em, code, kbd, time, mark, abbr, sup, sub, small, cite, q) gives a run its meaning.",
     "- Section, Row, Column and Grid still work on a Page, and stay the way to write an email.",
     "",
