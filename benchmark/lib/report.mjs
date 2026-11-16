@@ -142,6 +142,33 @@ for (const suite of [...new Set(rows.map((r) => r.suite))]) {
     out[suite] = { ...out[suite], clients };
   }
 
+  // The template suite: the guardrails each finished issue broke (escaped violations), and, for the authoring runs,
+  // the hostile bodies each kit's newsletter refused or let through.
+  if (rs.some((r) => r.violations !== undefined || r.measures)) {
+    const guarded = kits.filter((kit) => rs.some((r) => r.kit === kit && Array.isArray(r.violations)));
+    if (guarded.length) {
+      const escapes = guarded.map((kit) => {
+        const k = rs.filter((r) => r.kit === kit && Array.isArray(r.violations));
+        const names = {};
+        for (const r of k) for (const v of r.violations) names[v] = (names[v] ?? 0) + 1;
+        return { kit, measured: k.length, clean: k.filter((r) => !r.violations.length).length, violations: sum(k.map((r) => r.violations.length)), which: Object.entries(names).sort((a, b) => b[1] - a[1]).map(([n, c]) => `${n} ${c}`).join(", ") };
+      });
+      console.log("Guardrails each finished issue broke (violations that escaped):");
+      console.table(escapes);
+      out[suite] = { ...out[suite], escapes };
+    }
+    const authored = kits.filter((kit) => rs.some((r) => r.kit === kit && r.measures));
+    if (authored.length) {
+      const authoring = authored.map((kit) => {
+        const k = rs.filter((r) => r.kit === kit && r.measures).map((r) => r.measures);
+        return { kit, runs: k.length, medHeld: median(k.map((m) => m.held)), medEscaped: median(k.map((m) => m.escaped)), sumSourceFindings: sum(k.map((m) => m.sourceFindings)) };
+      });
+      console.log("Authoring: hostile bodies each kit's newsletter refused, and those that escaped (medians):");
+      console.table(authoring);
+      out[suite] = { ...out[suite], authoring };
+    }
+  }
+
   // Two-phase suites (a `changePrompt`): each phase on its own. The change runs only after a passing build.
   if (rs.some((r) => r.build)) {
     console.log("Per phase (medians; the change phase only where the build passed):");

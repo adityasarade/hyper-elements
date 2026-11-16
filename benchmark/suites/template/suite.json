@@ -1,0 +1,31 @@
+{
+  "prompt": "Build the newsletter described in BRIEF.md, following CLAUDE.md. It's done when `node tools/check.mjs` passes.",
+  "packageName": "template",
+  "checker": [
+    {
+      "from": "../email/check.mjs",
+      "to": "tools/check.mjs"
+    },
+    {
+      "from": "check-guardrails.mjs",
+      "to": "tools/guardrails.mjs"
+    }
+  ],
+  "files": {
+    "tools/brand.json": "brand.json"
+  },
+  "render": "tools/render.mjs",
+  "guardrails": "tools/guardrails.mjs",
+  "groups": {
+    "email": [
+      "news-hiring",
+      "news-inbox",
+      "news-launch",
+      "news-pricing",
+      "news-summit"
+    ],
+    "authoring": [
+      "authoring"
+    ]
+  }
+}
