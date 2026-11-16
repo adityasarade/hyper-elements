@@ -13,7 +13,7 @@ import { isSlot, type ResolvedSlot } from "./slots";
 /** The shape of what `describe()` returns: a new version is a new shape. */
 export const DESCRIBE_VERSION = 1;
 
-export interface FieldDescription extends ImageRules {
+export interface FieldDescription extends Omit<ImageRules, "fit"> {
   /** Its path (`headline`); a list's items and an object's fields too (`stories[].image`). */
   path: string;
   /** "text", "list", "object", "date", "choice", "image", "link", "number", … */
@@ -26,6 +26,11 @@ export interface FieldDescription extends ImageRules {
   schema: JsonSchema;
   /** An image the template shows: its box in each format, and the pixels that box needs at the format's scale. */
   regions?: Record<string, { box: [number, number]; pixels: [number, number] } | "measured by check">;
+  /**
+   * An image's fit (`"contain"`, `"cover"`); or, for text a Canvas fits, by format, the sizes it may be drawn at and the
+   * lines it may take, from its bound node's fit.
+   */
+  fit?: "contain" | "cover" | Record<string, { sizes?: number[]; maxLines?: number }>;
   /** A cover image: the smallest size that fills every format's region without upscaling, and what each crops. */
   suggested?: { width: number; height: number; crop: Record<string, string> };
   /** A field of a block type (`body[].image`): that block's type. */
@@ -105,6 +110,20 @@ export function describeTemplate(
   laidOut: Array<{ format: string | undefined; values: Record<string, unknown>; root: import("@hyper-elements/core").ResolvedNode }>
 ): TemplateDescription {
   const regions = new Map<string, Record<string, { box: [number, number]; pixels: [number, number] } | "measured by check">>();
+  const fitted = new Map<string, Record<string, { sizes?: number[]; maxLines?: number }>>();
+  for (const { format, root } of laidOut) {
+    const visit = (node: import("@hyper-elements/core").ResolvedNode) => {
+      const fit = node.props.fit as { sizes?: number[]; maxLines?: number } | undefined;
+      if (node.field && fit) {
+        const pattern = node.field.replace(/\[\d+\]/g, "[]");
+        const byFormat = fitted.get(pattern) ?? {};
+        byFormat[format ?? "default"] ??= fit;
+        fitted.set(pattern, byFormat);
+      }
+      for (const child of node.children) if (typeof child !== "string") visit(child);
+    };
+    visit(root);
+  }
   for (const { format, values, root } of laidOut) {
     const scale = (format !== undefined && definition.formats?.[format]?.scale) || 1;
     for (const [path, region] of regionsOf(definition, values, root, scale)) {
@@ -140,6 +159,7 @@ export function describeTemplate(
           }
         : {}),
     };
+    if (fitted.has(path)) out.fit = fitted.get(path);
     const shown = regions.get(path);
     if (shown) {
       out.regions = shown;

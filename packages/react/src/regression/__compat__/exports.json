@@ -65,6 +65,7 @@
   "templateAssets"
  ],
  "./image": [
+  "layoutImage",
   "renderImage",
   "templateAssets"
  ],
@@ -72,6 +73,7 @@
   "CORE_RULES",
   "DESCRIBE_VERSION",
   "check",
+  "checkLayout",
   "field",
   "fitInside",
   "formatDate",

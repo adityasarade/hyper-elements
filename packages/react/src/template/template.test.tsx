@@ -304,7 +304,7 @@ describe("describe()", () => {
     const described = launch.describe();
     expect(described).toMatchObject({ version: 1, id: "acme.LaunchGraphic", templateVersion: "1.0.0", root: "Canvas", formats: launch.formats });
     const at = (path: string) => described.fields.find((f) => f.path === path)!;
-    expect(at("headline")).toMatchObject({ kind: "text", required: true, schema: { type: "string", maxLength: 90 } });
+    expect(at("headline")).toMatchObject({ kind: "text", required: true, schema: { type: "string", maxLength: 90 }, fit: { square: { sizes: [88, 76, 64], maxLines: 3 }, landscape: { sizes: [64, 56, 48], maxLines: 3 } } });
     expect(at("features")).toMatchObject({ kind: "list", schema: { type: "array", minItems: 3, maxItems: 3, items: { type: "string", maxLength: 48 } } });
     expect(at("launchDate")).toMatchObject({ kind: "date", schema: { type: "string", format: "date" } });
     expect(at("locale")).toMatchObject({ kind: "choice", default: "en-US", schema: { enum: ["en-US", "de-DE", "fr-FR"] } });

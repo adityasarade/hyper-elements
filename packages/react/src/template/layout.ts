@@ -3,7 +3,10 @@
  * an image file's size, type and transparency read from its header (`sniffImage()`), in plain JavaScript with no Node
  * API, so it runs wherever a template does.
  */
-import type { ImageType } from "./fields";
+import type { Diagnostic, PropSpecs } from "@hyper-elements/core";
+import { coverCrop } from "./checks";
+import { imagePaths, type ImageType } from "./fields";
+import type { RuleResult } from "./rules";
 
 /**
  * The size an image is shown at to fit whole inside `box`, at its own aspect: for a `contain` image's `style`, so a
@@ -105,25 +108,86 @@ function svg(bytes: Uint8Array): SniffedImage | undefined {
   return { width, height, type: "svg", alpha: true };
 }
 
-// ─── checkLayout(): its types (Phase 2 measures) ────────────────────────────
+// ─── checkLayout(): a measured layout checked by the template ───────────────
 
-/** What `checkLayout()` takes beside a template and its values: a layout measured by `layoutImage()` (Phase 2). */
+
+/** The part of `layoutImage()`'s result `checkLayout()` reads. */
+export interface MeasuredLayout {
+  nodes: ReadonlyArray<{ path: string; field?: string; type: string; width: number; height: number }>;
+  fits: ReadonlyArray<{ path: string; field?: string; sizes: number[]; chosen: number | null; next?: { size: number; lines: number; widestWord?: string } }>;
+  diagnostics: readonly Diagnostic[];
+}
+
+/** What `checkLayout()` takes beside a template and its values. */
 export interface CheckLayoutOptions {
   format?: string;
   /** Pixels per px, as it's rendered: the format's, or the caller's. */
   scale?: number;
   /** `layoutImage()`'s result for the format's snapshot. */
-  layout: unknown;
+  layout: MeasuredLayout;
   /** Each image field's file, sniffed (`sniffImage()`), by its field path. */
   files?: Record<string, SniffedImage>;
   /** `check()`'s result, whose measured rules this decides. */
-  checked?: { rules: ReadonlyArray<{ rule: string; source: string; format?: string; status: string }> };
+  checked?: { rules: readonly RuleResult[] };
 }
 
-/** What `checkLayout()` returns: each region's box and pixels, the fitted text, the rules complete, and what it found. */
+/** What `checkLayout()` returns: each region's box and pixels, the fitted text by field, the rules complete, and what it found. */
 export interface LayoutCheck {
   regions: Record<string, Record<string, { box: [number, number]; pixels: [number, number] }>>;
-  fits: unknown[];
-  rules: Array<{ rule: string; source: "lint" | "core" | "template"; format?: string; status: "passed" | "failed" | "not-run"; diagnostics: unknown[] }>;
-  diagnostics: unknown[];
+  fits: MeasuredLayout["fits"];
+  rules: RuleResult[];
+  diagnostics: Diagnostic[];
+}
+
+const fail = (code: string, message: string, path: string, field?: string): Diagnostic => ({ code, severity: "error", message, path, ...(field ? { field } : {}) });
+const round = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * A template's checks on a measured layout (`layoutImage()` of its snapshot): each image's region and the pixels it
+ * needs at the scale it's rendered, its file against its rules and its declared size, and the measured rules the
+ * template requires decided. Synchronous and pure: the caller measures, and sniffs the files.
+ */
+export function checkLayout(template: { id: string; fields: PropSpecs; formats?: Record<string, { scale?: number }> }, values: unknown, options: CheckLayoutOptions): LayoutCheck {
+  const format = options.format ?? "default";
+  const scale = options.scale ?? (options.format !== undefined ? template.formats?.[options.format]?.scale : undefined) ?? 1;
+  const diagnostics: Diagnostic[] = [];
+  const regions: LayoutCheck["regions"] = {};
+  const boxes = new Map<string, { width: number; height: number }>();
+  for (const node of options.layout.nodes) {
+    if (!node.field || node.type !== "Image" || boxes.has(node.field)) continue;
+    boxes.set(node.field, node);
+    regions[node.field] = { [format]: { box: [round(node.width), round(node.height)], pixels: [Math.round(node.width * scale), Math.round(node.height * scale)] } };
+  }
+  for (const { path, rules, value } of imagePaths(template.fields, values)) {
+    const declared = value as { width: number; height: number; src: string };
+    const file = options.files?.[path];
+    const at = `values.${path}`;
+    if (file) {
+      if (Math.abs(file.width - declared.width) > 0.5 || Math.abs(file.height - declared.height) > 0.5) {
+        diagnostics.push(fail("template/asset-size", `${path} says ${declared.width}×${declared.height}, and its file is ${file.width}×${file.height}: give the file's size`, at, path));
+      }
+      if (rules.accepts && !rules.accepts.includes(file.type)) diagnostics.push(fail("template/asset-type", `${path}'s file is ${file.type === "jpeg" ? "a JPEG" : `an ${file.type.toUpperCase()}`}; ${template.id} takes ${rules.accepts.map((t) => t.toUpperCase()).join(" or ")}`, at, path));
+      if (rules.transparent === "required" && !file.alpha) diagnostics.push(fail("template/asset-alpha", `${path} has no transparency; ${template.id} needs a transparent background`, at, path));
+      if (rules.transparent === "forbidden" && file.alpha) diagnostics.push(fail("template/asset-alpha", `${path} can be transparent; ${template.id} takes an image with no transparency`, at, path));
+    }
+    const box = boxes.get(path);
+    if (!box) continue;
+    const pixels = [box.width * scale, box.height * scale];
+    const size = file ?? declared;
+    if (size.width + 0.5 < pixels[0] || size.height + 0.5 < pixels[1]) {
+      diagnostics.push(fail("template/asset-pixels", `${path} is ${size.width}×${size.height}; its region needs ${Math.round(pixels[0])}×${Math.round(pixels[1])} at ${scale}× (it would be upscaled)`, at, path));
+    }
+    if (rules.fit === "cover" && rules.maxCrop !== undefined) {
+      const { share, side } = coverCrop(size, [box.width, box.height]);
+      if (share > rules.maxCrop + 1e-9) diagnostics.push(fail("template/asset-cropped", `${path} loses ${Math.round(share * 100)}% of its ${side} to fill its region; ${template.id} takes at most ${Math.round(rules.maxCrop * 100)}%`, at, path));
+    }
+  }
+  // The measured rules decided: failed where the layout found the rule's code, passed where it didn't.
+  const rules = (options.checked?.rules ?? []).map((result): RuleResult => {
+    if (result.status !== "not-run" || result.source !== "core" || (result.format !== undefined && options.format !== undefined && result.format !== options.format)) return result;
+    const found = options.layout.diagnostics.filter((d) => d.code === result.rule).map((d) => ({ ...d, severity: "error" as const, message: `${d.message} (required by ${template.id})` }));
+    diagnostics.push(...found);
+    return { ...result, status: found.length ? "failed" : "passed", diagnostics: found };
+  });
+  return { regions, fits: options.layout.fits, rules, diagnostics };
 }

@@ -118,6 +118,12 @@ An image with text needs at least one font. Text whose `fontFamily` has no file 
 
 `validate()` from `@hyper-elements/react` reports `image/unsupported` and `canvas/overflow` without rendering. The font and image checks need the files, so only `renderImage()` makes them.
 
+## Fitting text, measuring and strict
+
+A Heading or a Text in a Canvas takes `fit={{ sizes, maxLines }}`: `renderImage()` measures it with the fonts given and draws the largest size at which its lines, its widest word and any fixed-height box around it fit, or fails with `image/fit` naming the lines and roughly what to cut. `sizes` is a list of px sizes or `{ min, max, step }`; with only `maxLines` it checks the size the text has. The HTML preview draws the largest size.
+
+`layoutImage(design, { fonts, images, scale, strict })` measures without drawing: each block's box, each fitted node's sizes and the one chosen, and the characters no font covers. `strict: true` makes a missing font, weight or character, and content past the Canvas, errors; a template's design is drawn strict.
+
 ## Limits
 
 - **WOFF2 isn't drawn.** Satori reads TTF, OTF and WOFF. Give one of those.

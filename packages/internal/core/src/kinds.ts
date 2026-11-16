@@ -690,6 +690,60 @@ export function blocks(given: Record<string, Kind<any, Json>>, options: { min?: 
   });
 }
 
+/** A Heading's or a Text's fitting in a Canvas: the sizes it may be drawn at, and the lines it may take. */
+export type FitInput = { sizes?: readonly number[] | { min: number; max: number; step: number }; maxLines?: number };
+export type Fit = { sizes?: number[]; maxLines?: number };
+
+const MAX_FIT_SIZES = 32;
+
+/**
+ * `fit`: `sizes`, a list of px sizes or a range `{ min, max, step }` (read largest first, at most 32), and `maxLines`,
+ * at least one of the two. The image entry draws the largest size that fits; without sizes it only checks the lines.
+ */
+export function fit(): Kind<FitInput, Fit> {
+  const accepts = "{ sizes, maxLines }";
+  return kind<FitInput, Fit>({
+    name: "fit",
+    editor: "number",
+    accepts,
+    parse(input) {
+      if (!isObject(input)) return fail(`expected ${accepts}, not ${show(input)}`);
+      const extra = Object.keys(input).find((key) => key !== "sizes" && key !== "maxLines");
+      if (extra) return fail(`"${extra}" isn't part of fit; it takes sizes and maxLines`);
+      const { sizes, maxLines } = input as { sizes?: unknown; maxLines?: unknown };
+      if (sizes === undefined && maxLines === undefined) return fail("fit takes sizes, maxLines, or both");
+      const out: Fit = {};
+      if (maxLines !== undefined) {
+        if (typeof maxLines !== "number" || !Number.isInteger(maxLines) || maxLines < 1) return fail(`maxLines is a whole number from 1, not ${show(maxLines)}`);
+        out.maxLines = maxLines;
+      }
+      if (sizes !== undefined) {
+        let list: number[];
+        if (Array.isArray(sizes)) list = sizes as number[];
+        else if (isObject(sizes)) {
+          const { min, max, step } = sizes as { min?: unknown; max?: unknown; step?: unknown };
+          if ([min, max, step].some((n) => typeof n !== "number" || !(n > 0)) || (min as number) > (max as number)) return fail("a range of sizes is { min, max, step }, each above 0, min no more than max");
+          list = [];
+          for (let size = max as number; size >= (min as number) - 1e-9 && list.length <= MAX_FIT_SIZES; size -= step as number) list.push(Math.round(size * 100) / 100);
+        } else return fail(`sizes is a list of px sizes or { min, max, step }, not ${show(sizes)}`);
+        if (!list.length || list.some((n) => typeof n !== "number" || !(n > 0))) return fail("sizes are px sizes above 0");
+        const sorted = [...new Set(list)].sort((a, b) => b - a);
+        if (sorted.length > MAX_FIT_SIZES) return fail(`fit tries at most ${MAX_FIT_SIZES} sizes; this gives ${sorted.length}`);
+        out.sizes = sorted;
+      }
+      return ok(out);
+    },
+    jsonSchema: () => ({
+      type: "object",
+      properties: {
+        sizes: { anyOf: [{ type: "array", items: { type: "number", exclusiveMinimum: 0 }, minItems: 1, maxItems: MAX_FIT_SIZES }, { type: "object", required: ["min", "max", "step"], properties: { min: { type: "number" }, max: { type: "number" }, step: { type: "number" } }, additionalProperties: false }] },
+        maxLines: { type: "integer", minimum: 1 },
+      },
+      additionalProperties: false,
+    }),
+  });
+}
+
 const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /** A calendar date, as ISO's `YYYY-MM-DD` ("2026-12-03"): a real day, with no time or time zone. */

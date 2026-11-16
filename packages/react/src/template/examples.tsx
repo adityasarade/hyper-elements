@@ -48,7 +48,7 @@ export const launch = template({
     const shot = fitInside(v.screenshot, square ? { width: 860, height: 340 } : { width: 440, height: 480 });
     const words = (
       <Column style={{ gap: 24, ...(square ? {} : { width: 520 }) }}>
-        <Heading field="headline" level={1} style={{ fontSize: square ? 76 : 56, lineHeight: 1.1 }}>
+        <Heading field="headline" level={1} fit={{ sizes: square ? [88, 76, 64] : [64, 56, 48], maxLines: 3 }} style={{ lineHeight: 1.1 }}>
           {v.headline}
         </Heading>
         <List style={{ gap: 8 }}>
