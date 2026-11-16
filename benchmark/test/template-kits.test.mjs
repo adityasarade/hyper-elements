@@ -32,7 +32,7 @@ test("each production kit extends its authoring kit, with the maintainers' brand
 
 test("the newsletter briefs run in the production kits, the authoring brief in the authoring kits", async () => {
   const suite = await suiteOf("template");
-  assert.deepEqual(Object.keys(suite.groups), ["email", "authoring"]);
+  assert.deepEqual(Object.keys(suite.groups).slice(0, 2), ["email", "authoring"]);
   const email = await briefsOf("template", "email");
   assert.equal(email.length, 5);
   await assert.rejects(briefsOf("template", "all"), /takes a group/);
@@ -54,6 +54,35 @@ test("a newsletter run gets the email check and the guardrails; an authoring run
   for (const f of ["tools/email-check.mjs", "tools/guardrails.mjs", "tools/adapter.mjs", "tools/bodies/raw.json"]) assert.ok(existsSync(join(author, f)), f);
   assert.ok(!existsSync(join(author, "emails/brand.tsx")), "the authoring agent writes the brand files itself");
   assert.ok(!existsSync(join(author, "tools/brand-reference.json")));
+});
+
+test("the launch kits: each production kit extends its authoring kit, each revise kit its production kit, with its start", async () => {
+  for (const kit of ["launch-he", "launch-satori", "launch-playwright"]) {
+    assert.deepEqual((await kitOf("template", kit)).dirs.map((d) => d.split("/").pop()), [`${kit}-author`, kit]);
+    const revise = await kitOf("template", `${kit}-revise`);
+    assert.deepEqual(revise.dirs.map((d) => d.split("/").pop()), [`${kit}-author`, kit, `${kit}-revise`]);
+    assert.ok(existsSync(join(revise.dir, "tools/start/designs")), `${kit}-revise: its start`);
+  }
+  const groups = (await suiteOf("template")).groups;
+  assert.equal(groups.launch.length, 5);
+  assert.equal(groups["launch-hostile"].length, 7);
+  assert.deepEqual(groups["launch-revision"], ["launch-r-date", "launch-r-feature"]);
+});
+
+test("a launch run gets both formats' specs, the image checker, the launch check and the two-format render tool", async () => {
+  const run = await makeRun("template", "launch-satori", "launch-launch", "0", root);
+  for (const f of ["tools/check.mjs", "tools/image-check.mjs", "tools/ocr.mjs", "tools/pixels.mjs", "tools/trace.mjs", "tools/render.mjs", "tools/render-launch.mjs", "tools/brand-launch.json", "tools/spec-square.json", "tools/spec-landscape.json", "templates/launch.tsx", "cards/render.tsx", "fonts/Inter-Bold.ttf", "assets/orbit-logo-white.png", "art/shot-launch.png"]) assert.ok(existsSync(join(run, f)), f);
+  assert.ok(!existsSync(join(run, "art/MANIFEST.json")) && !existsSync(join(run, "art/make.mjs")));
+  assert.match(readFileSync(join(run, "tools/check.mjs"), "utf8"), /launch graphic check/);
+  assert.deepEqual(JSON.parse(readFileSync(join(run, "tools/spec-landscape.json"), "utf8")).size, [1200, 630]);
+  const nobold = await makeRun("template", "launch-he", "launch-h-nobold", "0", root);
+  assert.ok(existsSync(join(nobold, "fonts/Inter-Regular.ttf")) && !existsSync(join(nobold, "fonts/Inter-Bold.ttf")), "no bold file");
+  const revision = await makeRun("template", "launch-he-revise", "launch-r-date", "0", root);
+  assert.match(readFileSync(join(revision, "tools/check.mjs"), "utf8"), /revision check/);
+  assert.ok(existsSync(join(revision, "tools/check-launch.mjs")) && existsSync(join(revision, "designs/launch.tsx")));
+  const authoring = await makeRun("template", "launch-playwright-author", "launch-authoring", "0", root);
+  assert.ok(existsSync(join(authoring, "tools/values.json")) && existsSync(join(authoring, "tools/reference-design.mjs")));
+  assert.ok(!existsSync(join(authoring, "templates/launch.ts")), "the authoring agent writes the template itself");
 });
 
 test("the report gives the guardrails each issue broke, and the authoring runs' hostile bodies", () => {

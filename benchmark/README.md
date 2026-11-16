@@ -11,9 +11,9 @@ Four suites, each with its own briefs, kits and checker, run by one harness (`li
   `@napi-rs/canvas`.
 - **skill** (`suites/skill`): evals of Hyper Elements' agent guide and skill: this checkout's against the last
   release's, with Hyper Elements only. Its results aren't published.
-- **template** (`suites/template`): a brand's newsletter, made from its reusable kit (a Hyper Elements template, a
-  React Email layout, MJML includes, a hand-written HTML starter): what each lets past the brand's guardrails, and
-  writing the kit itself.
+- **template** (`suites/template`): a brand's newsletter and launch graphic, made from its reusable kit (a Hyper
+  Elements template, against a React Email layout, MJML includes and a hand-written HTML starter; or against Satori
+  and Playwright templates): what each lets past the brand's guardrails, revising one, and writing the kit itself.
 
 ## How a run works
 
@@ -163,8 +163,54 @@ footer, link domains and UTM tag).
 
   `--write-references` writes each kit's `tools/brand-reference.json` from its first brief's reference.
 
-The plan's second task for this suite, a launch graphic in two formats (fitting, regions, revision locality and
-hostile copy, with the image suite's checker), isn't here yet.
+**The launch graphic** (the `launch` groups): Orbit's launch graphic in two formats, square (1080×1080) and landscape
+(1200×630), from `suites/template/launch/brand.json` (the card, the logo, each format's regions, the fonts and colors,
+the screenshot's shapes). The pictures are files (`art/`, drawn by `art/make.mjs`: product screenshots, and artwork
+standing in for an image provider), so no model call varies; the briefs are written by `launch/make-briefs.mjs`.
+
+- **Kits**, each with the maintainers' reusable template (so authoring quality doesn't change the other stages):
+  - `launch-he`: a template (`orbit.LaunchGraphic`, a Canvas with both formats, the headline fitted, the screenshot
+    an image field with its aspect range, the artwork another, its measured rules required). The agent writes
+    `designs/launch.tsx`, a design whose root is the template; `cards/render.tsx` checks it and draws each format
+    from the snapshot its check returns.
+  - `launch-satori`: `templates/launch.tsx`'s `render(values, format)`, drawn with Satori and resvg, its headline's
+    size picked by length (Satori can't measure before it draws).
+  - `launch-playwright`: `templates/launch.ts`'s `render(values, format)`, an HTML and CSS page whose headline is
+    fitted in `page.evaluate()` after `document.fonts.ready`, screenshotted by Chromium.
+
+  The agent writes the launch's values (`designs/launch.tsx`, or `designs/launch.json`). `tools/render-launch.mjs`
+  runs the image suite's render tool once per format (`LAUNCH_FORMAT`), so each format has its image and its trace.
+- **The check** (`check-launch.mjs`, the run's `tools/check.mjs`): each format with the image suite's checker:
+  - the copy, and its font, size and color, from the trace (a fitted headline at one of its sizes: a spec's `sizes`);
+  - the logo and the screenshot found whole at their widths, each searched in its region (a spec's `within`);
+  - the text read by OCR, on at most its lines, in the safe margin.
+
+  Then Orbit's rules: only Inter, nothing drawn outside the regions, the artwork covering its region, and the
+  screenshot at a shape the brand takes. Each format's outcome is `correct`, `failed` (not drawn, with the reason) or
+  `escaped` (drawn off the brand).
+- **Production** (`launch`, five briefs) and **hostile** (`launch-hostile`, seven):
+  - a 140-character headline, and one that needs four lines;
+  - German copy, and Arabic copy with no Arabic font;
+  - a 4:1 screenshot;
+  - no bold font file;
+  - an instruction to change the font and move the logo.
+
+  A hostile run is scored on its outcome: an actionable failure or a correct render, against a violation that
+  escaped.
+- **Revision** (`launch-revision`: the date, then a feature). The `*-revise` kits start from a finished launch, which
+  `tools/start/` keeps too. The check (`check-revision.mjs`) checks the result as any launch is checked. It then draws
+  the start again to compare: no pixel outside the changed field's region may differ, in either format, and the
+  artwork's file and reference must be the provider's.
+- **Authoring** (`launch-authoring`): each `*-author` kit's agent writes the reusable template from a written spec.
+  The check (`check-launch-authoring.mjs`) writes a reference launch as the kit's design and checks both formats.
+- **The self-test** (`--only launch-refs,launch-negative,launch-hostile,launch-revision,launch-authoring`):
+  - every kit's reference of every launch passes;
+  - six broken references each fail the check named (the logo moved, the screenshot cropped, another font, a feature
+    cut short, no artwork, the headline's color);
+  - the template turns every hostile launch into an actionable failure or a correct render, with none escaping, and
+    no kit's off-brand launch passes the check;
+  - each kit's revisions pass, and one that redraws more fails;
+  - each kit's maintainers' template passes the authoring check.
 
 ## Skill suite
 
@@ -453,6 +499,10 @@ npm run selftest                                                # the image chec
 npm run selftest:template                                       # the template suite's checkers; no API
 npm run bench -- --suite template --kits he,react-email,mjml,html --briefs email --reps 3 --model sonnet --concurrency 4
 npm run bench -- --suite template --kits he-author,react-email-author,mjml-author,html-author --briefs authoring --reps 3 --model sonnet --concurrency 4
+npm run bench -- --suite template --kits launch-he,launch-satori,launch-playwright --briefs launch --reps 3 --model sonnet --concurrency 3
+npm run bench -- --suite template --kits launch-he,launch-satori,launch-playwright --briefs launch-hostile --reps 2 --model sonnet --concurrency 3
+npm run bench -- --suite template --kits launch-he-revise,launch-satori-revise,launch-playwright-revise --briefs launch-revision --reps 3 --model sonnet --concurrency 3
+npm run bench -- --suite template --kits launch-he-author,launch-satori-author,launch-playwright-author --briefs launch-authoring --reps 3 --model sonnet --concurrency 3
 npm run bench -- --suite image --kits he,playwright,canvas --briefs all --reps 4 --model sonnet --concurrency 4
 npm run report -- results/<stamp>-<suite>-sonnet.jsonl
 npm run charts                                                  # the README's and the website's two charts; no API
