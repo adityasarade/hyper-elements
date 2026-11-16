@@ -8,7 +8,7 @@ const dist = resolve(fileURLToPath(new URL("../dist/", import.meta.url)));
 const index = readFileSync(join(dist, "blog/index.html"), "utf8");
 const sitemap = readFileSync(join(dist, "sitemap-0.xml"), "utf8");
 const articles = [
-  { slug: "html-email-checks-github-actions", description: "Check existing HTML emails in GitHub Actions", hero: "html-email-ci-workflow.webp" },
+  { slug: "html-email-checks-github-actions", description: "Check existing HTML emails in GitHub Actions", hero: "html-email-ci-workflow-labeled.webp" },
   { slug: "node-open-graph-images-local-fonts", description: "Generate branded Open Graph PNGs", hero: "node-open-graph-images-workflow.webp" },
   { slug: "react-emails-claude-code", description: "Build a receipt email", hero: "claude-code-email-loop.webp" },
   { slug: "node-pdf-invoices-without-chrome", description: "Build a React invoice PDF", hero: "node-pdf-invoices-workflow.webp" },

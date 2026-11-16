@@ -3,8 +3,8 @@ title: "Check HTML emails in GitHub Actions without rewriting your templates"
 description: "Check existing HTML emails in GitHub Actions with Hyper Elements, fail on warnings, and keep machine-readable diagnostics without changing template frameworks."
 slug: "html-email-checks-github-actions"
 date: 2026-11-16
-hero: "/img/blog/html-email-ci-workflow.webp"
-heroAlt: "An HTML email passes through CLI checks before a pull request is merged."
+hero: "/img/blog/html-email-ci-workflow-labeled.webp"
+heroAlt: "An email.html file passes through checks and a Fix + recheck loop before a PR check passes, with a diagnostics.jsonl report alongside it."
 ---
 
 You can check an existing HTML email in GitHub Actions with `@hyper-elements/cli`: install the CLI, pass it the exported HTML file, and let its exit status fail the job. Add `--max-warnings 0` when warnings should block a change. You don’t need to rewrite the email in React or move it out of MJML, React Email, or your current builder.
