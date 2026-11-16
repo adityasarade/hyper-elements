@@ -124,14 +124,16 @@ jobs:
       # 322,000 bytes for defineProperty(): a team's own property as data (one of prop's
       # helpers, its editor's name and its options, each checked by its kind), a text's enum,
       # and what's refused of one; 323,300 bytes for prop's helpers refusing an option they
-      # don't take (an editor named by its name among them) and a color's transparency.
+      # don't take (an editor named by its name among them) and a color's transparency;
+      # 324,400 bytes for a theme's `elements` read beside `components`, its name before (1,021
+      # bytes measured, with the messages that say "element").
       - name: Check main entry bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
           test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=323300
+          MAX_SIZE=324400
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::Main entry bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -158,13 +160,14 @@ jobs:
       # for every kind of prop and a team's own editors; and what the builder keeps on
       # such a block that isn't read, said as a built-in block's is); 495,500 bytes for
       # fromDesign()'s code writing each such component by the name its type ends with,
-      # with its namespace where that's another's too.
+      # with its namespace where that's another's too;
+      # 496,500 bytes for a theme's `elements` beside `components` (984 bytes measured).
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=495500
+          MAX_SIZE=496500
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -179,13 +182,13 @@ jobs:
       # preview shell, and the runtime each preview file carries (the frames, fonts, images
       # and findings around the models, minified, about 8KB). The models are their own
       # package (a dependency, not bundled), and so is core (external). Set from that plus
-      # 2,000 bytes. Raise it on purpose, with what grew.
+      # 2,000 bytes. Raise it on purpose, with what grew. Raised 400 bytes with Outlook for Mac's previews (about 125).
       - name: Check email client previews bundle size
         run: |
           BUNDLE="packages/email-clients/dist/index.js"
           test -s "$BUNDLE" && test -s "packages/email-clients/dist/index.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=62400
+          MAX_SIZE=62800
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::Email client previews bundle size $SIZE exceeds budget of $MAX_SIZE bytes"

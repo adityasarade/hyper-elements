@@ -59,8 +59,8 @@ Give the commands files or folders. A folder is searched for templates, leaving 
 | `check <files or folders…>` | Runs `validate()` with the email client checks, and writes nothing |
 | `outline <file>` | Prints the template laid out, each block with its width, as [`outline()`](/docs/rendering#outline) does |
 | `preview <files or folders…>` | Writes each Email as the email clients show it, one file per client, with the [email client emulator](/docs/email-client-emulator) |
-| `inspect <files or folders…>` | Lists each component of a template, what it's given, whether its root takes it and the problems found on it |
-| `describe [Component]` | Lists the components a template can use, with their props and styles; `--root Email` narrows it to what that root takes |
+| `inspect <files or folders…>` | Lists each element of a template, what it's given, whether its root takes it and the problems found on it |
+| `describe [Element]` | Lists the elements a template can use, with their props and styles; `--root Email` narrows it to what that root takes |
 | `dev <files or folders…>` | Serves a page on `127.0.0.1` that shows each template, rendered again when the project changes |
 | `migrate …` | Runs [`@hyper-elements/migrate`](/docs/migrate/react-email) with the arguments given |
 
@@ -142,6 +142,8 @@ A preview file draws the email when a browser opens it, and lists what the clien
 Nothing is sent anywhere to be drawn: the requests a preview makes are its stand-in fonts from jsDelivr (`--fonts inline` puts them in each file) and the email's own images and web fonts.
 
 ## Any HTML email
+
+To try the client previews before installing anything, open the [email testing playground](/email-testing). It runs the email-clients package in your browser; the CLI also adds lint checks.
 
 `check` and `preview` also take an HTML email however it was made (MJML, React Email, by hand, an email builder's export): an `.html` or `.htm` file given by name, or `-` to read one from stdin. No template code runs, so neither React nor Elements is needed:
 

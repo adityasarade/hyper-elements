@@ -6,7 +6,7 @@
 
 <p align="center">
   <strong>Build emails, web pages, PDFs, and images with React.</strong><br />
-  One component system for developers and AI agents.
+  One set of elements for developers and AI agents.
 </p>
 
 <p align="center">
@@ -26,10 +26,10 @@
   <a href="https://hyperelements.dev">Website</a>
 </p>
 
-Hyper Elements is an open-source React library for generating content. Write a receipt, invoice, landing page, or social card with typed components. The engine handles layout and the markup each output needs, including email tables and responsive web HTML.
+Hyper Elements is an open-source React library for generating content. Write a receipt, invoice, landing page, or social card with typed elements. The engine handles layout and the markup each output needs, including email tables and responsive web HTML.
 
 - **Reuse your work across formats.** Share content, styles, and components between an email, its web version, and a PDF.
-- **Keep every output on brand.** Define colors, fonts, sizes, and component styles once in a theme, and every email, page, PDF, and image that uses it follows.
+- **Keep every output on brand.** Define colors, fonts, sizes, and element styles once in a theme, and every email, page, PDF, and image that uses it follows.
 - **Give agents useful feedback.** Validate templates, inspect layouts as text, and get diagnostics that explain where a problem is and how to fix it.
 - **Test existing HTML emails locally.** Check and preview Outlook, Gmail and Apple Mail with the companion JavaScript library or CLI. Works with HTML from MJML, React Email or any email builder; no React required, no test sends, no account, nothing uploaded.
 - **Render in your own app.** Generate output on your server, with no browser, hosted service, or API key required.
@@ -77,7 +77,7 @@ const { html: pageHtml } = await render(<Page width={960}>{content}</Page>);
 
 ## Choose your output
 
-Use the same layout and content components under the root for your destination:
+Use the same layout and content elements under the root for your destination:
 
 | Build | Root | Render to |
 | --- | --- | --- |
@@ -96,15 +96,23 @@ Give Claude Code, Codex, Cursor, or another coding agent the guide:
 npx skills add hyper-elements/hyper-elements
 ```
 
+It offers two skills: [`hyper-elements`](./skills/hyper-elements/SKILL.md), the guide for writing templates, and
+[`email-testing`](./skills/email-testing/SKILL.md), for previewing and checking any email (a template or HTML from
+anywhere) in Outlook, Gmail and the other clients. `--skill email-testing` installs that one alone.
+
+In Claude Code they're plugins too: `/plugin marketplace add hyper-elements/hyper-elements`, then
+`/plugin install email-testing@hyper-elements` or `/plugin install hyper-elements@hyper-elements`.
+
 Or add this to your project's `AGENTS.md` or agent rules:
 
 ```text
-Before writing a Hyper Elements template, read
+Templates use Hyper Elements (@hyper-elements/react). If it isn't installed, install it
+with react and react-dom. Before writing a template, read
 node_modules/@hyper-elements/react/GUIDE.md.
 Validate the template, fix errors, review warnings, and inspect outline() before rendering.
 ```
 
-The package includes `GUIDE.md` and `REFERENCE.md`, generated from its component definitions so they match the version you installed. Web-based agents can use [llms.txt](https://hyperelements.dev/llms.txt) or [llms-full.txt](https://hyperelements.dev/llms-full.txt).
+The package includes `GUIDE.md` and `REFERENCE.md`, generated from its element definitions so they match the version you installed. Web-based agents can use [llms.txt](https://hyperelements.dev/llms.txt) or [llms-full.txt](https://hyperelements.dev/llms-full.txt).
 
 ### A feedback loop the agent can read
 
@@ -139,6 +147,9 @@ The same loop runs from the shell, with no script, using [`@hyper-elements/cli`]
 ## Preview and test emails in Outlook and Gmail locally
 
 `@hyper-elements/email-clients` is a free JavaScript and TypeScript library for checking existing HTML emails and previewing Outlook, Gmail and Apple Mail locally. Give it the complete HTML from MJML, React Email, an email builder, or a hand-written email. No React is required, and the email is never sent or uploaded.
+
+An agent can do all of this from the [email-testing skill](./skills/email-testing/SKILL.md): the commands, each client's
+screenshot, and what it changed.
 
 ```bash
 npm install @hyper-elements/email-clients
@@ -216,7 +227,7 @@ All 60 isolated runs passed the same text, font, image and layout checks: five b
 
 ## Keep building
 
-- **Start from a design:** [Templates](https://hyperelements.dev/templates) · [Component gallery](https://hyperelements.dev/components)
+- **Start from a design:** [Templates](https://hyperelements.dev/templates) · [Element gallery](https://hyperelements.dev/components)
 - **Learn the API:** [Writing guide](./packages/react/GUIDE.md) · [Full reference](./packages/react/REFERENCE.md)
 - **Stay on brand:** [Themes](https://hyperelements.dev/docs/themes)
 - **Test in email clients:** [Email client emulator](https://hyperelements.dev/docs/email-client-emulator) · [Email client checks](https://hyperelements.dev/docs/diagnostics)

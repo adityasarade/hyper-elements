@@ -10,11 +10,13 @@ npx @hyper-elements/migrate emails           # converts and checks your template
 npx @hyper-elements/migrate emails --write   # then replaces them (committed in git first, so git can undo it)
 ```
 
+Still weighing a React Email alternative? [Hyper Elements vs React Email](/compare/react-email) compares the two side by side.
+
 Run it from your project folder, with Node.js 20.6 or later. It uses your project's React, React Email and `tsconfig` paths.
 
 ## What it converts
 
-Each template becomes the components from `@hyper-elements/react`, with its styles in `style={{ }}`:
+Each template becomes the elements from `@hyper-elements/react`, with its styles in `style={{ }}`:
 
 | React Email | Hyper Elements |
 |---|---|
@@ -126,7 +128,7 @@ npx @hyper-elements/migrate compare emails/welcome.tsx emails/welcome.elements.t
 
 `compare` renders both with the original's `PreviewProps`, then with each true/false prop flipped, and checks the HTML and the design JSON: every word, link, image and `alt` text is still there, no new words appear, and the visual editor gets every block. What looks different is listed. Exit `0` when the content is the same, `2` with missing or extra content (with `--strict`, with any difference).
 
-Use it after you convert a `TODO(convert)` block by hand: replace it with the new components, then run `compare` against the original (from git, if `--write` replaced it).
+Use it after you convert a `TODO(convert)` block by hand: replace it with the new elements, then run `compare` against the original (from git, if `--write` replaced it).
 
 ## How well it works
 
@@ -160,7 +162,7 @@ The report lists every difference for each template. The common ones:
 
 ## A template that can't be converted
 
-A template that can't be written in the components at all fails: nothing is written for it, the report says why, and the run exits `2`. Rewrite that part by hand, then check it against the React Email original with `npx @hyper-elements/migrate compare <original> <migrated>`.
+A template that can't be written in the elements at all fails: nothing is written for it, the report says why, and the run exits `2`. Rewrite that part by hand, then check it against the React Email original with `npx @hyper-elements/migrate compare <original> <migrated>`.
 
 ## After migrating
 
@@ -217,13 +219,13 @@ import { convertReactEmail, NewComponentsError } from "@hyper-elements/migrate/r
 import Welcome from "./emails/welcome";
 
 const conversion = await convertReactEmail(Welcome); // rendered with its PreviewProps, and checked against it
-const tsx = conversion.code;                  // the template in the components
+const tsx = conversion.code;                  // the template in the elements
 const html = await conversion.html();
 const design = conversion.design();           // open in the visual editor with loadDesign()
 const customFonts = conversion.editorFonts(); // register when creating the editor: fonts: { customFonts }
 conversion.report.missingText;                // [] when nothing was lost
 ```
 
-`convertReactEmail()` converts what a template renders: loops and conditions become the content they produced (the CLI keeps them). Where that can't be written in the components, it throws a `NewComponentsError`, whose `reason` says why.
+`convertReactEmail()` converts what a template renders: loops and conditions become the content they produced (the CLI keeps them). Where that can't be written in the elements, it throws a `NewComponentsError`, whose `reason` says why.
 
 > **Warning:** The command runs your templates to check them: a template's module code runs, and its component renders, as React Email's preview does. Run it only on code you trust. It makes no network requests.

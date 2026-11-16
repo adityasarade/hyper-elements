@@ -10,21 +10,26 @@ description: "Check existing HTML emails and preview Outlook, Gmail and Apple Ma
 
 ## Supported email clients
 
+[Try the email testing playground](/email-testing) to paste an existing HTML email, select clients, and inspect previews and compatibility findings in your browser.
+
 Accuracy is how closely the emulator matches each real client for emails.
 
 | Client | ID | Accuracy |
 |--------|------|----------|
 | Classic Outlook for Windows | `outlook` | 97% |
 | Outlook.com and new Outlook | `outlook-com`, `outlook-com.mac` | 99% |
+| Outlook for Mac, light and dark | `outlook-mac`, `outlook-mac.dark` | 98% |
 | Gmail on the web | `gmail`, `gmail.mac` | 99% |
 | Gmail app on Android | `gmail-app`, `gmail-app-other` | 98% |
 | Gmail app on an iPhone | `gmail-app.iphone` | 97% |
 | Apple Mail on a Mac, light and dark | `apple-mail`, `apple-mail.dark` | 98% |
 | Apple Mail on an iPhone, light and dark | `apple-mail.iphone`, `apple-mail.iphone.dark` | 98% |
+| Yahoo Mail, light and dark | `yahoo`, `yahoo.mac`, `yahoo.dark`, `yahoo.mac.dark` | 99% |
+| AOL Mail | `aol`, `aol.mac` | 99% |
 
 More email clients are on the way.
 
-Name the clients you want with `emailClients: ["outlook", "gmail-app"]`; without it you get the default set (see [Options](#options)). `apple-mail` is previewed on a Mac and on an iPhone, 393px wide, and `gmail-app` on Android and on an iPhone, 345px wide. `gmail-app-other` is a non-Gmail account in the Gmail app, which drops the email's `<style>`.
+Name the clients you want with `emailClients: ["outlook", "gmail-app"]`; without it you get the default set (see [Options](#options)). `apple-mail` is previewed on a Mac and on an iPhone, 393px wide, and `gmail-app` on Android and on an iPhone, 345px wide. `gmail-app-other` is a non-Gmail account in the Gmail app, which drops the email's `<style>`. `yahoo` and `aol` are drawn in their message panes, 758px and 869px wide. AOL Mail's dark mode leaves the email as it is, so `aol.dark` matches `aol`.
 
 ## Test a Hyper Elements email
 
@@ -171,16 +176,16 @@ For an agent or a CI job that wants what each client changed as data, there are 
 | What you get | A preview per client, and what each one changed | A screenshot per client |
 | Clients | The clients above, with more on the way | Dozens, on real devices |
 
-Use the emulator in the loop, on every change; use a screenshot service, or a real inbox, for a final check across many clients.
+Use the emulator in the loop, on every change; use a screenshot service, or a real inbox, for a final check across many clients. [Litmus alternatives](/alternatives/litmus) compares Hyper Elements with Litmus, Parcel and Mailosaur.
 
 ## Options
 
 | Option | What it does |
 |--------|--------------|
 | `emailClients` | The clients to emulate (default: `outlook`, `outlook-com`, `gmail`, `apple-mail`) |
-| `dark` | Also a dark-mode preview, for the clients that have one (Apple Mail, on a Mac and an iPhone, today) |
+| `dark` | Also a dark-mode preview, for the clients that have one (Apple Mail on a Mac and an iPhone, Outlook for Mac, Yahoo Mail and AOL Mail, today) |
 | `widths` | The width a client's preview draws the email at, where it isn't the client's own: `{ "outlook-com": 540 }` for Outlook.com's reading pane beside the message list. Webmail matches media queries at the browser window's width, not the pane's, so a narrow pane keeps the email's desktop styles, as it does for its readers |
-| `computers` | Webmail draws with the reader's computer's fonts. Outlook.com and Gmail on the web are each previewed on Windows (`outlook-com`, `gmail`) and on a Mac (`outlook-com.mac`, `gmail.mac`). `computers: ["windows"]` keeps one |
+| `computers` | Webmail draws with the reader's computer's fonts. Outlook.com, Gmail, Yahoo Mail and AOL Mail on the web are each previewed on Windows (`outlook-com`, `gmail`, `yahoo`, `aol`) and on a Mac (`outlook-com.mac`, `gmail.mac`, `yahoo.mac`, `aol.mac`). `computers: ["windows"]` keeps one |
 | `fonts` | `"url"` (the default) loads the open fonts the previews draw with from a CDN; `"inline"` puts them in each preview, so it draws offline |
 | `plugins`, and `render()`'s other options | Passed to `render()`. The email client checks for the clients emulated are added for you |
 
@@ -213,7 +218,7 @@ const { diagnostics } = validate(welcome, { plugins: [await emailClients()] });
 // info email/outlook-degraded … borderRadius on this Column in classic Outlook: square corners [outlook]
 ```
 
-The checks cover more clients than the emulator (Yahoo, AOL, Outlook for Mac and others, from caniemail's tables).
+The checks cover more clients than the emulator (the Outlook app, Samsung Email and others, from caniemail's tables).
 
 ## Common questions
 
