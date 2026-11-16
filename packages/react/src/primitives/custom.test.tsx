@@ -396,6 +396,39 @@ describe("component()", () => {
     expectTypeOf<Parameters<typeof Card>[0]["tint"]>().toEqualTypeOf<string | Token | undefined>();
   });
 
+  it("keeps which property a prop is in its type: its name as written and its options, through its helper and a component", () => {
+    const accent = defineProperty({ name: "acme.accent", base: prop.color, options: { palette: prop.text({ enum: ["soft", "bold"], default: "soft" }) } });
+    // On the same helper with the same options: only its name tells it from the other.
+    const shade = defineProperty({ name: "acme.shade", base: prop.color, options: { palette: prop.text({ enum: ["soft", "bold"], default: "soft" }) } });
+    const background = accent({ label: "Background", default: "#fff4bf", transparency: false });
+    const Note = component({
+      type: "acme.Note",
+      label: "Note",
+      props: { background, border: shade({ label: "Border", palette: "bold" }), size: prop.number({ label: "Size" }) },
+      render: (p) => <Text style={{ backgroundColor: p.background, color: p.border }}>Note</Text>,
+    });
+    expectTypeOf(accent.name).toEqualTypeOf<"acme.accent">();
+    expectTypeOf(background.editor.name).toEqualTypeOf<"acme.accent">();
+    expectTypeOf(Note.definition.props.background.editor.name).toEqualTypeOf<"acme.accent">();
+    expectTypeOf(Note.definition.props.border.editor.name).toEqualTypeOf<"acme.shade">();
+    // Its options as its editor is given them: one with a default is always there.
+    expectTypeOf(background.editor.options.palette).toEqualTypeOf<"soft" | "bold">();
+    // What an editing app reads from a component's props, as types: the properties it needs editors for. A prop of
+    // prop's own helpers is none of them.
+    type Needed<P> = { [K in keyof P]: P[K] extends { readonly editor: { readonly name: infer N } } ? N : never }[keyof P];
+    expectTypeOf<Needed<typeof Note.definition.props>>().toEqualTypeOf<"acme.accent" | "acme.shade">();
+    // The types say what's there at run time.
+    expect([background.editor.name, Note.definition.props.border.editor.name, background.editor.options, Note.definition.props.border.editor.options]).toEqual([
+      "acme.accent",
+      "acme.shade",
+      { palette: "soft" },
+      { palette: "bold" },
+    ]);
+    // A name known only as a text stays one.
+    const named: string = "acme.dynamic";
+    expectTypeOf(defineProperty({ name: named, base: prop.number }).name).toEqualTypeOf<string>();
+  });
+
   it("refuses a property's definition that isn't one: its name, its base, an option", () => {
     for (const name of ["currency", "Acme.currency", "acme.", "acme.two words"]) {
       expect(() => defineProperty({ name, base: prop.number })).toThrow(`A property's name is a namespace, a dot and a word ("acme.currency"), not ${JSON.stringify(name)}`);

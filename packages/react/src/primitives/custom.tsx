@@ -64,21 +64,24 @@ type KindHelper<K extends Kind<any, any>, X = unknown, Mark = unknown> = <const 
 type TextKind<V> = V extends readonly string[] ? Kind<V[number], V[number]> : Kind<string, string>;
 type LengthKind<U extends LengthUnit> = ReturnType<typeof length<U>>;
 
-/** `prop`'s helpers a property of a team's own can be made on (`defineProperty()`'s `base`), each taking `X` besides. */
-interface Helpers<X = unknown> {
+/**
+ * `prop`'s helpers a property of a team's own can be made on (`defineProperty()`'s `base`), each taking `X` besides
+ * and making its prop with `Mark` besides (a property's: which property it is).
+ */
+interface Helpers<X = unknown, Mark = unknown> {
   text: <const V extends readonly string[] | undefined = undefined, const R extends boolean = false, const D extends OutputOf<TextKind<V>> | undefined = undefined, const L extends string | undefined = undefined>(
     options: PropOptions<TextKind<V>, R, D, L> & { /** The texts it may be, where it's one of a few. */ enum?: V } & X
-  ) => Made<TextKind<V>, R, D, L>;
-  color: KindHelper<ReturnType<typeof color>, { /** Whether it may be see-through (default true): with false, an rgba, an 8-digit hex or "transparent" is refused. */ transparency?: boolean } & X, TakesToken>;
-  image: KindHelper<ReturnType<typeof asset>, X>;
-  link: KindHelper<ReturnType<typeof link>, X>;
-  boolean: KindHelper<ReturnType<typeof boolean>, X>;
-  fontFamily: KindHelper<ReturnType<typeof fontFamily>, X, TakesToken>;
-  fontWeight: KindHelper<ReturnType<typeof fontWeight>, X>;
-  number: KindHelper<Kind<number, number>, { min?: number; max?: number; integer?: boolean } & X>;
+  ) => Made<TextKind<V>, R, D, L> & Mark;
+  color: KindHelper<ReturnType<typeof color>, { /** Whether it may be see-through (default true): with false, an rgba, an 8-digit hex or "transparent" is refused. */ transparency?: boolean } & X, TakesToken & Mark>;
+  image: KindHelper<ReturnType<typeof asset>, X, Mark>;
+  link: KindHelper<ReturnType<typeof link>, X, Mark>;
+  boolean: KindHelper<ReturnType<typeof boolean>, X, Mark>;
+  fontFamily: KindHelper<ReturnType<typeof fontFamily>, X, TakesToken & Mark>;
+  fontWeight: KindHelper<ReturnType<typeof fontWeight>, X, Mark>;
+  number: KindHelper<Kind<number, number>, { min?: number; max?: number; integer?: boolean } & X, Mark>;
   length: <const U extends LengthUnit = "px", const R extends boolean = false, const D extends OutputOf<LengthKind<U>> | undefined = undefined, const L extends string | undefined = undefined>(
     options: PropOptions<LengthKind<U>, R, D, L> & { units?: readonly U[]; min?: number } & X
-  ) => Made<LengthKind<U>, R, D, L> & TakesToken;
+  ) => Made<LengthKind<U>, R, D, L> & TakesToken & Mark;
 }
 
 declare const BASE: unique symbol;
@@ -157,6 +160,12 @@ type OptionsInput<O extends OptionSpecs> = { [K in Needed<O>]: InputOf<O[K]["kin
 type OptionsOf<O extends OptionSpecs> = { [K in Held<O>]: OutputOf<O[K]["kind"]> } & { [K in Exclude<keyof O, Held<O>>]?: OutputOf<O[K]["kind"]> };
 /** The value a property made on a helper holds. */
 type Value<N extends keyof Helpers> = OutputOf<ReturnType<Helpers[N]>["kind"]>;
+/**
+ * What a property's prop says of its editor, as its type: which property it is (its name, as it's written) and its
+ * options as the prop has them. So an editing app can tell from a component's props, as types, which properties it
+ * needs editors for. The value is the one the prop holds at run time.
+ */
+type PropertyMark<Name extends string, O> = { readonly editor: { readonly name: Name; readonly options: O } };
 
 /**
  * A property of a team's own: one of `prop`'s helpers with an editor of the team's own, and what that editor takes. As
@@ -164,9 +173,9 @@ type Value<N extends keyof Helpers> = OutputOf<ReturnType<Helpers[N]>["kind"]>;
  * app's, registered under the name (in Unlayer's builder, `registerTools()`'s `editors`), so a template renders with
  * none. Called, it's a prop: `price: currency({ label: "Price", min: 0, symbol: "$" })`.
  */
-export interface PropertyDefinition<V = any, O = { [option: string]: Json }> {
+export interface PropertyDefinition<V = any, O = { [option: string]: Json }, Name extends string = string> {
   /** A namespace, a dot, a word: "acme.currency". What an editing app registers its editor under. */
-  readonly name: string;
+  readonly name: Name;
   /** The helper of `prop` it's made on, by its name: "number". */
   readonly base: keyof Helpers;
   /** Its own options, each as it's defined. */
@@ -185,9 +194,15 @@ export interface PropertyDefinition<V = any, O = { [option: string]: Json }> {
  *     });
  *
  * then `price: currency({ label: "Price", min: 0, symbol: "€" })`. The prop is its base's: a number, with a number's own
- * limits, whoever writes it. Its own options say how it's edited, each checked by its kind as a prop is.
+ * limits, whoever writes it. Its own options say how it's edited, each checked by its kind as a prop is. Its name, as
+ * it's written, stays in the types of the property, of each prop it makes and of a component with one
+ * (`price.editor.name` is `"acme.currency"`), with the prop's options as its editor is given them.
  */
-export function defineProperty<const N extends keyof Helpers, const O extends OptionSpecs = {}>(definition: { name: string; base: Based<N>; options?: O }): Helpers<OptionsInput<O>>[N] & PropertyDefinition<Value<N>, OptionsOf<O>> {
+export function defineProperty<const Name extends string, const N extends keyof Helpers, const O extends OptionSpecs = {}>(definition: {
+  name: Name;
+  base: Based<N>;
+  options?: O;
+}): Helpers<OptionsInput<O>, PropertyMark<Name, OptionsOf<O>>>[N] & PropertyDefinition<Value<N>, OptionsOf<O>, Name> {
   const { name } = definition;
   const specs: OptionSpecs = definition.options ?? {};
   if (!OWN_EDITOR.test(String(name))) throw new Error(`[Elements] A property's name is a namespace, a dot and a word ("acme.currency"), not ${JSON.stringify(name)}`);

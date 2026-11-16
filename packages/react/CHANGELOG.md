@@ -36,7 +36,10 @@ so the two can't differ, and rejects a template as they do (with errors, or anot
   doesn't have, or a value that isn't the option's, is a type error, and refused where it's written. Any other prop is
   edited with its kind's editor, from what the prop says (a number's `min` and `max`): there's no editor to name.
   `describeComponents()` gives a property's prop as `property` (its name, and its options as the prop has them),
-  beside `editor` (its kind's), which an editor with no control by that name shows. In Unlayer's builder you give your
+  beside `editor` (its kind's), which an editor with no control by that name shows. The name stays in the types as
+  it's written, in the property's, each prop's it makes and a component's with one (`price.editor.name` is
+  `"acme.currency"`), with the prop's options as its editor is given them, so an editing app can tell from a
+  component's type which properties it needs editors for. In Unlayer's builder you give your
   property's control to `registerTools()` in `editors`, under the property's name, as it's written
   (`{ render, mount }`): `EditorWidget<typeof currency>` types its value and options from the property, and it's given
   the prop's value as the prop has it.
