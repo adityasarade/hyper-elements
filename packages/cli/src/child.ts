@@ -9,7 +9,7 @@
 import { rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { capture } from "./capture";
 import { installGuard, UNTRUSTED, type InstalledGuard } from "./guard";
@@ -206,7 +206,8 @@ class Session {
     const refused = this.guard?.refusals().slice(before) ?? [];
     if (!refused.length || result === "reacts") return result;
     // Each refused file, and who imported it, as the run's folder shows them.
-    const shown = (path: string) => relative(this.message.cwd, path) || path;
+    // Relative and with / on every system, as the CLI shows paths.
+    const shown = (path: string) => relative(this.message.cwd, path).split(sep).join("/") || path;
     const diagnostics = refused.map((refusal) =>
       cliDiagnostic(
         "template-untrusted",

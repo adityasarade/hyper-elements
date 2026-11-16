@@ -56,7 +56,8 @@ describe("a child that doesn't finish", () => {
       "emails/b.tsx": `import { Email } from "@hyper-elements/react";\nexport default function B() { for (;;) {} return <Email />; }\n`,
     });
     const started = Date.now();
-    const ran = await cli(dir, ["check", "emails", "--json", "--timeout", "2"]);
+    // Long enough for a.tsx on a slow machine (a child starts, loads Elements and renders it inside it); b.tsx never ends.
+    const ran = await cli(dir, ["check", "emails", "--json", "--timeout", "5"]);
     expect(Date.now() - started).toBeLessThan(15_000);
     expect(ran.code).toBe(1);
     const got = lines(ran);

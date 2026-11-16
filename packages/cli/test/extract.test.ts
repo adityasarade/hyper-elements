@@ -7,6 +7,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { CLI_ROOT, cli, cliEnv, FIXTURES, lines, project, withFixtures } from "./helpers";
 
@@ -21,7 +22,7 @@ function compare(dir: string, design: string, template: string): { design: Recor
   writeFileSync(join(dir, "tsconfig.json"), JSON.stringify({ compilerOptions: { jsx: "react-jsx", module: "esnext", moduleResolution: "bundler", target: "es2022" } }));
   writeFileSync(
     join(dir, "compare.mjs"),
-    `import { tsImport } from ${JSON.stringify(TSX)};
+    `import { tsImport } from ${JSON.stringify(pathToFileURL(TSX).href)};
 import { createElement } from "react";
 import { render } from "@hyper-elements/react";
 import { toDesign } from "@hyper-elements/react/builder";
