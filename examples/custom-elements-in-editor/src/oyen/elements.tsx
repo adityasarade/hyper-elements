@@ -1,14 +1,14 @@
 /**
- * Oyen's own components (Oyen is a fictional maker of audio instruments): the parts its dispatches repeat. Warm
+ * Oyen's own elements (Oyen is a fictional maker of audio instruments): the parts its dispatches repeat. Warm
  * drafting paper, near-black ink and one signal orange; Geist for words, Geist Mono for labels and numbers.
  *
- * Each is one `component()`: a name, typed props and a render. In a template it's a tag (`<Callout number={1} … />`);
+ * Each is one `defineElement()`: a name, typed props and a render. In a template it's a tag (`<Callout number={1} … />`);
  * in the Unlayer editor the same definition is a tool, with a field for each prop (see `tools.ts`).
  *
- * A component drawn in the editor is drawn on its own, so each sets its own font and colors instead of taking the
+ * An element drawn in the editor is drawn on its own, so each sets its own font and colors instead of taking the
  * template's.
  */
-import { Button, Column, Heading, Row, Text, component, prop } from "@hyper-elements/react";
+import { Button, Column, Heading, Row, Text, defineElement, prop } from "@hyper-elements/react";
 import { currency } from "../properties";
 
 export const PAPER = "#F3F1EC";
@@ -32,7 +32,7 @@ export const label = { fontFamily: MONO, fontSize: 12, lineHeight: 1.5, letterSp
 const money = (amount: number) => `€${Number.isInteger(amount) ? amount : amount.toFixed(2)}`;
 
 /** The announcement: what's new, in one line, with the way to get it. */
-export const Announcement = component({
+export const Announcement = defineElement({
   type: "oyen.Announcement",
   label: "Announcement",
   props: {
@@ -68,7 +68,7 @@ export const Announcement = component({
 });
 
 /** One of a drawing's callouts: its number in a disc, what the part is, and why it matters. */
-export const Callout = component({
+export const Callout = defineElement({
   type: "oyen.Callout",
   label: "Callout",
   props: {
@@ -94,7 +94,7 @@ export const Callout = component({
 });
 
 /** A line of the spec sheet: what's measured in the label face, and its value. */
-export const Spec = component({
+export const Spec = defineElement({
   type: "oyen.Spec",
   label: "Spec",
   props: {
@@ -115,7 +115,7 @@ export const Spec = component({
 });
 
 /** A line from someone who used it, and who they are. */
-export const FieldNote = component({
+export const FieldNote = defineElement({
   type: "oyen.FieldNote",
   label: "Field note",
   props: {
@@ -132,7 +132,7 @@ export const FieldNote = component({
 });
 
 /** The closing band: the price as large as it goes, and the button again. */
-export const PriceBand = component({
+export const PriceBand = defineElement({
   type: "oyen.PriceBand",
   label: "Price band",
   props: {
@@ -163,5 +163,5 @@ export const PriceBand = component({
   ),
 });
 
-/** Every component, for the editor and for reading a design back. */
-export const components = [Announcement, Callout, Spec, FieldNote, PriceBand];
+/** Every element, for the editor and for reading a design back. */
+export const elements = [Announcement, Callout, Spec, FieldNote, PriceBand];

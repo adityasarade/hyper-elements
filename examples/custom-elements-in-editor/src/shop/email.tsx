@@ -1,10 +1,10 @@
 /**
- * A shop's weekly email, written with the five components: a product, a coupon, a customer's words,
- * an order's progress and a ticket. It renders as it is, and it opens in the Unlayer editor with each component a
+ * A shop's weekly email, written with the five elements: a product, a coupon, a customer's words,
+ * an order's progress and a ticket. It renders as it is, and it opens in the Unlayer editor with each element a
  * block of its own tool.
  */
 import { Column, Email, Heading, Section, Text } from "@hyper-elements/react";
-import { Coupon, INK, MUTED, OrderTracker, PAPER, ProductCard, SANS, Testimonial, Ticket } from "./components";
+import { Coupon, INK, MUTED, OrderTracker, PAPER, ProductCard, SANS, Testimonial, Ticket } from "./elements";
 
 const SITE = "https://common-goods.example";
 const IMG = "https://hyperelements.dev/img";

@@ -1,18 +1,18 @@
 /**
- * The editor's custom JavaScript (`customJS`) for the shop's components. `registerTools()` makes each a tool of the
+ * The editor's custom JavaScript (`customJS`) for the shop's elements. `registerTools()` makes each a tool of the
  * Unlayer editor from its definition: its name, its label, a field for each prop, and its drawing.
  *
- * The Product tool has one thing more, which is the editor's and not the component's: a field that lists the store's
+ * The Product tool has one thing more, which is the editor's and not the element's: a field that lists the store's
  * products. Picking one fills the photo, the name, the description, the price and the link together, and each stays
  * editable after. That's two of the editor's own settings for a tool, passed through `tools`:
  *
- * - `properties`: a field of the tool that isn't a prop of the component (`product`, edited with the picker below);
+ * - `properties`: a field of the tool that isn't a prop of the element (`product`, edited with the picker below);
  * - `transformer`: the editor's hook that runs when a field changes, and returns the block's values.
  */
 import { registerTools } from "@hyper-elements/react/builder";
 import { currencyField } from "../currency";
 import { currency } from "../properties";
-import { components } from "./components";
+import { elements } from "./elements";
 
 /** The part of the editor's `unlayer` object the picker below is registered with. */
 interface Editors {
@@ -60,7 +60,7 @@ unlayer.registerPropertyEditor({
   }),
 });
 
-registerTools(unlayer, components, {
+registerTools(unlayer, elements, {
   editors: { [currency.name]: currencyField },
   icons: {
     "shop.ProductCard": "fa-bag-shopping",

@@ -124,7 +124,7 @@ importers:
         specifier: ^5.6.3
         version: 5.9.3
 
-  examples/custom-components-in-editor:
+  examples/custom-elements-in-editor:
     dependencies:
       '@hyper-elements/react':
         specifier: workspace:*

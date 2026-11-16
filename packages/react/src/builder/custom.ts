@@ -1,9 +1,9 @@
 /**
- * A template's own components in the builder. Each is a custom tool of the builder's, named by its type
+ * A template's own elements in the builder. Each is a custom tool of the builder's, named by its type
  * (`acme.ProductCard`: `acme_product_card`), with a property for each prop: edited with the builder's editor for its
  * kind, or with the control of the property of the team's own it is. toDesign() writes one as that
- * tool's block, its props the block's values (`customTools`); fromDesign() reads the block back as the component
- * (`components`); registerTools() gives a builder the tools, each drawn by Elements itself.
+ * tool's block, its props the block's values (`customTools`); fromDesign() reads the block back as the element
+ * (`elements`); registerTools() gives a builder the tools, each drawn by Elements itself.
  */
 import { ElementsError, propertyOf, renderTemplate, type CustomDefinition, type Json, type LinkValue, type Node } from "@hyper-elements/core";
 import type { PropertyDefinition } from "../primitives/custom";
@@ -14,27 +14,27 @@ import { make, obj, placed, type Context } from "./reading";
 import { sayUnread } from "./unread";
 import { builderFont, builderLink, cssSides, decode, encode } from "./values";
 
-/** A template's own component, as `component()` makes one. */
+/** A template's own element, as `defineElement()` makes one. */
 export interface WithDefinition {
   definition: CustomDefinition<any>;
 }
 
-/** The builder's name for a component's tool, from the component or its type: the type in the builder's words (`acme.ProductCard`: `acme_product_card`). */
-export function toolName(component: string | WithDefinition): string {
-  const type = typeof component === "string" ? component : component?.definition?.type;
-  if (typeof type !== "string") throw new Error("[Elements] toolName takes a template's own component (made with component()) or its type");
+/** The builder's name for an element's tool, from the element or its type: the type in the builder's words (`acme.ProductCard`: `acme_product_card`). */
+export function toolName(element: string | WithDefinition): string {
+  const type = typeof element === "string" ? element : element?.definition?.type;
+  if (typeof type !== "string") throw new Error("[Elements] toolName takes a template's own element (made with defineElement()) or its type");
   return type
     .replace(/[.-]/g, "_")
     .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
     .toLowerCase();
 }
 
-/** Each component's definition by its tool's name. Two with one name is an error: a block would be either's. */
-export function toolsOf(components: readonly WithDefinition[] = []): Map<string, CustomDefinition<any>> {
+/** Each element's definition by its tool's name. Two with one name is an error: a block would be either's. */
+export function toolsOf(elements: readonly WithDefinition[] = []): Map<string, CustomDefinition<any>> {
   const tools = new Map<string, CustomDefinition<any>>();
-  for (const component of components) {
-    const definition = component?.definition;
-    if (!definition?.custom) throw new Error("[Elements] components takes a template's own components (made with component())");
+  for (const element of elements) {
+    const definition = element?.definition;
+    if (!definition?.custom) throw new Error("[Elements] elements takes a template's own elements (made with defineElement())");
     const name = toolName(definition.type);
     const other = tools.get(name);
     if (other && other !== definition) throw new Error(`[Elements] ${other.type} and ${definition.type} are one tool in the builder (${name}): rename one`);
@@ -43,7 +43,7 @@ export function toolsOf(components: readonly WithDefinition[] = []): Map<string,
   return tools;
 }
 
-/** Whether a component is placed where a Section goes: a band across the window, which no block in a column is, so it's no tool. */
+/** Whether an element is placed where a Section goes: a band across the window, which no block in a column is, so it's no tool. */
 const inSection = (definition: CustomDefinition<any>): boolean => definition.categories.includes("section");
 
 /** A block's values that are the builder's own: its spacing, its place, and what its user may do with it. */
@@ -111,7 +111,7 @@ function editorOf(spec: Spec): PropertyEditor | undefined {
 }
 
 /**
- * A component's props as its tool's values: each as the builder's editor for it keeps one. A prop that isn't given is
+ * An element's props as its tool's values: each as the builder's editor for it keeps one. A prop that isn't given is
  * written as its default, as the builder writes a tool's defaults, so its field shows what's drawn (toolProps() leaves
  * a default out again).
  */
@@ -125,7 +125,7 @@ export function toolValues(definition: CustomDefinition<any>, props: Record<stri
   return values;
 }
 
-/** A tool's values as its component's props: each read back and checked by its kind; one it doesn't take is left out, and said. */
+/** A tool's values as its element's props: each read back and checked by its kind; one it doesn't take is left out, and said. */
 export function toolProps(definition: CustomDefinition<any>, values: Values, say: (message: string) => void = () => {}): Record<string, Json> {
   const props: Record<string, Json> = {};
   for (const [key, spec] of Object.entries(definition.props) as Array<[string, Spec]>) {
@@ -137,7 +137,7 @@ export function toolProps(definition: CustomDefinition<any>, values: Values, say
     if (given === undefined && spec.kind.editor === "link" && spec.default !== undefined && webLink(kept) === null) given = { href: "" };
     if (given === undefined) continue;
     const parsed = spec.kind.parse(given);
-    // Its default is what the component takes anyway: not written, as a template wouldn't. One it needs is given
+    // Its default is what the element takes anyway: not written, as a template wouldn't. One it needs is given
     // either way (a template has to give it), its default too.
     if (parsed.ok && !spec.required && JSON.stringify(parsed.value) === JSON.stringify(spec.default)) continue;
     if (parsed.ok) props[key] = parsed.value;
@@ -147,18 +147,18 @@ export function toolProps(definition: CustomDefinition<any>, values: Values, say
   return props;
 }
 
-/** A template's own component as its tool's block in a design. */
+/** A template's own element as its tool's block in a design. */
 export function customBlock(node: Node, definition: CustomDefinition<any>, around: Sides, hiding: Hiding): Block {
   const name = toolName(definition.type);
   const id = node.id ? { _meta: { htmlID: node.id, htmlClassNames: `u_content_custom_${name}` } } : {};
   return { ...block("custom", hiding), custom: name, values: { ...toolValues(definition, node.props), containerPadding: cssSides(around), ...id } };
 }
 
-/** A custom tool's block as its component, where it's one of those given; none where it isn't, and said. */
+/** A custom tool's block as its element, where it's one of those given; none where it isn't, and said. */
 export function readCustom(slug: unknown, values: Values, context: Context, tools: Map<string, CustomDefinition<any>>): Node[] {
   const definition = typeof slug === "string" ? tools.get(slug) : undefined;
   if (!definition) {
-    context.say(`${typeof slug === "string" ? `the custom tool ${JSON.stringify(slug)}` : "a custom tool"} of the builder's is none of the components given (fromDesign()'s components): left out`);
+    context.say(`${typeof slug === "string" ? `the custom tool ${JSON.stringify(slug)}` : "a custom tool"} of the builder's is none of the elements given (fromDesign()'s elements): left out`);
     return [];
   }
   const tool = `the custom tool ${JSON.stringify(slug)}`;
@@ -181,9 +181,9 @@ export function readCustom(slug: unknown, values: Values, context: Context, tool
     context.say(`${tool} has no ${missing.join(" or ")}, which a ${definition.type} needs: left out`);
     return [];
   }
-  // What the builder keeps on any block that a component has no place for is said, as a built-in block's is: a display
+  // What the builder keeps on any block that an element has no place for is said, as a built-in block's is: a display
   // condition, an anchor, a prop's value on phones. A value that's neither the builder's own nor a prop's is the
-  // tool's own (registerTools()'s `properties`): it stays in the block, and isn't the component's.
+  // tool's own (registerTools()'s `properties`): it stays in the block, and isn't the element's.
   const read = Object.keys(definition.props);
   const its = (kept: unknown): Values => Object.fromEntries(Object.entries(obj(kept)).filter(([key]) => read.includes(key) || builders(key)));
   const devices = obj(values._override);
@@ -223,37 +223,37 @@ export interface EditorWidget<D = unknown> {
 export interface RegisterToolsOptions {
   /** The builder's display mode, which says what the canvas draws: an Email's markup ("email", the default) or a Page's ("web"). */
   displayMode?: "email" | "web";
-  /** Each tool's icon in the builder's panel, by its component's type: a Font Awesome class, an image's URL or an SVG. */
+  /** Each tool's icon in the builder's panel, by its element's type: a Font Awesome class, an image's URL or an SVG. */
   icons?: Record<string, string>;
   /**
    * The property editors of a team's own, by name (`{ [currency.name]: … }`, the name its property has): each as
    * it's written (`{ render, mount }`), which registerTools() registers in the builder; or `true` for one registered
    * there already (`unlayer.registerPropertyEditor`), which is given the value as the builder keeps it. A property
    * with no control here is edited with its kind's editor, as any other prop is. A name here that's the property of
-   * no prop of the components is refused: a name mistyped, or one of the builder's own editors, which are its kinds'.
+   * no prop of the elements is refused: a name mistyped, or one of the builder's own editors, which are its kinds'.
    */
   editors?: { readonly [name: string]: EditorWidget | true };
-  /** The builder's own settings for a component's tool, by the component's type. */
+  /** The builder's own settings for an element's tool, by the element's type. */
   tools?: Record<string, ToolSettings>;
 }
 
-/** What a tool has in the builder beside what its component gives it. */
+/** What a tool has in the builder beside what its element gives it. */
 export interface ToolSettings {
   /**
-   * Properties of the tool that aren't the component's props, shown above its own, each as the builder takes one
+   * Properties of the tool that aren't the element's props, shown above its own, each as the builder takes one
    * (`{ label, widget, defaultValue }`): a picker that fills several props at once, with the tool's `transformer`.
-   * Their values are kept in the block; they aren't the component's.
+   * Their values are kept in the block; they aren't the element's.
    */
   properties?: Record<string, Record<string, unknown>>;
   /**
    * Any other setting the builder's `registerTool()` takes (`transformer`, `position`, `usageLimit`…), passed as it
-   * is. What the component gives its tool is none of them, and is refused: its name, label, fields and drawing, its
+   * is. What the element gives its tool is none of them, and is refused: its name, label, fields and drawing, its
    * icon (`icons`), and what a block starts with (each prop's `default`).
    */
   [setting: string]: unknown;
 }
 
-/** What a component gives its tool, which is no setting of the builder's for it. */
+/** What an element gives its tool, which is no setting of the builder's for it. */
 const GIVEN = ["name", "label", "icon", "supportedDisplayModes", "options", "values", "renderer"];
 
 const escape = (text: string) => text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -274,17 +274,17 @@ function roomOf(values: Values, content: number, cells: number[] | undefined, in
 }
 
 /**
- * A component drawn on its own from its tool's values, as an Email's markup or a Page's, with its stylesheet: at the
+ * An element drawn on its own from its tool's values, as an Email's markup or a Page's, with its stylesheet: at the
  * room its block has, which is its column's share (`cells`, `index`) of the builder's content width (`body`), less
  * what's around it there (`column`).
  */
 function draw(definition: CustomDefinition<any>, tools: readonly CustomDefinition<any>[], root: "Email" | "Page", values: Values, body: Values | undefined, cells: number[] | undefined, index: number | undefined, column: Values = {}): string {
   const content = px(obj(body).contentWidth) ?? 600;
   const room = roomOf(values, content, cells, index, column);
-  // A root is 200px wide at least: in less room than that, the component is in a Column of the room's width.
+  // A root is 200px wide at least: in less room than that, the element is in a Column of the room's width.
   const width = Math.max(200, room);
   // With the id its block keeps, as fromDesign() reads it: the ids inside it are that id's (a link to one finds it). One
-  // a template doesn't take is left out, as fromDesign() leaves it out, and the component is drawn without it.
+  // a template doesn't take is left out, as fromDesign() leaves it out, and the element is drawn without it.
   const given = givenId(values);
   const own: Node = make(definition.type, { id: given && TEMPLATE_ID.test(given) ? given : undefined, props: toolProps(definition, values) });
   const node: Node = room < width ? { type: "Column", style: { width: room }, children: [own] } : own;
@@ -298,15 +298,15 @@ function draw(definition: CustomDefinition<any>, tools: readonly CustomDefinitio
 }
 
 /**
- * Registers each component as a custom tool in a builder (in its custom JavaScript, where `unlayer.registerTool` is):
+ * Registers each element as a custom tool in a builder (in its custom JavaScript, where `unlayer.registerTool` is):
  * the tool's name is its type's (`toolName()`), its properties its props, each with the builder's editor for its kind
  * or the control of the property of the team's own it is (`editors`), and it's drawn by Elements, in the
- * canvas and in what the builder exports. A component placed where a Section goes is no tool (toDesign() writes it as
+ * canvas and in what the builder exports. An element placed where a Section goes is no tool (toDesign() writes it as
  * an HTML block). Returns the tools' names.
  */
-export function registerTools(builder: Builder, components: readonly WithDefinition[], options: RegisterToolsOptions = {}): string[] {
-  const tools = toolsOf(components);
-  // Every component given, for the ones a tool's own renders.
+export function registerTools(builder: Builder, elements: readonly WithDefinition[], options: RegisterToolsOptions = {}): string[] {
+  const tools = toolsOf(elements);
+  // Every element given, for the ones a tool's own renders.
   const all = [...tools.values()];
   for (const [name, definition] of tools) if (inSection(definition)) tools.delete(name);
   const canvas = options.displayMode === "web" ? "Page" : "Email";
@@ -315,10 +315,10 @@ export function registerTools(builder: Builder, components: readonly WithDefinit
   // of the builder's own editors is none of these: those are its kinds'.
   const asked = new Set(all.flatMap((definition) => (Object.values(definition.props) as Spec[]).flatMap((spec) => propertyOf(spec)?.name ?? [])));
   for (const name of Object.keys(editors)) {
-    if (!asked.has(name)) throw new Error(`[Elements] registerTools: editors has ${name}, which is the property of no prop of the components given (${asked.size ? `their props are ${[...asked].join(", ")}` : "none of their props is a property of your own"})`);
+    if (!asked.has(name)) throw new Error(`[Elements] registerTools: editors has ${name}, which is the property of no prop of the elements given (${asked.size ? `their props are ${[...asked].join(", ")}` : "none of their props is a property of your own"})`);
   }
   for (const type of Object.keys(options.tools ?? {})) {
-    if (!all.some((definition) => definition.type === type)) throw new Error(`[Elements] registerTools: tools has settings for ${type}, which is none of the components given`);
+    if (!all.some((definition) => definition.type === type)) throw new Error(`[Elements] registerTools: tools has settings for ${type}, which is none of the elements given`);
   }
   for (const [name, definition] of tools) {
     const taken = unkept(definition);
@@ -328,7 +328,7 @@ export function registerTools(builder: Builder, components: readonly WithDefinit
       if (Object.hasOwn(definition.props, key)) throw new Error(`[Elements] registerTools: ${definition.type} has a prop named ${key}: a property of the tool's own takes another name`);
     }
     const given = GIVEN.find((key) => Object.hasOwn(settings, key));
-    if (given) throw new Error(`[Elements] registerTools: tools sets ${given} for ${definition.type}, which its component gives the tool: its label and props are the component's, a block starts with each prop's default, and its icon is in icons`);
+    if (given) throw new Error(`[Elements] registerTools: tools sets ${given} for ${definition.type}, which its element gives the tool: its label and props are the element's, a block starts with each prop's default, and its icon is in icons`);
     const properties: Record<string, unknown> = { ...own };
     for (const [key, spec] of Object.entries(definition.props) as Array<[string, Spec]>) {
       const editor = editorOf(spec);
@@ -361,7 +361,7 @@ export function registerTools(builder: Builder, components: readonly WithDefinit
       const initial = spec.default !== undefined ? (editor?.store?.(spec.default as Json) ?? spec.default) : spec.kind.editor === "text" ? "" : spec.kind.editor === "toggle" ? false : undefined;
       properties[key] = { label: spec.label, ...(initial !== undefined ? { defaultValue: initial } : {}), widget, ...(Object.keys(data).length ? { data } : {}) };
     }
-    // What the builder exports: the component as that output's markup; nothing where its values can't be drawn.
+    // What the builder exports: the element as that output's markup; nothing where its values can't be drawn.
     const written = (root: "Email" | "Page") => (values: Values, ...rest: unknown[]) => {
       const meta = obj(rest[rest.length - 1]);
       const cells = (Array.isArray(rest[2]) ? rest[2] : meta.rowCells) as number[] | undefined;
@@ -381,7 +381,7 @@ export function registerTools(builder: Builder, components: readonly WithDefinit
       options: Object.keys(properties).length ? { [name]: { title: definition.label, position: 1, options: properties } } : {},
       values: {},
       renderer: {
-        // The canvas: the component as drawn, or what stops it from being (a required prop with no value yet).
+        // The canvas: the element as drawn, or what stops it from being (a required prop with no value yet).
         Viewer: builder.createViewer({
           render(values, body, place) {
             try {

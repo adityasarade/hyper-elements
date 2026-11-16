@@ -1,11 +1,11 @@
 /**
- * Oyen's dispatch announcing FR-2: plain blocks (the masthead, the drawing, the footer) and Oyen's own components
+ * Oyen's dispatch announcing FR-2: plain blocks (the masthead, the drawing, the footer) and Oyen's own elements
  * (the announcement, the callouts, the spec sheet, the field note, the price band). It renders as it is (`render()`),
- * and it opens in the Unlayer editor with each component a block of its own tool (`toDesign(…, { customTools: true })`).
+ * and it opens in the Unlayer editor with each element a block of its own tool (`toDesign(…, { customTools: true })`).
  */
 import type { ReactNode } from "react";
 import { Column, Email, Image, Link, Row, Section, Text } from "@hyper-elements/react";
-import { Announcement, Callout, FieldNote, INK, label, PAPER, PriceBand, QUIET, SANS, Spec } from "./components";
+import { Announcement, Callout, FieldNote, INK, label, PAPER, PriceBand, QUIET, SANS, Spec } from "./elements";
 
 const SITE = "https://oyen.example";
 

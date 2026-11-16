@@ -1,12 +1,12 @@
 /**
- * Five components a shop reuses in its emails: a product, a customer's words, a coupon, an order's progress and a
+ * Five elements a shop reuses in its emails: a product, a customer's words, a coupon, an order's progress and a
  * ticket. One quiet look (white cards on warm paper, near-black ink) and one accent color, which each takes as a prop,
  * so a team makes them its own.
  *
- * Each is one `component()`: a tag in a template, and a tool in the Unlayer editor with a field for each prop (see
- * `tools.ts`). A component drawn in the editor is drawn on its own, so each sets its own font and colors.
+ * Each is one `defineElement()`: a tag in a template, and a tool in the Unlayer editor with a field for each prop (see
+ * `tools.ts`). An element drawn in the editor is drawn on its own, so each sets its own font and colors.
  */
-import { Button, Column, Heading, Image, Row, Span, Text, component, prop } from "@hyper-elements/react";
+import { Button, Column, Heading, Image, Row, Span, Text, defineElement, prop } from "@hyper-elements/react";
 import { currency } from "../properties";
 
 export const INK = "#14171A";
@@ -29,7 +29,7 @@ const accent = prop.color({ label: "Accent", default: ACCENT });
 const money = (amount: number) => `€${Number.isInteger(amount) ? amount : amount.toFixed(2)}`;
 
 /** A product: its photo, what it is, its price and the way to buy it. In the editor it can be filled from the store. */
-export const ProductCard = component({
+export const ProductCard = defineElement({
   type: "shop.ProductCard",
   label: "Product",
   props: {
@@ -78,7 +78,7 @@ const initials = (name: string) =>
     .join("");
 
 /** A customer's words: how many stars, what they said, and who they are. */
-export const Testimonial = component({
+export const Testimonial = defineElement({
   type: "shop.Testimonial",
   label: "Testimonial",
   props: {
@@ -114,7 +114,7 @@ export const Testimonial = component({
 });
 
 /** A coupon: what it's worth, the code to use, and until when. */
-export const Coupon = component({
+export const Coupon = defineElement({
   type: "shop.Coupon",
   label: "Coupon",
   props: {
@@ -161,7 +161,7 @@ const STEP_LABEL = { ordered: "Ordered", packed: "Packed", shipped: "Shipped", d
 const STEP_SAYS = { ordered: "We’ve got your order.", packed: "Packed and ready to go.", shipped: "Your order is on its way.", delivered: "Delivered. Enjoy it." } as const;
 
 /** An order's progress: one choice of where it is redraws the line, the words and what's still to come. */
-export const OrderTracker = component({
+export const OrderTracker = defineElement({
   type: "shop.OrderTracker",
   label: "Order tracker",
   props: {
@@ -219,7 +219,7 @@ export function bars(code: string): Array<{ bar: boolean; width: number }> {
 }
 
 /** A ticket: the event, when and where, whose it is, and its code as a barcode drawn from the code itself. */
-export const Ticket = component({
+export const Ticket = defineElement({
   type: "shop.Ticket",
   label: "Ticket",
   props: {
@@ -277,5 +277,5 @@ export const Ticket = component({
   },
 });
 
-/** Every component, for the editor and for reading a design back. */
-export const components = [ProductCard, Testimonial, Coupon, OrderTracker, Ticket];
+/** Every element, for the editor and for reading a design back. */
+export const elements = [ProductCard, Testimonial, Coupon, OrderTracker, Ticket];

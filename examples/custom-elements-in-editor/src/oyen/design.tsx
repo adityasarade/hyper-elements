@@ -1,4 +1,4 @@
-/** The dispatch two ways: as the email it is, and as the editor's design JSON, each of Oyen's components a block of its own tool. */
+/** The dispatch two ways: as the email it is, and as the editor's design JSON, each of Oyen's elements a block of its own tool. */
 import { render } from "@hyper-elements/react";
 import { toDesign } from "@hyper-elements/react/builder";
 import Dispatch from "./email";

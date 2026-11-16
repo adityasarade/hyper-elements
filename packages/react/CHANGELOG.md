@@ -51,18 +51,18 @@ so the two can't differ, and rejects a template as they do (with errors, or anot
 
 ### Added
 
-- **Your own components as tools of Unlayer's builder.** A `component()` can be a custom tool there, edited by its
-  props and drawn by Elements, with no tool written by hand. `registerTools(unlayer, components)`
+- **Your own elements as tools of Unlayer's builder.** An element made with `defineElement()` can be a custom tool there,
+  edited by its props and drawn by Elements, with no tool written by hand. `registerTools(unlayer, elements)`
   (`@hyper-elements/react/builder`) registers each as a tool in the builder's custom JavaScript and returns their
-  names. A tool's name is from its type (`acme.ProductCard` is `acme_product_card`, as `toolName()` gives it for a
-  component or its type). It has a field for each prop, with the builder's editor for its kind: a whole number in its
+  names. A tool's name is from its type (`acme.ProductCard` is `acme_product_card`, as `toolName()` gives it for an
+  element or its type). It has a field for each prop, with the builder's editor for its kind: a whole number in its
   counter between the prop's `min` and `max`, one that isn't whole as text, a length in px in the counter, a font
   weight in a dropdown. It's drawn in the canvas and in what the builder exports. `toDesign(element, { customTools:
-  true })` writes each of a template's own components as its tool's block, where it was an HTML block of its markup;
-  `fromDesign(design, { components })` reads those blocks back as the components, its code writing each by the name its
+  true })` writes each of a template's own elements as its tool's block, where it was an HTML block of its markup;
+  `fromDesign(design, { elements })` reads those blocks back as the elements, its code writing each by the name its
   type ends with (`<ProductCard />`), or with its namespace where that's another's too (`AcmeCard`), and listing their
   types to import. Without the options, both do what they did. `registerTools()`'s `tools` takes the builder's own settings for a tool: `properties` that aren't the
-  component's props (a picker), and what the builder's `registerTool()` takes (`transformer`, `usageLimit`…).
+  element's props (a picker), and what the builder's `registerTool()` takes (`transformer`, `usageLimit`…).
 - **A property of your own, for an editor of your own.** `defineProperty()` defines a property once, as data: a name,
   the helper of `prop` it's made on, and the options its editor takes, each made with a helper too (`const currency =
   defineProperty({ name: "acme.currency", base: prop.number, options: { symbol: prop.text({ enum: ["$", "€", "£"],
@@ -70,11 +70,11 @@ so the two can't differ, and rejects a template as they do (with errors, or anot
   label: "Price", min: 0, symbol: "€" })`. The value is its base's, with the prop's own limits; an option the property
   doesn't have, or a value that isn't the option's, is a type error, and refused where it's written. Any other prop is
   edited with its kind's editor, from what the prop says (a number's `min` and `max`): there's no editor to name.
-  `describeComponents()` gives a property's prop as `property` (its name, and its options as the prop has them),
+  `describeElements()` gives a property's prop as `property` (its name, and its options as the prop has them),
   beside `editor` (its kind's), which an editor with no control by that name shows. The name stays in the types as
-  it's written, in the property's, each prop's it makes and a component's with one (`price.editor.name` is
-  `"acme.currency"`), with the prop's options as its editor is given them, so an editing app can tell from a
-  component's type which properties it needs editors for. In Unlayer's builder you give your
+  it's written, in the property's, each prop's it makes and an element's with one (`price.editor.name` is
+  `"acme.currency"`), with the prop's options as its editor is given them, so an editing app can tell from an
+  element's type which properties it needs editors for. In Unlayer's builder you give your
   property's control to `registerTools()` in `editors`, under the property's name, as it's written
   (`{ render, mount }`): `EditorWidget<typeof currency>` types its value and options from the property, and it's given
   the prop's value as the prop has it.
@@ -83,7 +83,7 @@ so the two can't differ, and rejects a template as they do (with errors, or anot
   dropdown in Unlayer's builder.
 - **A color that's opaque alone.** `prop.color({ label: "Text", transparency: false })` refuses a color that lets what's
   under it show (an rgba, an 8-digit hex, `transparent`). A color may be see-through by default, as before.
-- **A component's prop with no label is refused** where the component is defined, and is a type error. `label` was
+- **An element's prop with no label is refused** where the element is defined, and is a type error. `label` was
   already required by `prop`'s types.
 - **An option a prop's helper doesn't take is refused** where it's written (`prop.number({ label: "Stars", mn: 1 })`),
   as it was a type error already: a JavaScript caller's mistyped option was dropped without a word.

@@ -17,10 +17,10 @@ export type { Builder, Design, DesignResult, DisplayMode, EditorOptions, EditorW
 
 export interface ToDesignOptions {
   /**
-   * Write each of the template's own components (made with `component()`) as its custom tool's block, its props the
+   * Write each of the template's own elements (made with `defineElement()`) as its custom tool's block, its props the
    * block's values, for a builder those tools are registered in (`registerTools()`): there it's edited by its props,
-   * and `fromDesign()` reads it back as the component. Without it, each is an HTML block of its own markup, which any
-   * builder draws and none edits. A component placed where a Section goes is that HTML block either way. In a
+   * and `fromDesign()` reads it back as the element. Without it, each is an HTML block of its own markup, which any
+   * builder draws and none edits. An element placed where a Section goes is that HTML block either way. In a
    * Document the block is written and read back the same, but the builder's document mode doesn't draw it (the
    * report says so): the tools are for emails and pages.
    */
@@ -56,19 +56,19 @@ export interface FromDesignOptions {
    */
   toSafeHtml?: (html: string) => string;
   /**
-   * The template's own components (made with `component()`): a custom tool's block of one of them (as
-   * `toDesign()` writes with `customTools`, or as dragged in from a builder's panel) comes back as that component,
+   * The template's own elements (made with `defineElement()`): a custom tool's block of one of them (as
+   * `toDesign()` writes with `customTools`, or as dragged in from a builder's panel) comes back as that element,
    * its values read by its props' kinds. A custom tool's block of none of them is left out, and said.
    */
-  components?: readonly WithDefinition[];
+  elements?: readonly WithDefinition[];
 }
 
 /** The builder's design JSON (made by toDesign() or in the builder) as a template in the new components. */
 export function fromDesign(design: unknown, options: FromDesignOptions = {}): TemplateResult {
   const report: string[] = [];
-  const tools = toolsOf(options.components);
+  const tools = toolsOf(options.elements);
   const own = new Map([...tools.values()].map((definition) => [definition.type, definition]));
   const root = checkTemplate(uniqueIds(readDesign(design, options.displayMode, report, options.toSafeHtml, tools)), report, own);
   const code = printTemplate(root, options.name, report);
-  return { element: toElement(root, Object.fromEntries((options.components ?? []).map((component) => [component.definition.type, component as unknown as React.ComponentType<any>]))), code, report };
+  return { element: toElement(root, Object.fromEntries((options.elements ?? []).map((element) => [element.definition.type, element as unknown as React.ComponentType<any>]))), code, report };
 }

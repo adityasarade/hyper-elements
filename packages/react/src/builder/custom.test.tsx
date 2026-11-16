@@ -1,16 +1,16 @@
-/** A template's own components in the builder: as custom tools' blocks in a design, read back, and registered in a builder. */
+/** A template's own elements in the builder: as custom tools' blocks in a design, read back, and registered in a builder. */
 import * as jsxRuntime from "react/jsx-runtime";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import * as primitives from "../primitives";
-import { Button, Column, component, defineProperty, defineTheme, Document, Email, Heading, Image, Page, prop, render, Row, Section, Text, token } from "../primitives/index";
+import { Button, Column, defineElement, defineProperty, defineTheme, Document, Email, Heading, Image, Page, prop, render, Row, Section, Text, token } from "../primitives/index";
 import { fromDesign, registerTools, toDesign, toolName, type Builder, type EditorWidget } from "./index";
 
 type Values = Record<string, any>;
 type Content = { type: string; slug?: string; values: Values };
 const blocks = (design: any): Content[] => design.body.rows.flatMap((row: any) => row.columns.flatMap((column: any) => column.contents));
 
-const ProductCard = component({
+const ProductCard = defineElement({
   type: "acme.ProductCard",
   label: "Product",
   props: {
@@ -39,10 +39,10 @@ const ProductCard = component({
     </Column>
   ),
 });
-const Footer = component({ type: "acme.LegalFooter", label: "Legal footer", props: {}, render: () => <Text style={{ fontSize: 12 }}>Acme Inc., 1 Market St.</Text> });
-const Hero = component({ type: "acme.Hero", label: "Hero", placement: "section", props: { title: prop.text({ label: "Title", required: true }) }, render: ({ title }) => <Section><Heading>{title}</Heading></Section> });
+const Footer = defineElement({ type: "acme.LegalFooter", label: "Legal footer", props: {}, render: () => <Text style={{ fontSize: 12 }}>Acme Inc., 1 Market St.</Text> });
+const Hero = defineElement({ type: "acme.Hero", label: "Hero", placement: "section", props: { title: prop.text({ label: "Title", required: true }) }, render: ({ title }) => <Section><Heading>{title}</Heading></Section> });
 // One prop of each kind whose field isn't the kind's own in the builder.
-const Kinds = component({
+const Kinds = defineElement({
   type: "acme.Kinds",
   label: "Kinds",
   props: {
@@ -54,8 +54,8 @@ const Kinds = component({
   },
   render: (p) => <Text style={{ fontWeight: p.weight }}>{`${p.ratio} ${p.offset} ${p.width} ${p.gap}`}</Text>,
 });
-// A prop its component needs, with what a block dragged in starts with.
-const Banner = component({ type: "acme.Banner", label: "Banner", props: { title: prop.text({ label: "Title", required: true, default: "Welcome" }) }, render: (p) => <Text>{p.title}</Text> });
+// A prop its element needs, with what a block dragged in starts with.
+const Banner = defineElement({ type: "acme.Banner", label: "Banner", props: { title: prop.text({ label: "Title", required: true, default: "Welcome" }) }, render: (p) => <Text>{p.title}</Text> });
 
 const email = (
   <Email width={600}>
@@ -78,20 +78,20 @@ const email = (
 );
 
 describe("toolName", () => {
-  it("is a component's type in the builder's words", () => {
+  it("is an element's type in the builder's words", () => {
     expect(toolName("acme.ProductCard")).toBe("acme_product_card");
     expect(toolName("my-shop.Hero2")).toBe("my_shop_hero2");
     expect(toolName("acme.CTA")).toBe("acme_cta");
   });
 
-  it("takes the component itself, and refuses what's neither it nor its type", () => {
+  it("takes the element itself, and refuses what's neither it nor its type", () => {
     expect(toolName(ProductCard)).toBe("acme_product_card");
-    for (const other of [undefined, {}, 5]) expect(() => toolName(other as never)).toThrow("toolName takes a template's own component (made with component()) or its type");
+    for (const other of [undefined, {}, 5]) expect(() => toolName(other as never)).toThrow("toolName takes a template's own element (made with defineElement()) or its type");
   });
 });
 
 describe("toDesign with customTools", () => {
-  it("writes each of the template's own components as an HTML block without it, as before", () => {
+  it("writes each of the template's own elements as an HTML block without it, as before", () => {
     expect(blocks(toDesign(email).design).map((content) => content.type)).toEqual(["heading", "html", "html"]);
   });
 
@@ -129,30 +129,30 @@ describe("toDesign with customTools", () => {
 
   it("reads a default back as the prop not given, as a template wouldn't write it", () => {
     const { design } = toDesign(<Email><ProductCard name="Mug" buttonColor="#007bff" /></Email>, { customTools: true });
-    expect(fromDesign(design, { components: [ProductCard] }).code).toContain('<ProductCard name="Mug" />');
+    expect(fromDesign(design, { elements: [ProductCard] }).code).toContain('<ProductCard name="Mug" />');
   });
 
-  it("keeps a prop its component needs where it's given its default: a template has to give it", async () => {
+  it("keeps a prop its element needs where it's given its default: a template has to give it", async () => {
     const banner = <Email><Banner title="Welcome" /></Email>;
-    const back = fromDesign(toDesign(banner, { customTools: true }).design, { components: [Banner] });
+    const back = fromDesign(toDesign(banner, { customTools: true }).design, { elements: [Banner] });
     expect(back.report).toEqual([]);
     expect(back.code).toContain('<Banner title="Welcome" />');
     expect((await render(back.element)).html).toBe((await render(banner)).html);
   });
 
-  it("keeps a component placed where a Section goes as an HTML block, and says so", () => {
+  it("keeps an element placed where a Section goes as an HTML block, and says so", () => {
     const { design, report } = toDesign(<Email><Hero title="Launch" /></Email>, { customTools: true });
     expect(blocks(design).map((content) => content.type)).toEqual(["html"]);
     expect(report.join("\n")).toContain("HTML block");
   });
 
-  it("says of a Document's own component that the builder's document mode doesn't draw its tool's block", () => {
+  it("says of a Document's own element that the builder's document mode doesn't draw its tool's block", () => {
     const document = <Document><Footer /></Document>;
     const { design, report } = toDesign(document, { customTools: true });
     expect(blocks(design).map((content) => content.slug)).toEqual(["acme_legal_footer"]);
     expect(report).toEqual(["root.children[0]: a acme.LegalFooter is its custom tool's block: the builder's document mode keeps it but doesn't draw or export it, so what's in it isn't in the builder's PDF"]);
-    // It comes back as the component still.
-    const back = fromDesign(design, { displayMode: "document", components: [Footer] });
+    // It comes back as the element still.
+    const back = fromDesign(design, { displayMode: "document", elements: [Footer] });
     expect(back.report).toEqual([]);
     expect(back.code).toContain("<LegalFooter />");
     // An Email's or a Page's is drawn there: nothing to say.
@@ -161,7 +161,7 @@ describe("toDesign with customTools", () => {
 
   it("writes a prop given a theme's token as the value it has there: the builder keeps no theme", () => {
     const theme = defineTheme({ colors: { primary: "#0f766e" } });
-    const Tag = component({ type: "acme.Tag", label: "Tag", props: { color: prop.color({ label: "Color", default: "#000000" }) }, render: (p) => <Text style={{ color: p.color }}>tag</Text> });
+    const Tag = defineElement({ type: "acme.Tag", label: "Tag", props: { color: prop.color({ label: "Color", default: "#000000" }) }, render: (p) => <Text style={{ color: p.color }}>tag</Text> });
     const { design, report } = toDesign(
       <Email theme={theme}>
         <Tag color={token("colors.primary")} />
@@ -175,16 +175,16 @@ describe("toDesign with customTools", () => {
     expect(report.join("\n")).toContain("the builder keeps no theme");
   });
 
-  it("is hidden where the component is", () => {
+  it("is hidden where the element is", () => {
     const [product] = blocks(toDesign(<Email><ProductCard name="Mug" hidden={{ mobile: true }} /></Email>, { customTools: true }).design);
     expect(product.values._override).toEqual({ mobile: { hideMobile: true } });
   });
 });
 
-describe("fromDesign with components", () => {
-  it("reads each custom tool's block back as its component, and renders what the template did", async () => {
+describe("fromDesign with elements", () => {
+  it("reads each custom tool's block back as its element, and renders what the template did", async () => {
     const { design } = toDesign(email, { customTools: true });
-    const back = fromDesign(design, { components: [ProductCard, Footer] });
+    const back = fromDesign(design, { elements: [ProductCard, Footer] });
     expect(back.report).toEqual([]);
     expect(back.code).toContain('<ProductCard id="hero-product" name="Morning Mug" price={24} quantity={2}');
     expect(back.code).toContain("<LegalFooter />");
@@ -192,9 +192,9 @@ describe("fromDesign with components", () => {
   });
 
   it("writes each in the code by the name its type ends with, or with its namespace where that's another's: the code runs with them imported", async () => {
-    const card = (type: string) => component({ type, label: type, props: { title: prop.text({ label: "Title", default: "Hi" }) }, render: (p) => <Text>{`${type}: ${p.title}`}</Text> });
+    const card = (type: string) => defineElement({ type, label: type, props: { title: prop.text({ label: "Title", default: "Hi" }) }, render: (p) => <Text>{`${type}: ${p.title}`}</Text> });
     // Two named Card, one in a namespace JavaScript can't write and one in a word it keeps; one named as a built-in the
-    // code imports, and one as the template's own component.
+    // code imports, and one as the template's own element.
     const [MyShopCard, NewCard, Callout, AcmeText, AcmeTemplate] = ["my-shop.Card", "new.Card", "acme.Callout", "acme.Text", "acme.Template"].map(card);
     const template = (
       <Email>
@@ -207,17 +207,17 @@ describe("fromDesign with components", () => {
       </Email>
     );
     const { design } = toDesign(template, { customTools: true });
-    const back = fromDesign(design, { components: [MyShopCard, NewCard, Callout, AcmeText, AcmeTemplate] });
+    const back = fromDesign(design, { elements: [MyShopCard, NewCard, Callout, AcmeText, AcmeTemplate] });
     expect(back.report).toEqual([]);
     expect(back.code).toContain(
-      "// The template's own components, to import from where they're defined: Callout (acme.Callout), AcmeTemplate (acme.Template), AcmeText (acme.Text), MyShopCard (my-shop.Card), NewCard (new.Card)."
+      "// The template's own elements, to import from where they're defined: Callout (acme.Callout), AcmeTemplate (acme.Template), AcmeText (acme.Text), MyShopCard (my-shop.Card), NewCard (new.Card)."
     );
     expect(back.code).toContain('<MyShopCard title="One" />');
     expect(back.code).toContain('<Callout title="Three" />');
-    // Run as a module, with the components imported by those names: it's the template.
-    const code = `import { Callout, AcmeTemplate, AcmeText, MyShopCard, NewCard } from "./components";\n${back.code}`;
+    // Run as a module, with the elements imported by those names: it's the template.
+    const code = `import { Callout, AcmeTemplate, AcmeText, MyShopCard, NewCard } from "./elements";\n${back.code}`;
     const js = ts.transpileModule(code, { compilerOptions: { jsx: ts.JsxEmit.ReactJSX, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
-    const modules: Record<string, unknown> = { "@hyper-elements/react": primitives, "react/jsx-runtime": jsxRuntime, "./components": { Callout, AcmeTemplate, AcmeText, MyShopCard, NewCard } };
+    const modules: Record<string, unknown> = { "@hyper-elements/react": primitives, "react/jsx-runtime": jsxRuntime, "./elements": { Callout, AcmeTemplate, AcmeText, MyShopCard, NewCard } };
     const module = { exports: {} as { default: () => React.ReactElement } };
     new Function("require", "module", "exports", js)((name: string) => modules[name], module, module.exports);
     expect((await render(module.exports.default())).html).toBe((await render(template)).html);
@@ -225,20 +225,20 @@ describe("fromDesign with components", () => {
 
   it("reads a design made of the same blocks again as the same design", () => {
     const { design } = toDesign(email, { customTools: true });
-    const again = toDesign(fromDesign(design, { components: [ProductCard, Footer] }).element, { customTools: true }).design;
+    const again = toDesign(fromDesign(design, { elements: [ProductCard, Footer] }).element, { customTools: true }).design;
     expect(again).toEqual(design);
   });
 
-  it("leaves out a custom tool's block that's none of the components given, and says which", () => {
+  it("leaves out a custom tool's block that's none of the elements given, and says which", () => {
     const { design } = toDesign(email, { customTools: true });
-    const { element, report } = fromDesign(design, { components: [Footer] });
-    expect(report.join("\n")).toContain('rows[0].columns[0].contents[1]: the custom tool "acme_product_card" of the builder\'s is none of the components given');
+    const { element, report } = fromDesign(design, { elements: [Footer] });
+    expect(report.join("\n")).toContain('rows[0].columns[0].contents[1]: the custom tool "acme_product_card" of the builder\'s is none of the elements given');
     expect(fromDesign(design).report.filter((line) => line.includes("custom tool"))).toHaveLength(2);
     expect(element.props.children).toHaveLength(2);
   });
 
   it("reads what the builder's editors store: a counter's digits, a dropdown's text, a link and an image as theirs", async () => {
-    const Pack = component({
+    const Pack = defineElement({
       type: "acme.Pack",
       label: "Pack",
       props: { size: prop.choice([6, 12, 24], { label: "Size", default: 6 }), count: prop.number({ label: "Count", default: 1 }), href: prop.link({ label: "Link" }), photo: prop.image({ label: "Photo" }) },
@@ -246,14 +246,14 @@ describe("fromDesign with components", () => {
     });
     const { design } = toDesign(<Email><Pack /></Email>, { customTools: true });
     blocks(design)[0].values = { ...blocks(design)[0].values, size: "12", count: "3", href: { name: "web", values: { href: "https://example.com/p", target: "_self" } }, photo: { url: "https://example.com/p.png" } };
-    const back = fromDesign(design, { components: [Pack] });
+    const back = fromDesign(design, { elements: [Pack] });
     expect(back.report).toEqual([]);
     expect(back.code).toContain('<Pack size={12} count={3} href="https://example.com/p" photo="https://example.com/p.png" />');
     expect((await render(back.element)).text).toContain("3 × 12");
   });
 
   it("reads the values the builder itself stored for an image, a font and two dropdowns", async () => {
-    const Card = component({
+    const Card = defineElement({
       type: "probe.Card",
       label: "Probe",
       props: {
@@ -274,7 +274,7 @@ describe("fromDesign with components", () => {
       size: "large",
       packs: "24",
     });
-    const back = fromDesign(design, { components: [Card] });
+    const back = fromDesign(design, { elements: [Card] });
     expect(back.report).toEqual([]);
     expect(back.code).toContain('<Card photo={{ src: "https://hyperelements.dev/img/orbit-app.png", width: 1200, height: 700 }} font="georgia,palatino" size="large" packs={24} />');
     expect((await render(back.element)).text).toContain("Probe: pack of 24, size large");
@@ -283,7 +283,7 @@ describe("fromDesign with components", () => {
   it("leaves out a value its prop doesn't take, and says so, keeping the block", () => {
     const { design } = toDesign(email, { customTools: true });
     Object.assign(blocks(design)[1].values, { buttonColor: "greenish", quantity: 500, href: { name: "web", values: { href: "javascript:alert(1)" } }, extra: "<script>" });
-    const { code, report } = fromDesign(design, { components: [ProductCard, Footer] });
+    const { code, report } = fromDesign(design, { elements: [ProductCard, Footer] });
     expect(report.join("\n")).toContain('its buttonColor "greenish"');
     expect(report.join("\n")).toContain("its quantity 500");
     expect(code).not.toContain("greenish");
@@ -292,7 +292,7 @@ describe("fromDesign with components", () => {
     expect(code).toContain('name="Morning Mug"');
   });
 
-  it("says what the builder keeps on a block that a component has no place for: a display condition, an anchor, a prop's value on phones", () => {
+  it("says what the builder keeps on a block that an element has no place for: a display condition, an anchor, a prop's value on phones", () => {
     const { design } = toDesign(email, { customTools: true });
     Object.assign(blocks(design)[1].values, {
       displayCondition: { type: "custom", label: "Members", before: "{% if member %}", after: "{% endif %}" },
@@ -300,24 +300,24 @@ describe("fromDesign with components", () => {
       // Its space on phones is read, as the space of any block is; a prop has one value.
       _override: { mobile: { containerPadding: "4px", name: "Mug" } },
     });
-    const { code, report } = fromDesign(design, { components: [ProductCard, Footer] });
+    const { code, report } = fromDesign(design, { elements: [ProductCard, Footer] });
     expect(report).toEqual([
       "rows[0].columns[0].contents[1]: its display condition, which the builder's exporters keep for the email service to apply, isn't read: it's shown to everyone",
       "rows[0].columns[0].contents[1]: its anchor isn't read: links to it go nowhere",
       'rows[0].columns[0].contents[1]: its name on phones "Mug" isn\'t read: left out',
     ]);
-    // The block is still its component, with its own values.
+    // The block is still its element, with its own values.
     expect(code).toContain('name="Morning Mug"');
     expect(code).toContain("mobile: { padding: 4 }");
   });
 
-  it("leaves out a block with no value for a prop its component needs, and says so: the rest still renders", async () => {
-    const Photo = component({ type: "acme.Photo", label: "Photo", props: { photo: prop.image({ label: "Photo", required: true }) }, render: (p) => <Image src={p.photo} alt="" /> });
-    const Count = component({ type: "acme.Count", label: "Count", props: { n: prop.number({ label: "Count", required: true, min: 1 }) }, render: (p) => <Text>{p.n}</Text> });
+  it("leaves out a block with no value for a prop its element needs, and says so: the rest still renders", async () => {
+    const Photo = defineElement({ type: "acme.Photo", label: "Photo", props: { photo: prop.image({ label: "Photo", required: true }) }, render: (p) => <Image src={p.photo} alt="" /> });
+    const Count = defineElement({ type: "acme.Count", label: "Count", props: { n: prop.number({ label: "Count", required: true, min: 1 }) }, render: (p) => <Text>{p.n}</Text> });
     const { design } = toDesign(<Email><Heading>Hello</Heading></Email>);
     // As dragged in from the panel and not filled yet, with its counter emptied, and with a number its prop doesn't take.
     design.body.rows[0].columns[0].contents.push({ type: "custom", slug: "acme_photo", values: {} }, { type: "custom", slug: "acme_count", values: { n: "" } }, { type: "custom", slug: "acme_count", values: { n: 0 } });
-    const back = fromDesign(design, { components: [Photo, Count] });
+    const back = fromDesign(design, { elements: [Photo, Count] });
     expect(back.report).toHaveLength(4);
     expect(back.report).toContain('rows[0].columns[0].contents[1]: the custom tool "acme_photo" has no photo, which a acme.Photo needs: left out');
     expect(back.report).toContain('rows[0].columns[0].contents[2]: the custom tool "acme_count" has no n, which a acme.Count needs: left out');
@@ -326,21 +326,21 @@ describe("fromDesign with components", () => {
     expect((await render(back.element)).html).toContain(">Hello</h");
   });
 
-  it("leaves out a block of a component placed where a Section goes, and says so", async () => {
+  it("leaves out a block of an element placed where a Section goes, and says so", async () => {
     const { design } = toDesign(<Email><Heading>Hello</Heading></Email>);
     design.body.rows[0].columns[0].contents.push({ type: "custom", slug: "acme_hero", values: { title: "Launch" } });
-    const back = fromDesign(design, { components: [Hero] });
+    const back = fromDesign(design, { elements: [Hero] });
     expect(back.report).toEqual(['rows[0].columns[0].contents[1]: the custom tool "acme_hero" is a acme.Hero\'s, which goes where a Section does, not in a column: left out']);
     expect(back.code).not.toContain("acme.Hero");
     expect((await render(back.element)).html).toContain(">Hello</h");
   });
 
   it("keeps an image's width where its height isn't known", async () => {
-    const Photo = component({ type: "acme.Photo", label: "Photo", props: { photo: prop.image({ label: "Photo", required: true }) }, render: (p) => <Image src={p.photo} alt="" /> });
+    const Photo = defineElement({ type: "acme.Photo", label: "Photo", props: { photo: prop.image({ label: "Photo", required: true }) }, render: (p) => <Image src={p.photo} alt="" /> });
     const narrow = <Email><Photo photo={{ src: "https://example.com/p.png", width: 120 }} /></Email>;
     const { design } = toDesign(narrow, { customTools: true });
     expect(blocks(design)[0].values.photo).toEqual({ url: "https://example.com/p.png", width: 120 });
-    const back = fromDesign(design, { components: [Photo] });
+    const back = fromDesign(design, { elements: [Photo] });
     expect(back.report).toEqual([]);
     expect((await render(back.element)).html).toBe((await render(narrow)).html);
   });
@@ -348,12 +348,12 @@ describe("fromDesign with components", () => {
   it("reads a link its user emptied, where the prop has one by default, as a link to nothing: not its default again", async () => {
     const { design } = toDesign(<Email><ProductCard name="Mug" /></Email>, { customTools: true });
     blocks(design)[0].values.href = { name: "web", values: { href: "", target: "_blank" } };
-    const back = fromDesign(design, { components: [ProductCard] });
+    const back = fromDesign(design, { elements: [ProductCard] });
     expect(back.report).toEqual([]);
     expect((await render(back.element)).html).not.toContain("https://example.com");
     // A template's own link to nothing stays one.
     const none = <Email><ProductCard name="Mug" href={{ href: "" }} /></Email>;
-    expect((await render(fromDesign(toDesign(none, { customTools: true }).design, { components: [ProductCard] }).element)).html).toBe((await render(none)).html);
+    expect((await render(fromDesign(toDesign(none, { customTools: true }).design, { elements: [ProductCard] }).element)).html).toBe((await render(none)).html);
     expect((await render(none)).html).not.toContain("https://example.com");
   });
 
@@ -361,16 +361,16 @@ describe("fromDesign with components", () => {
     const { design } = toDesign(<Email><Kinds /></Email>, { customTools: true });
     expect(blocks(design)[0].values).toMatchObject({ ratio: "0.5", offset: 0, width: "50%", gap: 8, weight: "400" });
     Object.assign(blocks(design)[0].values, { ratio: "0.25", offset: "-3", width: "120", gap: "16", weight: "700" });
-    const back = fromDesign(design, { components: [Kinds] });
+    const back = fromDesign(design, { elements: [Kinds] });
     expect(back.report).toEqual([]);
     expect(back.code).toContain("<Kinds ratio={0.25} offset={-3} width={120} gap={16} weight={700} />");
     expect((await render(back.element)).text).toContain("0.25 -3 120 16");
   });
 
-  it("refuses two components that are one tool", () => {
-    const One = component({ type: "x.Y1Zed", label: "One", props: {}, render: () => <Text>1</Text> });
-    const Two = component({ type: "x-y1.Zed", label: "Two", props: {}, render: () => <Text>2</Text> });
-    expect(() => fromDesign({ body: { rows: [] } }, { components: [One, Two] })).toThrow("x.Y1Zed and x-y1.Zed are one tool in the builder (x_y1_zed)");
+  it("refuses two elements that are one tool", () => {
+    const One = defineElement({ type: "x.Y1Zed", label: "One", props: {}, render: () => <Text>1</Text> });
+    const Two = defineElement({ type: "x-y1.Zed", label: "Two", props: {}, render: () => <Text>2</Text> });
+    expect(() => fromDesign({ body: { rows: [] } }, { elements: [One, Two] })).toThrow("x.Y1Zed and x-y1.Zed are one tool in the builder (x_y1_zed)");
   });
 });
 
@@ -383,7 +383,7 @@ function fakeBuilder() {
 }
 
 describe("registerTools", () => {
-  it("registers each component as a custom tool: its name, its label, a property for each prop the builder edits", () => {
+  it("registers each element as a custom tool: its name, its label, a property for each prop the builder edits", () => {
     const { builder, tools } = fakeBuilder();
     expect(registerTools(builder, [ProductCard, Footer], { icons: { "acme.ProductCard": "fa-tag" } })).toEqual(["acme_product_card", "acme_legal_footer"]);
     const [product, footer] = tools;
@@ -423,7 +423,7 @@ describe("registerTools", () => {
   });
 
   it("edits a prop with the builder's editor for its kind, given what its kind gives it and nothing else", () => {
-    const Order = component({
+    const Order = defineElement({
       type: "acme.Order",
       label: "Order",
       props: {
@@ -443,13 +443,13 @@ describe("registerTools", () => {
     expect(properties.due).toEqual({ label: "Due", defaultValue: "", widget: "text" });
     // The builder's own controls are its kinds': none is given in editors, which are for properties of your own.
     expect(() => registerTools(builder, [Order], { editors: { counter: { render: () => "" } } })).toThrow(
-      "[Elements] registerTools: editors has counter, which is the property of no prop of the components given (none of their props is a property of your own)"
+      "[Elements] registerTools: editors has counter, which is the property of no prop of the elements given (none of their props is a property of your own)"
     );
   });
 
   it("registers a property's control given as it's written, for each prop that's the property, with the prop's value as the prop has it", () => {
     const currency = defineProperty({ name: "acme.currency", base: prop.number, options: { symbol: prop.text({ enum: ["$", "€", "£"], default: "$" }) } });
-    const Price = component({ type: "acme.Price", label: "Price", props: { price: currency({ label: "Price", min: 0, default: 7.5, symbol: "€" }) }, render: (p) => <Text>{p.price.toFixed(2)}</Text> });
+    const Price = defineElement({ type: "acme.Price", label: "Price", props: { price: currency({ label: "Price", min: 0, default: 7.5, symbol: "€" }) }, render: (p) => <Text>{p.price.toFixed(2)}</Text> });
     const { builder, tools, editors } = fakeBuilder();
     const given: unknown[] = [];
     registerTools(builder, [Price], {
@@ -478,7 +478,7 @@ describe("registerTools", () => {
       base: prop.number,
       options: { symbol: prop.text({ enum: ["$", "€", "£"], default: "€" }), decimals: prop.number({ integer: true, min: 0, default: 2 }), note: prop.text({}) },
     });
-    const Price = component({
+    const Price = defineElement({
       type: "acme.Price",
       label: "Price",
       props: {
@@ -513,12 +513,12 @@ describe("registerTools", () => {
     // The design keeps the value as its kind's editor does, whatever edits it.
     const [block] = blocks(toDesign(<Email><Price price={12.5} /></Email>, { customTools: true }).design);
     expect(block.values).toMatchObject({ price: "12.5", was: "9" });
-    expect(fromDesign({ body: { rows: [{ cells: [1], columns: [{ contents: [block] }] }] } }, { components: [Price] }).code).toContain("<Price price={12.5} />");
+    expect(fromDesign({ body: { rows: [{ cells: [1], columns: [{ contents: [block] }] }] } }, { elements: [Price] }).code).toContain("<Price price={12.5} />");
   });
 
   it("edits a prop with its kind's editor where its property's control isn't given, with none of the property's options", () => {
     const currency = defineProperty({ name: "acme.currency", base: prop.number, options: { symbol: prop.text({ default: "€" }) } });
-    const Stock = component({ type: "acme.Stock", label: "Stock", props: { units: currency({ label: "Units", min: 1, integer: true, default: 3, symbol: "$" }) }, render: (p) => <Text>{p.units}</Text> });
+    const Stock = defineElement({ type: "acme.Stock", label: "Stock", props: { units: currency({ label: "Units", min: 1, integer: true, default: 3, symbol: "$" }) }, render: (p) => <Text>{p.units}</Text> });
     const { builder, tools, editors } = fakeBuilder();
     registerTools(builder, [Stock]);
     expect(tools[0].options.acme_stock.options.units).toEqual({ label: "Units", defaultValue: 3, widget: "counter", data: { minValue: 1 } });
@@ -530,27 +530,27 @@ describe("registerTools", () => {
 
   it("refuses an editor given as it's written in a builder that can't register one", () => {
     const currency = defineProperty({ name: "acme.currency", base: prop.number });
-    const Price = component({ type: "acme.Price", label: "Price", props: { price: currency({ label: "Price", default: 1 }) }, render: (p) => <Text>{p.price}</Text> });
+    const Price = defineElement({ type: "acme.Price", label: "Price", props: { price: currency({ label: "Price", default: 1 }) }, render: (p) => <Text>{p.price}</Text> });
     const bare: Builder = { registerTool: () => {}, createViewer: (viewer) => viewer };
     expect(() => registerTools(bare, [Price], { editors: { "acme.currency": { render: () => "" } } })).toThrow("editors gives acme.currency as it's written, which takes a builder with registerPropertyEditor() and createWidget()");
     expect(() => registerTools(bare, [Price], { editors: { "acme.currency": true } })).not.toThrow();
   });
 
-  it("refuses an editor given for no prop of the components given: a name mistyped would leave its prop with its kind's editor, without a word", () => {
+  it("refuses an editor given for no prop of the elements given: a name mistyped would leave its prop with its kind's editor, without a word", () => {
     const currency = defineProperty({ name: "acme.currency", base: prop.number });
-    const Price = component({ type: "acme.Price", label: "Price", props: { price: currency({ label: "Price", default: 1 }), due: prop.text({ label: "Due" }) }, render: (p) => <Text>{p.price}</Text> });
+    const Price = defineElement({ type: "acme.Price", label: "Price", props: { price: currency({ label: "Price", default: 1 }), due: prop.text({ label: "Due" }) }, render: (p) => <Text>{p.price}</Text> });
     const { builder, tools } = fakeBuilder();
     expect(() => registerTools(builder, [Price], { editors: { "acme.curency": { render: () => "" } } })).toThrow(
-      "[Elements] registerTools: editors has acme.curency, which is the property of no prop of the components given (their props are acme.currency)"
+      "[Elements] registerTools: editors has acme.curency, which is the property of no prop of the elements given (their props are acme.currency)"
     );
     expect(() => registerTools(builder, [Price], { editors: { "acme.curency": true } })).toThrow("editors has acme.curency");
-    expect(() => registerTools(builder, [Footer], { editors: { "acme.currency": true } })).toThrow("editors has acme.currency, which is the property of no prop of the components given (none of their props is a property of your own)");
+    expect(() => registerTools(builder, [Footer], { editors: { "acme.currency": true } })).toThrow("editors has acme.currency, which is the property of no prop of the elements given (none of their props is a property of your own)");
     // Nothing is registered where one is refused.
     expect(tools).toEqual([]);
     expect(() => registerTools(builder, [Price, Footer], { editors: { "acme.currency": true } })).not.toThrow();
   });
 
-  it("draws the component from the tool's values, as an Email's markup in the canvas and for email, a Page's for web", () => {
+  it("draws the element from the tool's values, as an Email's markup in the canvas and for email, a Page's for web", () => {
     const { builder, tools } = fakeBuilder();
     registerTools(builder, [ProductCard]);
     const { Viewer, exporters } = tools[0].renderer;
@@ -567,8 +567,8 @@ describe("registerTools", () => {
     expect(web).not.toContain("<table");
   });
 
-  it("draws the ids inside the component as its block's id makes them, so a link to one finds it", async () => {
-    const Faq = component({
+  it("draws the ids inside the element as its block's id makes them, so a link to one finds it", async () => {
+    const Faq = defineElement({
       type: "acme.Faq",
       label: "FAQ",
       props: { question: prop.text({ label: "Question", default: "How long is delivery?" }) },
@@ -596,7 +596,7 @@ describe("registerTools", () => {
     expect(ids(exporters.email(numbered))).toEqual([]);
     // One its author gave that a template doesn't take is left out, as fromDesign() leaves it out: the block is drawn.
     const dotted = { ...block.values, _meta: { htmlID: "faq.answer", htmlClassNames: "u_content_custom_acme_faq" } };
-    expect(fromDesign({ body: { rows: [{ cells: [1], columns: [{ contents: [{ ...block, values: dotted }] }] }] } }, { components: [Faq] }).code).toContain("<Faq />");
+    expect(fromDesign({ body: { rows: [{ cells: [1], columns: [{ contents: [{ ...block, values: dotted }] }] }] } }, { elements: [Faq] }).code).toContain("<Faq />");
     for (const drawn of [exporters.email(dotted), exporters.web(dotted), Viewer.render(dotted)]) {
       expect(drawn).toContain("How long is delivery?");
       expect(ids(drawn)).toEqual([]);
@@ -611,7 +611,7 @@ describe("registerTools", () => {
 
   it("draws at its column's share of the content width", () => {
     const { builder, tools } = fakeBuilder();
-    const Wide = component({ type: "acme.Wide", label: "Wide", props: { photo: prop.image({ label: "Photo", required: true }) }, render: (p) => <Image src={p.photo} alt="" /> });
+    const Wide = defineElement({ type: "acme.Wide", label: "Wide", props: { photo: prop.image({ label: "Photo", required: true }) }, render: (p) => <Image src={p.photo} alt="" /> });
     registerTools(builder, [Wide]);
     const values = { photo: { url: "https://example.com/wide.png", width: 1200, height: 600 }, containerPadding: "0px" };
     const full = tools[0].renderer.Viewer.render(values, { contentWidth: "600px" }, { columnIndex: 0, rowCells: [1] });
@@ -623,7 +623,7 @@ describe("registerTools", () => {
   it("draws in a column with less room than a root can be at the room it has, not wider", () => {
     const { builder, tools } = fakeBuilder();
     // A photo, which fills its room, over a Row, whose columns are one under the other where they don't fit in it.
-    const Pair = component({
+    const Pair = defineElement({
       type: "acme.Pair",
       label: "Pair",
       props: {},
@@ -651,7 +651,7 @@ describe("registerTools", () => {
 
   it("draws a block at the width its column leaves it: less the column's own padding and border, where the builder gives them", () => {
     const { builder, tools } = fakeBuilder();
-    const Pair = component({ type: "acme.Pair", label: "Pair", props: {}, render: () => <Row><Column><Text>Left</Text></Column><Column><Text>Right</Text></Column></Row> });
+    const Pair = defineElement({ type: "acme.Pair", label: "Pair", props: {}, render: () => <Row><Column><Text>Left</Text></Column><Column><Text>Right</Text></Column></Row> });
     registerTools(builder, [Pair]);
     const { Viewer, exporters } = tools[0].renderer;
     // A Row's gap and a Column's padding and border are the builder's columns' own.
@@ -685,7 +685,7 @@ describe("registerTools", () => {
 
   it("starts a block's phone styles where the email's do, whatever its column's width", async () => {
     const { builder, tools } = fakeBuilder();
-    const Note = component({ type: "acme.Note", label: "Note", props: {}, render: () => <Column><Text style={{ fontSize: 20, mobile: { fontSize: 14 } }}>Note</Text><Text hidden={{ desktop: true }}>On a phone</Text></Column> });
+    const Note = defineElement({ type: "acme.Note", label: "Note", props: {}, render: () => <Column><Text style={{ fontSize: 20, mobile: { fontSize: 14 } }}>Note</Text><Text hidden={{ desktop: true }}>On a phone</Text></Column> });
     registerTools(builder, [Note]);
     const { Viewer, exporters } = tools[0].renderer;
     const queries = (html: string) => [...new Set(html.match(/@media \([^)]*\)/g))];
@@ -702,7 +702,7 @@ describe("registerTools", () => {
     expect(queries(Viewer.render({}, { contentWidth: "700px" }, { columnIndex: 0, rowCells: [1, 1] }))).toEqual(["@media (max-width: 720px)"]);
   });
 
-  it("draws a block dragged in with a prop its component needs at its default", () => {
+  it("draws a block dragged in with a prop its element needs at its default", () => {
     const { builder, tools } = fakeBuilder();
     registerTools(builder, [Banner]);
     const start = { title: tools[0].options.acme_banner.options.title.defaultValue };
@@ -711,7 +711,7 @@ describe("registerTools", () => {
     expect(tools[0].renderer.exporters.email(start)).toContain(">Welcome</p>");
   });
 
-  it("registers no tool for a component placed where a Section goes, which is no block in a column", () => {
+  it("registers no tool for an element placed where a Section goes, which is no block in a column", () => {
     const { builder, tools } = fakeBuilder();
     expect(registerTools(builder, [Hero, Footer])).toEqual(["acme_legal_footer"]);
     expect(tools.map((tool) => tool.name)).toEqual(["acme_legal_footer"]);
@@ -727,7 +727,7 @@ describe("registerTools", () => {
 
   it("says in the canvas what stops a block from being drawn, and exports nothing for it", () => {
     const { builder, tools } = fakeBuilder();
-    const Named = component({ type: "acme.Named", label: "Named", props: { name: prop.text({ label: "Name", required: true }) }, render: (p) => <Text>{p.name}</Text> });
+    const Named = defineElement({ type: "acme.Named", label: "Named", props: { name: prop.text({ label: "Name", required: true }) }, render: (p) => <Text>{p.name}</Text> });
     registerTools(builder, [Named]);
     const { Viewer, exporters } = tools[0].renderer;
     const canvas = Viewer.render({});
@@ -761,16 +761,16 @@ describe("registerTools", () => {
     expect(footer.transformer).toBeUndefined();
   });
 
-  it("refuses a setting that's what the component gives its tool, saying where it's set", () => {
+  it("refuses a setting that's what the element gives its tool, saying where it's set", () => {
     const { builder } = fakeBuilder();
     for (const setting of ["name", "label", "icon", "supportedDisplayModes", "options", "values", "renderer"]) {
-      expect(() => registerTools(builder, [ProductCard], { tools: { "acme.ProductCard": { [setting]: {} } } })).toThrow(`tools sets ${setting} for acme.ProductCard, which its component gives the tool`);
+      expect(() => registerTools(builder, [ProductCard], { tools: { "acme.ProductCard": { [setting]: {} } } })).toThrow(`tools sets ${setting} for acme.ProductCard, which its element gives the tool`);
     }
   });
 
-  it("refuses a component with a prop named as one of the builder's own for a block, which toDesign() keeps an HTML block", () => {
-    const Padded = component({ type: "acme.Padded", label: "Padded", props: { containerPadding: prop.length({ label: "Padding", default: 24 }) }, render: (p) => <Column style={{ padding: p.containerPadding }}><Text>Padded</Text></Column> });
-    const Locked = component({ type: "acme.Locked", label: "Locked", props: { locked: prop.boolean({ label: "Locked", default: false }) }, render: (p) => <Text>{p.locked ? "locked" : "open"}</Text> });
+  it("refuses an element with a prop named as one of the builder's own for a block, which toDesign() keeps an HTML block", () => {
+    const Padded = defineElement({ type: "acme.Padded", label: "Padded", props: { containerPadding: prop.length({ label: "Padding", default: 24 }) }, render: (p) => <Column style={{ padding: p.containerPadding }}><Text>Padded</Text></Column> });
+    const Locked = defineElement({ type: "acme.Locked", label: "Locked", props: { locked: prop.boolean({ label: "Locked", default: false }) }, render: (p) => <Text>{p.locked ? "locked" : "open"}</Text> });
     const { builder } = fakeBuilder();
     expect(() => registerTools(builder, [Padded])).toThrow("acme.Padded has a prop named containerPadding, which is the builder's own in a block");
     // (The builder gives every block a `locked` of its own.)
@@ -779,30 +779,30 @@ describe("registerTools", () => {
     expect(blocks(design).map((content) => content.type)).toEqual(["html"]);
     // A block of one, written by hand, is left out.
     design.body.rows[0].columns[0].contents.push({ type: "custom", slug: "acme_padded", values: { containerPadding: "0px" } });
-    expect(fromDesign(design, { components: [Padded] }).report.join("\n")).toContain("whose prop containerPadding is the builder's own in a block: left out");
+    expect(fromDesign(design, { elements: [Padded] }).report.join("\n")).toContain("whose prop containerPadding is the builder's own in a block: left out");
   });
 
-  it("keeps the value of a tool's own property in the block, and out of the component", async () => {
+  it("keeps the value of a tool's own property in the block, and out of the element", async () => {
     const { design } = toDesign(<Email><ProductCard name="Mug" /></Email>, { customTools: true });
     blocks(design)[0].values.product = { selected: { id: 2 } };
-    const back = fromDesign(design, { components: [ProductCard] });
+    const back = fromDesign(design, { elements: [ProductCard] });
     expect(back.report).toEqual([]);
     expect(back.code).toContain('<ProductCard name="Mug" />');
   });
 
-  it("refuses a tool's own property named as a prop, and settings for a component that isn't given", () => {
+  it("refuses a tool's own property named as a prop, and settings for an element that isn't given", () => {
     const { builder } = fakeBuilder();
     expect(() => registerTools(builder, [ProductCard], { tools: { "acme.ProductCard": { properties: { price: { label: "Price", widget: "text" } } } } })).toThrow("acme.ProductCard has a prop named price");
-    expect(() => registerTools(builder, [ProductCard], { tools: { "acme.Product": {} } })).toThrow("settings for acme.Product, which is none of the components given");
+    expect(() => registerTools(builder, [ProductCard], { tools: { "acme.Product": {} } })).toThrow("settings for acme.Product, which is none of the elements given");
   });
 
-  it("refuses what isn't a template's own component", () => {
+  it("refuses what isn't a template's own element", () => {
     const { builder } = fakeBuilder();
-    expect(() => registerTools(builder, [Text as never])).toThrow("made with component()");
+    expect(() => registerTools(builder, [Text as never])).toThrow("made with defineElement()");
   });
 });
 
-describe("a Page's own components", () => {
+describe("a Page's own elements", () => {
   it("round-trips the same way", async () => {
     const page = (
       <Page width={800}>
@@ -810,7 +810,7 @@ describe("a Page's own components", () => {
       </Page>
     );
     const { design } = toDesign(page, { customTools: true });
-    const back = fromDesign(design, { displayMode: "web", components: [ProductCard] });
+    const back = fromDesign(design, { displayMode: "web", elements: [ProductCard] });
     expect(back.report).toEqual([]);
     expect((await render(back.element)).html).toBe((await render(page)).html);
   });

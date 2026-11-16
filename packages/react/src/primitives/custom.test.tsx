@@ -253,7 +253,7 @@ describe("component()", () => {
   });
 
   it("edits a prop with its kind's editor: there's no editor to name, and a prop is no property of a team's own", async () => {
-    const Order = component({
+    const Order = defineElement({
       type: "acme.Order",
       label: "Order",
       props: {
@@ -296,7 +296,7 @@ describe("component()", () => {
   });
 
   it("takes a color that lets what's under it show, unless its transparency is false", async () => {
-    const Tinted = component({
+    const Tinted = defineElement({
       type: "acme.Tinted",
       label: "Tinted",
       props: { tint: prop.color({ label: "Tint", transparency: true, default: "rgba(0, 0, 0, 0.5)" }), solid: prop.color({ label: "Solid", transparency: false, default: "#0879a1" }), plain: prop.color({ label: "Plain" }) },
@@ -320,7 +320,7 @@ describe("component()", () => {
   });
 
   it("limits a text to the texts its enum lists", async () => {
-    const Tag = component({
+    const Tag = defineElement({
       type: "acme.Tag",
       label: "Tag",
       props: { tone: prop.text({ label: "Tone", enum: ["calm", "loud"], default: "calm" }), note: prop.text({ label: "Note" }) },
@@ -364,7 +364,7 @@ describe("component()", () => {
     const stepped = defineProperty({ name: "acme.stepped", base: number, options: { unit: text({ required: true }) } });
     expect(stepped({ label: "Weight", unit: "kg" }).editor).toEqual({ name: "acme.stepped", edits: "number", options: { unit: "kg" } });
     const flip = defineProperty({ name: "acme.flip", base: prop.boolean });
-    const Order = component({
+    const Order = defineElement({
       type: "acme.Order",
       label: "Order",
       props: {
@@ -401,7 +401,7 @@ describe("component()", () => {
     const gap = defineProperty({ name: "acme.gap", base: prop.length });
     expect([gap({ label: "Gap", units: ["px", "%"], default: "50%" }).default, gap({ label: "Gap" }).editor]).toEqual(["50%", { name: "acme.gap", edits: "length", options: {} }]);
     const swatch = defineProperty({ name: "acme.swatch", base: prop.color, options: { palette: prop.text({ default: "brand" }) } });
-    const Card = component({
+    const Card = defineElement({
       type: "acme.Swatched",
       label: "Swatched",
       props: { size: picked, tint: swatch({ label: "Tint", default: "#0879a1" }) },
@@ -414,12 +414,12 @@ describe("component()", () => {
     expectTypeOf<Parameters<typeof Card>[0]["tint"]>().toEqualTypeOf<string | Token | undefined>();
   });
 
-  it("keeps which property a prop is in its type: its name as written and its options, through its helper and a component", () => {
+  it("keeps which property a prop is in its type: its name as written and its options, through its helper and an element", () => {
     const accent = defineProperty({ name: "acme.accent", base: prop.color, options: { palette: prop.text({ enum: ["soft", "bold"], default: "soft" }) } });
     // On the same helper with the same options: only its name tells it from the other.
     const shade = defineProperty({ name: "acme.shade", base: prop.color, options: { palette: prop.text({ enum: ["soft", "bold"], default: "soft" }) } });
     const background = accent({ label: "Background", default: "#fff4bf", transparency: false });
-    const Note = component({
+    const Note = defineElement({
       type: "acme.Note",
       label: "Note",
       props: { background, border: shade({ label: "Border", palette: "bold" }), size: prop.number({ label: "Size" }) },
@@ -431,7 +431,7 @@ describe("component()", () => {
     expectTypeOf(Note.definition.props.border.editor.name).toEqualTypeOf<"acme.shade">();
     // Its options as its editor is given them: one with a default is always there.
     expectTypeOf(background.editor.options.palette).toEqualTypeOf<"soft" | "bold">();
-    // What an editing app reads from a component's props, as types: the properties it needs editors for. A prop of
+    // What an editing app reads from an element's props, as types: the properties it needs editors for. A prop of
     // prop's own helpers is none of them.
     type Needed<P> = { [K in keyof P]: P[K] extends { readonly editor: { readonly name: infer N } } ? N : never }[keyof P];
     expectTypeOf<Needed<typeof Note.definition.props>>().toEqualTypeOf<"acme.accent" | "acme.shade">();
@@ -493,12 +493,12 @@ describe("component()", () => {
 
   it("refuses a prop that isn't one: no label, a property that isn't called, an editor that isn't a property's", () => {
     const currency = defineProperty({ name: "acme.currency", base: prop.number, options: { symbol: prop.text({ default: "€" }) } });
-    const made = (props: Record<string, any>) => () => component({ type: "acme.Named", label: "Named", props, render: () => <Text>n</Text> });
-    // A component's prop has a label (an option of a property needs none): said where it's written, and where the component is made.
+    const made = (props: Record<string, any>) => () => defineElement({ type: "acme.Named", label: "Named", props, render: () => <Text>n</Text> });
+    // An element's prop has a label (an option of a property needs none): said where it's written, and where the element is made.
     // @ts-expect-error -- no label.
-    expect(() => component({ type: "acme.Named", label: "Named", props: { n: prop.number({ min: 0 }) }, render: () => <Text>n</Text> })).toThrow("acme.Named: n needs a label: what an editor shows for it");
+    expect(() => defineElement({ type: "acme.Named", label: "Named", props: { n: prop.number({ min: 0 }) }, render: () => <Text>n</Text> })).toThrow("acme.Named: n needs a label: what an editor shows for it");
     // @ts-expect-error -- no label, made by a property.
-    expect(() => component({ type: "acme.Named", label: "Named", props: { n: currency({ min: 0 }) }, render: () => <Text>n</Text> })).toThrow("acme.Named: n needs a label: what an editor shows for it");
+    expect(() => defineElement({ type: "acme.Named", label: "Named", props: { n: currency({ min: 0 }) }, render: () => <Text>n</Text> })).toThrow("acme.Named: n needs a label: what an editor shows for it");
     expect(made({ n: currency })).toThrow('acme.Named: n is a property\'s definition: call it for the prop (n: currency({ label: "…" }))');
     // @ts-expect-error -- a helper takes no editor: a property is the prop itself.
     expect(() => prop.number({ label: "N", editor: currency })).toThrow("prop.number takes no editor");

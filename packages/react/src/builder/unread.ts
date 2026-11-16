@@ -62,7 +62,7 @@ const WHAT: Record<string, string> = {
 
 /**
  * Says each value of the item (by its tool, `paragraph` a text's) that isn't read, and draws something. A custom tool's
- * block says what's read of it itself (`read`): that's its component's (custom.ts).
+ * block says what's read of it itself (`read`): that's its element's (custom.ts).
  */
 export function sayUnread(tool: string, values: Values, defaults: Values | undefined, say: (message: string) => void, read: { values: string[]; phone: string[] } | undefined = READ[tool === "paragraph" ? "text" : tool]): void {
   if (!read) return;

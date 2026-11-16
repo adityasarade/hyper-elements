@@ -1,4 +1,4 @@
-// Writes what editor.html loads, for each set of components (src/shop, src/oyen), to output/<set>/:
+// Writes what editor.html loads, for each set of elements (src/shop, src/oyen), to output/<set>/:
 // tools.js (the editor's custom JavaScript), design.json (the email as the editor's design) and email.html (the email
 // rendered as it is, to compare with what the editor exports).
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -10,7 +10,7 @@ for (const set of ["shop", "oyen"]) {
   const out = `output/${set}`;
   mkdirSync(out, { recursive: true });
 
-  // The tools run in the editor's page: one script, with Elements and the components in it.
+  // The tools run in the editor's page: one script, with Elements and the elements in it.
   await build({ ...shared, entryPoints: [`src/${set}/tools.ts`], platform: "browser", format: "iife", minify: true, outfile: `${out}/tools.js` });
 
   // The email and its design are made here, in Node.

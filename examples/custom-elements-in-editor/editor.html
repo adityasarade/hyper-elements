@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Your own components in the Unlayer editor</title>
+  <title>Your own elements in the Unlayer editor</title>
   <style>
     body { margin: 0; font: 14px/1.4 system-ui, sans-serif; color: #1a1917; }
     header { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid #d3cec4; background: #f3f1ec; }
@@ -28,7 +28,7 @@
     const status = document.getElementById("status");
     const save = document.getElementById("save");
     try {
-      // Two sets of components, each within the five custom tools most plans have: ?set=shop (the default) or ?set=oyen.
+      // Two sets of elements, each within the five custom tools most plans have: ?set=shop (the default) or ?set=oyen.
       const params = new URLSearchParams(location.search);
       const set = params.get("set") === "oyen" ? "oyen" : "shop";
       for (const link of document.querySelectorAll("header a")) {
@@ -46,7 +46,7 @@
         id: "editor",
         displayMode: "email",
         ...(projectId ? { projectId } : {}),
-        // The components as tools: this script calls registerTools() where the editor runs it.
+        // The elements as tools: this script calls registerTools() where the editor runs it.
         customJS: [tools],
         // The editor loads and exports the web fonts it was created with.
         fonts: {
@@ -60,7 +60,7 @@
       editor.addEventListener("editor:ready", () => editor.loadDesign(JSON.parse(design)));
       editor.addEventListener("design:loaded", () => {
         save.disabled = false;
-        status.textContent = projectId ? "Click a block: its fields are its component's props." : "No projectId: the editor draws custom tools only for a project whose plan has them. Add ?projectId= to the address.";
+        status.textContent = projectId ? "Click a block: its fields are its element's props." : "No projectId: the editor draws custom tools only for a project whose plan has them. Add ?projectId= to the address.";
       });
       const download = (name, contents, type) => {
         const link = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob([contents], { type })), download: name });

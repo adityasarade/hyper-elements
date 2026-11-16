@@ -35,7 +35,7 @@ import type { Token } from "./theme";
 
 /**
  * What a prop's helper takes besides what its kind does: what the prop is called, whether it's required, its default.
- * A component's prop has a label; an option of a property of a team's own (`defineProperty()`) needs none. There's no
+ * An element's prop has a label; an option of a property of a team's own (`defineProperty()`) needs none. There's no
  * editor to name: a prop is edited with its kind's, or is a property of a team's own.
  */
 type PropOptions<K extends Kind<any, any>, R extends boolean, D, L extends string | undefined> = Omit<PropSpec<K, R>, "kind" | "default" | "label" | "editor"> & {
@@ -45,10 +45,10 @@ type PropOptions<K extends Kind<any, any>, R extends boolean, D, L extends strin
 
 /**
  * What a helper makes. `required`, `default` and `label` keep their literal types: the first two for `render`'s props,
- * the last so a component's prop with no label is an error where it's written.
+ * the last so an element's prop with no label is an error where it's written.
  */
 type Made<K extends Kind<any, any>, R extends boolean, D, L> = Omit<PropSpec<K, R>, "default" | "label"> & { default: D; label: Said<L> };
-/** The label as it's given, and nothing else: where a prop is written in a component's `props`, that it's a prop there doesn't make it one with a label. */
+/** The label as it's given, and nothing else: where a prop is written in an element's `props`, that it's a prop there doesn't make it one with a label. */
 type Said<L> = [L][L extends any ? 0 : never];
 
 declare const TAKES_TOKEN: unique symbol;
@@ -162,7 +162,7 @@ type OptionsOf<O extends OptionSpecs> = { [K in Held<O>]: OutputOf<O[K]["kind"]>
 type Value<N extends keyof Helpers> = OutputOf<ReturnType<Helpers[N]>["kind"]>;
 /**
  * What a property's prop says of its editor, as its type: which property it is (its name, as it's written) and its
- * options as the prop has them. So an editing app can tell from a component's props, as types, which properties it
+ * options as the prop has them. So an editing app can tell from an element's props, as types, which properties it
  * needs editors for. The value is the one the prop holds at run time.
  */
 type PropertyMark<Name extends string, O> = { readonly editor: { readonly name: Name; readonly options: O } };
@@ -195,7 +195,7 @@ export interface PropertyDefinition<V = any, O = { [option: string]: Json }, Nam
  *
  * then `price: currency({ label: "Price", min: 0, symbol: "€" })`. The prop is its base's: a number, with a number's own
  * limits, whoever writes it. Its own options say how it's edited, each checked by its kind as a prop is. Its name, as
- * it's written, stays in the types of the property, of each prop it makes and of a component with one
+ * it's written, stays in the types of the property, of each prop it makes and of an element with one
  * (`price.editor.name` is `"acme.currency"`), with the prop's options as its editor is given them.
  */
 export function defineProperty<const Name extends string, const N extends keyof Helpers, const O extends OptionSpecs = {}>(definition: {

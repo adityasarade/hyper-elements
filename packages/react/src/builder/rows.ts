@@ -32,7 +32,7 @@ export interface Where {
   document: boolean;
   /** In a Document's header or footer, which hold no Section. */
   part: boolean;
-  /** The template's own components given, by their tools' names (custom.ts). */
+  /** The template's own elements given, by their tools' names (custom.ts). */
   tools: Map<string, CustomDefinition<any>>;
 }
 

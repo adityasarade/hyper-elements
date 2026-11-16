@@ -24,7 +24,7 @@ export interface Place {
   put<T extends { values: Values }>(made: T, values?: Values): T;
   sayLeftOut(tool: string, node: Node, path: string, fields: readonly string[]): void;
   locked(node: Node, path: string, why: string, around: Sides): Block;
-  /** A template's own component as its custom tool's block, where the design is written with them (custom.ts). */
+  /** A template's own element as its custom tool's block, where the design is written with them (custom.ts). */
   custom(node: Node, path: string, around: Sides, hiding: { hideOnMobile?: boolean; hideOnDesktop?: boolean }): Block | undefined;
   stack(node: Node, path: string, around: Sides): Block[];
   /** The text styles a block takes from its parents that the root's don't give it. */

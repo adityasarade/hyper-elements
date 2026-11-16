@@ -41,13 +41,13 @@ export function toElement(node: Node, components: Record<string, React.Component
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 /** A prop's name JSX can hold as one (`aria-label` too); a design could hold any other text where one goes. */
 const PROP_NAME = /^[A-Za-z_$][\w$]*(?:-[\w$]+)*$/;
-/** A component's type JSX can be written for: a built-in's, or a custom component's (`acme.ProductCard`). */
+/** An element's type JSX can be written for: a built-in's, or a custom element's (`acme.ProductCard`). */
 const TYPE_NAME = /^(?:[A-Z][\w$]*|[a-z][a-z0-9-]*\.[A-Z][\w$]*)$/;
-/** A custom component's type: its namespace, and the name it ends with. */
+/** A custom element's type: its namespace, and the name it ends with. */
 const CUSTOM = /^([a-z][a-z0-9-]*)\.([A-Z][\w$]*)$/;
 
 /**
- * The name the code writes each of the template's own components with: the one its type ends with (`acme.Callout` is
+ * The name the code writes each of the template's own elements with: the one its type ends with (`acme.Callout` is
  * `Callout`), as a template uses it. Where that name is another's too (another of them's, a built-in's the code imports,
  * the template's own), it's written with its namespace (`AcmeCard`, `MyShopCard`), and numbered where that's taken too.
  * A type's namespace may not be one JavaScript can write (`my-shop`, `new`): this name always is.
@@ -166,6 +166,6 @@ export function printTemplate(root: Node, name = "Template", report: string[] = 
   visit(root);
   const names = ownNames([...own], new Set([...used, name]));
   const imports = [`import { ${[...used].sort().join(", ")} } from "@hyper-elements/react";`];
-  if (own.size) imports.push(`// The template's own components, to import from where they're defined: ${[...names].map(([type, as]) => `${as} (${type})`).join(", ")}.`);
+  if (own.size) imports.push(`// The template's own elements, to import from where they're defined: ${[...names].map(([type, as]) => `${as} (${type})`).join(", ")}.`);
   return `${imports.join("\n")}\n\nexport default function ${name}() {\n  return (\n    ${element(root, "    ", false, "root", report, names)}\n  );\n}\n`;
 }
