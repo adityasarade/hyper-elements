@@ -297,6 +297,30 @@ checked is what's rendered: slot content that would render something else the se
 Rendering `design()`'s element instead runs a slot's code again, unchecked. `check(element)`, from the same entry, checks a design whose root is a template, in its `format` or, without
 one, in every format.
 
+## Measured rules and checkLayout()
+
+What depends on fonts and files is measured, by the image entry, for a Canvas:
+
+```ts
+import { layoutImage, renderImage } from "@hyper-elements/react/image";
+import { checkLayout, sniffImage } from "@hyper-elements/react/template";
+
+const checked = launch.check(values, { format: "square" });
+const layout = await layoutImage(checked.snapshots.square!, { fonts, images, scale: 2 });
+const report = checkLayout(launch, checked.values, { format: "square", layout, files: { artwork: sniffImage(artworkBytes)! }, checked });
+// report: { regions, fits, rules, diagnostics }
+const { image } = await renderImage(checked.snapshots.square!, { fonts, images, scale: 2 });
+```
+
+- `checkLayout()` is synchronous and pure. It gives each bound image's region (its box, and the pixels it needs at the
+  scale it's rendered), each fitted field's sizes, and checks each image's file: its size against the one declared
+  (`template/asset-size`), its type and transparency against the rules (`template/asset-type`, `template/asset-alpha`),
+  and whether it would be upscaled in its region (`template/asset-pixels`).
+- Given `check()`'s result, it decides the measured rules a template requires (`image/overflow`, `image/glyph`,
+  `image/fit`), by format, and returns the complete `rules`.
+- `renderImage()` of a template's snapshot, or of a template design, draws it `strict` and decides those rules itself:
+  one that fails rejects, naming the rule. Any other writer refuses such a snapshot (`template/rule-not-run`).
+
 ## Designs as data
 
 The same design can be data instead of TSX, for batches and tools: a values file, the template's reference and

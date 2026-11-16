@@ -387,6 +387,8 @@ export interface CollectedTemplate extends CheckResult {
   fields?: ReadonlyMap<string, string>;
   /** The template the design's root was, where it was one: its id and version. */
   template?: { id: string; version: string };
+  /** Required rules its template couldn't decide (measured ones): a writer refuses it, or decides them (/image). */
+  pending?: readonly PendingRule[];
   /**
    * A template design checked in every format (`all`, and no `format` among its props): no one document, but what the
    * template's check found in each.
@@ -416,7 +418,7 @@ function recordOf(template: unknown): TemplateRecord | undefined {
 export function collectTemplate(element: React.ReactElement | object, options: { all?: boolean; built?: boolean } = {}): CollectedTemplate {
   // A snapshot: collected once already, and never again.
   const snapshot = snapshotData(element);
-  if (snapshot) return { ...snapshot.collected, ...(snapshot.template ? { template: snapshot.template } : {}) };
+  if (snapshot) return { ...snapshot.collected, ...(snapshot.template ? { template: snapshot.template } : {}), ...(snapshot.pending?.length ? { pending: snapshot.pending } : {}) };
   const { nodes: top, components, diagnostics, aborted, templates } = collectNodes(element as React.ReactElement);
   if (templates.length) {
     // What a template's render built is a design, never another template's.

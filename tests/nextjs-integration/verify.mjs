@@ -61,6 +61,14 @@ if (og) {
     if (Buffer.compare(Buffer.from(served), Buffer.from(drawn)) !== 0) fail(`OpenGraph image (${slug}): ${served.length} bytes served, ${drawn.length} drawn in Node for the same values`);
     console.log(`✓ OpenGraph image (${slug}, ${i < 2 ? "prerendered" : "on request"}): a PNG of 1200×630, the bytes Node draws`);
   }
+  // A card measured and checked by its template, where the app has the route: its too-small badge is reported.
+  const reportRoute = await fetch(`http://localhost:${port}/og-report`).catch(() => undefined);
+  if (reportRoute?.ok) {
+    const report = await reportRoute.json();
+    if (!report.diagnostics.includes("template/asset-pixels")) fail(`OpenGraph report: the undersized badge isn't reported (${report.diagnostics.join(", ") || "nothing"})`);
+    if (!report.fits.some((fit) => fit.field === "title" && fit.chosen)) fail("OpenGraph report: the title has no fitted size");
+    console.log(`✓ OpenGraph report: the title fitted at ${report.fits[0].chosen}px, and the undersized badge reported (template/asset-pixels)`);
+  }
 }
 server.kill();
 process.exit(0);

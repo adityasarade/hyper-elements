@@ -14,7 +14,10 @@ import {
   type RenderResult,
   type ResolvedNode,
 } from "@hyper-elements/core";
-import { collectTemplate, snapshotData, withFields } from "./collect";
+import { collectTemplate, snapshotData, withFields, type CollectedTemplate } from "./collect";
+
+/** Given to prepare() by the entry that decides a template's measured rules: they're handed over, not refused. */
+const DECIDES = Symbol.for("hyper-elements.decides-measured");
 import { outlineOf } from "./outline";
 import type { Snapshot } from "./snapshot";
 
@@ -38,8 +41,8 @@ const used = (template: TemplateUsed | undefined): { template?: TemplateUsed } =
  * A snapshot whose template requires a rule it couldn't decide yet (one measured with fonts): a writer refuses it,
  * naming the rule and the writer that decides it, so no required rule is passed by not running.
  */
-function undecided(element: unknown, writer: string): Diagnostic[] {
-  return (snapshotData(element)?.pending ?? []).map((rule) => ({
+function undecided(pending: CollectedTemplate["pending"], writer: string): Diagnostic[] {
+  return (pending ?? []).map((rule) => ({
     code: "template/rule-not-run",
     severity: "error" as const,
     message: `${writer} can't decide the rule ${rule.rule}${rule.format ? ` (${rule.format})` : ""}, which the template requires: ${rule.decidedBy} does`,
@@ -92,9 +95,9 @@ function movedNote(options: { emailClients?: unknown } | undefined): Diagnostic[
  */
 export async function render(element: React.ReactElement | Snapshot, options: RenderOptions = {}): Promise<RenderResult & { template?: TemplateUsed }> {
   checkPluginsOption(options.plugins);
-  const refused = undecided(element, "render()");
+  const { document, diagnostics, components, fields, template: from, pending } = template(element, "render");
+  const refused = undecided(pending, "render()");
   if (refused.length) throw new ElementsError(refused);
-  const { document, diagnostics, components, fields, template: from } = template(element, "render");
   if (!document || diagnostics.some((d) => d.severity === "error")) throw new ElementsError(diagnostics);
   const rendered = renderTemplate(document, { ...options, components });
   const all = [...diagnostics, ...withFields(rendered.diagnostics, fields)];
@@ -158,18 +161,20 @@ export function prepare(
   element: React.ReactElement | Snapshot,
   options?: Record<string, never>
 ): { root: ResolvedNode | null; diagnostics: Diagnostic[]; layout: number; template?: TemplateUsed } {
-  const { document, diagnostics, components, fields, template: from } = template(element, "prepare");
+  const { document, diagnostics, components, fields, template: from, pending } = template(element, "prepare");
   // It takes no options since 0.4: `emailClients` from code written for 0.3 gets the note validate() and render() give, last.
   const moved = movedNote(options as { emailClients?: unknown } | undefined);
-  // What a writer is given (/pdf and /image prepare what they draw): a required rule not decided yet is refused.
-  const refused = undecided(element, "A writer");
+  // What a writer is given (/pdf and /image prepare what they draw): a required rule not decided yet is refused, but by
+  // the entry that decides it (/image's renderImage(), for a Canvas's measured rules), which is handed them instead.
+  const decides = !!(options as Record<symbol, unknown> | undefined)?.[DECIDES];
+  const refused = decides ? [] : undecided(pending, "A writer");
   if (refused.length) return { root: null, diagnostics: [...diagnostics, ...refused], layout: LAYOUT_VERSION, ...used(from) };
   if (!document || diagnostics.some((d) => d.severity === "error")) return { root: null, diagnostics: [...diagnostics, ...moved], layout: LAYOUT_VERSION, ...used(from) };
   const prepared = prepareTemplate(document, { components });
   const root = prepared.resolved?.root ?? null;
   // A Document is prepared for its PDF and a Canvas for its image: what they can't show that the HTML can.
   const paged = root?.type === "Document" ? pagedSupport(root, "pdf") : root?.type === "Canvas" ? pagedSupport(root, "image") : [];
-  return { root, diagnostics: [...diagnostics, ...withFields([...prepared.diagnostics, ...paged], fields), ...moved], layout: LAYOUT_VERSION, ...used(from) };
+  return { root, diagnostics: [...diagnostics, ...withFields([...prepared.diagnostics, ...paged], fields), ...moved], layout: LAYOUT_VERSION, ...used(from), ...(decides && pending?.length ? { [DECIDES]: pending } : {}) };
 }
 
 export type { RenderOptions, RenderResult, ResolvedNode };

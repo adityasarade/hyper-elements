@@ -25,7 +25,7 @@ export { field, type ImageRules, type ImageSpec, type ImageType, type ImageValue
 export { open, type AnnotatedSpec, type Open } from "./annotated";
 export { CORE_RULES, type LinkRules, type LintRuleDescriptor, type RuleResult, type TemplateRules } from "./rules";
 export type { SlotOptions, SlotSpec, SlotStyles, StoredSlot } from "./slots";
-export type { CheckLayoutOptions, LayoutCheck } from "./layout";
+export { checkLayout, type CheckLayoutOptions, type LayoutCheck, type MeasuredLayout } from "./layout";
 export { fitInside, sniffImage, type SniffedImage } from "./layout";
 export { DESCRIBE_VERSION, type FieldDescription, type TemplateDescription } from "./describe";
 export type { Format } from "./checks";

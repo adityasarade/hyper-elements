@@ -315,6 +315,8 @@ function styleProblems(node: CapturedNode, path: string, context: PreflightConte
   const propKinds = custom
     ? new Map(Object.entries(custom.props as Record<string, PropSpec>).filter(([, spec]) => BRAND_PROP_KINDS.has(spec.kind.name)).map(([name, spec]) => [name, spec.kind.name] as [string, string]))
     : (brand.props.get(node.type) ?? new Map<string, string>());
+  // fit sets a font size (Decision 10): a brand value, so not in content under "none" or "theme".
+  if (node.props && "fit" in node.props) out.push(problem("template/slot-style", `fit sets a font size, which ${context.id}'s ${slot.path} takes from the theme: fitting inside a slot is the template's`, `${path}.props.fit`));
   for (const [key, value] of Object.entries(node.props ?? {})) {
     const kind = propKinds.get(key);
     if (!kind) continue;

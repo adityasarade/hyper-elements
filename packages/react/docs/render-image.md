@@ -64,6 +64,42 @@ Nothing is fetched. Give each file the design needs:
 - **Fonts** in `fonts`: `{ family, src, weight?, style? }`, one entry per file, `src` a TTF, OTF or WOFF file's bytes. `family` is the name the design's `fontFamily` stacks use. A Canvas's own `fonts` given as `data:` URIs are drawn too; ones given by URL aren't loaded. An image needs at least one font: text whose `fontFamily` has no file given is drawn in the first font given.
 - **Images** in `images`, by the URL the design gives them (`{ "https://…/photo.png": bytes }`), or as `data:` URIs in the design: PNG, JPEG, GIF or SVG.
 
+## Fitting text
+
+A Heading or a Text in a Canvas takes `fit`: the sizes it may be drawn at, and the lines it may take. `renderImage`
+measures it with the fonts it's given and draws the largest size at which its lines, its widest word and any box of a
+fixed height around it all fit:
+
+```tsx
+<Heading fit={{ sizes: [88, 76, 64], maxLines: 3 }}>{title}</Heading>
+<Text fit={{ sizes: { min: 40, max: 72, step: 4 }, maxLines: 4 }}>{quote}</Text>
+<Text fit={{ maxLines: 2 }} style={{ fontSize: 24 }}>{caption}</Text>
+```
+
+- `sizes` is a list of px sizes or a range, largest first, at most 32. With `sizes`, `fit` sets the font size: a
+  `fontSize` beside it is `style/fit`. With only `maxLines`, it checks the size the text has.
+- Where no size fits, it's `image/fit`, an error, with the lines it needs and roughly how many characters to cut.
+- Runs inside it (a Span, a Link) are in its own size, font, weight and line height: one in another is `fit/inline`.
+- `fit` is a Canvas's: under an Email, a Page or a Document it's `prop/not-supported`. The Canvas's HTML preview draws
+  the largest size.
+
+## Measuring without drawing: layoutImage()
+
+`layoutImage(design, { fonts, images, scale, strict })` measures a Canvas as `renderImage` would, and draws nothing:
+
+- `nodes`: each block's box (`x`, `y`, `width`, `height`, by its `path`), and a block of text's `lines` and `fontSize`;
+- `fits`: each fitted node's sizes that fit, the one chosen, and the next one up, which doesn't;
+- `glyphs`: the text no font given covers, by node;
+- `diagnostics`: what it found.
+
+A template's `checkLayout()` reads it (see the templates guide).
+
+## Strict
+
+`renderImage(design, { strict: true })` makes what's drawn other than written an error: a font not given (`image/font`),
+a weight or style not given (`image/font-weight`), content past the Canvas (`image/overflow`), a character no font has
+(`image/glyph`), and text whose font stack names no font given. A template's design is drawn strict.
+
 ## Diagnostics
 
 | Code | Severity | When |
@@ -75,14 +111,18 @@ Nothing is fetched. Give each file the design needs:
 | `image/font-weight` | warning | Text in a weight or style of a family that isn't given: it's drawn in the nearest file given |
 | `image/image` | error | An image isn't given, or its file isn't a PNG, JPEG, GIF or SVG |
 | `image/unsupported` | warning | What an image can't show that the HTML can: a hover, a Video's player |
-| `canvas/overflow` | warning | The content looks taller than the Canvas (an estimate: text isn't measured yet) |
+| `canvas/overflow` | warning | The content looks taller than the Canvas (an estimate, which `validate()` gives too) |
+| `image/overflow` | warning (error strict) | Content runs past the Canvas, measured |
+| `image/glyph` | warning (error strict, or in fitted text) | A character no font given has: it's drawn as an empty box |
+| `image/fit` | error | Fitted text doesn't fit at any of its sizes |
+| `fit/inline` | error | A fitted node holds a run in another size, font, weight or line height |
 
-`validate()` from `@hyper-elements/react` reports `image/unsupported` and `canvas/overflow` without rendering. The font and image checks need the files, so only `renderImage` makes them.
+`validate()` from `@hyper-elements/react` reports `image/unsupported` and `canvas/overflow` without rendering. What needs the fonts and files (fitting, glyphs, measured overflow) only `renderImage` and `layoutImage` find.
 
 ## Known limits
 
 - **WOFF2 isn't drawn**: Satori reads TTF, OTF and WOFF. Give one of those.
-- **Text is drawn only in the fonts given**: a character none of them has comes out as an empty box. Give a font that has it.
+- **Text is drawn only in the fonts given**: a character none of them has comes out as an empty box (`image/glyph`). Give a font that has it.
 - **What doesn't fit is cut off** at the Canvas's edges.
 - **No hover, no video**: a Button shows its own colors, a Video its title.
 

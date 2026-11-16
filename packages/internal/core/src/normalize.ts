@@ -303,6 +303,12 @@ function readNode(input: unknown, path: string, parent: ComponentDefinition | nu
       d.add("field/dropped", "info", `The field "${input.field}" is left out: a binding is read only on a built-in in the template's own render, not in what a custom component renders`, `${path}.field`, id);
     } else node.field = input.field;
   }
+
+  // fit with sizes sets the font size: one written beside it says another (authored, before themes and defaults merge).
+  const fitGiven = isObject(input.props) ? (input.props as Record<string, unknown>).fit : undefined;
+  if (isObject(fitGiven) && fitGiven.sizes !== undefined && isObject(input.style) && (input.style as Record<string, unknown>).fontSize !== undefined) {
+    d.error("style/fit", "fit sets its font size from its sizes: leave fontSize out (fit with only maxLines checks the size it has)", `${path}.style.fontSize`, id);
+  }
   const isRoot = definition.categories.includes("root");
   const saved = { environment: context.environment, inherited: context.inherited };
 
