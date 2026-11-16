@@ -203,7 +203,7 @@ A design with errors exits with code `1`, which fails a CI job. See [Command lin
 
 ## With an AI agent
 
-The package ships a guide to writing designs, `GUIDE.md`. In Claude Code, add this line to your project's `CLAUDE.md` and every session starts out knowing the components:
+The package ships a guide to writing designs, `GUIDE.md`. In Claude Code, add this line to your project's `CLAUDE.md` and every session starts out knowing the elements:
 
 ```text
 @node_modules/@hyper-elements/react/GUIDE.md

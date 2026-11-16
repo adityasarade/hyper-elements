@@ -12,7 +12,7 @@
  */
 import type { Diagnostic, PropSpec, PropSpecs, RootName } from "@hyper-elements/core";
 import { ElementsError } from "@hyper-elements/react";
-import { describeComponents } from "@hyper-elements/react/inspect";
+import { describeElements } from "@hyper-elements/react/inspect";
 import React from "react";
 import { imageRules, isBlocks, isList, isObjectSpec } from "./fields";
 import type { TemplateRules } from "./rules";
@@ -102,7 +102,7 @@ export function fromAnnotated<F extends PropSpecs>(spec: AnnotatedSpec<F>): Reco
     else if (names.has(marker)) problems.push(fail("template/inline-twice", `One marker is named both ${names.get(marker)} and ${name}: each field has its own open()`, `open.${name}`));
     else names.set(marker, name);
   }
-  const definitions = new Map(describeComponents().components.map((c) => [c.type, c] as const));
+  const definitions = new Map(describeElements().elements.map((c) => [c.type, c] as const));
   const design = copy(spec.design) as React.ReactElement;
   const placements: Placement[] = [];
   const found = new Map<Open, number>();

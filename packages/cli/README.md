@@ -56,8 +56,8 @@ Welcome.PreviewProps = { name: "Ada" };
 | `check <files or folders…>` | Validates each design and writes nothing. Where the project has `@hyper-elements/email-clients`, its email client checks run too (`--clients gmail,outlook` picks the clients); [lint](#lint)'s checks run on an Email and a Page (`--no-lint` leaves them out). `--rendered` also renders, for the checks only the written HTML has (Gmail's size limit). `--max-warnings N` fails the run past N warnings. An HTML email is checked too: see [Any HTML email](#any-html-email). |
 | `outline <file>` | Prints the design laid out: each block with its width. |
 | `preview <files or folders…>` | Writes each Email as the email clients draw it, with the project's `@hyper-elements/email-clients` (`renderInEmailClients()`): one self-contained HTML file per client and variant, in `<out>/clients/<its path>/<name>/` (its path from the current folder, or `--base`), named by the preview (`outlook.html`, `gmail.mac.html`, `apple-mail.dark.html`). `--clients`, `--dark` and `--fonts inline` are `renderInEmailClients()`'s options. `--findings` draws each file in Chromium and reports what it found; `--screenshots` also writes a PNG of each; `--serve` serves them on `127.0.0.1`. See [Previews](#previews); an HTML email is previewed too ([Any HTML email](#any-html-email)). |
-| `inspect <files or folders…>` | Lists what each design holds, as `inspect()` gives it: each component at its path, what it's given, whether its root takes it, and the problems found on it. |
-| `describe [Component \| template.tsx]` | Lists every component a design can use (or one), with its props and styles, from `describeComponents()` (or `describeComponent()`); `--root Email` narrows it to what that root takes. No design is loaded: it reads the `@hyper-elements/react` the current folder resolves. Given a template module (a path, or a name ending in `.tsx`, `.ts`, `.jsx`, `.js`), what the template's `describe()` says: its formats, each field with its kind, guidance and image regions, its rules, and `valuesSchema`. See [Templates](#templates). |
+| `inspect <files or folders…>` | Lists what each design holds, as `inspect()` gives it: each element at its path, what it's given, whether its root takes it, and the problems found on it. |
+| `describe [Element \| template.tsx]` | Lists every element a design can use (or one), with its props and styles, from `describeElements()` (or `describeElement()`); `--root Email` narrows it to what that root takes. No design is loaded: it reads the `@hyper-elements/react` the current folder resolves. Given a template module (a path, or a name ending in `.tsx`, `.ts`, `.jsx`, `.js`), what the template's `describe()` says: its formats, each field with its kind, guidance and image regions, its rules, and `valuesSchema`. See [Templates](#templates). |
 | `design new <template> -o <name.values.json>` | Writes a values file, a design made from a template: `--values brief.json` and `--set field=value` give the values, checked by the template in every format; nothing is written where they fail (exit 1), unless `--draft`. See [Templates](#templates). |
 | `design set <name.values.json> <field=value>…` | Changes some of a values file's values, checked as `design new` checks them: the file is rewritten only if they pass, and only the values named change. |
 | `template extract <design> --id <id> --field <id>… -o <file>` | Writes a template from a design a person approved, by a codemod on its source (no design code runs): each `--field` names an `id` in the design. See [Templates](#templates). |
@@ -346,7 +346,7 @@ An HTML email's line has `"input": "html"` and `"root": null` ([Any HTML email](
 `"input": "values"`, its `templateFormat` and its `template` ([Templates](#templates)).
 `inspect --json` writes `{"version":1,"command":"inspect","file","status","inspection"}` per design, `inspection`
 being `inspect()`'s result as it is (`null`, with `diagnostics` and `error`, where the design didn't load), then the
-summary line. `describe --json` writes one line, `describeComponents()`'s or `describeComponent()`'s result as it is,
+summary line. `describe --json` writes one line, `describeElements()`'s or `describeElement()`'s result as it is,
 with its own `version`. `outline` is text only.
 
 - **0**: every design rendered, checked or previewed without errors.
@@ -361,7 +361,7 @@ with its own `version`. `outline` is text only.
   template module, `outline` of a template's formats without `--template-format`, a Canvas `check` can't measure
   without the image engines, a design that called `process.exit`, design
   code that threw outside a render, or a Document's PDF on Bun; `preview` without email-clients, or `--findings` with
-  no browser found; `describe` for a component or root there isn't. A run with at least one design skips the inputs
+  no browser found; `describe` for an element or root there isn't. A run with at least one design skips the inputs
   that aren't designs and exits as its designs do.
 
 ## How it runs designs

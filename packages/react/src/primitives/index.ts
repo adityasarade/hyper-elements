@@ -1,5 +1,5 @@
 /**
- * The Elements API: the components, component(), render() and validate(). JSX is the only way to
+ * The Elements API: the elements, defineElement(), render() and validate(). JSX is the only way to
  * write a template; the tree it becomes is internal.
  */
 export {
@@ -86,11 +86,11 @@ export type {
   HtmlProps,
 } from "./components";
 export {
-  component,
+  defineElement,
   prop,
-  type ComponentSpec,
-  type CustomComponent,
+  type CustomElement,
   type CustomProps,
+  type ElementSpec,
   type FieldInput,
   type FieldInputs,
   type FieldValue,
@@ -101,8 +101,10 @@ export {
   type RenderContext,
   type ThemeValues,
 } from "./custom";
+// The earlier names, deprecated and kept so designs written with them still work.
+export { component, type ComponentSpec, type CustomComponent } from "./custom";
 export { defineTheme, extendTheme, token } from "./theme";
-export type { Alias, ComponentTheme, Register, StyleName, Theme, ThemeInput, ThemeStyle, Token, TokenPath, TokenPaths, TokenRefs, Tokenized, VariantName, VariantProp } from "./theme";
+export type { Alias, ComponentTheme, ElementTheme, Register, StyleName, Theme, ThemeInput, ThemeStyle, Token, TokenPath, TokenPaths, TokenRefs, Tokenized, VariantName, VariantProp } from "./theme";
 export { captureFragment, readFragment, slotMark, snapshot, type CapturedNode, type FragmentCapture, type Snapshot, type SnapshotOptions } from "./snapshot";
 export { outline, prepare, render, validate, type RenderOptions, type RenderResult, type ResolvedNode, type TemplateUsed, type ValidateOptions, type ValidationResult } from "./render";
 export { BLOCK_MAP_VERSION, ElementsError, formatDiagnostics, PLUGIN_API } from "@hyper-elements/core";

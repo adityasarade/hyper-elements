@@ -7,7 +7,7 @@
  */
 import type { CustomDefinition, Diagnostic, Json, Kind, PropSpec, RootName } from "@hyper-elements/core";
 import type { CapturedNode, FragmentCapture } from "@hyper-elements/react";
-import { describeComponents } from "@hyper-elements/react/inspect";
+import { describeElements } from "@hyper-elements/react/inspect";
 import React from "react";
 
 /** How a slot's content may be styled: only the theme's named styles and variants, every brand value a token, or anything. */
@@ -102,9 +102,9 @@ export interface ResolvedSlot {
 
 const problem = (code: string, message: string, path: string): Diagnostic => ({ code, severity: "error", message, path });
 
-/** Every built-in a root may hold at some depth (as describeComponents({ root }) lists them), but the roots and Html. */
+/** Every built-in a root may hold at some depth (as describeElements({ root }) lists them), but the roots and Html. */
 export function allUnder(root: RootName): string[] {
-  return describeComponents({ root }).components
+  return describeElements({ root }).elements
     .map((c) => c.type)
     .filter((type) => !ROOTS.includes(type) && type !== "Html" && !CUSTOM_TYPE.test(type));
 }
@@ -169,7 +169,7 @@ export interface BrandMap {
 export function brandMap(): BrandMap {
   const styles = new Map<string, Map<string, string>>();
   const props = new Map<string, Map<string, string>>();
-  for (const component of describeComponents().components) {
+  for (const component of describeElements().elements) {
     const s = new Map<string, string>();
     const p = new Map<string, string>();
     for (const property of component.properties) {

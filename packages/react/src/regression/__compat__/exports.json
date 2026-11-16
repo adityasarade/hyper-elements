@@ -43,6 +43,7 @@
   "Video",
   "captureFragment",
   "component",
+  "defineElement",
   "defineTheme",
   "extendTheme",
   "formatDiagnostics",

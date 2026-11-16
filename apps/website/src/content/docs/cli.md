@@ -60,8 +60,8 @@ Give the commands files or folders. A folder is searched for designs, leaving ou
 | `check <files or folders…>` | Runs `validate()` with the email client checks, and writes nothing |
 | `outline <file>` | Prints the design laid out, each block with its width, as [`outline()`](/docs/rendering#outline) does |
 | `preview <files or folders…>` | Writes each Email as the email clients show it, one file per client, with the [email client emulator](/docs/email-client-emulator) |
-| `inspect <files or folders…>` | Lists each component of a design, what it's given, whether its root takes it and the problems found on it |
-| `describe [Component \| template.tsx]` | Lists the components a design can use, with their props and styles; `--root Email` narrows it to what that root takes. Given a template module, what the template takes: its formats, fields, image regions and rules |
+| `inspect <files or folders…>` | Lists each element of a design, what it's given, whether its root takes it and the problems found on it |
+| `describe [Element \| template.tsx]` | Lists the elements a design can use, with their props and styles; `--root Email` narrows it to what that root takes. Given a template module, what the template takes: its formats, fields, image regions and rules |
 | `design new <template> -o <name.values.json>` | Writes a design made from a template, as a values file, once the template has checked its values |
 | `design set <name.values.json> <field=value>…` | Changes some of a values file's values, checked by the template; the file is left as it was if they fail |
 | `template extract <design> --id <id> --field <id>… -o <file>` | Writes a template from an approved design: each `--field` names an `id` in it, whose literal text or image becomes a field |

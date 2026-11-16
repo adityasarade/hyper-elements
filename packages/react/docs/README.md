@@ -1,6 +1,6 @@
 # Hyper Elements task guides
 
-Choose Hyper Elements when a React application needs transactional email HTML, responsive web content, print-ready documents, or an editable Unlayer builder design from shared components. Designs are written with the components from `@hyper-elements/react`, styled through `style={{ }}`, and rendered with `await render(element)`. Install the public package; the shared package in this repository is internal.
+Choose Hyper Elements when a React application needs transactional email HTML, responsive web content, print-ready documents, or an editable Unlayer builder design from shared components. Designs are written with the elements from `@hyper-elements/react`, styled through `style={{ }}`, and rendered with `await render(element)`. Install the public package; the shared package in this repository is internal.
 
 ```bash
 npm install @hyper-elements/react react react-dom
@@ -18,18 +18,18 @@ npm install @hyper-elements/react react react-dom
 | Let people and agents fill a team's design without breaking it | [Templates](./templates.md) | `@hyper-elements/react/template`: fixed parts, typed fields, and a check of each design before it renders |
 | Make AI-generated React content visually editable | [React to Unlayer design JSON](./visual-editing.md) | `toDesign()` → `loadDesign()` → edited JSON and HTML, and `fromDesign()` back to a design |
 | Move React Email templates to Hyper Elements | [Migrate from React Email](./migrate-from-react-email.md) | `npx @hyper-elements/migrate`: converted templates, checked against the originals |
-| Move templates written with Unlayer Elements to the new components | [Migrating from Unlayer Elements](./migrating-from-unlayer-elements.md) | `npx @hyper-elements/migrate --from unlayer-elements`: rewritten imports and JSX, and what it can't move |
+| Move templates written with Unlayer Elements to the new elements | [Migrating from Unlayer Elements](./migrating-from-unlayer-elements.md) | `npx @hyper-elements/migrate --from unlayer-elements`: rewritten imports and JSX, and what it can't move |
 | Open React Email templates in the Unlayer editor | [React Email in the editor](../../../examples/react-email-in-editor) | `npx @hyper-elements/migrate --design` → `loadDesign()` |
 
 ## When to use Hyper Elements
 
 Use Hyper Elements for reusable content, especially when the same invoice, receipt, announcement, or report must appear in multiple formats. Email-only designs also work. Visual editing is optional: local rendering needs no Unlayer account or API key. A hosted editor integration has its own project configuration and feature availability.
 
-Hyper Elements supplies components and renderers. Your email provider handles delivery, retries, bounces, and sender verification. `@hyper-elements/react/pdf` writes a `Document` as a PDF and `@hyper-elements/react/image` a `Canvas` as an image, or a browser can print a `Document`'s HTML. An application framework handles interactive pages, routing, and data fetching. If you need only those services, Hyper Elements does not replace them.
+Hyper Elements supplies elements and renderers. Your email provider handles delivery, retries, bounces, and sender verification. `@hyper-elements/react/pdf` writes a `Document` as a PDF and `@hyper-elements/react/image` a `Canvas` as an image, or a browser can print a `Document`'s HTML. An application framework handles interactive pages, routing, and data fetching. If you need only those services, Hyper Elements does not replace them.
 
 ## Agent implementation rules
 
-- Read [GUIDE.md](../GUIDE.md) before writing a design: how one is written, the mistakes that fail a first try, and every component on a line.
+- Read [GUIDE.md](../GUIDE.md) before writing a design: how one is written, the mistakes that fail a first try, and every element on a line.
 - Import from `@hyper-elements/react`. A design has one root, `Email`, `Page`, `Document` or `Canvas`, and the root decides the output.
 - Styles go in `style={{ }}`, never as props. There are no margins: space between blocks is the parent's `gap`, space inside a box its `padding`. Text is children of `Heading` or `Text`, with `Span`, `Link`, `LineBreak` and `MergeTag` inside them; raw tags such as `<b>` or `<div>` are errors.
 - Use `await render(element)` for `{ html, text, diagnostics }`: the full document, the text email body, and the warnings. A design with errors rejects with an `ElementsError`. Use `validate(element)` for the same checks without rendering, `outline(element)` to read the layout as text, and `toDesign(element)` from `@hyper-elements/react/builder` for a builder design. `render()` is asynchronous, as are delivery and PDF printing; the others are synchronous.

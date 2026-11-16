@@ -5,7 +5,7 @@
  */
 import { lint } from "@hyper-elements/lint";
 import React, { useState } from "react";
-import { describeComponents } from "../inspect";
+import { describeElements } from "../inspect";
 import {
   Button,
   Canvas,
@@ -260,12 +260,12 @@ describe("slots", () => {
 
   describe('allow: "all"', () => {
     const typesOf = (root: "Email" | "Page" | "Document" | "Canvas") =>
-      describeComponents({ root })
-        .components.map((c) => c.type)
+      describeElements({ root })
+        .elements.map((c) => c.type)
         .filter((t) => !["Email", "Page", "Document", "Canvas", "Html"].includes(t))
         .sort();
 
-    it("resolves, for each root, to describeComponents({ root })'s built-ins less the roots and Html", () => {
+    it("resolves, for each root, to describeElements({ root })'s built-ins less the roots and Html", () => {
       const all = (root: "Email" | "Page" | "Document" | "Canvas") => {
         const Root = { Email, Page, Document, Canvas }[root] as React.FC<{ children?: React.ReactNode }>;
         const T = template({ id: "acme.All", version: "1.0.0", label: "All", root, fields: { body: field.slot({ label: "Body", allow: "all" }) }, example: {}, render: (v: { body?: React.ReactElement }) => <Root><Section field="body">{v.body}</Section></Root> } as never);

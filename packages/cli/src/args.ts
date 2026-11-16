@@ -12,7 +12,7 @@ Usage:
   hyper-elements outline <file> [options]
   hyper-elements preview <files or folders...> [options]
   hyper-elements inspect <files or folders...> [options]
-  hyper-elements describe [Component | template.tsx] [--root Email] [--json]
+  hyper-elements describe [Element | template.tsx] [--root Email] [--json]
   hyper-elements design new <template> -o <name.values.json> [--values f] [--set k=v]
   hyper-elements design set <name.values.json> <field>=<value>...
   hyper-elements template extract <design.tsx> --id <id> --field <id>... -o <file>
@@ -44,9 +44,9 @@ preview  writes each Email as the email clients draw it, one file per client
          folder (or --base). --findings opens each in Chromium and reports
          what it found. An HTML email (a .html or .htm file, or - for stdin,
          under out/clients/stdin/) is previewed as it is.
-inspect  lists what a design holds: each component, what it's given,
+inspect  lists what a design holds: each element, what it's given,
          whether its root takes it, and the problems found on it.
-describe lists the components a design can use (or one), with their props
+describe lists the elements a design can use (or one), with their props
          and styles; --root narrows it to what a root takes. Given a
          template module, what it opens: its formats, fields, slots, rules.
 design   new writes a values file from a template and values (--values, a
@@ -152,7 +152,7 @@ Runs on Node.js 20.6 or later (npx hyper-elements), or Bun 1.3 or later
 
 export interface Args {
   command: Command;
-  /** The files and folders given; `describe`'s component; every argument after `migrate`, unchanged. */
+  /** The files and folders given; `describe`'s element; every argument after `migrate`, unchanged. */
   positional: string[];
   out: string;
   /** render, preview: the folder outputs keep their path relative to (the current folder where it isn't given). */
@@ -385,7 +385,7 @@ export function parseArgs(argv: string[]): Args {
     return args;
   }
   if (args.command === "describe") {
-    if (positional.length > 1) throw new UsageError("describe takes one component or template, or none for all the components.");
+    if (positional.length > 1) throw new UsageError("describe takes one element or template, or none for all the elements.");
     return args;
   }
   if (args.command === "template") {

@@ -21,8 +21,11 @@ export interface ElementsMain {
 
 export interface ElementsInspect {
   inspect(element: unknown): { root: string | null; valid: boolean; diagnostics: Diagnostic[] };
+  /** Elements before `describeElements()` had these alone; they're kept, deprecated, after it. */
   describeComponents(options?: { root?: string }): { version: number; roots: string[]; components: Array<{ type: string }> };
   describeComponent(type: string, options?: { root?: string }): { version: number; type: string } | undefined;
+  describeElements?(options?: { root?: string }): { version: number; roots: string[]; elements: Array<{ type: string }> };
+  describeElement?(type: string, options?: { root?: string }): { version: number; type: string } | undefined;
 }
 
 /** `@hyper-elements/react/template`, as the project has it (0.5): what values files and template modules are read with. */

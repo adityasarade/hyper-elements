@@ -98,8 +98,8 @@ export interface ChildOptions {
   fonts?: "url" | "inline";
   /** describe: the input is a template module, described by its template's describe(). */
   describeTemplate?: boolean;
-  /** describe: the component (all where none) and the root. */
-  component?: string;
+  /** describe: the element (all where none) and the root. */
+  element?: string;
   root?: string;
   /**
    * render, check, dev: lint's options, their shape checked (`hyperElements.lint`, `{}` where none), for the copy of
@@ -195,7 +195,7 @@ export interface ResultMessage {
   previews?: PreviewFile[];
   /** `inspect`: inspect()'s result, as it is. */
   inspection?: unknown;
-  /** `describe`: describeComponents()'s or describeComponent()'s result, as it is. */
+  /** `describe`: describeElements()'s or describeElement()'s result, as it is (an older Elements' given in that shape). */
   described?: unknown;
   /** The run can't do what it was asked for this template (Elements missing or out of range, process.exit): exit 2. */
   usage?: boolean;

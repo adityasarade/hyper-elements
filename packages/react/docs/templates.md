@@ -153,7 +153,7 @@ render: (v) => (
 - **`allow`** lists the components the content may use, given as the components. A built-in is allowed by its type, a
   `component()` by its definition: content that defines its own `acme.ProductCard` is refused (`template/slot-component`,
   "not the template's"), and its render never runs. A root and `Html` are never allowed.
-- **`allow: "all"`** allows every built-in the template's root may hold (what `describeComponents({ root })` lists),
+- **`allow: "all"`** allows every built-in the template's root may hold (what `describeElements({ root })` lists),
   but the roots and `Html`: a later Elements that adds one widens it. `deny: [Table, Video]` takes built-ins out of it,
   and `["all", ProductCard]` adds your own components. A template that wants a fixed set across upgrades writes a list.
 - **`styles`:** `"theme"` (the default) requires a `token()` for every brand value: each style and prop whose kind is a

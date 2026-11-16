@@ -8,6 +8,12 @@ export const site = {
   install: "npm i @hyper-elements/react",
   migrate: "npx @hyper-elements/migrate",
   skill: "npx skills add hyper-elements/hyper-elements",
+  /** The start of a prompt that installs the hyper-elements skill (or reads it from the site), as the email-testing prompt does. */
+  skillPromptStart:
+    "Install the hyper-elements skill (npx skills add hyper-elements/hyper-elements --skill hyper-elements -y, or read https://www.hyperelements.dev/skills/hyper-elements.md) and follow it to",
+  /** The skill's job as a rule in CLAUDE.md or AGENTS.md, for an agent without it: true before the package is installed too. */
+  agentRule:
+    "Designs use Hyper Elements (@hyper-elements/react).\nIf it isn't installed, install it with react and react-dom.\nBefore writing a design, read\nnode_modules/@hyper-elements/react/GUIDE.md.",
   /** The email-testing skill alone, and a prompt that installs it and previews an email with it. */
   emailTestingSkill: "npx skills add hyper-elements/hyper-elements --skill email-testing",
   emailTestingPrompt:
@@ -22,7 +28,7 @@ export const site = {
 
 export const mainNav = [
   { href: "/docs", label: "Docs" },
-  { href: "/components", label: "Components" },
+  { href: "/components", label: "Elements" },
   { href: "/templates", label: "Designs" },
   { href: "/ai", label: "AI" },
 ];
@@ -36,7 +42,7 @@ export const resourcesNav = [
 export type DocLink = { slug: string; label: string };
 export type DocGroup = { title: string; items: DocLink[] };
 
-/** The docs sidebar. A slug is the path after /docs/ ("" is /docs). Component pages are added from the reference. */
+/** The docs sidebar. A slug is the path after /docs/ ("" is /docs). Element pages are added from the reference. */
 export const docsNav: DocGroup[] = [
   {
     title: "Get started",
@@ -54,7 +60,7 @@ export const docsNav: DocGroup[] = [
       { slug: "themes", label: "Themes" },
       { slug: "rendering", label: "Rendering" },
       { slug: "cli", label: "Command line" },
-      { slug: "custom-components", label: "Your own components" },
+      { slug: "defining-elements", label: "Defining elements" },
       { slug: "guides/templates", label: "Templates" },
     ],
   },
@@ -94,7 +100,7 @@ export const docsNav: DocGroup[] = [
   },
 ];
 
-/** Order of component groups in the sidebar and on /components. */
+/** Order of element groups in the sidebar and on /components. */
 export const componentGroups = ["Roots", "Sections and layout", "Blocks", "Inline", "Parts", "Shapes", "Reference"];
 
 export const docHref = (slug: string) => (slug ? `/docs/${slug}` : "/docs");

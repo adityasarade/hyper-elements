@@ -4,6 +4,41 @@ Versions before 0.3.0 were published as `@unlayer/react-elements`.
 
 ## Unreleased
 
+### GUIDE.md: where an image comes from, and an id to compare
+
+- The guide says an image's `src` is a public URL the reader's email client can fetch, never a made-up one
+  (`example.com`, a guessed path, a local file), and where there's no image yet, to use a placeholder that loads at
+  the image's size and say which images to replace.
+- Its first lines carry `hyper-elements guide <id>`, an id made from the guide's text. The `hyper-elements` agent skill
+  carries the same id, so an agent compares the two to know whether the skill it has is the guide for the version
+  installed, and reads `GUIDE.md` where they differ. The skill also has the agent install `@hyper-elements/react`
+  where the project doesn't have it.
+
+### Elements, not components
+
+What a design is made of is called an element now, as the library's name says: the built-in ones (`Button`,
+`Text`, `Row`…) and a design's own. The names before keep working, deprecated, so nothing has to change:
+
+| Now | Before (deprecated) |
+|-----|---------------------|
+| `defineElement()` | `component()` |
+| `CustomElement`, `ElementSpec`, `ElementTheme` | `CustomComponent`, `ComponentSpec`, `ComponentTheme` |
+| `defineTheme({ elements: { Button: … } })` | `defineTheme({ components: { Button: … } })` |
+| `describeElements()`, `describeElement()` (`/inspect`) | `describeComponents()`, `describeComponent()` |
+| `ElementDescription`, `ElementsDescription` | `ComponentDescription`, `ComponentsDescription` |
+| `describeElements({ elements: [Card] })` | `describeComponents({ components: [Card] })` |
+
+- `describeElements()` gives its list as `elements`. `describeComponents()` gives the same list as `components`, as
+  before.
+- A theme may give an element's defaults under either key, or both: an element given under both is merged key by key,
+  `elements` winning. A theme's `formats` and `extendTheme()` merge across the two names key by key too, so a shared
+  theme written with `components` can be extended with `elements` (`extendTheme()` keeps each name as it's written).
+  A problem in a theme is said at the key it's written under (`root.theme.components.Button`), and for an element
+  given under both, under `elements`.
+- `VariantName` reads an element's variants under either key.
+- `inspect()`'s theme lists each element's variants as `elements`, and as `components` too, the same list.
+- Messages say "element". Diagnostic codes are unchanged (`component/not-supported` among them).
+
 ### What a PDF or an image looks for
 
 `@hyper-elements/react/pdf` and `@hyper-elements/react/image` export `templateAssets(element)`: the fonts and images
