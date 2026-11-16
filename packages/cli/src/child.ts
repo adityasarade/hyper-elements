@@ -8,8 +8,11 @@
  */
 import { rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, relative } from "node:path";
-import { pathToFileURL } from "node:url";
+import { tmpdir } from "node:os";
+import { dirname, join, relative } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { capture } from "./capture";
+import { installGuard, UNTRUSTED, type InstalledGuard } from "./guard";
 import { Worker } from "node:worker_threads";
 import { defaultExport, guard, projectTsconfig, templateComponent } from "@hyper-elements/template-loader";
 import { checkTemplate } from "./commands/check";
@@ -24,7 +27,7 @@ import { ELEMENTS_RANGE, exportsOf, packageVersion, resolvedPath, supported, TEM
 import { errorLine, errorText, messageOf, notFound } from "./errors";
 import { formatDiagnostic } from "./format";
 import { elementsLoaderText, loaderModulePath, loaderModuleText, parseToken } from "./loader-module";
-import type { ChildInput, ChildMessage, Diagnostic, ResultMessage, Root, StartMessage } from "./protocol";
+import type { ChildInput, ChildMessage, Diagnostic, ResultMessage, Root, SlotsNeeded, SlotsReply, StartMessage } from "./protocol";
 import { killTree } from "./kill";
 import { isOptionsError, LINT, lintUsage, ownLint, type LintCopy, type LintModule } from "./lint";
 import { installedAbove } from "./packages";
@@ -35,6 +38,16 @@ const guarded = guard();
 const bun = typeof (process.versions as Record<string, string | undefined>).bun === "string";
 const ROOTS = new Set(["Email", "Page", "Document", "Canvas"]);
 const ELEMENT = new Set([Symbol.for("react.element"), Symbol.for("react.transitional.element")]);
+
+/** A template child's slot requests waiting for the parent's reply (`slots-ready`, `slots-failed`), by input id. */
+const slotReplies = new Map<number, (reply: SlotsReply) => void>();
+process.on("message", (message: { type?: string; id?: number }) => {
+  if ((message?.type === "slots-ready" || message?.type === "slots-failed") && typeof message.id === "number") {
+    const resolve = slotReplies.get(message.id);
+    slotReplies.delete(message.id);
+    resolve?.(message as SlotsReply);
+  }
+});
 
 function send(message: ChildMessage): Promise<void> {
   return new Promise((resolve) => {
@@ -113,7 +126,32 @@ async function start(message: StartMessage): Promise<void> {
       }
     }
   }
-  const session = new Session(message, written);
+  // A capture child replies with captures only, and the parent ends it (no `done`).
+  if (message.command === "capture") return capture(message, written);
+  // A template child's guard, before anything of the project's is loaded (Decision 31).
+  let guard: InstalledGuard | undefined;
+  if (message.options.guard) {
+    const files = { allowFile: join(tmpdir(), `hyper-elements-cli-guard-${process.pid}-allow.txt`), refusals: join(tmpdir(), `hyper-elements-cli-guard-${process.pid}-refusals.txt`) };
+    written.add(files.allowFile);
+    written.add(files.refusals);
+    const installed = await installGuard(message.options.guard, files, dirname(fileURLToPath(import.meta.url)));
+    if (installed === "unsupported") {
+      for (const input of message.inputs) {
+        await send({
+          type: "result",
+          id: input.id,
+          root: null,
+          status: "error",
+          usage: true,
+          diagnostics: [cliDiagnostic("template-untrusted", "error", "Bun can't guard what a template loads (its plugins don't see a package's own resolution), so a project that lists its trusted templates runs them on Node only", "run it with Node: npx hyper-elements …")],
+        });
+      }
+      await send({ type: "done", late: guarded.late() });
+      return;
+    }
+    guard = installed;
+  }
+  const session = new Session(message, written, guard);
   for (const input of message.inputs) {
     const result = await session.run(input);
     if (result === "reacts") {
@@ -156,8 +194,36 @@ class Session {
   constructor(
     private message: StartMessage,
     private written: Set<string>,
+    private guard?: InstalledGuard,
   ) {
     this.sequence = message.sequence;
+  }
+
+  /** One input, and with the guard, failed if anything it loaded was refused (even where its code caught the error). */
+  async run(input: ChildInput): Promise<ResultMessage | "reacts"> {
+    const before = this.guard?.refusals().length ?? 0;
+    const result = await this.runInput(input);
+    const refused = this.guard?.refusals().slice(before) ?? [];
+    if (!refused.length || result === "reacts") return result;
+    // Each refused file, and who imported it, as the run's folder shows them.
+    const shown = (path: string) => relative(this.message.cwd, path) || path;
+    const diagnostics = refused.map((refusal) =>
+      cliDiagnostic(
+        "template-untrusted",
+        "error",
+        `${shown(refusal.file)} isn't a trusted template file${refusal.chain.length ? `, imported by ${refusal.chain.map(shown).join(", imported by ")}` : ""}: a template child loads only the files hyperElements.templates lists and installed packages`,
+        "keep what a template imports beside it, in the folders hyperElements.templates lists, or in installed packages",
+      ),
+    );
+    return { type: "result", id: input.id, root: result.root, status: "error", diagnostics, ...(result.template ? { template: result.template } : {}) };
+  }
+
+  /** Asks the parent for the captures of slots stored as `{ module }` (Decision 29): it runs them in a capture child. */
+  private slots(id: number, slots: SlotsNeeded["slots"], from: string): Promise<SlotsReply> {
+    return new Promise((resolve) => {
+      slotReplies.set(id, resolve);
+      void send({ type: "slots-needed", id, slots, from });
+    });
   }
 
   private result(input: ChildInput, fields: Partial<ResultMessage> & Pick<ResultMessage, "status">, loaded?: Loaded): ResultMessage {
@@ -173,7 +239,7 @@ class Session {
     return { type: "result", id: input.id, root: null, ...fields, diagnostics, ...(formatted !== undefined ? { formatted } : {}) };
   }
 
-  async run(input: ChildInput): Promise<ResultMessage | "reacts"> {
+  private async runInput(input: ChildInput): Promise<ResultMessage | "reacts"> {
     const folder = dirname(input.file);
     // The loader module: never over a file (the next name where one's there).
     let path: string | undefined;
@@ -201,6 +267,8 @@ class Session {
     }
     if (!path) return this.result(input, { status: "error", error: "no free name for the loader module" });
     this.written.add(path);
+    // The guard lets this child's own loader module load, by its exact path, and nothing named like one.
+    this.guard?.allow(path);
     const notes: Diagnostic[] = [];
     let mod: Record<string, unknown>;
     try {
@@ -276,9 +344,15 @@ class Session {
       }, loaded);
     }
     const value = defaultExport(loader.template);
+    // A template design's template is the export its capture named; anything else's, the default export.
+    const exported = input.templateExport !== undefined ? (input.templateExport === "default" ? value : loader.template[input.templateExport]) : value;
+    const tpl = templateObjectOf(exported);
+    const { templateChild } = this.message.options;
+    // In an ordinary child (agent code may run in it), a template's input is set aside for a template child.
+    const setsAside = !templateChild && ["render", "check", "inspect", "outline"].includes(this.message.command);
+    if (tpl && setsAside && !input.values) return this.result(input, { status: "skipped", templateModule: true, diagnostics: [] }, loaded);
     // A template module (Decision 18), or what only one can be: a values file's, a design's, a described template.
-    const tpl = templateObjectOf(value);
-    if (tpl || input.values || this.message.command === "design" || this.message.options.describeTemplate) {
+    if (tpl || input.values || templateChild || this.message.command === "design" || this.message.options.describeTemplate) {
       return await this.runTemplate(input, loader, loaded, tpl, notes);
     }
     if (value && typeof value === "object" && ELEMENT.has((value as { $$typeof?: symbol }).$$typeof!)) {
@@ -298,6 +372,8 @@ class Session {
       const element = loaded.react.createElement(template.exported, props);
       const inspection = loaded.inspect.inspect(element);
       const root = inspection.root && ROOTS.has(inspection.root) ? (inspection.root as Root) : null;
+      // Its root is a template: a template design, checked by the template in a template child (the claim decides only that).
+      if (setsAside && (inspection as { template?: unknown }).template) return this.result(input, { status: "skipped", templateDesign: true, root, diagnostics: [] }, loaded);
       if (!root && !hasErrors(inspection.diagnostics)) {
         return this.result(input, { status: "skipped", notTemplate: true, diagnostics: [cliDiagnostic("not-a-template", "info", "It renders no root Elements knows (Email, Page, Document or Canvas): not a design")] }, loaded);
       }
@@ -342,11 +418,22 @@ class Session {
       if (!notFound(error, "@hyper-elements/react") && (error as NodeJS.ErrnoException).code !== "ERR_PACKAGE_PATH_NOT_EXPORTED") return this.loadFailure(input, error);
     }
     if (typeof module?.readValuesFile !== "function" || typeof module.checkLayout !== "function") return this.templatesMissing(input, loaded);
+    // A template child given a file the list holds that isn't a template (a template's own part): not a design, skipped.
+    if (!tpl && this.message.options.templateChild && !input.values && this.message.command !== "design" && !this.message.options.describeTemplate) {
+      return this.result(input, { status: "skipped", notTemplate: true, diagnostics: [cliDiagnostic("not-a-template", "info", "Its default export isn't a template: a template's part, not a design")] }, loaded);
+    }
     if (!tpl) {
       const said = input.values ? `${relative(this.message.cwd, input.values.file)} names ${relative(this.message.cwd, input.file)} as its template, but that module's` : "Its";
       return this.result(input, { status: "error", ...(input.values ? {} : { usage: true }), diagnostics: [cliDiagnostic("not-a-template-module", "error", `${said} default export isn't a template (made with template() from @hyper-elements/react/template)`)] }, loaded);
     }
     const template = { id: tpl.id, version: tpl.version };
+    // A template design's: the template its capture said, or it isn't the one the design used.
+    if (input.expect) {
+      const formats = Object.keys(tpl.formats ?? {});
+      if (tpl.id !== input.expect.id || tpl.version !== input.expect.version || formats.join(",") !== input.expect.formats.join(",")) {
+        return this.result(input, { status: "error", template, diagnostics: [cliDiagnostic("template-design", "error", `The design's template was said to be ${input.expect.id} ${input.expect.version}; its module's export ${input.templateExport} is ${tpl.id} ${tpl.version}${formats.length ? ` (${formats.join(", ")})` : ""}`)] }, loaded);
+      }
+    }
     if (this.message.options.describeTemplate) return this.result(input, { status: "ok", template, described: tpl.describe() }, loaded);
     const root = tpl.root as Root;
     const run: TemplateRun = {
@@ -355,6 +442,7 @@ class Session {
       command: this.message.command,
       options: this.message.options,
       inspect: (element) => loaded.inspect.inspect(element),
+      slots: (slots, from) => this.slots(input.id, slots, from),
       context: {
         elements: loaded.elements,
         options: this.message.options,
@@ -497,6 +585,9 @@ class Session {
     const text = messageOf(error);
     if (/@hyper-elements\/react\/template\b/.test(text) || ((error as NodeJS.ErrnoException | null)?.code === "ERR_PACKAGE_PATH_NOT_EXPORTED" && /['"]\.\/template['"]/.test(text))) return this.templatesMissing(input);
     if (notFound(error, "@hyper-elements/react")) return this.elementsMissing(input);
+    // The guard refused something it imports: what, and through which files.
+    const refused = UNTRUSTED.exec(messageOf(error));
+    if (refused) return this.result(input, { status: "error", diagnostics: [cliDiagnostic("template-untrusted", "error", refused[1], "keep what a template imports beside it, in the folders hyperElements.templates lists, or in installed packages")] });
     // Elements' own error while the module loads (a template() that isn't valid): its diagnostics.
     const diagnostics = elementsErrorDiagnostics(error);
     if (diagnostics) return this.result(input, { status: "error", diagnostics });

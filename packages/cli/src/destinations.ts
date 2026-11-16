@@ -51,6 +51,8 @@ function inside(child: string, folder: string): boolean {
 }
 
 export interface Planned {
+  reserve(input: Input): string | undefined;
+  release(id: number): void;
   /** By input id: each output's destination, by extension. */
   byInput: Map<number, Record<string, string>>;
 }
@@ -119,28 +121,43 @@ export function planDestinations(inputs: Input[], base: string, out: string, cwd
     inputsByKey.set(foldPath(input.real), input);
     inputsByKey.set(foldPath(canonicalPath(input.file)), input);
   }
-  for (const input of inputs) {
+  /** An input's names, all reserved, or why not (nothing reserved then). */
+  const place = (input: Input): string | undefined => {
     // A values file's input: named from the values file, with its format (`launch.square.png`).
     const folder = relative(base, input.output?.folder ?? dirname(input.file));
     const stem = input.output ? `${input.output.stem}${input.templateFormat ? `.${input.templateFormat}` : ""}` : basename(input.file, extname(input.file));
     const paths: Record<string, string> = {};
+    const keys: string[] = [];
     for (const extension of extensions) {
       const path = join(resolve(cwd, out), folder, `${stem}.${extension}`);
       const key = foldPath(canonicalPath(path));
       const other = taken.get(key);
-      if (other && other !== input) {
-        throw new UsageError(`${other.display} and ${input.display} would both write ${displayPath(cwd, path)}: rename one, or render them in separate runs. Nothing was written.`);
-      }
+      if (other && other !== input) return `${other.display} and ${input.display} would both write ${displayPath(cwd, path)}: rename one, or render them in separate runs. Nothing was written.`;
       const source = inputsByKey.get(key);
-      if (source) throw new UsageError(`${input.display}'s output ${displayPath(cwd, path)} is an input (${source.display}): give another --out. Nothing was written.`);
+      if (source) return `${input.display}'s output ${displayPath(cwd, path)} is an input (${source.display}): give another --out. Nothing was written.`;
       const held = inputHeldBy(dirname(path), inputs);
-      if (held) throw new UsageError(`${input.display}'s output ${displayPath(cwd, path)} would go in ${held.display}'s folder (a symbolic link under --out leads there): give another --out. Nothing was written.`);
-      taken.set(key, input);
+      if (held) return `${input.display}'s output ${displayPath(cwd, path)} would go in ${held.display}'s folder (a symbolic link under --out leads there): give another --out. Nothing was written.`;
+      keys.push(key);
       paths[extension] = path;
     }
+    for (const key of keys) taken.set(key, input);
     byInput.set(input.id, paths);
+    return undefined;
+  };
+  for (const input of inputs) {
+    const problem = place(input);
+    if (problem) throw new UsageError(problem);
   }
-  return { byInput };
+  return {
+    byInput,
+    // A TSX template design's names are known once its capture says its formats (Decision 31): its own are released,
+    // and its expansion's reserved after every other input's.
+    reserve: place,
+    release(id: number) {
+      byInput.delete(id);
+      for (const [key, input] of taken) if (input.id === id) taken.delete(key);
+    },
+  };
 }
 
 /** Temporary outputs being written, deleted on an interrupt. */

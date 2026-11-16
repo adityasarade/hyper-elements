@@ -98,8 +98,17 @@ a `cli/html-only` note.
 ## Templates
 
 A template (`template()` from `@hyper-elements/react/template`) is a design with fields: what may change, and the
-rules each value must meet. A design made from one is a values file, `name.values.json`: its template's module, id and
-version, the formats wanted, and the values.
+rules each value must meet. A design made from one is written as TSX, the template as its root, or as data, a values
+file (`name.values.json`: its template's module, id and version, the formats wanted, and the values). The
+[brand-templates skill](../../skills/brand-templates/SKILL.md) teaches an agent both, and writing templates.
+
+```tsx
+// designs/june.tsx
+import { Column, Heading, Text } from "@hyper-elements/react";
+import Newsletter from "../templates/newsletter";
+
+export default () => <Newsletter subject="What's new in June" body={<Column><Heading level={2}>Faster exports</Heading><Text>…</Text></Column>} />;
+```
 
 ```bash
 npx hyper-elements describe templates/launch.tsx --json        # its formats, fields, image regions and rules
@@ -144,8 +153,29 @@ npx hyper-elements design set designs/orbit.values.json launchDate=2026-12-10   
   completes it removes both. With `--json`, one line: the file, its template, the paths that `changed`, the
   diagnostics.
 
+- **TSX template designs.** A design whose root is a template is found in the child that loads it, set aside, and
+  loaded again in a process of its own (a capture child) as far as its template's props; it's then checked like a
+  values file, one input per format (`june.square.png`), in a template child that loads the template and not the
+  design. Its slots' JSX is captured there and checked by the template. A design whose template can't be found among
+  its own imports, or whose props aren't data (a function), is `cli/template-design`. `design new <template> --from
+  designs/june.tsx -o june.values.json` writes its values file.
+- **Slots stored as modules.** A values file's slot can be `{ "module": "./june.body.tsx" }`, relative to it
+  (`design set june.values.json body=@designs/june.body.tsx`). The module runs in a capture child, which can only reply
+  with its capture: one that throws, sends anything else, replies twice, sends more than 8 MB or exits first is
+  `cli/slot-module` (exit 1), and nothing is written. Its hash is kept in `assets`, as an image's is.
+- **Trusted templates.** `"hyperElements": { "templates": ["templates/**", "@acme/brand-templates"] }` in the nearest
+  `package.json` lists the templates a design may use: paths and globs relative to it, and packages. A template
+  module, a values file's or a design's template outside it is `cli/template-untrusted` (exit 1). A template child
+  then loads only what the list holds, installed packages and its own loader modules: anything else a template
+  imports, statically, dynamically or with `require()`, is refused before it runs, naming who imported it. Without the
+  list, templates load as any design does, with `"trusted": false` and a `cli/template-untrusted` warning. On Bun,
+  whose plugins can't see every load, a project with the list runs its templates on Node (exit 2 on Bun).
+- **`--require-template [id]`** on `check` and `render` fails every input (exit 1, nothing written) that isn't a
+  design a template checked, or one of another template.
+
 Templates need `@hyper-elements/react` 0.5 (its `/template` entry); with 0.4, a template module or a values file is
-`cli/elements-version` (exit 2). Loading a values file runs its template's code, as loading any design does.
+`cli/elements-version` (exit 2). Without a trusted list, loading a values file or a template design runs its template's
+code, as loading any design does.
 
 ## Previews
 

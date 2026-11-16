@@ -12,7 +12,8 @@ import type { Args } from "../args";
 import type { Input } from "../inputs";
 import { cleanFiles, ownToken, parseToken } from "../loader-module";
 import { formatDiagnostics } from "../output";
-import { runChild, type Io, type RunState } from "../run";
+import { runChild, templateChildOptions, type Io, type RunState } from "../run";
+import { readTrust, trusted, untrusted } from "../trust";
 
 interface Property {
   path: string;
@@ -46,7 +47,13 @@ export async function runDescribe(args: Args, io: Io, state: RunState): Promise<
   const token = ownToken();
   state.token = token;
   state.folders.add(template ? resolve(file, "..") : cwd);
-  const report = await runChild("describe", [input], true, args, undefined, token, io, template ? { describeTemplate: true } : { component: given, root: args.root });
+  // A template is loaded in a template child, guarded where the project lists its trusted templates (Decision 31).
+  const trust = template ? readTrust(cwd) : {};
+  if (template && trust.list && !trusted(file, trust.list)) {
+    io.stderr(`✗ describe: ${untrusted(given, trust).message}\n`);
+    return 2;
+  }
+  const report = await runChild("describe", [input], true, args, undefined, token, io, template ? { describeTemplate: true, ...templateChildOptions(trust, [file]) } : { component: given, root: args.root });
   const own = parseToken(`// ${token}`)!;
   cleanFiles(state.folders, (owner) => !!owner && owner.host === own.host && owner.pid === own.pid && owner.random === own.random);
   const result = report.results.get(0);
@@ -120,7 +127,7 @@ interface Described {
 
 /** A template's description, as text: what it is, its formats, each field and its rules (--json has all of it). */
 function templateText(d: Described): string {
-  let text = `${d.label} (${d.id} ${d.templateVersion}, a ${d.root})${d.description ? `: ${d.description}` : ""}\n`;
+  let text = `${d.label} (${d.id} ${d.templateVersion}, ${/^[AEIOU]/.test(d.root) ? "an" : "a"} ${d.root})${d.description ? `: ${d.description}` : ""}\n`;
   if (d.guidance) text += `  ${d.guidance}\n`;
   const formats = Object.entries(d.formats ?? {});
   if (formats.length) text += `  formats: ${formats.map(([name, f]) => `${name}${f.width ? ` ${f.width}×${f.height}` : ""}${f.scale ? ` at ${f.scale}×` : ""}`).join(", ")}\n`;

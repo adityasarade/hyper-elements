@@ -4,7 +4,7 @@
  */
 import { formatDiagnostics } from "./format";
 import { previewLine } from "./preview";
-import type { Command, Diagnostic, InputLine, InspectLine, Late, Preview, Root, SummaryLine } from "./protocol";
+import type { Command, Diagnostic, InputLine, InspectLine, Late, Preview, Root, SummaryLine, TemplateInfo } from "./protocol";
 
 /** One input's outcome, as the parent has it once its child is done. */
 export interface Outcome {
@@ -28,7 +28,7 @@ export interface Outcome {
   /** A values file's format, where its template has formats. */
   templateFormat?: string;
   /** A values file's or a template module's template. */
-  template?: { id: string; version: string };
+  template?: TemplateInfo;
   /** What its template's check measured and found. */
   layout?: { fits?: unknown[]; regions?: Record<string, unknown>; rules?: unknown[]; review?: unknown[] };
 }

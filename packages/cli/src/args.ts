@@ -1,6 +1,7 @@
 /**
  * The command line: a command, the files and folders it's given, and its options.
  */
+import { existsSync } from "node:fs";
 import type { Command } from "./protocol";
 
 export const USAGE = `Render and check Hyper Elements designs.
@@ -81,7 +82,10 @@ Options:
   --scale <n>           render, check: a Canvas's pixels per px (default: 1,
                         or the template format's)
   --template-format <f> render, check, outline, inspect: only this format of
-                        each values file or template module
+                        each values file, template module or template design
+  --require-template [id]
+                        render, check: fail (exit 1) every input that isn't
+                        a design a template checked (or this template's)
   --public <dir>        render, check, dev: where /paths are read from
                         (default: the first public/ beside a package.json,
                         from the design's folder up to the workspace root)
@@ -115,6 +119,8 @@ Options:
                         free one)
   -o, --output <file>   design new: the values file to write
   --values <file.json>  design new: the values, as a JSON object
+  --from <design.tsx>   design new: the values of a TSX design made from the
+                        template (its slots captured)
   --set <field=value>   design new: one value (repeatable; JSON, else text;
                         @path for an image file, its size read from it)
   --source <f=file>     design: where an image came from, as JSON
@@ -172,8 +178,10 @@ export interface Args {
   root?: string;
   /** A values file's or a template module's format. */
   templateFormat?: string;
+  /** check, render: every input must be a template's design (true), or this template's (its id). */
+  requireTemplate?: true | string;
   /** design: new or set, and what each takes. */
-  design?: { action: "new" | "set"; output?: string; values?: string; draft: boolean; sets: Array<{ path: string; value: string }>; sources: Array<{ path: string; value: string }> };
+  design?: { action: "new" | "set"; output?: string; values?: string; from?: string; draft: boolean; sets: Array<{ path: string; value: string }>; sources: Array<{ path: string; value: string }> };
   /** dev: the port to serve on. */
   port?: number;
   /** Milliseconds. */
@@ -183,6 +191,9 @@ export interface Args {
 }
 
 export class UsageError extends Error {}
+
+/** A template's id, as --require-template takes one: dotted names (acme.Newsletter). */
+const TEMPLATE_ID = /^[A-Za-z][\w-]*(\.[A-Za-z][\w-]*)+$/;
 
 const COMMANDS: Command[] = ["render", "check", "outline", "preview", "inspect", "describe", "migrate", "dev", "design"];
 /** The options each command takes, and whether each takes a value. */
@@ -205,6 +216,8 @@ const OPTIONS: Record<string, { value: boolean; commands: Command[] }> = {
   draft: { value: false, commands: ["design"] },
   source: { value: true, commands: ["design"] },
   set: { value: true, commands: ["design"] },
+  from: { value: true, commands: ["design"] },
+  "require-template": { value: false, commands: ["render", "check"] },
   clients: { value: true, commands: ["render", "check", "preview"] },
   "max-warnings": { value: true, commands: ["check"] },
   "no-lint": { value: false, commands: ["render", "check", "dev"] },
@@ -271,6 +284,14 @@ export function parseArgs(argv: string[]): Args {
     if (!option) throw new UsageError(`Unknown option --${name}.`);
     if (!option.commands.includes(command as Command)) throw new UsageError(`--${name} isn't an option of ${command}.`);
     if (name in values) throw new UsageError(`--${name} is given twice.`);
+    // --require-template takes a template's id where one follows (acme.Newsletter), or --require-template=acme.X.
+    if (name === "require-template") {
+      const next = rest[i + 1];
+      if (eq >= 0) values[name] = arg.slice(eq + 1) || true;
+      else if (next !== undefined && TEMPLATE_ID.test(next) && !existsSync(next)) values[name] = rest[++i];
+      else values[name] = true;
+      continue;
+    }
     if (option.value) {
       const value = eq >= 0 ? arg.slice(eq + 1) : rest[++i];
       if (value === undefined || (eq < 0 && value.startsWith("--"))) throw new UsageError(`--${name} needs a value.`);
@@ -309,6 +330,7 @@ export function parseArgs(argv: string[]): Args {
     args.fonts = values.fonts;
   }
   if (values.root !== undefined) args.root = values.root as string;
+  if (values["require-template"] !== undefined) args.requireTemplate = values["require-template"] === true ? true : (values["require-template"] as string);
   if (values["template-format"] !== undefined) {
     const name = values["template-format"] as string;
     if (!/^[a-z][a-z0-9-]*$/.test(name)) throw new UsageError(`--template-format takes a format's name (lowercase letters, digits and -), not ${JSON.stringify(name)}`);
@@ -371,7 +393,9 @@ export function parseArgs(argv: string[]): Args {
       positional.splice(2);
     }
     const sources = lists.source.map((text) => pair(text, "--source"));
-    args.design = { action, ...(values.output !== undefined ? { output: values.output as string } : {}), ...(values.values !== undefined ? { values: values.values as string } : {}), draft: values.draft === true, sets, sources };
+    if (values.from !== undefined && action !== "new") throw new UsageError("--from is design new's: it writes a values file from a TSX design (design new <template> --from designs/launch.tsx -o launch.values.json).");
+    if (values.from !== undefined && values.values !== undefined) throw new UsageError("design new takes its values from --from or --values, not both.");
+    args.design = { action, ...(values.output !== undefined ? { output: values.output as string } : {}), ...(values.values !== undefined ? { values: values.values as string } : {}), ...(values.from !== undefined ? { from: values.from as string } : {}), draft: values.draft === true, sets, sources };
     return args;
   }
   if (!positional.length) throw new UsageError(`Give ${command} the designs: files or folders.`);

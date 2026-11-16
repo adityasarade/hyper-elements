@@ -82,6 +82,7 @@
   "sniffImage",
   "template",
   "templateOf",
+  "templateRequest",
   "toValuesFile"
  ]
 }

@@ -8,7 +8,7 @@ import { toDesign } from "../builder";
 import { inspect } from "../inspect";
 import { Canvas, Column, component, Email, Grid, Heading, Image, Layer, Menu, outline, Page, prepare, prop, render, Section, Social, Text, validate, type Diagnostic } from "../primitives/index";
 import { digest, launch, newsletter } from "./examples";
-import { check, field, fitInside, formatDate, readValuesFile, sniffImage, template, toValuesFile } from "./index";
+import { check, field, fitInside, formatDate, readValuesFile, sniffImage, template, templateRequest, toValuesFile } from "./index";
 
 const codes = (diagnostics: Diagnostic[]) => diagnostics.filter((d) => d.severity !== "info").map((d) => [d.code, d.path]);
 const values = <T,>(result: { values?: T }) => result.values!;
@@ -402,6 +402,27 @@ describe("a template as a design's root", () => {
         expect(codes(check(<Email />).diagnostics)).toContainEqual(["template/not-template", "jsx"]);
         expect(validate(both).valid).toBe(true);
       });
+  });
+
+  it("templateRequest() gives a design's template, its props as recorded and its format, without needing them valid", () => {
+    const request = templateRequest(<Newsletter {...newsletter.example} heading="" />);
+    expect(request.template).toBe(newsletter);
+    expect(request.diagnostics).toEqual([]);
+    // As given: not read, not checked (an empty heading is the template's check's to refuse).
+    expect(request.props).toEqual({ ...newsletter.example, heading: "" });
+    expect(request.format).toBeUndefined();
+    const square = templateRequest(<Launch format="square" headline="" features={[]} launchDate="2026-12-10" screenshot={shot} artwork={waves} />);
+    expect(square.template).toBe(launch);
+    expect(square.format).toBe("square");
+    expect(square.props).toMatchObject({ headline: "", features: [] });
+    expect(square.props).not.toHaveProperty("format");
+    // A component that returns the template is one design; its memo() is unwrapped as React unwraps it.
+    const Wrapped = memo(() => <Newsletter {...newsletter.example} />);
+    expect(templateRequest(<Wrapped />).template).toBe(newsletter);
+    const plain = templateRequest(<Email><Text>x</Text></Email>);
+    expect(plain.template).toBeUndefined();
+    expect(plain.diagnostics.map((d) => d.code)).toContain("template/not-template");
+    expect(templateRequest(<Launch format={"tall" as never} headline="x" features={[]} launchDate="2026-12-10" screenshot={shot} artwork={waves} />).diagnostics.map((d) => d.code)).toEqual(["template/format"]);
   });
 
   it("isn't the builder's: toDesign() is builder/template", () => {
