@@ -64,9 +64,10 @@ describe("GUIDE.md, REFERENCE.md and the skill", () => {
 
   it("keeps the guide short enough to read whole before writing a design", () => {
     // Raised by what themes took (their section, and the design's theme): 20,000 and 22,000 before. Then by the
-    // command line's line beside the render example: 22,500 and 24,500 before.
-    expect(read("GUIDE.md").length).toBeLessThan(22_750);
-    expect(read(SKILL).length).toBeLessThan(24_750);
+    // command line's line beside the render example: 22,500 and 24,500 before. Then by the line pointing to
+    // templates: 22,750 and 24,750 before.
+    expect(read("GUIDE.md").length).toBeLessThan(22_870);
+    expect(read(SKILL).length).toBeLessThan(24_870);
   });
 });
 

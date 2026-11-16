@@ -8,6 +8,7 @@ import {
   asset,
   boolean,
   color,
+  date,
   defineCustomComponent,
   enumOf,
   fontFamily,
@@ -15,11 +16,15 @@ import {
   formatDiagnostics,
   length,
   link,
+  list,
   number,
+  object,
   prop as defineProp,
   text,
   type CustomDefinition,
   type ExpandProps,
+  type InputOf,
+  type Json,
   type Kind,
   type LengthUnit,
   type OutputOf,
@@ -46,9 +51,57 @@ function tokenProp<K extends Kind<any, any>>(make: () => K) {
   return <const R extends boolean = false, const D extends OutputOf<K> | undefined = undefined>(options: PropOptions<K, R, D>) => defineProp(make(), options) as ReturnType<typeof defineProp<K, R, D>> & TakesToken;
 }
 
-/** Props of a custom component, by value kind. */
+// ─── Composed values: lists and objects of fields ───────────────────────────
+
+/** A spec that's a list of one item spec (`prop.list()`), which it keeps whole. */
+export type ListSpec<I extends PropSpec = PropSpec> = PropSpec & { item: I };
+/** A spec that's an object of field specs (`prop.object()`), which it keeps whole. */
+export type ObjectSpec<F extends PropSpecs = PropSpecs> = PropSpec & { fields: F };
+
+type Given<S> = Exclude<S extends { required?: infer R } ? R : never, undefined> extends true ? true : false;
+type Defaulted<S> = S extends { default: infer D } ? ([D] extends [undefined] ? false : true) : false;
+/** Whether a field always has a value once read: it's required, it has a default, or it's a list (none is `[]`). */
+type Always<S> = Given<S> extends true ? true : S extends { item: PropSpec } ? true : Defaulted<S>;
+
+/** A field's value once read: a list's an array of its item's, an object's its fields' (`FieldValues`). */
+export type FieldValue<S> = S extends { item: infer I } ? Array<FieldValue<I>> : S extends { fields: infer G extends PropSpecs } ? FieldValues<G> : S extends PropSpec<infer K> ? OutputOf<K> : never;
+/** Fields' values once read: each that always has one (required, defaulted, or a list) present, the rest optional. */
+export type FieldValues<F extends PropSpecs> = { [K in keyof F as Always<F[K]> extends true ? K : never]: FieldValue<F[K]> } & {
+  [K in keyof F as Always<F[K]> extends true ? never : K]?: FieldValue<F[K]>;
+};
+/** A field's value as it's given. */
+export type FieldInput<S> = S extends { item: infer I } ? ReadonlyArray<FieldInput<I>> : S extends { fields: infer G extends PropSpecs } ? FieldInputs<G> : S extends PropSpec<infer K> ? InputOf<K> : never;
+/** Fields' values as they're given: the required ones must be. */
+export type FieldInputs<F extends PropSpecs> = { [K in keyof F as Given<F[K]> extends true ? K : never]: FieldInput<F[K]> } & {
+  [K in keyof F as Given<F[K]> extends true ? never : K]?: FieldInput<F[K]>;
+};
+
+type ComposedOptions<R extends boolean> = Omit<PropSpec<Kind<any, any>, R>, "kind" | "default">;
+
+/** Props of a custom component, and a template's fields, by value kind. */
 export const prop = {
-  text: kindProp(() => text()),
+  /** Text: at most `maxLength` characters, and with `pattern` (a regular expression's source, matched with `u`), text it finds something in. */
+  text: <const R extends boolean = false, const D extends string | undefined = undefined>(options: PropOptions<Kind<string, string>, R, D> & { maxLength?: number; pattern?: string }) => {
+    const { maxLength, pattern, ...rest } = options;
+    // Compiled once, with only `u`: a `g` or `y` flag would make the same text pass, then fail (test() keeps its place).
+    return defineProp(text({ maxLength, ...(pattern !== undefined ? { pattern: new RegExp(pattern, "u") } : {}) }), rest);
+  },
+  /** A calendar date, as YYYY-MM-DD ("2026-12-03"). */
+  date: kindProp(() => date()),
+  /**
+   * A list of `item`s, with as few as `min` and as many as `max`. In a template, one not given is `[]` (its `min`
+   * applies to that too). The spec keeps `item` whole, so a template reads its rules (an image's).
+   */
+  list: <const I extends PropSpec, const R extends boolean = false>(item: I, options: ComposedOptions<R> & { min?: number; max?: number }) => {
+    const { min, max, ...rest } = options;
+    const spec = defineProp(list(item.kind, { min, max }), rest);
+    return { ...spec, item } as unknown as PropSpec<Kind<ReadonlyArray<FieldInput<I>>, Array<FieldValue<I>> & Json[]>, R> & { default: undefined; item: I };
+  },
+  /** An object of named fields (a story's title, link and image). The spec keeps `fields` whole. */
+  object: <const F extends PropSpecs, const R extends boolean = false>(fields: F, options: ComposedOptions<R>) => {
+    const kind = object(Object.fromEntries(Object.entries(fields).map(([name, spec]) => [name, { kind: spec.kind, ...(spec.required ? { required: true } : {}), ...(spec.default !== undefined ? { default: spec.default } : {}) }])));
+    return { ...defineProp(kind, options), fields } as unknown as PropSpec<Kind<FieldInputs<F>, FieldValues<F> & Json>, R> & { default: undefined; fields: F };
+  },
   color: tokenProp(() => color()),
   image: kindProp(() => asset()),
   link: kindProp(() => link()),

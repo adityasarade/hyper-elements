@@ -554,6 +554,103 @@ export function items<const F extends Record<string, Kind<any, Json>>>(
   });
 }
 
+/**
+ * A list of values of one kind (a template's three features, its stories), with as few as `min` and as many as `max`.
+ * Each item is parsed by `item`, and a problem names the item ("item 2: …").
+ */
+export function list<K extends Kind<any, Json>>(item: K, options: { min?: number; max?: number } = {}): Kind<Array<InputOf<K>>, Array<OutputOf<K>>> {
+  const { min, max } = options;
+  const counts = min !== undefined && max !== undefined ? (min === max ? `exactly ${min}` : `${min} to ${max}`) : min !== undefined ? `at least ${min}` : max !== undefined ? `at most ${max}` : "";
+  const accepts = `a list of ${item.accepts}${counts ? `, ${counts} of them` : ""}`;
+  return kind({
+    name: "list",
+    editor: "items",
+    accepts,
+    parse(input) {
+      if (!Array.isArray(input)) return fail(`expected ${accepts}, not ${show(input)}`);
+      if (min !== undefined && input.length < min) return fail(`has ${input.length} item${input.length === 1 ? "" : "s"}; it takes ${counts}`);
+      if (max !== undefined && input.length > max) return fail(`has ${input.length} items; it takes ${counts}`);
+      const out: Array<OutputOf<K>> = [];
+      for (const [index, value] of input.entries()) {
+        const parsed = item.parse(value);
+        if (!parsed.ok) return fail(`item ${index + 1}: ${parsed.message}`);
+        out.push(parsed.value as OutputOf<K>);
+      }
+      return ok(out);
+    },
+    jsonSchema: () => ({ type: "array", items: item.jsonSchema(), ...(min !== undefined ? { minItems: min } : {}), ...(max !== undefined ? { maxItems: max } : {}) }),
+  });
+}
+
+/** A field of an object: its kind, and whether it must be given (one with a `default` takes it where it isn't). */
+export interface ObjectField {
+  kind: Kind<any, Json>;
+  required?: boolean;
+  default?: Json;
+}
+
+/**
+ * An object of named fields (a story's title, link and image), each parsed by its kind: a required one must be given,
+ * one with a default takes it where it isn't, and a key that isn't a field is refused.
+ */
+export function object<const F extends Record<string, ObjectField>>(fields: F): Kind<Record<string, unknown>, { [key: string]: Json }> {
+  const names = Object.keys(fields);
+  const accepts = `an object of ${names.length ? names.join(", ") : "no fields"}`;
+  return kind({
+    name: "object",
+    editor: "items",
+    accepts,
+    parse(input) {
+      if (!isObject(input)) return fail(`expected ${accepts}, not ${show(input)}`);
+      const extra = Object.keys(input).find((key) => !Object.prototype.hasOwnProperty.call(fields, key));
+      if (extra) return fail(`"${extra}" isn't one of its fields (${names.join(", ")})`);
+      const out: { [key: string]: Json } = {};
+      for (const name of names) {
+        const field = fields[name];
+        const value = input[name];
+        if (value === undefined) {
+          if (field.default !== undefined) out[name] = field.default;
+          else if (field.required) return fail(`${name} is missing`);
+          continue;
+        }
+        const parsed = field.kind.parse(value);
+        if (!parsed.ok) return fail(`${name}: ${parsed.message}`);
+        out[name] = parsed.value;
+      }
+      return ok(out);
+    },
+    jsonSchema: () => ({
+      type: "object",
+      properties: Object.fromEntries(names.map((name) => [name, fields[name].kind.jsonSchema()])),
+      ...(names.some((name) => fields[name].required) ? { required: names.filter((name) => fields[name].required) } : {}),
+      additionalProperties: false,
+    }),
+  });
+}
+
+const DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** A calendar date, as ISO's `YYYY-MM-DD` ("2026-12-03"): a real day, with no time or time zone. */
+export function date(): Kind<string, string> {
+  const accepts = "a date as YYYY-MM-DD";
+  return kind({
+    name: "date",
+    editor: "text",
+    accepts,
+    parse(input) {
+      const match = typeof input === "string" ? DATE.exec(input) : null;
+      if (!match) return fail(`expected ${accepts}, not ${show(input)}`);
+      const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
+      // By arithmetic, not a Date: a render reads no clock, and needs none to know February's length.
+      const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+      const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1];
+      if (days === undefined || day < 1 || day > days) return fail(`${input} isn't a day of the calendar`);
+      return ok(input as string);
+    },
+    jsonSchema: () => ({ type: "string", format: "date" }),
+  });
+}
+
 export function fontFaces(): Kind<FontFaceInput[], FontFace[]> {
   const accepts = "a list of { family, src, format, weight, style }";
   const face = (input: unknown, index: number): Parsed<FontFace> => {

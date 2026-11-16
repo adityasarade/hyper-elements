@@ -36,7 +36,9 @@ const BROWSER_TEXT: Record<string, unknown> = { fontSize: 16, fontStyle: "normal
 
 export function raise(element: React.ReactElement): Raised {
   const report: string[] = [];
-  const { document, diagnostics, components } = collectTemplate(element);
+  const { document, diagnostics, components, template } = collectTemplate(element);
+  // A template's guardrails aren't the builder's: it takes the design a template builds, as a plain root.
+  if (template) return { body: null, report: [`builder/template: the design's root is the template ${template.id}: the builder takes the design it builds, toDesign(Template.design(values))`] };
   if (!document || diagnostics.some((d) => d.severity === "error")) return { body: null, report: diagnostics.filter((d) => d.severity === "error").map((d) => `${d.path}: ${d.message}`) };
   const root = document.root;
   if (root.type !== "Email" && root.type !== "Page" && root.type !== "Document") {

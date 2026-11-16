@@ -1,0 +1,437 @@
+/**
+ * `@hyper-elements/react/template`: templates, reusable designs with guardrails. A template holds the parts of a design
+ * that never change, opens fields (typed values, each with its rules) for whoever fills it, and checks the result:
+ *
+ *   const Launch = template({ id: "acme.Launch", version: "1.0.0", label: "Launch", root: "Canvas", fields, example, render });
+ *   export default () => <Launch headline="Orbit is live" … />;    // a design: render() checks it, then renders it
+ *   Launch.check(values);                                           // { valid, values, diagnostics, review, … }
+ *
+ * It imports the main entry by name (left external, as /pdf and /image do), and no engine, Node API or code that
+ * evaluates strings: it runs wherever a design does.
+ */
+import type { Diagnostic, PropSpec, PropSpecs, RootName } from "@hyper-elements/core";
+import { ElementsError, validate, type FieldInputs, type FieldValues } from "@hyper-elements/react";
+import React from "react";
+import { build, TEMPLATE_RECORD, type Definition, type Format } from "./checks";
+import { describeTemplate, type TemplateDescription } from "./describe";
+import { specsOf } from "./fields";
+import { compareVersions, isVersion, mergePatch, own, readValue, readValues, versionParts } from "./values";
+
+export { field, type ImageRules, type ImageSpec, type ImageType, type ImageValue } from "./fields";
+export { fitInside, sniffImage, type SniffedImage } from "./layout";
+export { DESCRIBE_VERSION, type FieldDescription, type TemplateDescription } from "./describe";
+export type { Format } from "./checks";
+
+const ROOTS: readonly RootName[] = ["Email", "Page", "Document", "Canvas"];
+const ID = /^[a-z][a-z0-9-]*\.[A-Z][A-Za-z0-9]*$/;
+const FORMAT_NAME = /^[a-z][a-z0-9-]*$/;
+/** Props a template's component has besides its fields: a field can't take their names. */
+const RESERVED = ["format", "key", "ref", "children"];
+
+/** A template's format names, or `undefined` for a template with one size. */
+export type FormatName<Fm> = [keyof Fm] extends [never] ? undefined : keyof Fm & string;
+
+export interface TemplateSpec<F extends PropSpecs, Fm extends Record<string, Format>> {
+  /** A namespace, a dot and a capitalized name, as a component's type: "acme.LaunchGraphic". */
+  id: string;
+  /** Its version, semver ("1.0.0"): a design's values file records it, and a newer major needs a migration. */
+  version: string;
+  label: string;
+  description?: string;
+  /** How to fill it well, for the whole design: plain English, never enforced (`check()` lists it for review). */
+  guidance?: string;
+  /** The root its render returns. */
+  root: RootName;
+  /** Its named sizes: a Canvas's `{ width, height, scale }`, a Document's `{ size, orientation }`. None: one size. */
+  formats?: Fm;
+  /** Its open parts: `prop` helpers' specs and `field.image()`. */
+  fields: F;
+  /** Values it's shown and tested with: `describe()` lays them out, and `check()` must accept them. */
+  example: FieldInputs<F>;
+  /** By major version: a values file of that major's values, as this version takes them. */
+  migrate?: Record<number, (values: Record<string, unknown>) => unknown>;
+  /** The design for some checked values, in a format: the template's whole root (nothing beside it reaches the output). */
+  render(values: FieldValues<F>, context: { format: FormatName<Fm> }): React.ReactElement;
+}
+
+/** What `check()` returns: never thrown. */
+export interface CheckResult<F extends PropSpecs = PropSpecs, Fm extends Record<string, Format> = Record<string, Format>> {
+  /** No errors in the values or in any format's design (there may be warnings and notes). */
+  valid: boolean;
+  /** The values read: defaults filled in, a list not given `[]`. Absent where they couldn't be read. */
+  values?: FieldValues<F>;
+  diagnostics: Diagnostic[];
+  /** Each required rule's result, by format (Phase 1b: rules). */
+  rules: RuleResult[];
+  /** What a reviewer checks by eye: each field's guidance and the template's, as it was asked. Never changes `valid`. */
+  review: Array<{ field?: string; template?: string; guidance: string }>;
+  /** The design for each format checked (`default` for a template with one size), where it's valid: what to render. */
+  snapshots: Partial<Record<[keyof Fm] extends [never] ? "default" : keyof Fm & string, React.ReactElement>>;
+  template: { id: string; version: string };
+}
+
+/** A required rule's result in one format: `passed`, `failed`, or `not-run` (which fails closed). */
+export interface RuleResult {
+  rule: string;
+  source: "lint" | "core" | "template";
+  format?: string;
+  status: "passed" | "failed" | "not-run";
+  diagnostics: Diagnostic[];
+}
+
+/** What a template's component takes: its fields' values, and `format`, one of its format names. */
+export type TemplateComponentProps<F extends PropSpecs, Fm extends Record<string, Format>> = FieldInputs<F> & ([keyof Fm] extends [never] ? { format?: never } : { format?: keyof Fm & string });
+
+export interface Template<F extends PropSpecs = PropSpecs, Fm extends Record<string, Format> = Record<string, Format>> {
+  /** As a design's root: `<Launch headline="…" />` is a design, checked by the template and rendered as it built it. */
+  (props: TemplateComponentProps<F, Fm>): React.ReactElement | null;
+  readonly id: string;
+  readonly version: string;
+  readonly label: string;
+  readonly description?: string;
+  readonly guidance?: string;
+  readonly root: RootName;
+  readonly formats?: Fm;
+  readonly fields: F;
+  readonly example: FieldInputs<F>;
+  readonly migrate?: Record<number, (values: Record<string, unknown>) => unknown>;
+  /** The values read, each format's design built and checked. Never throws. */
+  check(values: unknown, options?: { format?: FormatName<Fm> }): CheckResult<F, Fm>;
+  /** The design for some values, in a format: the root its render returns. Throws an `ElementsError` for bad values. */
+  design(values: FieldInputs<F>, options?: { format?: FormatName<Fm> }): React.ReactElement;
+  /** `values` with `patch`'s fields changed (objects merged, lists replaced); the rest keep their references. Throws for bad ones. */
+  update(values: FieldValues<F>, patch: { [K in keyof F]?: unknown }): FieldValues<F>;
+  /** Its formats, fields, rules and regions, for whoever fills it. Synchronous. */
+  describe(): TemplateDescription;
+}
+
+/** A template's props, as its component takes them: `TemplateProps<typeof Newsletter>`. */
+export type TemplateProps<T> = T extends Template<infer F, infer Fm> ? TemplateComponentProps<F, Fm> : never;
+/** A template's values once checked: `Values<typeof Newsletter>`. */
+export type Values<T> = T extends Template<infer F> ? FieldValues<F> : never;
+
+const fail = (code: string, message: string, path: string): Diagnostic => ({ code, severity: "error", message, path });
+const isPlainObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+const hasErrors = (diagnostics: readonly Diagnostic[]) => diagnostics.some((d) => d.severity === "error");
+
+/** The template spec's own problems, when it's defined. */
+function specProblems(spec: TemplateSpec<PropSpecs, Record<string, Format>>): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  if (typeof spec.id !== "string" || !ID.test(spec.id)) out.push(fail("template/spec", `A template's id is a namespace, a dot and a capitalized name ("acme.LaunchGraphic"), not ${JSON.stringify(spec.id)}`, "id"));
+  if (!isVersion(spec.version)) out.push(fail("template/spec", `A template's version is semver ("1.0.0"), not ${JSON.stringify(spec.version)}`, "version"));
+  if (typeof spec.label !== "string" || !spec.label) out.push(fail("template/spec", "A template has a label", "label"));
+  if (!ROOTS.includes(spec.root)) out.push(fail("template/spec", `A template's root is one of ${ROOTS.join(", ")}, not ${JSON.stringify(spec.root)}`, "root"));
+  if (typeof spec.render !== "function") out.push(fail("template/spec", "A template has a render(values, { format })", "render"));
+  if (spec.formats !== undefined) {
+    if (!isPlainObject(spec.formats) || !Object.keys(spec.formats).length) out.push(fail("template/spec", "formats is an object of named formats", "formats"));
+    else
+      for (const [name, format] of Object.entries(spec.formats)) {
+        if (!FORMAT_NAME.test(name)) out.push(fail("template/spec", `A format's name is lowercase letters, digits and "-", starting with a letter, not ${JSON.stringify(name)}`, `formats.${name}`));
+        if (!isPlainObject(format)) out.push(fail("template/spec", `The ${name} format is an object ({ width, height } for a Canvas)`, `formats.${name}`));
+        else if (spec.root === "Canvas" && !(typeof format.width === "number" && typeof format.height === "number")) out.push(fail("template/spec", `A Canvas format has a width and a height in px: ${name} hasn't`, `formats.${name}`));
+        else if (format.scale !== undefined && !(typeof format.scale === "number" && format.scale > 0)) out.push(fail("template/spec", `A format's scale is pixels per px, above 0`, `formats.${name}.scale`));
+      }
+  }
+  if (!isPlainObject(spec.fields)) out.push(fail("template/spec", "A template's fields are an object of specs (prop.text(…), field.image(…))", "fields"));
+  else
+    for (const { path, spec: field } of specsOf(spec.fields)) {
+      if (!field || typeof field.kind?.parse !== "function" || typeof field.label !== "string") out.push(fail("template/spec", `${path} is a field's spec (prop.text(…), field.image(…)), with a label`, `fields.${path}`));
+    }
+  for (const name of Object.keys(isPlainObject(spec.fields) ? spec.fields : {})) {
+    if (RESERVED.includes(name)) out.push(fail("template/field-name", `A field can't be named ${name}: it's a prop of the template's component (format, key, ref, children)`, `fields.${name}`));
+  }
+  if (!isPlainObject(spec.example)) out.push(fail("template/spec", "A template has example values: describe() lays them out, and tests render them", "example"));
+  if (spec.migrate !== undefined && (!isPlainObject(spec.migrate) || Object.entries(spec.migrate).some(([major, fn]) => !/^\d+$/.test(major) || typeof fn !== "function"))) {
+    out.push(fail("template/spec", "migrate is functions by major version: { 1: (values) => … }", "migrate"));
+  }
+  return out;
+}
+
+/** What check() hands a design's capture (check(element)): a stack every copy of this entry shares. */
+type Capture = (result: CheckResult<any, any>) => void;
+const CAPTURES = Symbol.for("hyper-elements.template.capture");
+const captures = () => ((globalThis as Record<symbol, unknown>)[CAPTURES] ??= []) as Capture[];
+
+/** The shared frames of collecting renders (the main entry's, by the symbol every copy of Elements shares). */
+const COLLECTING = Symbol.for("@hyper-elements/react/primitives/collecting");
+
+/** A template: its parts, its fields, its checks, and a component that makes it a design's root. */
+export function template<const F extends PropSpecs, const Fm extends Record<string, Format> = Record<never, Format>>(spec: TemplateSpec<F, Fm>): Template<F, Fm> {
+  const problems = specProblems(spec as unknown as TemplateSpec<PropSpecs, Record<string, Format>>);
+  if (problems.length) throw new ElementsError(problems);
+  const formats = spec.formats ? (JSON.parse(JSON.stringify(spec.formats)) as Fm) : undefined;
+  const names = formats ? Object.keys(formats) : [];
+  const fields = { ...spec.fields };
+  const definition: Definition = { id: spec.id, version: spec.version, label: spec.label, root: spec.root, formats, fields, render: spec.render as Definition["render"] };
+  const name = `${spec.id} ${spec.version}`;
+
+  const formatProblem = (format: unknown): Diagnostic | undefined => {
+    if (format === undefined) return undefined;
+    if (typeof format === "string" && names.includes(format)) return undefined;
+    return fail("template/format", names.length ? `${spec.id} has the formats ${names.join(", ")}, not ${JSON.stringify(format)}` : `${spec.id} has one size, and no formats: leave format out`, "values.format");
+  };
+
+  const review = (): CheckResult["review"] => [
+    ...specsOf(fields).filter(({ spec: field }) => field.guidance).map(({ path, spec: field }) => ({ field: path, guidance: field.guidance! })),
+    ...(spec.guidance ? [{ template: spec.id, guidance: spec.guidance }] : []),
+  ];
+
+  /** The check, with what the template found apart from the designs' own problems (for an entry point's hand-off). */
+  const run = (input: unknown, options: { format?: unknown } = {}): CheckResult<F, Fm> & { own: Diagnostic[] } => {
+    const reading = { diagnostics: [] as Diagnostic[], name };
+    const format = formatProblem(options.format);
+    const values = readValues(fields, input, "values", reading);
+    const base = { review: review(), rules: [], template: { id: spec.id, version: spec.version } };
+    if (format || !values || hasErrors(reading.diagnostics)) {
+      const diagnostics = [...(format ? [format] : []), ...reading.diagnostics];
+      return { ...base, valid: false, ...(values && !hasErrors(reading.diagnostics) ? { values: values as FieldValues<F> } : {}), diagnostics, own: diagnostics, snapshots: {} };
+    }
+    const checked = options.format !== undefined ? [options.format as string] : names.length ? names : [undefined];
+    const own = [...reading.diagnostics];
+    const diagnostics = [...reading.diagnostics];
+    const snapshots: Record<string, React.ReactElement> = {};
+    for (const format of checked) {
+      const built = build(definition, values, format);
+      // In a template of several formats, each problem says which format it's in.
+      const tag = (d: Diagnostic): Diagnostic => (names.length > 1 && checked.length > 1 ? { ...d, message: `In the ${format} format: ${d.message}` } : d);
+      own.push(...built.own.map(tag));
+      diagnostics.push(...built.design.map(tag), ...built.own.map(tag));
+      if (built.element) snapshots[format ?? "default"] = built.element;
+    }
+    const valid = !hasErrors(diagnostics);
+    return { ...base, valid, values: values as FieldValues<F>, diagnostics, own, snapshots: (valid ? snapshots : {}) as CheckResult<F, Fm>["snapshots"] };
+  };
+
+  const check = (input: unknown, options: { format?: FormatName<Fm> } = {}): CheckResult<F, Fm> => {
+    const { own: _, ...result } = run(input, options);
+    return result;
+  };
+
+  const Template = function Template(props: Record<string, unknown>): null {
+    const frames = (globalThis as Record<symbol, unknown>)[COLLECTING] as Array<{ templates?: unknown[] }> | undefined;
+    const frame = frames?.[frames.length - 1];
+    // Inside a collecting render, it records itself as the design's root, its props owned now: a getter or a Proxy
+    // gives the check the value it gives on this read. Elsewhere it renders nothing.
+    if (frame) (frame.templates ??= []).push({ template: Template, props: own(props, React.isValidElement) as Record<string, unknown> });
+    return null;
+  } as unknown as Template<F, Fm>;
+
+  const record = Object.freeze({
+    id: spec.id,
+    version: spec.version,
+    formats: Object.freeze([...names]),
+    check(props: Record<string, unknown>, options: { format?: string }) {
+      const result = run(props, options);
+      const stack = captures();
+      const capture = stack[stack.length - 1];
+      if (capture) capture(result);
+      return { valid: result.valid, diagnostics: result.diagnostics, own: result.own, snapshots: result.snapshots as Record<string, React.ReactElement> };
+    },
+  });
+
+  const design = (values: unknown, options: { format?: FormatName<Fm> } = {}): React.ReactElement => {
+    const reading = { diagnostics: [] as Diagnostic[], name };
+    const format = formatProblem(options.format) ?? (options.format === undefined && names.length > 1 ? fail("template/format", `${spec.id} has ${names.length} formats (${names.join(", ")}): name one`, "values.format") : undefined);
+    const read = readValues(fields, values, "values", reading);
+    const diagnostics = [...(format ? [format] : []), ...reading.diagnostics];
+    if (!read || hasErrors(diagnostics)) throw new ElementsError(diagnostics);
+    return spec.render(read as FieldValues<F>, { format: (options.format ?? names[0]) as FormatName<Fm> });
+  };
+
+  const update = (values: FieldValues<F>, patch: Record<string, unknown>): FieldValues<F> => {
+    if (!isPlainObject(values) || !isPlainObject(patch)) throw new TypeError(`[Elements] ${spec.id}.update() takes values (from check()) and a patch of fields, each an object`);
+    const reading = { diagnostics: [] as Diagnostic[], name };
+    const out: Record<string, unknown> = { ...values };
+    for (const key of Object.keys(patch)) {
+      if (!Object.prototype.hasOwnProperty.call(fields, key)) {
+        reading.diagnostics.push({
+          code: "template/unknown-field",
+          severity: "error",
+          message: `${name} has no field "${key}" (its fields: ${Object.keys(fields).join(", ")}); what isn't a field is fixed by the template`,
+          path: `values.${key}`,
+          fix: "change one of its fields, or ask the template's owner for a version that has this one",
+        });
+        continue;
+      }
+      const field: PropSpec = fields[key];
+      // An object is merged (JSON Merge Patch: null removes a key); anything else, a list too, is replaced.
+      const given = patch[key] === null ? undefined : "fields" in field && isPlainObject(patch[key]) ? mergePatch(values[key as keyof typeof values], patch[key]) : patch[key];
+      const value = readValue(field, own(given, React.isValidElement), `values.${key}`, reading);
+      if (value === undefined) delete out[key];
+      else out[key] = value;
+    }
+    if (hasErrors(reading.diagnostics)) throw new ElementsError(reading.diagnostics);
+    return out as FieldValues<F>;
+  };
+
+  const describe = (): TemplateDescription => {
+    const reading = { diagnostics: [] as Diagnostic[], name };
+    const example = readValues(fields, spec.example, "example", reading);
+    const laidOut: Parameters<typeof describeTemplate>[1] = [];
+    if (example && !hasErrors(reading.diagnostics)) {
+      for (const format of names.length ? names : [undefined]) {
+        const built = build(definition, example, format);
+        if (built.root) laidOut.push({ format, values: example, root: built.root });
+      }
+    }
+    return describeTemplate({ ...definition, description: spec.description, guidance: spec.guidance }, laidOut);
+  };
+
+  Object.defineProperty(Template, "name", { value: spec.id.split(".").pop() });
+  Object.assign(Template, {
+    displayName: spec.id,
+    id: spec.id,
+    version: spec.version,
+    label: spec.label,
+    ...(spec.description ? { description: spec.description } : {}),
+    ...(spec.guidance ? { guidance: spec.guidance } : {}),
+    root: spec.root,
+    ...(formats ? { formats } : {}),
+    fields,
+    example: spec.example,
+    ...(spec.migrate ? { migrate: spec.migrate } : {}),
+    check,
+    design,
+    update,
+    describe,
+  });
+  Object.defineProperty(Template, TEMPLATE_RECORD, { value: record });
+  return Template;
+}
+
+/** The template a value is (a template, or `memo()`/`forwardRef()` of one), or undefined. */
+export function templateOf(value: unknown): Template | undefined {
+  let current = value as { type?: unknown; render?: unknown } | undefined;
+  for (let i = 0; i < 4 && current; i++) {
+    if (typeof current === "function" && (current as unknown as Record<symbol, unknown>)[TEMPLATE_RECORD]) return current as unknown as Template;
+    current = (current.type ?? current.render) as typeof current;
+  }
+  return undefined;
+}
+
+/**
+ * A design checked by the template that's its root (`<Launch … />`, or a component that returns it): the same result
+ * as the template's `check()` of its props, in its `format` or, without one, in every format. Never throws.
+ */
+export function check(element: React.ReactElement): CheckResult {
+  let checked: CheckResult | undefined;
+  const stack = captures();
+  stack.push((result) => {
+    checked ??= result;
+  });
+  let validated;
+  try {
+    validated = validate(element);
+  } finally {
+    stack.pop();
+  }
+  if (checked) return checked;
+  const diagnostics = validated.diagnostics.some((d) => d.code === "template/not-root" || d.code === "template/format")
+    ? validated.diagnostics
+    : [...validated.diagnostics, fail("template/not-template", "The design's root isn't a template: check() checks a design made from one (<Newsletter … />)", "jsx")];
+  return { valid: false, diagnostics, review: [], rules: [], snapshots: {}, template: { id: "", version: "" } };
+}
+
+// ─── Dates ──────────────────────────────────────────────────────────────────
+
+/**
+ * A date field's value (YYYY-MM-DD) written for a locale (`formatDate("2026-12-03", "de-DE", { dateStyle: "long" })`
+ * is "3. Dezember 2026"). The day is the one written, in any time zone: it's read and written in UTC, and no clock
+ * is read.
+ */
+export function formatDate(date: string, locale: string, options: Intl.DateTimeFormatOptions = { dateStyle: "long" }): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) throw new TypeError(`[Elements] formatDate() takes a date as YYYY-MM-DD, not ${JSON.stringify(date)}`);
+  return new Intl.DateTimeFormat(locale, { ...options, timeZone: "UTC" }).format(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+}
+
+// ─── Values files ───────────────────────────────────────────────────────────
+
+/** A design's data form: which template, which version, which formats, its values, and its assets' provenance. */
+export interface ValuesFile {
+  version: 1;
+  template: { module: string; id: string; version: string; sha256?: string };
+  formats?: string[];
+  values: Record<string, unknown>;
+  /** By field path (`artwork`, `stories[1].image`): each file's hash and where it came from. Render never reads it. */
+  assets?: Record<string, AssetRecord>;
+}
+
+export interface AssetRecord {
+  sha256?: string;
+  source?: { kind: "supplied" | "generated" | "stock" | string; [key: string]: unknown };
+}
+
+/** Values written as a values file (JSON in and out, no file system): checked first, and refused (thrown) with problems. */
+export function toValuesFile(template: Template<any, any>, values: unknown, options: { module: string; formats?: string[]; sha256?: string; assets?: Record<string, AssetRecord> }): ValuesFile {
+  const checked = template.check(values);
+  const formatNames = Object.keys(template.formats ?? {});
+  const unknown = (options.formats ?? []).filter((format) => !formatNames.includes(format));
+  const diagnostics = [...(checked.values ? checked.diagnostics.filter((d) => d.path.startsWith("values")) : checked.diagnostics)];
+  for (const format of unknown) diagnostics.push(fail("template/format", `${template.id} has the formats ${formatNames.join(", ") || "(none)"}, not ${JSON.stringify(format)}`, "formats"));
+  if (!checked.values || hasErrors(diagnostics)) throw new ElementsError(diagnostics);
+  return {
+    version: 1,
+    template: { module: options.module, id: template.id, version: template.version, ...(options.sha256 ? { sha256: options.sha256 } : {}) },
+    ...(options.formats ? { formats: [...options.formats] } : {}),
+    // Defaults written out: a later minor release that changes one doesn't change this design.
+    values: JSON.parse(JSON.stringify(checked.values)) as Record<string, unknown>,
+    ...(options.assets ? { assets: JSON.parse(JSON.stringify(options.assets)) as Record<string, AssetRecord> } : {}),
+  };
+}
+
+/**
+ * A values file read against the template it names: its id, its version (a newer minor is read again with a note, a
+ * newer major through the template's migrations, an older template refused), then its values. Never throws.
+ */
+export function readValuesFile(
+  file: unknown,
+  template: Template<any, any>
+): { values?: Record<string, unknown>; formats?: string[]; assets: Record<string, AssetRecord>; diagnostics: Diagnostic[] } {
+  const diagnostics: Diagnostic[] = [];
+  const done = () => ({ assets: {}, diagnostics });
+  if (!isPlainObject(file) || file.version !== 1 || !isPlainObject(file.template) || !isPlainObject(file.values)) {
+    diagnostics.push(fail("template/values-file", "A values file is { version: 1, template: { module, id, version }, values, … }", "file"));
+    return done();
+  }
+  const reference = file.template;
+  if (reference.id !== template.id) {
+    diagnostics.push(fail("template/id", `This values file is for ${JSON.stringify(reference.id)}, not ${template.id}`, "template.id"));
+    return done();
+  }
+  if (!isVersion(reference.version)) {
+    diagnostics.push(fail("template/version", `A values file records its template's version as semver, not ${JSON.stringify(reference.version)}`, "template.version"));
+    return done();
+  }
+  const recorded = reference.version;
+  let values: unknown = file.values;
+  const order = compareVersions(recorded, template.version);
+  if (order > 0) {
+    diagnostics.push(fail("template/version", `This values file was made with ${template.id} ${recorded}, newer than ${template.version}: update the template`, "template.version"));
+    return done();
+  }
+  if (order < 0) {
+    const [from, to] = [versionParts(recorded)[0], versionParts(template.version)[0]];
+    for (let major = from; major < to; major++) {
+      const migrate = template.migrate?.[major];
+      if (!migrate) {
+        diagnostics.push(fail("template/version", `This values file was made with ${template.id} ${recorded}; ${template.version} is a new major version, and has no migration from ${major}.x`, "template.version"));
+        return done();
+      }
+      try {
+        values = own(migrate(values as Record<string, unknown>), () => false);
+      } catch (thrown) {
+        diagnostics.push(fail("template/version", `${template.id}'s migration from ${major}.x threw: ${thrown instanceof Error ? thrown.message : String(thrown)}`, "template.version"));
+        return done();
+      }
+    }
+    diagnostics.push({ code: "template/upgraded", severity: "info", message: `Made with ${template.id} ${recorded}, read with ${template.version}${from < to ? " through its migrations" : ""}: the next write records the new version`, path: "template.version" });
+  }
+  const reading = { diagnostics, name: `${template.id} ${template.version}` };
+  const read = readValues(template.fields, values, "values", reading);
+  const formatNames = Object.keys(template.formats ?? {});
+  const formats = Array.isArray(file.formats) ? file.formats.filter((f): f is string => typeof f === "string") : undefined;
+  for (const format of formats ?? []) if (!formatNames.includes(format)) diagnostics.push(fail("template/format", `${template.id} has the formats ${formatNames.join(", ") || "(none)"}, not ${JSON.stringify(format)}`, "formats"));
+  const assets = isPlainObject(file.assets) ? (JSON.parse(JSON.stringify(file.assets)) as Record<string, AssetRecord>) : {};
+  return { ...(read && !hasErrors(diagnostics) ? { values: read } : {}), ...(formats ? { formats } : {}), assets, diagnostics };
+}

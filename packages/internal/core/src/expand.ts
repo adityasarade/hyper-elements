@@ -154,6 +154,8 @@ export function expandDocument(document: ElementsDocument, options?: ComponentsO
     if (node.style?.flex !== undefined) expanded.style = { ...expanded.style, flex: node.style.flex };
     if (node.hidden) expanded.hidden = { ...expanded.hidden, ...node.hidden };
     if (node.id && !expanded.id && !CUSTOM_TYPE.test(node.type)) expanded.id = node.id;
+    // So does a built-in's field: a Menu bound to a template field is the Row it becomes.
+    if (node.field && !expanded.field && !CUSTOM_TYPE.test(node.type)) expanded.field = node.field;
     for (const condition of CONDITIONS) {
       const rendered = registry.get(expanded.type);
       for (const [key, value] of Object.entries(node[condition.name] ?? {})) {

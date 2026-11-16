@@ -117,6 +117,7 @@ async function recordExports(): Promise<Record_> {
     "./builder": await import("../builder/index"),
     "./pdf": await import("../pdf/index"),
     "./image": await import("../image/index"),
+    "./template": await import("../template/index"),
   };
   return Object.fromEntries(Object.entries(entries).map(([entry, module]) => [entry, Object.keys(module).sort()]));
 }

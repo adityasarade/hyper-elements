@@ -14,15 +14,23 @@ import {
   type RenderResult,
   type ResolvedNode,
 } from "@hyper-elements/core";
-import { collectTemplate } from "./collect";
+import { collectTemplate, withFields } from "./collect";
 import { outlineOf } from "./outline";
 
-function template(element: unknown, call: string) {
+function template(element: unknown, call: string, options?: { all?: boolean }) {
   if (!React.isValidElement(element)) {
-    throw new TypeError(`[Elements] ${call}() takes a template as JSX (<Email>…</Email>, <Page>…</Page>), not ${element === null ? "null" : typeof element}`);
+    throw new TypeError(`[Elements] ${call}() takes a design as JSX (<Email>…</Email>, <Page>…</Page>), not ${element === null ? "null" : typeof element}`);
   }
-  return collectTemplate(element);
+  return collectTemplate(element, options);
 }
+
+/** The template a design's root was (its id and version), where it was one. */
+export interface TemplateUsed {
+  id: string;
+  version: string;
+}
+
+const used = (template: TemplateUsed | undefined): { template?: TemplateUsed } => (template ? { template } : {});
 
 /** Where the email client checks are: said once for an Email that doesn't pass email-clients' plugin (plan email-client-models, D7). */
 const MORE_CHECKS: Diagnostic = {
@@ -67,13 +75,13 @@ function movedNote(options: { emailClients?: unknown } | undefined): Diagnostic[
  * rejects with an `ElementsError` listing the problems if the
  * template has errors (see `validate()`).
  */
-export async function render(element: React.ReactElement, options: RenderOptions = {}): Promise<RenderResult> {
+export async function render(element: React.ReactElement, options: RenderOptions = {}): Promise<RenderResult & { template?: TemplateUsed }> {
   checkPluginsOption(options.plugins);
-  const { document, diagnostics, components } = template(element, "render");
+  const { document, diagnostics, components, fields, template: from } = template(element, "render");
   if (!document || diagnostics.some((d) => d.severity === "error")) throw new ElementsError(diagnostics);
   const rendered = renderTemplate(document, { ...options, components });
-  const all = [...diagnostics, ...rendered.diagnostics];
-  return { ...rendered, diagnostics: [...all, ...callNotes(document.root.type, all, options)] };
+  const all = [...diagnostics, ...withFields(rendered.diagnostics, fields)];
+  return { ...rendered, diagnostics: [...all, ...callNotes(document.root.type, all, options)], ...used(from) };
 }
 
 /** `validate()`'s options: `plugins`, the packages that add checks (`[await emailClients()]`). */
@@ -84,6 +92,8 @@ export interface ValidationResult {
   valid: boolean;
   /** Each problem: a code, how bad it is, what's wrong and what to do instead, and where (`root.children[2].style.margin`). */
   diagnostics: Diagnostic[];
+  /** The template the design's root was, where it was one. */
+  template?: TemplateUsed;
 }
 
 /**
@@ -98,10 +108,12 @@ export interface ValidationResult {
  */
 export function validate(element: React.ReactElement, options: ValidateOptions = {}): ValidationResult {
   checkPluginsOption(options.plugins);
-  const { document, diagnostics, components } = template(element, "validate");
-  const all = [...diagnostics, ...(document && !diagnostics.some((d) => d.severity === "error") ? validateTemplate(document, { components, plugins: options.plugins }).diagnostics : [])];
+  // A template design with formats and none named is checked in each.
+  const { document, diagnostics, components, fields, template: from, checkedFormats } = template(element, "validate", { all: true });
+  if (checkedFormats) return { valid: checkedFormats.valid, diagnostics: [...checkedFormats.diagnostics, ...movedNote(options as { emailClients?: unknown })], ...used(from) };
+  const all = [...diagnostics, ...(document && !diagnostics.some((d) => d.severity === "error") ? withFields(validateTemplate(document, { components, plugins: options.plugins }).diagnostics, fields) : [])];
   const withNotes = [...all, ...callNotes(document?.root.type, all, options)];
-  return { valid: !withNotes.some((d) => d.severity === "error"), diagnostics: withNotes };
+  return { valid: !withNotes.some((d) => d.severity === "error"), diagnostics: withNotes, ...used(from) };
 }
 
 /**
@@ -125,16 +137,19 @@ export function outline(element: React.ReactElement): string {
  * errors. The tree is the writers' input, not a format to store: it changes with Elements, and `layout` says which
  * format it's in (a writer refuses one it doesn't read).
  */
-export function prepare(element: React.ReactElement, options?: Record<string, never>): { root: ResolvedNode | null; diagnostics: Diagnostic[]; layout: number } {
-  const { document, diagnostics, components } = template(element, "prepare");
+export function prepare(
+  element: React.ReactElement,
+  options?: Record<string, never>
+): { root: ResolvedNode | null; diagnostics: Diagnostic[]; layout: number; template?: TemplateUsed } {
+  const { document, diagnostics, components, fields, template: from } = template(element, "prepare");
   // It takes no options since 0.4: `emailClients` from code written for 0.3 gets the note validate() and render() give, last.
   const moved = movedNote(options as { emailClients?: unknown } | undefined);
-  if (!document || diagnostics.some((d) => d.severity === "error")) return { root: null, diagnostics: [...diagnostics, ...moved], layout: LAYOUT_VERSION };
+  if (!document || diagnostics.some((d) => d.severity === "error")) return { root: null, diagnostics: [...diagnostics, ...moved], layout: LAYOUT_VERSION, ...used(from) };
   const prepared = prepareTemplate(document, { components });
   const root = prepared.resolved?.root ?? null;
   // A Document is prepared for its PDF and a Canvas for its image: what they can't show that the HTML can.
   const paged = root?.type === "Document" ? pagedSupport(root, "pdf") : root?.type === "Canvas" ? pagedSupport(root, "image") : [];
-  return { root, diagnostics: [...diagnostics, ...prepared.diagnostics, ...paged, ...moved], layout: LAYOUT_VERSION };
+  return { root, diagnostics: [...diagnostics, ...withFields([...prepared.diagnostics, ...paged], fields), ...moved], layout: LAYOUT_VERSION, ...used(from) };
 }
 
 export type { RenderOptions, RenderResult, ResolvedNode };

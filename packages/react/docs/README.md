@@ -15,6 +15,7 @@ npm install @hyper-elements/react react react-dom
 | Share one React design across email, web, and PDF | [One React invoice, three outputs](./one-template-email-web-pdf.md) | Email HTML, responsive page, print HTML, and real PDF |
 | Generate an invoice PDF | [React to PDF](./react-to-pdf.md) | A PDF file printed by headless Chromium, or written by `@hyper-elements/react/pdf` without a browser |
 | Write a social card or banner as an image | [`@hyper-elements/react/image`](./render-image.md) | A `Canvas` as a PNG or SVG file |
+| Let people and agents fill a team's design without breaking it | [Templates](./templates.md) | `@hyper-elements/react/template`: fixed parts, typed fields, and a check of each design before it renders |
 | Make AI-generated React content visually editable | [React to Unlayer design JSON](./visual-editing.md) | `toDesign()` → `loadDesign()` → edited JSON and HTML, and `fromDesign()` back to a design |
 | Move React Email templates to Hyper Elements | [Migrate from React Email](./migrate-from-react-email.md) | `npx @hyper-elements/migrate`: converted templates, checked against the originals |
 | Move templates written with Unlayer Elements to the new components | [Migrating from Unlayer Elements](./migrating-from-unlayer-elements.md) | `npx @hyper-elements/migrate --from unlayer-elements`: rewritten imports and JSX, and what it can't move |

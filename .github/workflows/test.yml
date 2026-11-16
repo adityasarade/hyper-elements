@@ -119,14 +119,17 @@ jobs:
       # render that collects a template (about 5KB). Raise it on purpose, with what grew:
       # 322KB for plain text's one-pass scan of service tags in large headings and
       # the email's encoding of URLs in CSS; 317,000 bytes for a Table's free column
-      # written for classic Outlook apart (its own col and first-row cell, without width: auto).
+      # written for classic Outlook apart (its own col and first-row cell, without width: auto);
+      # 327,400 bytes (10,352 more) for templates' part of the main entry: the list, object and
+      # date kinds and their prop helpers, the field key, and a template design's request handed
+      # to its template by the render that collects it.
       - name: Check main entry bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
           test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=317000
+          MAX_SIZE=327400
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::Main entry bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -147,19 +150,38 @@ jobs:
       # collects them (about 5KB). It imports only its own files, the main entry's
       # and React (src/builder/imports.test.ts). Raise it on purpose, with what
       # grew: 485.5KB for the same scan and encoding, in the writers it shares;
-      # 479,000 bytes for a Table's free column written for classic Outlook apart.
+      # 479,000 bytes for a Table's free column written for classic Outlook apart;
+      # 484,500 bytes (5,503 more) for the same kinds, field key and template hand-off,
+      # and builder/template for a template design.
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=479000
+          MAX_SIZE=484500
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
             exit 1
           fi
           echo "✅ /builder bundle within budget"
+
+      # Templates (/template, dist/template.js): about 41.1KB unminified ESM (template(), reading
+      # values by their fields, the checks of a design built from them, describe(), values files and
+      # versions, fitInside(), sniffImage() and formatDate()). The main entry is external. Set from that
+      # plus 10%. Raise it on purpose, with what grew.
+      - name: Check /template bundle size
+        run: |
+          BUNDLE="packages/react/dist/template.js"
+          test -s "$BUNDLE" && test -s "packages/react/dist/template.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
+          SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
+          MAX_SIZE=45200
+          echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
+          if [ "$SIZE" -gt "$MAX_SIZE" ]; then
+            echo "::error::/template bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
+            exit 1
+          fi
+          echo "✅ /template bundle within budget"
 
       # The email client checks and previews (@hyper-elements/email-clients, dist/index.js):
       # about 60.3KB unminified ESM (0.4.1 added preview widths and computers; previews of HTML given as a string, and
@@ -635,7 +657,9 @@ jobs:
           npm run build
           # An email rendered in a route handler and a Server Component comes out as one (tables, a design with
           # its rows), with Elements bundled into Next's server layers (no serverExternalPackages); an edge route
-          # builds (Turbopack) and renders or says to render in the Node.js runtime.
+          # builds (Turbopack) and renders or says to render in the Node.js runtime. An OpenGraph image drawn from a
+          # template (@hyper-elements/react/template and /image, the engines as server external packages): two pages
+          # prerendered, one on request, each the bytes Node draws (verify.mjs --og).
           npm run verify
 
       # ── More consumers ──────────────────────────────────────────
@@ -658,6 +682,7 @@ jobs:
       # create-next-app's setup since Next.js 16: a route handler, a Server Component and a Client Component that
       # render an email are prerendered when the app builds, and the build fails if a render reads a random number
       # or the date. 0.2.0's did (crypto.getRandomValues() for each render's nonce), so no new app could build.
+      # It draws the same OpenGraph images from a template, cached (Cache Components) so two are prerendered.
       - name: Next.js 16 consumer (Cache Components)
         run: |
           cd tests/next16-integration

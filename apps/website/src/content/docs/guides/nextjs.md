@@ -132,6 +132,36 @@ export async function GET() {
 
 > **Note:** Next.js 14 can't bundle Elements for the edge runtime. For emails, the Node.js runtime is the safe default on every version.
 
+## An OpenGraph image from a template
+
+A page's social card can be a [template](/docs/guides/templates) drawn by `@hyper-elements/react/image` in an `opengraph-image.tsx` route: the pages `generateStaticParams` names are drawn when the app builds, any other when it's asked for. The template's check runs before anything is drawn. A title past the template's `maxLength` fails the request with the template's diagnostics instead of drawing a broken card.
+
+```tsx
+// app/blog/[slug]/opengraph-image.tsx
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { renderImage } from "@hyper-elements/react/image";
+import { Card } from "@/lib/card"; // a template: template({ id: "acme.Card", root: "Canvas", fields: { title: … }, … })
+import { posts } from "@/lib/posts";
+
+export const size = { width: 1200, height: 630 };
+export const contentType = "image/png";
+
+export function generateStaticParams() {
+  return posts.map((post) => ({ slug: post.slug }));
+}
+
+export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const post = posts.find((p) => p.slug === slug);
+  const font = await readFile(join(process.cwd(), "assets/Inter-Regular.ttf"));
+  const { image } = await renderImage(<Card title={post?.title ?? "Not found"} />, { fonts: [{ family: "Inter", src: font }] });
+  return new Response(new Uint8Array(image), { headers: { "content-type": "image/png" } });
+}
+```
+
+The image engines load a native module at run time, so they go in `serverExternalPackages: ["@resvg/resvg-js", "satori"]` in `next.config.ts`. With Cache Components (Next.js 16), a route segment can't export `runtime` (the Node.js runtime is the default), and the drawing goes in a function with `"use cache"` that returns the PNG's bytes, so the pages `generateStaticParams` names are prerendered.
+
 ## Prerendering and Cache Components
 
 Since Next.js 16, `create-next-app` turns on Cache Components. Pages and GET route handlers that read no request data are then prerendered when the app builds, and the build fails if one reads a random number or the current date.

@@ -8,6 +8,8 @@ import * as Elements from "@hyper-elements/react";
 import { lint } from "@hyper-elements/lint";
 import { lintHtml } from "@hyper-elements/lint/html";
 import { describeComponents, inspect } from "@hyper-elements/react/inspect";
+// Templates: the code a visitor writes can define one and use it as its design's root.
+import * as Templates from "@hyper-elements/react/template";
 import { shownAnywhere } from "@hyper-elements/core";
 import * as React from "react";
 import * as jsxRuntime from "react/jsx-runtime";
@@ -128,6 +130,7 @@ const MODULES: Record<string, unknown> = {
       (isStatic ? jsxRuntime.jsxs : jsxRuntime.jsx)(type as never, withLine(type, props, source) as never, key as never),
   },
   "@hyper-elements/react": elementsExports(),
+  "@hyper-elements/react/template": Templates,
 };
 
 /**
@@ -304,7 +307,7 @@ function place(error: unknown): { line?: number; column?: number } {
 
 function requireModule(name: string): unknown {
   if (name in MODULES) return MODULES[name];
-  throw new SourceError("import", `Can't import "${name}": the playground runs one file, with "@hyper-elements/react" and "react"`);
+  throw new SourceError("import", `Can't import "${name}": the playground runs one file, with "@hyper-elements/react", "@hyper-elements/react/template" and "react"`);
 }
 
 const isElement = (value: unknown): value is React.ReactElement => React.isValidElement(value);

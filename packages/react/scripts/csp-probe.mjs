@@ -42,10 +42,30 @@ try {
     }
   }
   fromDesign(toDesign(h(p.Email, null, content())).design);
+  // A template (/template): defined, its values checked (a pattern compiled), described, and its design rendered.
+  const t = await import('../dist/template.js');
+  const Card = t.template({
+    id: 'acme.Card',
+    version: '1.0.0',
+    label: 'Card',
+    root: 'Email',
+    fields: {
+      title: p.prop.text({ label: 'Title', required: true, pattern: '^[A-Z]' }),
+      items: p.prop.list(p.prop.text({ label: 'Item' }), { label: 'Items', max: 3 }),
+      when: p.prop.date({ label: 'When' }),
+    },
+    example: { title: 'Hello', items: ['a'], when: '2026-12-03' },
+    render: (v) => h(p.Email, null, h(p.Heading, { field: 'title' }, v.title), h(p.Text, null, v.when ? t.formatDate(v.when, 'en-US') : '')),
+  });
+  Card.describe();
+  if (!Card.check(Card.example).valid || !(await p.render(h(Card, Card.example))).html) {
+    console.error('CSP_FAIL: a template rendered no output');
+    process.exit(2);
+  }
 
   console.info(
     `CSP_OK: @hyper-elements/react imports + renders its components in every root (HTML and plain text), and ` +
-      `takes them to the builder and back, under strict CSP — no eval / new Function`,
+      `takes them to the builder and back, and checks and renders a template, under strict CSP — no eval / new Function`,
   );
 } catch (err) {
   const message = String((err && err.message) || err);

@@ -72,6 +72,11 @@ interface Extras<Style, Conditions> {
   /** Stable id: an anchor or a reference. None is generated when it's left out. */
   id?: string;
   /**
+   * The template field it shows, in a template's render (`headline`, `features[1]`, `stories[1].image`): what the
+   * template's checks read for its image rules and where its diagnostics point. Several nodes may show one field.
+   */
+  field?: string;
+  /**
    * Its style, and inside it its styles on phones (`mobile`) and on hover (`hover`), where it takes them. A value may be
    * a theme's token (`token("colors.primary")`), and `apply` merges the theme's named styles under it, in order.
    */

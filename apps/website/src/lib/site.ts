@@ -55,6 +55,7 @@ export const docsNav: DocGroup[] = [
       { slug: "rendering", label: "Rendering" },
       { slug: "cli", label: "Command line" },
       { slug: "custom-components", label: "Your own components" },
+      { slug: "guides/templates", label: "Templates" },
     ],
   },
   {

@@ -19,9 +19,44 @@ interface Recorded {
   props: Record<string, unknown>;
 }
 
+/**
+ * A template used as a design's root (`<Newsletter subject="…" />`): its component records this on the collection under
+ * way and renders nothing. Part of the frame every copy of Elements shares, so a template from another copy records
+ * here too: `template` is the template object, `props` its props as the component was given them (owned: plain data).
+ */
+export interface TemplateRequest {
+  template: unknown;
+  props: Record<string, unknown>;
+}
+
+/** A template's own check, on the template object under this symbol: what an entry point given a template design calls. */
+export const TEMPLATE_RECORD = Symbol.for("hyper-elements.template");
+
+/** What a template object carries under `TEMPLATE_RECORD`: its id, version and formats, and its check. */
+export interface TemplateRecord {
+  id: string;
+  version: string;
+  /** Its format names; none for a template with one size. */
+  formats: readonly string[];
+  /** Its values checked, its design built for each format (or `format`), and checked. Never throws. */
+  check(props: Record<string, unknown>, options: { format?: string }): TemplateCheck;
+}
+
+export interface TemplateCheck {
+  valid: boolean;
+  /** Everything found, in every format checked. */
+  diagnostics: Diagnostic[];
+  /** What the template found that its design's own checks don't (its values, its bindings, its images): said beside them. */
+  own: Diagnostic[];
+  /** The design for each format checked (`default` without formats). */
+  snapshots: Record<string, React.ReactElement>;
+}
+
 interface PrimitiveCollection {
   nonce: string;
   recorded: Recorded[];
+  /** Templates used as the root (one is a template design; more, or one beside a node, isn't). */
+  templates?: TemplateRequest[];
   /** The custom components the JSX used. */
   components: Map<string, CustomDefinition<any>>;
   /** Types two different custom components were both made with. */
@@ -107,8 +142,11 @@ const unescape = (text: string) => text.replace(/&amp;|&lt;|&gt;|&quot;|&#x27;/g
  * style; a mobile={…} or hover={…} prop is an unknown prop, whose message says so.
  */
 const NODE_KEYS = new Set(["id", "style", "hidden"]);
-/** A built-in's theme props: its variants, a scope's tokens, a root's theme. A template's own component keeps props of these names. */
-const THEME_KEYS = new Set(["variant", "tokens", "theme"]);
+/**
+ * A built-in's theme props (its variants, a scope's tokens, a root's theme) and the template field it shows. A
+ * template's own component keeps props of these names: a `field` it declares is its own.
+ */
+const THEME_KEYS = new Set(["variant", "tokens", "theme", "field"]);
 
 export interface JsonNode {
   type: string;
@@ -224,6 +262,8 @@ export function collectNodes(element: React.ReactElement): {
   diagnostics: Diagnostic[];
   /** Nothing was collected, for a reason already said: React couldn't render it, or all of it suspended. */
   aborted?: boolean;
+  /** Templates used as the root, in a render that finished (none from one that didn't: their props may be partial). */
+  templates: TemplateRequest[];
 } {
   const diagnostics: Diagnostic[] = [];
   const collection: PrimitiveCollection = { nonce: nonce(), recorded: [], components: new Map(), clashes: new Set() };
@@ -243,7 +283,7 @@ export function collectNodes(element: React.ReactElement): {
     // An async component's promise isn't a child React can render; React 18 and 19 say so in their own words.
     if (!ASYNC_ERROR.test(String((error as Error | undefined)?.message))) throw error;
     diagnostics.push({ code: "jsx/async", severity: "error", message: ASYNC_MESSAGE, path: "jsx" });
-    return { nodes: [], components: [...collection.components.values()], diagnostics, aborted: true };
+    return { nodes: [], components: [...collection.components.values()], diagnostics, aborted: true, templates: [] };
   }
   if (collection.async) diagnostics.push({ code: "jsx/async", severity: "error", message: ASYNC_MESSAGE, path: "jsx" });
   // A Suspense boundary that didn't finish: React wrote its fallback in place of the content. Neither is read.
@@ -262,10 +302,38 @@ export function collectNodes(element: React.ReactElement): {
       path: "jsx",
     });
   }
+  // A template's request from a render that didn't finish isn't used: what it was given may not be what it would be.
+  const templates = done.reasons.length || collection.async ? [] : (collection.templates ?? []);
   // All of it was in a boundary that didn't finish: that says why there's no root.
-  return { nodes, components: [...collection.components.values()], diagnostics, aborted: nodes.length === 0 && done.reasons.length > 0 };
+  return { nodes, components: [...collection.components.values()], diagnostics, aborted: nodes.length === 0 && done.reasons.length > 0, templates };
 }
 
+
+/** Each bound node's template field, by its path as collected (the paths diagnostics name). */
+function boundFields(node: JsonNode, path: string, out: Map<string, string>): Map<string, string> {
+  if (typeof node.field === "string") out.set(path, node.field);
+  node.children.forEach((child, index) => typeof child !== "string" && boundFields(child, `${path}.children[${index}]`, out));
+  return out;
+}
+
+/**
+ * Diagnostics with the template field of the node each is about, or of the nearest bound node holding it: a problem in
+ * a bound Heading's Span is the headline's too.
+ */
+export function withFields(diagnostics: Diagnostic[], fields: ReadonlyMap<string, string> | undefined): Diagnostic[] {
+  if (!fields?.size) return diagnostics;
+  return diagnostics.map((diagnostic) => {
+    if (diagnostic.field !== undefined) return diagnostic;
+    for (let path = diagnostic.path; path; ) {
+      const field = fields.get(path);
+      if (field !== undefined) return { ...diagnostic, field };
+      // Up one step: past a key (".style.color"), an expansion ("(acme.Card)") or a child index.
+      const cut = Math.max(path.lastIndexOf("."), path.lastIndexOf("("));
+      path = cut > 0 ? path.slice(0, cut) : "";
+    }
+    return diagnostic;
+  });
+}
 
 /** A template collected from JSX: its tree (internal: never part of the API), the problems, the custom components it uses. */
 export interface CollectedTemplate extends CheckResult {
@@ -275,23 +343,87 @@ export interface CollectedTemplate extends CheckResult {
    * too, at the paths diagnostics name (reading merges text and drops what's left out, so `document`'s may differ).
    */
   collected: JsonNode | null;
+  /** Each bound node's template field, by its path as collected. */
+  fields?: ReadonlyMap<string, string>;
+  /** The template the design's root was, where it was one: its id and version. */
+  template?: { id: string; version: string };
+  /**
+   * A template design checked in every format (`all`, and no `format` among its props): no one document, but what the
+   * template's check found in each.
+   */
+  checkedFormats?: TemplateCheck;
 }
 
-/** JSX collected into Elements' internal tree and checked, never throwing for what's in it. */
-export function collectTemplate(element: React.ReactElement): CollectedTemplate {
-  const { nodes: top, components, diagnostics, aborted } = collectNodes(element);
+const notRoot = (message: string): Diagnostic => ({
+  code: "template/not-root",
+  severity: "error",
+  message,
+  path: "jsx",
+  fix: "Make the template the design's root, alone: export default () => <Newsletter … />",
+});
+
+/** The record a template object carries, where it carries one a template's check can be called through. */
+function recordOf(template: unknown): TemplateRecord | undefined {
+  const record = (typeof template === "function" || (typeof template === "object" && template !== null)) ? (template as Record<symbol, unknown>)[TEMPLATE_RECORD] : undefined;
+  return record && typeof (record as TemplateRecord).check === "function" ? (record as TemplateRecord) : undefined;
+}
+
+/**
+ * JSX collected into Elements' internal tree and checked, never throwing for what's in it. A design whose root is a
+ * template is handed to the template: its check runs, and the design it built for the format is what's collected.
+ * With `all`, a template with formats and no `format` among its props is checked in each (validate() reports them all).
+ */
+export function collectTemplate(element: React.ReactElement, options: { all?: boolean; built?: boolean } = {}): CollectedTemplate {
+  const { nodes: top, components, diagnostics, aborted, templates } = collectNodes(element);
+  if (templates.length) {
+    // What a template's render built is a design, never another template's.
+    if (options.built) return { document: null, diagnostics: [...diagnostics, notRoot("A template's render returns a root (an Email, a Page, a Document or a Canvas), not another template")], components, collected: null };
+    if (templates.length > 1) return { document: null, diagnostics: [...diagnostics, notRoot("A design has one template as its root, used once: this one renders a template more than once")], components, collected: null };
+    if (top.length) return { document: null, diagnostics: [...diagnostics, notRoot("A template is a whole design: it's the root, with nothing beside it or around it")], components, collected: null };
+    return handOff(templates[0], diagnostics, options);
+  }
   if (top.length !== 1 || typeof top[0] === "string") {
     // (A render React couldn't do has already said why nothing was collected.)
     if (!aborted) {
       diagnostics.push({
         code: "jsx/root",
         severity: "error",
-        message: top.length ? "A template renders one root (an Email or a Page) and nothing beside it" : "The JSX rendered no Elements root (an Email or a Page)",
+        message: top.length ? "A design renders one root (an Email or a Page) and nothing beside it" : "The JSX rendered no Elements root (an Email or a Page)",
         path: "jsx",
       });
     }
     return { document: null, diagnostics, components, collected: null };
   }
   const result = checkDocument({ root: top[0] }, new Registry(components));
-  return { document: result.document, diagnostics: [...diagnostics, ...result.diagnostics], components, collected: top[0] };
+  const fields = boundFields(top[0], "root", new Map());
+  return { document: result.document, diagnostics: withFields([...diagnostics, ...result.diagnostics], fields), components, collected: top[0], fields };
+}
+
+/** A template design: the template's check run, and the design it built for the format collected. */
+function handOff(request: TemplateRequest, said: Diagnostic[], options: { all?: boolean }): CollectedTemplate {
+  const record = recordOf(request.template);
+  if (!record) {
+    return { document: null, diagnostics: [...said, { code: "template/not-root", severity: "error", message: "The design's root recorded a template that carries no check (made by another tool, or an Elements too old)", path: "jsx" }], components: [], collected: null };
+  }
+  const template = { id: record.id, version: record.version };
+  const { format, ...props } = request.props;
+  if (format !== undefined && (typeof format !== "string" || !record.formats.includes(format))) {
+    const message = record.formats.length ? `${record.id} has the formats ${record.formats.join(", ")}, not ${JSON.stringify(format)}` : `${record.id} has one size, and no formats: leave format out`;
+    return { document: null, diagnostics: [...said, { code: "template/format", severity: "error", message, path: "values.format" }], components: [], collected: null, template };
+  }
+  if (format === undefined && record.formats.length > 1 && !options.all) {
+    return {
+      document: null,
+      diagnostics: [...said, { code: "template/format", severity: "error", message: `${record.id} has ${record.formats.length} formats (${record.formats.join(", ")}): this writes one, so the design names it with format`, path: "values.format", fix: `<${record.id.split(".").pop()} format="${record.formats[0]}" … />, or check(design) from @hyper-elements/react/template for every format` }],
+      components: [],
+      collected: null,
+      template,
+    };
+  }
+  const checked = record.check(props, format === undefined ? {} : { format });
+  if (!checked.valid) return { document: null, diagnostics: [...said, ...checked.diagnostics], components: [], collected: null, template };
+  const names = Object.keys(checked.snapshots);
+  if (names.length !== 1) return { document: null, diagnostics: [...said, ...checked.diagnostics], components: [], collected: null, template, checkedFormats: checked };
+  const inner = collectTemplate(checked.snapshots[names[0]], { built: true });
+  return { ...inner, diagnostics: [...said, ...inner.diagnostics, ...checked.own], template };
 }
