@@ -22,6 +22,7 @@ import { displayPath, findInputs, moduleFormat, packageFolder, typeScriptTwin, t
 import { endOrphans, killTree } from "./kill";
 import { cleanFiles, ownToken, parseToken, stale } from "./loader-module";
 import { inputLine, inputText, summaryText, type Outcome } from "./output";
+import { expandValues } from "./values-files";
 import { clientsFolder, drawPreviews, NO_BROWSER_HELP, NO_PLAYWRIGHT_CORE_HELP, planPreviewFolders, servePreviews, writePreviews } from "./preview";
 import type { ChildMessage, Diagnostic, Group, Late, PreviewFile, ResultMessage, StartMessage, SummaryLine } from "./protocol";
 
@@ -157,7 +158,13 @@ export function runChild(
   const message: StartMessage = {
     type: "start",
     command,
-    inputs: inputs.map((input) => ({ id: input.id, file: input.file, format: moduleFormat(input.file) })),
+    inputs: inputs.map((input) => ({
+      id: input.id,
+      file: input.file,
+      format: moduleFormat(input.file),
+      ...(input.values ? { values: input.values } : {}),
+      ...(input.templateFormat ? { templateFormat: input.templateFormat } : {}),
+    })),
     alone,
     cwd: io.cwd,
     token,
@@ -171,7 +178,8 @@ export function runChild(
       rendered: args.rendered || undefined,
       ...(command === "preview" ? { dark: args.dark || undefined, fonts: args.fonts } : {}),
       ...extra,
-      ...(command === "render"
+      ...(args.templateFormat ? { templateFormat: args.templateFormat } : {}),
+      ...(command === "render" || command === "check"
         ? {
             html: args.html || undefined,
             format: args.format,
@@ -314,18 +322,34 @@ export async function run(args: Args, io: Io, state: RunState = { folders: new S
   const props = args.props === undefined ? undefined : readProps(args.props, cwd);
   // Lint's options, their shape checked before anything runs (and not read at all with --no-lint).
   const lint: LintConfig | false = args.lint ? readLintConfig(cwd) : false;
-  const found = await findInputs(args.positional, cwd, undefined, { html: args.command === "check" || args.command === "preview" });
-  const { inputs } = found;
+  const found = await findInputs(args.positional, cwd, undefined, { html: args.command === "check" || args.command === "preview", values: ["render", "check", "inspect", "outline"].includes(args.command) });
+  // A values file is one input per format it lists (Decision 20); one whose shape is wrong is one input that fails.
+  let nextId = found.inputs.length;
+  const inputs: Input[] = [];
+  const failedValues = new Map<number, Diagnostic>();
+  for (const input of found.inputs) {
+    if (input.kind !== "values") {
+      inputs.push(input);
+      continue;
+    }
+    const expanded = expandValues(input, args.templateFormat, () => nextId++);
+    if ("error" in expanded) {
+      failedValues.set(input.id, expanded.error);
+      inputs.push(input);
+    } else inputs.push(...expanded.inputs);
+  }
   // HTML emails run in this process (no template code, no loader module); templates in children.
-  const templates = inputs.filter((input) => input.kind !== "html");
+  const templates = inputs.filter((input) => input.kind !== "html" && !failedValues.has(input.id));
   const htmlInputs = inputs.filter((input) => input.kind === "html");
-  if (args.command === "outline" && inputs.length !== 1) throw new UsageError(`outline takes one design; ${args.positional[0]} holds ${inputs.length}.`);
-  if (args.stdout && inputs.length !== 1) throw new UsageError(`--stdout writes one design's output: this run has ${inputs.length} designs.`);
+  const formatsOf = (list: Input[]) => (list.length > 1 && list.every((input) => input.values && input.values.file === list[0].values?.file) ? " (a values file's formats: give --template-format)" : "");
+  if (args.command === "outline" && inputs.length !== 1) throw new UsageError(`outline takes one design; ${args.positional[0]} holds ${inputs.length}${formatsOf(inputs)}.`);
+  if (args.stdout && inputs.length !== 1) throw new UsageError(`--stdout writes one design's output: this run has ${inputs.length} designs${formatsOf(inputs)}.`);
   for (const link of found.links) io.stderr(`- ${displayPath(cwd, link)}: a symbolic link to a folder, not followed (give the folder itself to include what's in it)\n`);
   let planned: Planned | undefined;
   // Outputs keep their path relative to the current folder (or --base), whatever else is given with them.
-  const base = (args.command === "render" && !args.stdout) || args.command === "preview" ? outputBase(inputs, cwd, args.base) : cwd;
-  if (args.command === "render" && !args.stdout) planned = planDestinations(inputs, base, args.out, cwd, ALL_RENDER_OUTPUTS);
+  const written = inputs.filter((input) => !failedValues.has(input.id));
+  const base = (args.command === "render" && !args.stdout) || args.command === "preview" ? outputBase(written, cwd, args.base) : cwd;
+  if (args.command === "render" && !args.stdout) planned = planDestinations(written, base, args.out, cwd, ALL_RENDER_OUTPUTS);
   const previewFolders = args.command === "preview" ? planPreviewFolders(inputs, base, args.out, cwd) : undefined;
 
   const token = ownToken();
@@ -338,6 +362,10 @@ export async function run(args: Args, io: Io, state: RunState = { folders: new S
   const notTemplates = new Set<number>();
   const extra = new Map<number, Diagnostic[]>();
   const note = (id: number, diagnostic: Diagnostic) => extra.set(id, [...(extra.get(id) ?? []), diagnostic]);
+  for (const [id, diagnostic] of failedValues) {
+    const input = inputs.find((i) => i.id === id)!;
+    outcomes.set(id, { file: input.display, root: null, status: "error", outputs: [], diagnostics: [diagnostic], input: "values" });
+  }
 
   // What earlier runs left (killed before they cleaned up): only files their tokens prove a CLI run on this host made,
   // for a process that isn't running.
@@ -400,6 +428,10 @@ export async function run(args: Args, io: Io, state: RunState = { folders: new S
         error: result.error,
         pending: result.outputs,
         binary: result.binary,
+        ...(input.kind === "values" ? { input: "values" as const } : {}),
+        ...(input.templateFormat ? { templateFormat: input.templateFormat } : {}),
+        ...(result.template ? { template: result.template } : {}),
+        ...(result.layout ? { layout: result.layout } : {}),
         ...(result.previews ? { pendingPreviews: result.previews } : {}),
         ...(args.command === "inspect" ? { inspection: result.inspection ?? null } : {}),
       });

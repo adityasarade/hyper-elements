@@ -1,0 +1,361 @@
+/**
+ * Templates in the child (Decisions 18–20): a values file read against its template and checked, a template module
+ * checked with its example in each format, and `design new` and `design set`. Every command runs on the snapshot the
+ * template's check returns, never on an element collected again; a Canvas is measured (`layoutImage()`, then the
+ * template's `checkLayout()`) at the scale it's rendered, strict.
+ */
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { dirname, relative, resolve, sep } from "node:path";
+import { loadAssets, offlineFailure } from "../assets";
+import type { TemplateModule, TemplateObject } from "../elements";
+import type { ChildOptions, Diagnostic, DesignRequest, ResultMessage, TemplateLayout } from "../protocol";
+import { checkTemplate } from "./check";
+import { inspectTemplate } from "./inspect";
+import { outlineTemplate } from "./outline";
+import { loadEntry, renderTemplate } from "./render";
+import { cliDiagnostic, hasErrors, type CommandResult, type TemplateContext } from "./shared";
+
+const RECORD = Symbol.for("hyper-elements.template");
+
+/** The template a module's default export is (a template, or memo()/forwardRef() of one), or undefined. */
+export function templateObjectOf(value: unknown): TemplateObject | undefined {
+  let current = value as { type?: unknown; render?: unknown } | undefined;
+  for (let i = 0; i < 4 && current; i++) {
+    if (typeof current === "function" && (current as unknown as Record<symbol, unknown>)[RECORD]) return current as unknown as TemplateObject;
+    current = (current.type ?? current.render) as typeof current;
+  }
+  return undefined;
+}
+
+export const sha256 = (bytes: Uint8Array | string) => createHash("sha256").update(bytes).digest("hex");
+const posix = (path: string) => path.split(sep).join("/");
+const local = (src: string) => !/^(https?:|data:|\/)/i.test(src);
+
+/** Every image value in some values, with its field path (`artwork`, `stories[1].image`). */
+export function imageValues(values: unknown, prefix = ""): Array<{ path: string; value: { src: string; width: number; height: number } }> {
+  const out: Array<{ path: string; value: { src: string; width: number; height: number } }> = [];
+  const visit = (value: unknown, path: string) => {
+    if (Array.isArray(value)) value.forEach((item, i) => visit(item, `${path}[${i}]`));
+    else if (value && typeof value === "object") {
+      const image = value as { src?: unknown; width?: unknown; height?: unknown };
+      if (typeof image.src === "string" && typeof image.width === "number" && typeof image.height === "number") out.push({ path, value: image as { src: string; width: number; height: number } });
+      else for (const [key, item] of Object.entries(value)) visit(item, path ? `${path}.${key}` : key);
+    }
+  };
+  visit(values, prefix);
+  return out;
+}
+
+/** Values with each local image's path read from one folder and written relative to another (`./art/x.png`). */
+export function rebase<T>(values: T, from: string, to: string): T {
+  const copy = JSON.parse(JSON.stringify(values)) as T;
+  for (const { value } of imageValues(copy)) {
+    if (!local(value.src)) continue;
+    const path = posix(relative(to, resolve(from, value.src)));
+    value.src = path.startsWith(".") ? path : `./${path}`;
+  }
+  return copy;
+}
+
+export interface TemplateRun {
+  tpl: TemplateObject;
+  module: TemplateModule;
+  /** The context the commands take, but for its element and root, set per format. */
+  context: Omit<TemplateContext, "element" | "root" | "inspection">;
+  inspect(element: unknown): TemplateContext["inspection"];
+  options: ChildOptions;
+  command: string;
+}
+
+type Fields = Partial<ResultMessage> & Pick<ResultMessage, "status">;
+
+/**
+ * A Canvas measured at the scale it's rendered, strict, and checked by its template: its fitted text, each image's
+ * region and its file against the rules, and the measured rules decided.
+ */
+async function measure(run: TemplateRun, context: TemplateContext, checked: ReturnType<TemplateObject["check"]>, format: string | undefined): Promise<{ diagnostics: Diagnostic[]; layout: TemplateLayout; usage?: boolean }> {
+  const entry = await loadEntry(context, "Canvas");
+  if (entry === "old" || Array.isArray(entry) || !entry.layoutImage) {
+    const missing = Array.isArray(entry) ? entry.join(" and ") : "@hyper-elements/react/image's layoutImage()";
+    return { usage: true, diagnostics: [cliDiagnostic("engine-missing", "error", `Checking a Canvas template's design measures it with ${missing}, not installed where its template is`, Array.isArray(entry) ? `npm i ${entry.join(" ")}` : undefined)], layout: {} };
+  }
+  const loaded = await loadAssets(entry.templateAssets(context.element), { template: context.file, cwd: context.cwd, public: run.options.public, refreshSince: run.options.refreshSince, offline: run.options.offline });
+  if (offlineFailure(loaded)) return { diagnostics: loaded.diagnostics, layout: {} };
+  const scale = run.options.scale ?? (format !== undefined ? run.tpl.formats?.[format]?.scale : undefined) ?? 1;
+  const layout = await entry.layoutImage(context.element, { fonts: loaded.fonts, images: loaded.images, scale, strict: true });
+  // Each image's file, sniffed: by the src its value gives (as rebased for this run).
+  const files: Record<string, unknown> = {};
+  for (const { path, value } of imageValues(checked.values)) {
+    const bytes = loaded.images[value.src];
+    const sniffed = bytes && run.module.sniffImage(bytes);
+    if (sniffed) files[path] = sniffed;
+  }
+  const report = run.module.checkLayout(run.tpl, checked.values, { ...(format !== undefined ? { format } : {}), scale, layout, files, checked });
+  return { diagnostics: [...loaded.diagnostics, ...layout.diagnostics, ...report.diagnostics], layout: { fits: report.fits, regions: report.regions, rules: report.rules } };
+}
+
+const tag = (diagnostics: readonly Diagnostic[], format: string | undefined): Diagnostic[] => (format === undefined ? [...diagnostics] : diagnostics.map((d) => ({ ...d, templateFormat: format })));
+/** What validate() says of fit is the HTML preview's: not said where the CLI measures the Canvas (check, render), or draws nothing (design). */
+const measuredHere = (run: TemplateRun, diagnostics: Diagnostic[]): Diagnostic[] =>
+  run.tpl.root === "Canvas" && (run.command === "check" || run.command === "render" || run.command === "design") ? diagnostics.filter((d) => !(d.code === "web/degraded" && /\.props\.fit$/.test(d.path))) : diagnostics;
+const unique = (diagnostics: Diagnostic[]): Diagnostic[] => {
+  const seen = new Set<string>();
+  return diagnostics.filter((d) => {
+    const key = `${d.code}|${d.path}|${d.message}|${d.templateFormat ?? ""}`;
+    return seen.has(key) ? false : (seen.add(key), true);
+  });
+};
+
+/** One format of a template's design: its command run on the snapshot the check returned. */
+async function runFormat(run: TemplateRun, checked: ReturnType<TemplateObject["check"]>, format: string | undefined): Promise<CommandResult & { layout?: TemplateLayout }> {
+  const snapshot = checked.snapshots[format ?? "default"];
+  const inspection = run.inspect(snapshot);
+  const context: TemplateContext = { ...run.context, element: snapshot, root: run.tpl.root as TemplateContext["root"], inspection, strict: true, ...(format !== undefined && run.tpl.formats?.[format]?.scale !== undefined ? { scale: run.tpl.formats[format].scale } : {}) };
+  if (run.command === "render") {
+    // A Canvas is measured first, as check measures it: one its template's checks fail isn't drawn (Decision 25).
+    if (run.tpl.root !== "Canvas") return renderTemplate(context);
+    const measured = await measure(run, context, checked, format);
+    if (hasErrors(measured.diagnostics)) return { status: "error", diagnostics: measured.diagnostics, layout: measured.layout, ...(measured.usage ? { usage: true } : {}) };
+    const drawn = await renderTemplate(context);
+    return { ...drawn, diagnostics: unique([...measured.diagnostics, ...drawn.diagnostics]), layout: measured.layout };
+  }
+  if (run.command === "outline") return outlineTemplate(context);
+  if (run.command === "inspect") return inspectTemplate(context);
+  // check: the design's own checks with the CLI's plugins, then a Canvas measured.
+  const own = await checkTemplate(context);
+  if (run.tpl.root !== "Canvas") return own;
+  const measured = await measure(run, context, checked, format);
+  const diagnostics = [...own.diagnostics, ...measured.diagnostics];
+  return { status: hasErrors(diagnostics) ? "error" : "ok", diagnostics, layout: measured.layout, ...(measured.usage ? { usage: true } : {}) };
+}
+
+/** A values file's input: its values read and checked against the template, then its command on the snapshot. */
+export async function runValues(run: TemplateRun, input: { file: string; values: { file: string; envelope: Record<string, unknown> }; templateFormat?: string }): Promise<Fields> {
+  const { tpl, module } = run;
+  const envelope = input.values.envelope;
+  const template = { id: tpl.id, version: tpl.version };
+  if (envelope.draft === true && run.command === "render") {
+    return { status: "error", template, diagnostics: [cliDiagnostic("draft", "error", `${relative(run.context.cwd, input.values.file)} is a draft: it's missing ${((envelope.missing as string[] | undefined) ?? []).join(", ") || "values"}`, "fill it with design set, then render it")] };
+  }
+  const notes: Diagnostic[] = [];
+  // The same version, other bytes: the template changed under it (only the entry file is hashed).
+  const recorded = (envelope.template as { sha256?: string; version?: string }).sha256;
+  if (recorded && (envelope.template as { version?: string }).version === tpl.version && recorded !== sha256(readFileSync(input.file))) {
+    notes.push({ code: "template/changed", severity: "warning", message: `${tpl.id} ${tpl.version} isn't the file this design was made with: its module changed under the same version`, path: "template", fix: "give a changed template a new version" });
+  }
+  const read = module.readValuesFile(envelope, tpl);
+  if (!read.values || hasErrors(read.diagnostics)) return { status: "error", template, diagnostics: [...notes, ...read.diagnostics] };
+  // Its images are relative to the values file; the run reads them as its template's own, relative to the module.
+  const values = rebase(read.values, dirname(input.values.file), dirname(input.file));
+  const format = input.templateFormat;
+  // A template with formats is checked in the ones the file lists: a file that lists none can't pass by checking nothing.
+  const names = Object.keys(tpl.formats ?? {});
+  if (format === undefined && names.length) {
+    return { status: "error", template, diagnostics: [...notes, { code: "template/format", severity: "error", message: `${relative(run.context.cwd, input.values.file)} lists no formats: ${tpl.id} has ${names.join(", ")}`, path: "formats", fix: `list the ones wanted: "formats": ${JSON.stringify(names)}` }] };
+  }
+  const checked = tpl.check(values, format !== undefined ? { format } : {});
+  // An image whose file has no source recorded is of unknown origin: a reviewer checks it (Decision 7).
+  const assets = (read.assets ?? {}) as Record<string, { source?: unknown }>;
+  const unknown = imageValues(read.values)
+    .filter(({ path, value }) => local(value.src) && !assets[path]?.source)
+    .map(({ path }) => ({ field: path, guidance: "Of unknown origin: no source is recorded for this image (give one with design set … --source)" }));
+  const review = [...checked.review, ...unknown];
+  const layout: TemplateLayout = { rules: checked.rules, review };
+  if (!checked.valid) return { status: "error", template, layout, diagnostics: [...notes, ...read.diagnostics, ...checked.diagnostics] };
+  const result = await runFormat(run, checked, format);
+  const diagnostics = measuredHere(run, unique([...notes, ...read.diagnostics, ...checked.diagnostics, ...result.diagnostics]));
+  return { ...result, status: hasErrors(diagnostics) ? "error" : result.status, template, layout: { ...layout, ...result.layout, review }, diagnostics };
+}
+
+/** A template module as an input: its example checked in each format (`render` takes values files, not a module). */
+export async function runTemplateModule(run: TemplateRun): Promise<Fields> {
+  const { tpl } = run;
+  const template = { id: tpl.id, version: tpl.version };
+  const names = Object.keys(tpl.formats ?? {});
+  if (run.command === "render") {
+    return { status: "error", usage: true, template, diagnostics: [cliDiagnostic("render-template", "error", `${tpl.id} is a template: render a design made from it (a values file, design new ${tpl.id})`, "design new <template> -o <name.values.json>, then render the values file")] };
+  }
+  const selected = run.options.templateFormat;
+  if (selected !== undefined && !names.includes(selected)) {
+    return { status: "error", template, diagnostics: [cliDiagnostic("template-format", "error", `${tpl.id} has the formats ${names.join(", ") || "(none)"}, not ${selected}`)] };
+  }
+  const formats = selected !== undefined ? [selected] : names.length ? names : [undefined];
+  if (run.command === "outline" && formats.length > 1) {
+    return { status: "error", usage: true, template, diagnostics: [cliDiagnostic("template-format", "error", `${tpl.id} has ${formats.length} formats (${names.join(", ")}): outline takes one, with --template-format`)] };
+  }
+  const diagnostics: Diagnostic[] = [];
+  const layout: Required<TemplateLayout> = { fits: [], regions: {}, rules: [], review: [] };
+  let outputs: Record<string, string> | undefined;
+  let inspection: unknown;
+  let status: ResultMessage["status"] = "ok";
+  let usage = false;
+  for (const format of formats) {
+    const checked = tpl.check(tpl.example, format !== undefined ? { format } : {});
+    layout.review = checked.review;
+    if (!checked.valid) {
+      diagnostics.push(...tag(checked.diagnostics, format));
+      layout.rules.push(...checked.rules);
+      status = "error";
+      continue;
+    }
+    const result = await runFormat(run, checked, format);
+    diagnostics.push(...tag(measuredHere(run, [...checked.diagnostics, ...result.diagnostics]), format));
+    layout.rules.push(...((result.layout?.rules as unknown[] | undefined) ?? checked.rules));
+    layout.fits.push(...((result.layout?.fits as Array<Record<string, unknown>> | undefined) ?? []).map((fit) => ({ ...fit, ...(format !== undefined ? { templateFormat: format } : {}) })));
+    for (const [field, byFormat] of Object.entries(result.layout?.regions ?? {})) layout.regions[field] = { ...(layout.regions[field] as object | undefined), ...(byFormat as object) };
+    if (result.status === "error") status = "error";
+    if (result.usage) usage = true;
+    outputs ??= result.outputs;
+    inspection ??= result.inspection;
+  }
+  return { status: hasErrors(diagnostics) ? "error" : status, template, layout, diagnostics: unique(diagnostics), ...(outputs ? { outputs } : {}), ...(inspection !== undefined ? { inspection } : {}), ...(usage ? { usage: true } : {}) };
+}
+
+// ─── design new and design set ──────────────────────────────────────────────
+
+/** One step of a field path (`features[1].title` is features, 1, title). */
+const steps = (path: string) => (path.match(/[A-Za-z_$][A-Za-z0-9_$]*|\[\d+\]/g) ?? []).map((step) => (step.startsWith("[") ? Number(step.slice(1, -1)) : step));
+
+/** `values` with the value at a path set (lists and objects copied on the way, the rest kept); undefined removes it. */
+export function setAt(values: Record<string, unknown>, path: string, value: unknown): Record<string, unknown> {
+  const keys = steps(path);
+  if (typeof keys[0] !== "string" || keys.join("").length === 0) throw new Error(`A field path starts with a field's name (features[1].title), not ${JSON.stringify(path)}`);
+  const put = (target: unknown, rest: Array<string | number>): unknown => {
+    if (!rest.length) return value;
+    const [key, ...more] = rest;
+    const copy = (Array.isArray(target) ? [...target] : typeof key === "number" && target === undefined ? [] : { ...((target as Record<string, unknown>) ?? {}) }) as Record<string | number, unknown>;
+    const next = put((target as Record<string | number, unknown> | undefined)?.[key], more);
+    if (next === undefined && !Array.isArray(copy)) delete copy[key];
+    else copy[key] = next;
+    return copy;
+  };
+  return put(values, keys) as Record<string, unknown>;
+}
+
+/** The paths whose values differ between two sets of values: each changed leaf (an image is one). */
+function changes(before: unknown, after: unknown, path = ""): string[] {
+  const leaf = (value: unknown) => value === null || typeof value !== "object" || ("src" in (value as object) && "width" in (value as object));
+  if (leaf(before) || leaf(after) || Array.isArray(before) !== Array.isArray(after)) return JSON.stringify(before) === JSON.stringify(after) ? [] : [path];
+  const keys = new Set([...Object.keys(before as object), ...Object.keys(after as object)]);
+  const out: string[] = [];
+  for (const key of keys) {
+    const next = Array.isArray(after) ? `${path}[${key}]` : path ? `${path}.${key}` : key;
+    out.push(...changes((before as Record<string, unknown>)[key], (after as Record<string, unknown>)[key], next));
+  }
+  return out;
+}
+
+/** The assets entries for some values (Decision 7): each local image's hash, its source carried by its file, not its path. */
+function assetsFor(
+  values: Record<string, unknown>,
+  folder: string,
+  old: Record<string, { sha256?: string; source?: unknown }>,
+  oldValues: Record<string, unknown> | undefined,
+  sources: Record<string, Record<string, unknown>>,
+  notes: Diagnostic[]
+): Record<string, { sha256?: string; source?: unknown }> {
+  const bySrc = new Map<string, { sha256?: string; source?: unknown }>();
+  for (const { path, value } of imageValues(oldValues ?? {})) if (old[path]) bySrc.set(value.src, old[path]);
+  const out: Record<string, { sha256?: string; source?: unknown }> = {};
+  for (const { path, value } of imageValues(values)) {
+    if (!local(value.src)) continue;
+    let hash: string | undefined;
+    try {
+      hash = sha256(readFileSync(resolve(folder, value.src)));
+    } catch {
+      hash = undefined;
+    }
+    const before = bySrc.get(value.src);
+    const changed = before?.sha256 !== undefined && hash !== undefined && before.sha256 !== hash;
+    if (changed) notes.push({ code: "template/asset-changed", severity: "warning", message: `${value.src} changed under the same name: it's a new file, with no source unless --source gives one`, path: `values.${path}` });
+    const source = sources[path] ?? (before && !changed ? before.source : undefined);
+    out[path] = { ...(hash ? { sha256: hash } : {}), ...(source ? { source } : {}) };
+  }
+  return out;
+}
+
+/**
+ * `design new` and `design set`, in the child: the values with each `--set` applied, checked by the template in every
+ * format the file lists, and the values file returned for the parent to write (`designed`). Nothing to write where they
+ * fail, unless --draft, which returns the file as a draft with what's missing.
+ */
+export async function runDesign(run: TemplateRun, input: { file: string }, request: DesignRequest): Promise<Fields> {
+  const { tpl, module } = run;
+  const template = { id: tpl.id, version: tpl.version };
+  const folder = dirname(request.output);
+  const diagnostics: Diagnostic[] = [];
+  const failed = (list: Diagnostic[]): Fields => ({ status: "error", template, diagnostics: unique([...diagnostics, ...list]) });
+  let before: Record<string, unknown> = {};
+  let oldAssets: Record<string, { sha256?: string; source?: unknown }> = {};
+  let formats: string[];
+  let moduleSpec: string;
+  if (request.kind === "new") {
+    formats = Object.keys(tpl.formats ?? {});
+    const path = posix(relative(folder, input.file));
+    moduleSpec = path.startsWith(".") ? path : `./${path}`;
+  } else {
+    const envelope = request.envelope!;
+    const read = module.readValuesFile(envelope, tpl);
+    // A draft's values aren't valid yet: they're changed as they are.
+    if (!read.values && envelope.draft !== true) return failed(read.diagnostics);
+    diagnostics.push(...read.diagnostics.filter((d) => d.severity !== "error" && d.code !== "template/upgraded"));
+    before = read.values ?? (envelope.values as Record<string, unknown>);
+    oldAssets = read.assets as typeof oldAssets;
+    formats = read.formats ?? (envelope.formats as string[] | undefined) ?? [];
+    moduleSpec = (envelope.template as { module: string }).module;
+  }
+  let values: Record<string, unknown> = request.kind === "new" ? { ...(request.values ?? {}) } : before;
+  for (const set of request.sets) {
+    let value = set.value;
+    // `@path`: an image, its size read from its file, its path relative to the values file.
+    if (set.file !== undefined) {
+      let bytes: Uint8Array;
+      try {
+        bytes = readFileSync(set.file);
+      } catch (error) {
+        return failed([cliDiagnostic("design", "error", `${set.path}=@${relative(run.context.cwd, set.file)}: ${(error as Error).message}`)]);
+      }
+      const sniffed = module.sniffImage(bytes);
+      if (!sniffed) return failed([cliDiagnostic("design", "error", `${set.path}: ${relative(run.context.cwd, set.file)} isn't a PNG, JPEG, GIF or SVG`)]);
+      const path = posix(relative(folder, set.file));
+      value = { src: path.startsWith(".") ? path : `./${path}`, width: sniffed.width, height: sniffed.height };
+    }
+    try {
+      values = setAt(values, set.path, value);
+    } catch (error) {
+      return failed([cliDiagnostic("design", "error", (error as Error).message)]);
+    }
+  }
+  // Checked as a run would check it: in every format, its images read as the template's own.
+  const checking = rebase(values, folder, dirname(input.file));
+  let valid = true;
+  for (const format of formats.length ? formats : [undefined]) {
+    const checked = tpl.check(checking, format !== undefined ? { format } : {});
+    // Said once: a value's problem is the same in each format.
+    diagnostics.push(...measuredHere(run, checked.diagnostics));
+    if (!checked.valid) valid = false;
+  }
+  const errors = diagnostics.filter((d) => d.severity === "error");
+  const missing = [...new Set(errors.filter((d) => d.code === "template/required").map((d) => d.path.replace(/^values\./, "")))];
+  if (!valid && !request.draft) return failed([]);
+  const assets = assetsFor(values, folder, oldAssets, request.kind === "set" ? before : undefined, request.sources ?? {}, diagnostics);
+  const sha = sha256(readFileSync(input.file));
+  const options = { module: moduleSpec, ...(formats.length ? { formats } : {}), sha256: sha, ...(Object.keys(assets).length ? { assets } : {}) };
+  let file: Record<string, unknown>;
+  if (valid) {
+    // Defaults written out; a valid set clears a draft's keys.
+    file = module.toValuesFile(tpl, values, options);
+  } else {
+    // A draft: its values as given, with what's missing (a field, or one with a problem).
+    const problems = missing.length ? missing : [...new Set(errors.map((d) => d.path.replace(/^values\./, "")))];
+    file = { version: 1, template: { module: moduleSpec, id: tpl.id, version: tpl.version, sha256: sha }, ...(formats.length ? { formats } : {}), values, ...(Object.keys(assets).length ? { assets } : {}), draft: true, missing: problems };
+  }
+  const written = file.values as Record<string, unknown>;
+  return {
+    status: valid ? "ok" : "error",
+    template,
+    diagnostics: unique(diagnostics),
+    designed: { file, valid, ...(valid ? {} : { missing: file.missing as string[] }), changed: changes(request.kind === "new" ? {} : before, written) },
+  };
+}

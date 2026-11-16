@@ -150,7 +150,8 @@ function canvasOf(element: ReactElement | Snapshot): { root: ResolvedNode; diagn
   if (root.type !== "Canvas") {
     throw new ElementsError([...diagnostics, { code: "image/root", severity: "error", message: `Image output is a Canvas's: this template is a ${root.type}`, path: "root" }]);
   }
-  return { root, diagnostics };
+  // What prepare() says of fit is the HTML preview's (its largest size); the image measures it.
+  return { root, diagnostics: diagnostics.filter((d) => !(d.code === "web/degraded" && /\.props\.fit$/.test(d.path))) };
 }
 
 /**

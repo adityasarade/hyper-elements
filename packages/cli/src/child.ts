@@ -17,9 +17,10 @@ import { inspectTemplate } from "./commands/inspect";
 import { previewTemplate } from "./commands/preview";
 import { outlineTemplate } from "./commands/outline";
 import { renderTemplate } from "./commands/render";
+import { runDesign, runTemplateModule, runValues, templateObjectOf, type TemplateRun } from "./commands/template";
 import { devTemplate } from "./dev/worker";
 import { cliDiagnostic, elementsErrorDiagnostics, hasErrors, UsageFailure, type CommandResult, type TemplateContext } from "./commands/shared";
-import { ELEMENTS_RANGE, exportsOf, packageVersion, resolvedPath, supported, type ElementsInspect, type ElementsMain, type EmailClientsModule, type ReactModule } from "./elements";
+import { ELEMENTS_RANGE, exportsOf, packageVersion, resolvedPath, supported, TEMPLATES_RELEASE, type ElementsInspect, type ElementsMain, type EmailClientsModule, type ReactModule, type TemplateModule, type TemplateObject } from "./elements";
 import { errorLine, errorText, messageOf, notFound } from "./errors";
 import { formatDiagnostic } from "./format";
 import { elementsLoaderText, loaderModulePath, loaderModuleText, parseToken } from "./loader-module";
@@ -164,7 +165,8 @@ class Session {
     let formatted: string | undefined;
     try {
       // Each by the template's Elements, but one at no path (the CLI's own) by the CLI, which says no place for it.
-      formatted = loaded ? diagnostics.map((d) => (d.path ? loaded.elements.formatDiagnostics([d]) : formatDiagnostic(d))).join("\n") : undefined;
+      // A template module's are each about one of its formats: said first.
+      formatted = loaded ? diagnostics.map((d) => `${d.templateFormat ? `[${d.templateFormat}] ` : ""}${d.path ? loaded.elements.formatDiagnostics([d]) : formatDiagnostic(d)}`).join("\n") : undefined;
     } catch {
       formatted = undefined;
     }
@@ -176,7 +178,7 @@ class Session {
     // The loader module: never over a file (the next name where one's there).
     let path: string | undefined;
     // `describe` loads no template: its loader module loads Elements as a module in the current folder would.
-    const text = this.message.command === "describe" ? elementsLoaderText(this.message.token, input.format, bun) : loaderModuleText(input.file, this.message.token, input.format, bun);
+    const text = this.message.command === "describe" && !this.message.options.describeTemplate ? elementsLoaderText(this.message.token, input.format, bun) : loaderModuleText(input.file, this.message.token, input.format, bun);
     // Named for the process whose token it carries (the parent: while it runs, its files are its own).
     const owner = parseToken(`// ${this.message.token}`)!.pid;
     for (let attempt = 0; attempt < 1000 && !path; attempt++) {
@@ -218,7 +220,7 @@ class Session {
     try {
       const failure = this.checkElements(input, loader.resolve);
       if (failure) return failure;
-      if (this.message.command === "describe") return await this.describe(input, loader.load);
+      if (this.message.command === "describe" && !this.message.options.describeTemplate) return await this.describe(input, loader.load);
       const elements = exportsOf<ElementsMain>(await loader.load("@hyper-elements/react"), "render");
       const inspect = exportsOf<ElementsInspect>(await loader.load("@hyper-elements/react/inspect"), "inspect");
       const react = exportsOf<ReactModule>(await loader.load("react"), "createElement");
@@ -274,6 +276,11 @@ class Session {
       }, loaded);
     }
     const value = defaultExport(loader.template);
+    // A template module (Decision 18), or what only one can be: a values file's, a design's, a described template.
+    const tpl = templateObjectOf(value);
+    if (tpl || input.values || this.message.command === "design" || this.message.options.describeTemplate) {
+      return await this.runTemplate(input, loader, loaded, tpl, notes);
+    }
     if (value && typeof value === "object" && ELEMENT.has((value as { $$typeof?: symbol }).$$typeof!)) {
       return this.result(input, { status: "skipped", notTemplate: true, diagnostics: [cliDiagnostic("element-export", "info", "Export the component, not an element")] }, loaded);
     }
@@ -314,6 +321,64 @@ class Session {
       const diagnostics = elementsErrorDiagnostics(error);
       if (diagnostics) return this.result(input, { status: "error", diagnostics }, loaded);
       return this.result(input, { status: "error", error: errorText(error, this.message.cwd), usage: exitCalled(error) || error instanceof UsageFailure || undefined, diagnostics: notes }, loaded);
+    }
+  }
+
+  /**
+   * A template's input: a values file read against it and checked, its module checked with its example in each format,
+   * a design made or changed from it, or the template described. Every command runs on the snapshots its check returns.
+   */
+  private async runTemplate(
+    input: ChildInput,
+    loader: { load(specifier: string): unknown; resolve(specifier: string): string },
+    loaded: Loaded,
+    tpl: TemplateObject | undefined,
+    notes: Diagnostic[],
+  ): Promise<ResultMessage> {
+    let module: TemplateModule | undefined;
+    try {
+      module = exportsOf<TemplateModule>(await loader.load("@hyper-elements/react/template"), "readValuesFile");
+    } catch (error) {
+      if (!notFound(error, "@hyper-elements/react") && (error as NodeJS.ErrnoException).code !== "ERR_PACKAGE_PATH_NOT_EXPORTED") return this.loadFailure(input, error);
+    }
+    if (typeof module?.readValuesFile !== "function" || typeof module.checkLayout !== "function") return this.templatesMissing(input, loaded);
+    if (!tpl) {
+      const said = input.values ? `${relative(this.message.cwd, input.values.file)} names ${relative(this.message.cwd, input.file)} as its template, but that module's` : "Its";
+      return this.result(input, { status: "error", ...(input.values ? {} : { usage: true }), diagnostics: [cliDiagnostic("not-a-template-module", "error", `${said} default export isn't a template (made with template() from @hyper-elements/react/template)`)] }, loaded);
+    }
+    const template = { id: tpl.id, version: tpl.version };
+    if (this.message.options.describeTemplate) return this.result(input, { status: "ok", template, described: tpl.describe() }, loaded);
+    const root = tpl.root as Root;
+    const run: TemplateRun = {
+      tpl,
+      module,
+      command: this.message.command,
+      options: this.message.options,
+      inspect: (element) => loaded.inspect.inspect(element),
+      context: {
+        elements: loaded.elements,
+        options: this.message.options,
+        file: input.file,
+        cwd: this.message.cwd,
+        load: async (specifier) => await loader.load(specifier),
+        resolve: (specifier) => loader.resolve(specifier),
+        plugins: () => this.pluginsFor(loaded, root),
+        emailClients: loaded.emailClients,
+      },
+    };
+    try {
+      const fields = this.message.command === "design" && this.message.options.design
+        ? await runDesign(run, input, this.message.options.design)
+        : input.values
+          ? await runValues(run, { file: input.file, values: input.values, ...(input.templateFormat !== undefined ? { templateFormat: input.templateFormat } : {}) })
+          : await runTemplateModule(run);
+      // What check measured and what a reviewer looks at are check's; every command says the rules.
+      const layout = fields.layout && this.message.command !== "check" ? (fields.layout.rules ? { rules: fields.layout.rules } : undefined) : fields.layout;
+      return this.result(input, { root, ...fields, layout, template: fields.template ?? template, diagnostics: [...(fields.diagnostics ?? []), ...notes] }, loaded);
+    } catch (error) {
+      const diagnostics = elementsErrorDiagnostics(error);
+      if (diagnostics) return this.result(input, { status: "error", root, template, diagnostics }, loaded);
+      return this.result(input, { status: "error", root, template, error: errorText(error, this.message.cwd), usage: exitCalled(error) || error instanceof UsageFailure || undefined, diagnostics: notes }, loaded);
     }
   }
 
@@ -418,8 +483,23 @@ class Session {
     });
   }
 
+  /** An Elements from before templates (no /template entry): a values file or a template module can't be read with it. */
+  private templatesMissing(input: ChildInput, loaded?: Loaded): ResultMessage {
+    return this.result(input, {
+      status: "error",
+      usage: true,
+      diagnostics: [cliDiagnostic("elements-version", "error", `Templates and values files need @hyper-elements/react ${TEMPLATES_RELEASE} or later (its /template entry): the one installed where this design is doesn't have it`, `npm i @hyper-elements/react@^${TEMPLATES_RELEASE}`)],
+    }, loaded);
+  }
+
   private loadFailure(input: ChildInput, error: unknown): ResultMessage {
+    // A template module that imports /template from an Elements without it (before notFound(), which matches subpaths too).
+    const text = messageOf(error);
+    if (/@hyper-elements\/react\/template\b/.test(text) || ((error as NodeJS.ErrnoException | null)?.code === "ERR_PACKAGE_PATH_NOT_EXPORTED" && /['"]\.\/template['"]/.test(text))) return this.templatesMissing(input);
     if (notFound(error, "@hyper-elements/react")) return this.elementsMissing(input);
+    // Elements' own error while the module loads (a template() that isn't valid): its diagnostics.
+    const diagnostics = elementsErrorDiagnostics(error);
+    if (diagnostics) return this.result(input, { status: "error", diagnostics });
     return this.result(input, { status: "error", error: errorText(error, this.message.cwd), ...(exitCalled(error) ? { usage: true } : {}) });
   }
 }

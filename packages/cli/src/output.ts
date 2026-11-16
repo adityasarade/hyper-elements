@@ -23,8 +23,14 @@ export interface Outcome {
   reason?: "no-browser" | "no-playwright-core";
   /** `inspect`: inspect()'s result, or null where there's none. */
   inspection?: unknown;
-  /** "html": an HTML email, checked or previewed as it is (a template where it's not set). */
-  input?: "template" | "html";
+  /** "html": an HTML email, checked or previewed as it is; "values": a values file (a template where it's not set). */
+  input?: "template" | "html" | "values";
+  /** A values file's format, where its template has formats. */
+  templateFormat?: string;
+  /** A values file's or a template module's template. */
+  template?: { id: string; version: string };
+  /** What its template's check measured and found. */
+  layout?: { fits?: unknown[]; regions?: Record<string, unknown>; rules?: unknown[]; review?: unknown[] };
 }
 
 
@@ -71,12 +77,18 @@ export function inputLine(command: Command, outcome: Outcome): InputLine | Inspe
     ...(command === "preview" && outcome.previews ? { previews: outcome.previews } : {}),
     ...(outcome.browser !== undefined ? { browser: outcome.browser } : {}),
     ...(outcome.reason ? { reason: outcome.reason } : {}),
+    ...(outcome.templateFormat ? { templateFormat: outcome.templateFormat } : {}),
+    ...(outcome.template ? { template: outcome.template } : {}),
+    ...(outcome.layout?.fits?.length ? { fits: outcome.layout.fits } : {}),
+    ...(outcome.layout?.regions && Object.keys(outcome.layout.regions).length ? { regions: outcome.layout.regions } : {}),
+    ...(outcome.layout?.rules?.length ? { rules: outcome.layout.rules } : {}),
+    ...(outcome.layout?.review?.length ? { review: outcome.layout.review } : {}),
   };
 }
 
 export function inputText(outcome: Outcome): string {
   const mark = outcome.status === "ok" ? "✓" : outcome.status === "error" ? "✗" : "-";
-  let head = `${mark} ${outcome.file}`;
+  let head = `${mark} ${outcome.file}${outcome.templateFormat ? ` [${outcome.templateFormat}]` : ""}`;
   const html = outcome.input === "html";
   if (outcome.root) head += ` (${outcome.root})`;
   if (html) head += " (HTML)";
@@ -91,6 +103,18 @@ export function inputText(outcome: Outcome): string {
       : (outcome.formatted ?? formatDiagnostics(outcome.diagnostics));
   let body = formatted ? formatted.split("\n").map((line) => `    ${line}\n`).join("") : "";
   if (outcome.inspection) body = inspectionText(outcome.inspection) + body;
+  // A required rule that failed, or didn't run, and what a reviewer checks by eye.
+  for (const rule of (outcome.layout?.rules ?? []) as Array<{ rule: string; status: string; format?: string }>) {
+    if (rule.status !== "passed") body += `  rule ${rule.rule}${rule.format ? ` (${rule.format})` : ""}: ${rule.status}\n`;
+  }
+  // check: each image's region at the scale it's drawn, and each fitted text's size.
+  for (const [field, byFormat] of Object.entries((outcome.layout?.regions ?? {}) as Record<string, Record<string, { box: number[]; pixels: number[] }>>)) {
+    for (const [format, region] of Object.entries(byFormat)) body += `  ${field} (${format}): ${region.box.map(Math.round).join("×")}, needs ${region.pixels.map(Math.round).join("×")}px\n`;
+  }
+  for (const fit of (outcome.layout?.fits ?? []) as Array<{ field?: string; path: string; chosen?: number | null; sizes: number[]; templateFormat?: string }>) {
+    body += `  fit ${fit.field ?? fit.path}${fit.templateFormat ? ` (${fit.templateFormat})` : ""}: ${fit.chosen != null ? `${fit.chosen}px` : "no size fits"}${fit.sizes.length ? ` (fits at ${fit.sizes.join(", ")})` : ""}\n`;
+  }
+  for (const item of (outcome.layout?.review ?? []) as Array<{ field?: string; template?: string; guidance: string }>) body += `  review ${item.field ?? item.template}: ${item.guidance}\n`;
   for (const preview of outcome.previews ?? []) body += `  ${previewLine(preview)}\n`;
   return `${head}\n${body}`;
 }

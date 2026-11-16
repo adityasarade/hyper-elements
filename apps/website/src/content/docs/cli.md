@@ -13,6 +13,7 @@ npx hyper-elements render emails/          # out/emails/welcome.html, out/emails
 npx hyper-elements outline emails/welcome.tsx
 npx hyper-elements preview emails/welcome.tsx   # each email client's preview, ready to open in Chromium
 npx hyper-elements dev emails/             # a local page showing each design, rendered again on each change
+npx hyper-elements render designs/orbit.values.json   # a design made from a template: one image per format
 ```
 
 ## Install
@@ -21,7 +22,7 @@ npx hyper-elements dev emails/             # a local page showing each design, r
 npm install -D @hyper-elements/cli
 ```
 
-Install it beside `@hyper-elements/react` 0.4, in the project that holds your designs: the CLI loads Elements, React and `@hyper-elements/email-clients` the way each design does, so it renders with your versions. Then run it as `npx hyper-elements`. It runs on Node.js 20.6 or later, and on Bun 1.3 or later as `bunx --bun hyper-elements`.
+Install it beside `@hyper-elements/react` 0.4 or 0.5 (0.5 for [templates](#templates)), in the project that holds your designs: the CLI loads Elements, React and `@hyper-elements/email-clients` the way each design does, so it renders with your versions. Then run it as `npx hyper-elements`. It runs on Node.js 20.6 or later, and on Bun 1.3 or later as `bunx --bun hyper-elements`.
 
 To check an HTML email with nothing installed, run the package by its name: `npx @hyper-elements/cli check email.html` (see [Any HTML email](#any-html-email)).
 
@@ -60,7 +61,9 @@ Give the commands files or folders. A folder is searched for designs, leaving ou
 | `outline <file>` | Prints the design laid out, each block with its width, as [`outline()`](/docs/rendering#outline) does |
 | `preview <files or folders…>` | Writes each Email as the email clients show it, one file per client, with the [email client emulator](/docs/email-client-emulator) |
 | `inspect <files or folders…>` | Lists each component of a design, what it's given, whether its root takes it and the problems found on it |
-| `describe [Component]` | Lists the components a design can use, with their props and styles; `--root Email` narrows it to what that root takes |
+| `describe [Component \| template.tsx]` | Lists the components a design can use, with their props and styles; `--root Email` narrows it to what that root takes. Given a template module, what the template takes: its formats, fields, image regions and rules |
+| `design new <template> -o <name.values.json>` | Writes a design made from a template, as a values file, once the template has checked its values |
+| `design set <name.values.json> <field=value>…` | Changes some of a values file's values, checked by the template; the file is left as it was if they fail |
 | `dev <files or folders…>` | Serves a page on `127.0.0.1` that shows each design, rendered again when the project changes |
 | `migrate …` | Runs [`@hyper-elements/migrate`](/docs/migrate/react-email) with the arguments given |
 
@@ -171,6 +174,25 @@ npx hyper-elements dev emails/ docs/
 
 `dev` prints a URL on `127.0.0.1` and serves a page that lists the designs and shows the one you pick: an Email or a Page at desktop width and at 375px, a Document's PDF, a Canvas's image, its diagnostics, and, for an Email with `@hyper-elements/email-clients`, links to its previews in each email client. It renders every design again when the project's source, or a workspace package it depends on, changes. It writes nothing in the project, and runs until Ctrl-C. It serves on a free port; `--port <n>` picks one, to forward from a container or a remote machine (the path still starts with a random token).
 
+## Templates
+
+A [template](/docs/guides/templates) is a design with fields: what may change, and the rules each value must meet. A design made from one is a values file, `name.values.json`, that names its template's module, the formats wanted and the values:
+
+```bash
+npx hyper-elements describe templates/launch.tsx --json        # formats, fields, image regions and rules
+npx hyper-elements design new templates/launch.tsx -o designs/orbit.values.json \
+  --values brief.json --set artwork=@art/waves.png --source artwork=source.json
+npx hyper-elements check designs/orbit.values.json --json      # values, images against their files, fit, each format
+npx hyper-elements render designs/orbit.values.json            # out/designs/orbit.square.png, orbit.landscape.png
+npx hyper-elements design set designs/orbit.values.json launchDate=2026-12-10   # one value; the rest as it was
+```
+
+`render`, `check`, `inspect` and `outline` run a values file once per format it lists, each with its own line (`templateFormat`) and file, `<name>.<format>.png`; `--template-format square` runs one. The template reads the values first, so a wrong one is a `template/…` error naming its `field`. A Canvas is then drawn strict (a font that isn't given fails) and measured at the scale it's rendered at: fitted text, and each image against its region and its file (`template/asset-pixels` where it would be upscaled). `check --json` adds `fits`, `regions`, `rules` and `review` (what a reviewer looks at by eye, which never fails a run), and `render` writes nothing for a format that fails.
+
+In `design new` and `design set`, a value is JSON where it parses, else text, and `@path` is an image file: its size is read from it, and its hash goes in the file's `assets` with the `--source` given. A value the template refuses exits `1` and leaves the file as it was. `--draft` writes it anyway, with what's `missing`; `render` refuses a draft until a `design set` completes it.
+
+A template module is an input too: `check` runs it with its example in every format, which is a template's CI. `render` of one exits `2`: render a values file made from it.
+
 ## JSON and exit codes
 
 With `--json`, stdout holds one JSON line per design, then a summary line, and nothing else. What designs print goes to stderr.
@@ -185,8 +207,8 @@ Each diagnostic is the one [`validate()`](/docs/diagnostics) gives: `code`, `sev
 | Exit code | Means |
 |-----------|-------|
 | `0` | Every design rendered, checked or previewed without errors |
-| `1` | A design has errors, failed to load or threw, or ran past `--timeout`; a PDF or image engine isn't installed; a preview failed in the browser; or the run passed `--max-warnings` |
-| `2` | The run couldn't do what it was asked: a usage error, no designs (none found, or no input that turned out to be one, such as a file whose default export isn't a component: each is still listed, as skipped), Elements missing, a Document's PDF on Bun, `preview` without `@hyper-elements/email-clients`, or `--findings` with no browser found |
+| `1` | A design has errors, failed to load or threw; a values file is wrong, a draft, or its values fail its template; or ran past `--timeout`; a PDF or image engine isn't installed; a preview failed in the browser; or the run passed `--max-warnings` |
+| `2` | The run couldn't do what it was asked: a usage error, `render` of a template module, templates with an Elements before 0.5, no designs (none found, or no input that turned out to be one, such as a file whose default export isn't a component: each is still listed, as skipped), Elements missing, a Document's PDF on Bun, `preview` without `@hyper-elements/email-clients`, or `--findings` with no browser found |
 
 In CI, fail the build on any problem in your designs:
 

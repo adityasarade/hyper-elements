@@ -13,13 +13,17 @@ export interface Diagnostic {
   clients?: readonly string[];
   fix?: string;
   see?: string;
+  /** The template field the node shows, where a template's render binds it. */
+  field?: string;
+  /** A template module's diagnostic: the format of the template it's about. */
+  templateFormat?: string;
   /** An HTML email's diagnostic (email-clients' EmailHtmlDiagnostic, `path: "html"`): its line (from 1, or null). */
   line?: number | null;
   /** Up to 80 characters of that line. */
   excerpt?: string;
 }
 
-export type Command = "render" | "check" | "outline" | "preview" | "inspect" | "describe" | "migrate" | "dev";
+export type Command = "render" | "check" | "outline" | "preview" | "inspect" | "describe" | "migrate" | "dev" | "design";
 export type Root = "Email" | "Page" | "Document" | "Canvas";
 
 /** A template sent to a child: its id in the run, its absolute path, and how the child loads it. */
@@ -28,6 +32,13 @@ export interface ChildInput {
   file: string;
   /** "cjs": a CommonJS module on Node (loaded with require); otherwise an ES module (and always on Bun). */
   format: "esm" | "cjs";
+  /**
+   * A values file's input: `file` is its template module, and this the values file (absolute) and its JSON, checked by
+   * the parent's shape check. The child reads it against the template (readValuesFile()), never as a module.
+   */
+  values?: { file: string; envelope: Record<string, unknown> };
+  /** A values file's or a template module's format, where one is selected. */
+  templateFormat?: string;
 }
 
 export interface StartMessage {
@@ -68,6 +79,8 @@ export interface ChildOptions {
   /** preview: renderInEmailClients()'s `dark` and `fonts`. */
   dark?: boolean;
   fonts?: "url" | "inline";
+  /** describe: the input is a template module, described by its template's describe(). */
+  describeTemplate?: boolean;
   /** describe: the component (all where none) and the root. */
   component?: string;
   root?: string;
@@ -76,6 +89,33 @@ export interface ChildOptions {
    * `@hyper-elements/lint` the child loads to check what they mean; false with `--no-lint`.
    */
   lint?: { rules?: Record<string, string>; kind?: string } | false;
+  /** check, render: a template module's formats narrowed (`--template-format`). */
+  templateFormat?: string;
+  /** design: what to do (new or set), and what with. */
+  design?: DesignRequest;
+}
+
+/** `design new` and `design set`, as the child does them: it reads and checks; the parent writes. */
+export interface DesignRequest {
+  kind: "new" | "set";
+  /** The values file written (absolute): where its module and images are written relative to. */
+  output: string;
+  /** new: the values given (--values); set: the file's envelope as it is. */
+  values?: Record<string, unknown>;
+  envelope?: Record<string, unknown>;
+  /** Each value set, in order: a JSON value or text, or `file`, an image's absolute path (`@path`). */
+  sets: Array<{ path: string; value?: unknown; file?: string }>;
+  draft?: boolean;
+  /** Each image's source (--source), by field path. */
+  sources?: Record<string, Record<string, unknown>>;
+}
+
+/** What a template's check measured and found, for `check --json`: fitted text, regions, rules, review items. */
+export interface TemplateLayout {
+  fits?: unknown[];
+  regions?: Record<string, unknown>;
+  rules?: unknown[];
+  review?: unknown[];
 }
 
 /** One preview file from renderInEmailClients(), for the parent to write. */
@@ -112,6 +152,12 @@ export interface ResultMessage {
   usage?: boolean;
   /** Skipped because it isn't a template (its default export isn't a component, or renders no root): a run of none exits 2. */
   notTemplate?: boolean;
+  /** A values file or a template module: the template, as its module says. */
+  template?: { id: string; version: string };
+  /** What its template's check measured and found. */
+  layout?: TemplateLayout;
+  /** `design`: the values file to write (the parent writes it), or why not. */
+  designed?: { file: Record<string, unknown>; valid: boolean; missing?: string[]; changed: string[] };
 }
 
 /** More than one React in a group's process: the parent runs each of its templates again, alone. */
@@ -141,8 +187,16 @@ export interface InputLine {
   version: 1;
   command: Command;
   file: string;
-  /** "html": an HTML email (`check` and `preview`), whose `root` is null. */
-  input: "template" | "html";
+  /** "html": an HTML email (`check` and `preview`), whose `root` is null; "values": a values file. */
+  input: "template" | "html" | "values";
+  /** A values file's format, where its template has formats. */
+  templateFormat?: string;
+  /** A values file's or a template module's template. */
+  template?: { id: string; version: string };
+  fits?: unknown[];
+  regions?: Record<string, unknown>;
+  rules?: unknown[];
+  review?: unknown[];
   root: Root | null;
   status: "ok" | "error" | "skipped";
   outputs: string[];

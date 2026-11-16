@@ -20,8 +20,16 @@ export interface Input {
   real: string;
   /** As output names it: relative to the current folder, with `/`. */
   display: string;
-  /** "html": an HTML email (a file given by name, or stdin), checked and previewed as it is. */
-  kind?: "template" | "html";
+  /** "html": an HTML email (a file given by name, or stdin), checked and previewed as it is; "values": a values file. */
+  kind?: "template" | "html" | "values";
+  /**
+   * A values file's input, once expanded per format: its `file` is the template module, `display` the values file,
+   * and this the values file and its JSON (shape-checked), and the format it's for.
+   */
+  values?: { file: string; envelope: Record<string, unknown> };
+  templateFormat?: string;
+  /** Where its outputs are named from, where that isn't its `file`: a values file's folder and stem (`launch`). */
+  output?: { folder: string; stem: string };
   /** `-`: the HTML read from stdin, named `stdin` (its `file` is `stdin` in the current folder, which isn't read). */
   stdin?: boolean;
 }
@@ -36,6 +44,8 @@ export interface Found {
 export const MODULE = /\.(tsx|ts|jsx|js|mts|mjs|cts|cjs)$/;
 /** An HTML email, given by name. */
 export const HTML = /\.html?$/i;
+/** A values file (a design as data), given by name. */
+export const VALUES = /\.values\.json$/i;
 
 export function displayPath(cwd: string, file: string): string {
   return relative(cwd, file).split(sep).join("/") || ".";
@@ -72,13 +82,15 @@ export async function hasDefaultExport(path: string, source: string): Promise<bo
 export interface FindOptions {
   /** HTML emails are taken (`check`, `preview`); otherwise one is a usage error. */
   html?: boolean;
+  /** Values files are taken, and folders walk them (`render`, `check`, `inspect`, `outline`); otherwise one given is a usage error. */
+  values?: boolean;
 }
 
 export async function findInputs(positional: string[], cwd: string, folderSkip = (name: string) => name.startsWith("_"), options: FindOptions = {}): Promise<Found> {
   const inputs: Input[] = [];
   const seen = new Set<string>();
   const links: string[] = [];
-  const add = (file: string, kind?: "html") => {
+  const add = (file: string, kind?: "html" | "values") => {
     const realPath = real(file);
     // The same file given twice, or through a link, is one input.
     if (seen.has(realPath)) return;
@@ -98,9 +110,15 @@ export async function findInputs(positional: string[], cwd: string, folderSkip =
     const path = resolve(cwd, given);
     if (!existsSync(path)) throw new UsageError(`${given} doesn't exist.`);
     if (statSync(path).isDirectory()) {
-      const files = (await walk(path, links, false, { skip: folderSkip, sources: MODULE })).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+      const sources = options.values ? new RegExp(`${MODULE.source}|${VALUES.source}`, "i") : MODULE;
+      const files = (await walk(path, links, false, { skip: folderSkip, sources })).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
       let templates = 0;
       for (const file of files) {
+        if (options.values && VALUES.test(file)) {
+          templates++;
+          add(file, "values");
+          continue;
+        }
         let source: string;
         try {
           source = await readFile(file, "utf8");
@@ -113,13 +131,18 @@ export async function findInputs(positional: string[], cwd: string, folderSkip =
       }
       if (!templates) {
         throw new UsageError(
-          `${given} holds no design: a design file is a module whose default export is a component.${options.html ? " A folder's HTML files aren't checked: give them by name (emails/*.html)." : ""}`,
+          `${given} holds no design: a design file is a module whose default export is a component${options.values ? ", or a values file (name.values.json)" : ""}.${options.html ? " A folder's HTML files aren't checked: give them by name (emails/*.html)." : ""}`,
         );
       }
     } else {
       if (HTML.test(path)) {
         if (!options.html) throw new UsageError(`${given} is HTML: it's already HTML. render, outline, inspect and dev take designs (.tsx, .jsx, .ts, .js); check and preview take an HTML email too.`);
         add(path, "html");
+        continue;
+      }
+      if (VALUES.test(path)) {
+        if (!options.values) throw new UsageError(`${given} is a values file: render, check, inspect and outline take values files; this command takes designs (.tsx, .jsx, .ts, .js).`);
+        add(path, "values");
         continue;
       }
       if (!MODULE.test(path)) throw new UsageError(`${given} isn't a design file: give a .tsx, .jsx, .ts or .js file (or .mts, .mjs, .cts, .cjs)${options.html ? ", or an HTML email (.html, .htm)" : ""}.`);
