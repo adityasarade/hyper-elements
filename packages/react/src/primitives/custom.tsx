@@ -8,6 +8,7 @@ import {
   asset,
   boolean,
   color,
+  blocks,
   date,
   defineCustomComponent,
   enumOf,
@@ -61,16 +62,22 @@ export type ObjectSpec<F extends PropSpecs = PropSpecs> = PropSpec & { fields: F
 type Given<S> = Exclude<S extends { required?: infer R } ? R : never, undefined> extends true ? true : false;
 type Defaulted<S> = S extends { default: infer D } ? ([D] extends [undefined] ? false : true) : false;
 /** Whether a field always has a value once read: it's required, it has a default, or it's a list (none is `[]`). */
-type Always<S> = Given<S> extends true ? true : S extends { item: PropSpec } ? true : Defaulted<S>;
+type Always<S> = Given<S> extends true ? true : S extends { item: PropSpec } | { blocks: object } ? true : Defaulted<S>;
+
+/** A block's value: its `type`, and its object spec's fields' values. */
+type BlockValue<B> = { [K in keyof B]: B[K] extends { fields: infer G extends PropSpecs } ? { type: K } & FieldValues<G> : never }[keyof B];
+type BlockInput<B> = { [K in keyof B]: B[K] extends { fields: infer G extends PropSpecs } ? { type: K } & FieldInputs<G> : never }[keyof B];
+/** A spec that's a list of blocks (`prop.blocks()`), keeping each block type's object spec. */
+export type BlocksSpec<B extends Record<string, ObjectSpec> = Record<string, ObjectSpec>> = PropSpec & { blocks: B };
 
 /** A field's value once read: a list's an array of its item's, an object's its fields' (`FieldValues`). */
-export type FieldValue<S> = S extends { item: infer I } ? Array<FieldValue<I>> : S extends { fields: infer G extends PropSpecs } ? FieldValues<G> : S extends PropSpec<infer K> ? OutputOf<K> : never;
+export type FieldValue<S> = S extends { blocks: infer B } ? Array<BlockValue<B>> : S extends { item: infer I } ? Array<FieldValue<I>> : S extends { fields: infer G extends PropSpecs } ? FieldValues<G> : S extends PropSpec<infer K> ? OutputOf<K> : never;
 /** Fields' values once read: each that always has one (required, defaulted, or a list) present, the rest optional. */
 export type FieldValues<F extends PropSpecs> = { [K in keyof F as Always<F[K]> extends true ? K : never]: FieldValue<F[K]> } & {
   [K in keyof F as Always<F[K]> extends true ? never : K]?: FieldValue<F[K]>;
 };
 /** A field's value as it's given. */
-export type FieldInput<S> = S extends { item: infer I } ? ReadonlyArray<FieldInput<I>> : S extends { fields: infer G extends PropSpecs } ? FieldInputs<G> : S extends PropSpec<infer K> ? InputOf<K> : never;
+export type FieldInput<S> = S extends { blocks: infer B } ? ReadonlyArray<BlockInput<B>> : S extends { item: infer I } ? ReadonlyArray<FieldInput<I>> : S extends { fields: infer G extends PropSpecs } ? FieldInputs<G> : S extends PropSpec<infer K> ? InputOf<K> : never;
 /** Fields' values as they're given: the required ones must be. */
 export type FieldInputs<F extends PropSpecs> = { [K in keyof F as Given<F[K]> extends true ? K : never]: FieldInput<F[K]> } & {
   [K in keyof F as Given<F[K]> extends true ? never : K]?: FieldInput<F[K]>;
@@ -96,6 +103,15 @@ export const prop = {
     const { min, max, ...rest } = options;
     const spec = defineProp(list(item.kind, { min, max }), rest);
     return { ...spec, item } as unknown as PropSpec<Kind<ReadonlyArray<FieldInput<I>>, Array<FieldValue<I>> & Json[]>, R> & { default: undefined; item: I };
+  },
+  /**
+   * A list of blocks the filler picks, orders and fills: each `{ type, …its fields }`, its type one of `types` (each a
+   * `prop.object()` spec). A block type can't have a field named `type`. The spec keeps `blocks` whole.
+   */
+  blocks: <const B extends Record<string, ObjectSpec>, const R extends boolean = false>(types: B, options: ComposedOptions<R> & { min?: number; max?: number }) => {
+    const { min, max, ...rest } = options;
+    const kind = blocks(Object.fromEntries(Object.entries(types).map(([name, spec]) => [name, spec.kind])), { min, max });
+    return { ...defineProp(kind, rest), blocks: types } as unknown as PropSpec<Kind<ReadonlyArray<BlockInput<B>>, Array<BlockValue<B>> & Json[]>, R> & { default: undefined; blocks: B };
   },
   /** An object of named fields (a story's title, link and image). The spec keeps `fields` whole. */
   object: <const F extends PropSpecs, const R extends boolean = false>(fields: F, options: ComposedOptions<R>) => {
@@ -171,6 +187,8 @@ export interface ThemeValues {
 }
 
 export function component<const P extends PropSpecs>(spec: ComponentSpec<P>): CustomComponent<P> {
+  // Read once, now: changing the spec afterwards (its render included) changes nothing rendered.
+  const render = spec.render;
   const definition = defineCustomComponent({
     type: spec.type,
     label: spec.label,
@@ -178,7 +196,7 @@ export function component<const P extends PropSpecs>(spec: ComponentSpec<P>): Cu
     props: spec.props,
     placement: spec.placement,
     expand(props, context) {
-      const { nodes, components, diagnostics } = collectNodes(spec.render(props, { theme: ((context as { theme?: unknown }).theme ?? {}) as ThemeValues }));
+      const { nodes, components, diagnostics } = collectNodes(render(props, { theme: ((context as { theme?: unknown }).theme ?? {}) as ThemeValues }));
       for (const used of components) context.register(used);
       // An error stops it; a warning or a note (a deprecated prop) is said at the instance's place.
       if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new Error(formatDiagnostics(diagnostics));
@@ -189,11 +207,13 @@ export function component<const P extends PropSpecs>(spec: ComponentSpec<P>): Cu
   const Custom = (props: CustomProps<P>): React.ReactElement => {
     const collection = collectingPrimitives();
     if (!collection) {
-      throw new Error(`[Elements] <${spec.type}> is part of a template: render the template with render(), not this component on its own`);
+      throw new Error(`[Elements] <${definition.type}> is part of a template: render the template with render(), not this component on its own`);
     }
     registerUsed(collection, definition);
-    return recordPrimitive(collection, spec.type, props as Record<string, unknown>);
+    return recordPrimitive(collection, definition.type, props as Record<string, unknown>);
   };
-  Custom.displayName = spec.type;
-  return Object.assign(Custom, { definition });
+  Custom.displayName = definition.type;
+  // Its definition can't be replaced, and is frozen itself.
+  Object.defineProperty(Custom, "definition", { value: definition, enumerable: true });
+  return Custom as CustomComponent<P>;
 }

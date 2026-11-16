@@ -195,3 +195,29 @@ export const numberForText = <Launch headline={3} launchDate="2026-12-03" photo=
 export const unknownFormat = <Launch format="portrait" headline="Orbit" launchDate="2026-12-03" photo={{ src: "https://a.example/p.png", width: 10, height: 10 }} />;
 export const launchProps: TemplateProps<typeof Launch> = { headline: "Orbit", launchDate: "2026-12-03", photo: { src: "https://a.example/p.png", width: 10, height: 10 } };
 export const launchValues = (values: Values<typeof Launch>): string[] => values.features;
+
+// A slot takes JSX; blocks are a union keyed by type.
+const WithSlot = template({
+  id: "acme.WithSlot",
+  version: "1.0.0",
+  label: "With slot",
+  root: "Email",
+  fields: {
+    body: field.slot({ label: "Body", required: true, allow: [Column, Text] }),
+    sections: prop.blocks(
+      { hero: prop.object({ title: prop.text({ label: "Title", required: true }) }, { label: "Hero" }), quote: prop.object({ text: prop.text({ label: "Text", required: true }) }, { label: "Quote" }) },
+      { label: "Sections" }
+    ),
+  },
+  example: { body: <Column /> },
+  render: (v) => {
+    const titles: string[] = v.sections.map((block) => (block.type === "hero" ? block.title : block.text));
+    void titles;
+    return <Email>{v.body}</Email>;
+  },
+});
+export const slotDesign = <WithSlot body={<Column><Text>Hi</Text></Column>} sections={[{ type: "hero", title: "One" }, { type: "quote", text: "Two" }]} />;
+// @ts-expect-error a slot takes JSX, not text
+export const slotText = <WithSlot body="text" />;
+// @ts-expect-error a block's type is one of its types
+export const badBlock = <WithSlot body={<Column />} sections={[{ type: "video", title: "x" }]} />;

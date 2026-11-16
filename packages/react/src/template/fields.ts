@@ -5,6 +5,7 @@
  */
 import type { Json, Kind, PropSpec, PropSpecs } from "@hyper-elements/core";
 import { prop, type FieldInput, type FieldValue } from "@hyper-elements/react";
+import { slot } from "./slots";
 
 /** An image field's value: its file's URL or path, and the file's size in px (what its rules are checked against). */
 export interface ImageValue {
@@ -40,6 +41,12 @@ export type ImageSpec<R extends boolean = boolean> = PropSpec<Kind<ImageValue, I
 /** Fields only a template checks. */
 export const field = {
   /**
+   * JSX the filler writes, inside limits the template sets: the components it may use (`allow`, or `"all"` less
+   * `deny`), how it may be styled (`styles`), and how many of each (`count`). The template places it inside a built-in
+   * bound to it: `<Section field="body">{v.body}</Section>`.
+   */
+  slot,
+  /**
    * An image, given as `{ src, width, height }` (the file's size in px), with the rules a template checks: against
    * the size given, the file (the CLI, `checkLayout()`), and where the template draws it (bound with `field`).
    */
@@ -74,17 +81,19 @@ function checkRules(rules: ImageRules, label: string): void {
 
 export const isList = (spec: PropSpec): spec is PropSpec & { item: PropSpec } => typeof (spec as { item?: unknown }).item === "object";
 export const isObjectSpec = (spec: PropSpec): spec is PropSpec & { fields: PropSpecs } => typeof (spec as { fields?: unknown }).fields === "object";
+export const isBlocks = (spec: PropSpec): spec is PropSpec & { blocks: Record<string, PropSpec & { fields: PropSpecs }> } => typeof (spec as { blocks?: unknown }).blocks === "object";
 export const imageRules = (spec: PropSpec): ImageRules | undefined => (spec as { image?: ImageRules }).image;
 /** Whether an image spec asks anything of where it's drawn or of its file (a binding then lets it be checked). */
 export const hasRules = (rules: ImageRules | undefined): boolean => !!rules && Object.keys(rules).length > 0;
 
-/** Every spec in a tree of fields, with its path as a pattern (`stories[].image`). */
-export function specsOf(fields: PropSpecs, prefix = ""): Array<{ path: string; spec: PropSpec }> {
-  const out: Array<{ path: string; spec: PropSpec }> = [];
-  const visit = (spec: PropSpec, path: string) => {
-    out.push({ path, spec });
+/** Every spec in a tree of fields, with its path as a pattern (`stories[].image`; a block type's field with its `block`). */
+export function specsOf(fields: PropSpecs, prefix = ""): Array<{ path: string; spec: PropSpec; block?: string }> {
+  const out: Array<{ path: string; spec: PropSpec; block?: string }> = [];
+  const visit = (spec: PropSpec, path: string, block?: string) => {
+    out.push({ path, spec, ...(block ? { block } : {}) });
     if (isList(spec)) visit(spec.item, `${path}[]`);
-    else if (isObjectSpec(spec)) for (const [name, child] of Object.entries(spec.fields)) visit(child, `${path}.${name}`);
+    else if (isBlocks(spec)) for (const [type, child] of Object.entries(spec.blocks)) for (const [name, field] of Object.entries(child.fields)) visit(field, `${path}[].${name}`, type);
+    else if (isObjectSpec(spec)) for (const [name, child] of Object.entries(spec.fields)) visit(child, `${path}.${name}`, block);
   };
   for (const [name, spec] of Object.entries(fields)) visit(spec, prefix ? `${prefix}.${name}` : name);
   return out;
@@ -98,10 +107,15 @@ export function fieldAt(fields: PropSpecs, values: unknown, path: string): { spe
   let value: unknown = values;
   for (const step of steps) {
     if (step.startsWith("[")) {
-      if (!spec || !isList(spec) || !Array.isArray(value)) return undefined;
+      if (!spec || !(isList(spec) || isBlocks(spec)) || !Array.isArray(value)) return undefined;
       const index = Number(step.slice(1, -1));
       if (index >= value.length) return undefined;
-      [spec, value] = [spec.item, value[index]];
+      if (isBlocks(spec)) {
+        const type = (value[index] as { type?: string } | undefined)?.type;
+        const block = type !== undefined && Object.prototype.hasOwnProperty.call(spec.blocks, type) ? spec.blocks[type] : undefined;
+        if (!block) return undefined;
+        [spec, value] = [block, value[index]];
+      } else [spec, value] = [spec.item, value[index]];
     } else {
       if (spec) specs = isObjectSpec(spec) ? spec.fields : undefined;
       if (!specs || !Object.prototype.hasOwnProperty.call(specs, step)) return undefined;
@@ -120,6 +134,11 @@ export function imagePaths(fields: PropSpecs, values: unknown): Array<{ path: st
     if (rules) {
       if (value !== undefined) out.push({ path, rules, value });
     } else if (isList(spec)) (Array.isArray(value) ? value : []).forEach((item, index) => visit(spec.item, item, `${path}[${index}]`));
+    else if (isBlocks(spec))
+      (Array.isArray(value) ? value : []).forEach((item, index) => {
+        const block = spec.blocks[(item as { type?: string })?.type ?? ""];
+        if (block) visit(block, item, `${path}[${index}]`);
+      });
     else if (isObjectSpec(spec) && value && typeof value === "object") for (const [name, child] of Object.entries(spec.fields)) visit(child, (value as Record<string, unknown>)[name], `${path}.${name}`);
   };
   for (const [name, spec] of Object.entries(fields)) visit(spec, values && typeof values === "object" ? (values as Record<string, unknown>)[name] : undefined, name);

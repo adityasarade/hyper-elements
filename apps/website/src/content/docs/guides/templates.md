@@ -1,18 +1,23 @@
 ---
 title: "Templates"
-description: "Reusable designs with guardrails: fixed parts, typed fields with their rules, and a check of the result before anything is rendered."
+description: "Reusable designs with guardrails: fixed parts, typed fields, blocks and slots with their rules, and a check of the result before anything is rendered."
 ---
 
 A template is how a team gets the output it wants, from people and from agents. It holds the parts of a design that
 never change, opens typed fields for whoever fills it, and checks the result before anything is rendered. It's
 `@hyper-elements/react/template`, and it runs wherever a design does: no service, account, engine or Node API.
 
-A template has two kinds of parts:
+A template has three kinds of parts:
 
-- **Fixed parts:** everything in its `render` that no field reaches. The logo, the header and footer, the fonts and
+- **Fixed parts:** everything in its `render` that no open part reaches. The logo, the header and footer, the fonts and
   colors, the layout per format and the legal text are the template's; nothing a value can say changes them.
-- **Fields:** typed values, each with its rules: a headline of at most 90 characters, a date, exactly three features,
-  an optional promo, a product screenshot at least 1600px wide and 1.2:1 to 2:1, shown whole.
+- **Open parts**, where whoever fills it works:
+  - **fields:** typed values, each with its rules: a headline of at most 90 characters, a date, exactly three
+    features, an optional promo, a product screenshot at least 1600px wide and 1.2:1 to 2:1, shown whole;
+  - **blocks:** approved section types, picked, ordered and filled as data;
+  - **slots:** JSX the filler writes, with only the components and brand styles the template allows.
+- **Rules over the result:** checks on the finished design (an unsubscribe link, links only to the team's domains,
+  root props), each failing with what to fix.
 
 A **design** is one finished piece (this week's newsletter, the launch graphic for Orbit). A design made from a
 template is the template used as the design's root, its props the values:
@@ -123,9 +128,147 @@ export default template({
 - A field can't be named `format`, `key`, `ref` or `children` (`template/field-name`): they're props of the
   template's component.
 
+## Slots
+
+A slot is JSX the filler writes, inside limits the template sets. The template places it in a built-in bound to it,
+its host, and everything under the host is the slot's:
+
+```tsx
+fields: {
+  body: field.slot({
+    label: "Body",
+    required: true,
+    allow: [Row, Column, Heading, Text, Image, Button, ProductCard], // the components themselves
+    styles: "theme", // every color, font, size and spacing a token()
+    count: { Button: { min: 1, max: 2 } },
+    guidance: "Lead with the news in one sentence.",
+  }),
+},
+render: (v) => (
+  <Email theme={brand}>
+    <BrandHeader />
+    <Section field="body">{v.body}</Section>
+    <BrandFooter />
+  </Email>
+),
+```
+
+- **`allow`** lists the components the content may use, given as the components. A built-in is allowed by its type, a
+  `component()` by its definition: content that defines its own `acme.ProductCard` is refused (`template/slot-component`,
+  "not the template's"), and its render never runs. A root and `Html` are never allowed.
+- **`allow: "all"`** allows every built-in the template's root may hold (what `describeComponents({ root })` lists),
+  but the roots and `Html`: a later Elements that adds one widens it. `deny: [Table, Video]` takes built-ins out of it,
+  and `["all", ProductCard]` adds your own components. A template that wants a fixed set across upgrades writes a list.
+- **`styles`:** `"theme"` (the default) requires a `token()` for every brand value: each style and prop whose kind is a
+  color, a font, insets or a radius, a border's color, and `fontSize`, `lineHeight`, `letterSpacing`, `gap` and
+  `rowGap`, in `style`, `mobile` and `hover`. `"none"` takes only the theme's named styles (`apply`) and variants;
+  `"free"` takes anything. Under `"none"` and `"theme"`, content can't set `tokens` or `theme` (`template/slot-tokens`).
+  A literal where a token is required is `template/slot-style`.
+- **`count`** limits each type, counting what's shown at some width (`template/slot-count`).
+- Content never sets `attrs` (`template/slot-attrs`), and a `field` inside it is its own (`template/slot-field`).
+- The content must be what its host may hold, as any children are: a Section's slot content starts with a Column, a
+  Row or blocks, not another Section.
+- **The template never sees the content.** Its render runs with a mark in the slot's place, so fixed parts can't depend
+  on what's written there; the content is collected on its own (it sees none of the template's React context) and
+  spliced in at the mark. The mark goes in exactly one node bound to the slot (`template/slot-host`).
+
+A slot can be stored as data, in a values file: `{ "module": "./launch.body.tsx" }`, whose capture `check()` takes in
+`fragments` (`template/slot-unloaded` without it), or `{ "fragment": … }`, the content captured with
+`captureFragment()`, which `check()` reads itself. `toValuesFile()` stores a slot's JSX as its fragment.
+
+## Blocks
+
+`prop.blocks(types, { min, max })` is a list of approved section types, each a `prop.object()`. The filler picks which,
+in what order, and fills them; the look is the template's:
+
+```tsx
+fields: {
+  body: prop.blocks(
+    {
+      hero: prop.object({ title: prop.text({ label: "Title", required: true }), image: field.image({ label: "Image", fit: "contain" }) }, { label: "Hero" }),
+      quote: prop.object({ text: prop.text({ label: "Quote", required: true, maxLength: 120 }) }, { label: "Quote" }),
+    },
+    { label: "Body", required: true, min: 1, max: 6 }
+  ),
+},
+// values: { body: [{ type: "hero", title: "Orbit is live" }, { type: "quote", text: "Ship small." }] }
+```
+
+`type` names each block's type, so a block type can't have a field named `type` (`template/block-type`). An unknown or
+missing type is `template/value`, naming the types. Rules and bindings inside a block work as anywhere:
+`body[0].image`.
+
+## Rules over the result
+
+```tsx
+import { lint } from "@hyper-elements/lint";
+
+rules: {
+  plugins: { lint: lint({ kind: "marketing" }) },
+  require: {
+    lint: ["unsubscribe", "preview-text", "contrast", "link-text", "lang"],
+    core: ["layout/overflow"],
+  },
+  links: { domains: ["acme.com", "*.acme.com"], params: { utm_source: "newsletter" }, schemes: ["mailto"] },
+  root: { lang: true },
+},
+```
+
+Each required rule ends `passed`, `failed` or `not-run`, in `check()`'s `rules`, and one that didn't run never counts
+as passed.
+
+- **`require.lint`** takes lint's rule ids. A finding of a required rule is an error, with "(required by …)". When the
+  template is defined, a rule lint doesn't have, one that's off as lint is configured (`unsubscribe` needs
+  `kind: "marketing"`), or one that doesn't run on the template's root (lint checks Emails and Pages) is
+  `template/rule-unavailable`. If lint fails, its rules are `not-run`, an error (`template/rule-not-run`).
+- **`require.core`** takes `layout/overflow`, `layout/shrunk`, `document/overflow`, `canvas/overflow`, and a Canvas's
+  `image/overflow`, `image/glyph` and `image/fit`. Those last three are decided when the image is measured: `check()`
+  leaves them `not-run`, and a writer given the snapshot refuses it (`template/rule-not-run`) until then.
+- **`links`** checks every link the design writes, fixed parts and a Menu's included: an http(s) host not in `domains`
+  (`acme.com` itself; `*.acme.com` its subdomains, not itself) is `template/link-domain`, a missing parameter
+  `template/link-param`, another scheme not in `schemes` `template/link-scheme`, and a relative one
+  `template/link-relative`. A URL with a sending service's tag (`{{…}}`) is listed for review, or refused with
+  `tags: "deny"`.
+- **`root`** requires root props (`template/root-prop`).
+- `plugins.other` runs other plugins (email-clients'), whose findings are reported but can't be required.
+
+## Annotated templates
+
+A template with one size and fields of text, links, images and slots can be written as the design itself, with what's
+open marked where it is:
+
+```tsx
+import { field, open, template } from "@hyper-elements/react/template";
+
+const title = open(prop.text({ label: "Title", required: true, maxLength: 70 }));
+const body = open(field.slot({ label: "Body", required: true, allow: "all", styles: "theme" }));
+
+export default template({
+  id: "acme.Newsletter",
+  version: "1.0.0",
+  rules: { plugins: { lint: lint({ kind: "marketing" }) }, require: { lint: ["unsubscribe"] } },
+  open: { title, body },
+  design: (
+    <Email width={600} theme={brand}>
+      <BrandHeader />
+      <Heading field={title}>What's new at Acme</Heading>
+      <Section field={body}>
+        <Text>Three things shipped this week.</Text>
+      </Section>
+      <BrandFooter />
+    </Email>
+  ),
+});
+```
+
+A marker goes on a built-in written in `design` itself: a text field on a Heading, Text, ListItem, Button or Link
+holding its example text; a link on a Link's or Button's `href`; an image on an Image's `src`; a slot on the node that
+holds its content. What each marked node holds is the example. A template with formats, lists, blocks or computed
+values uses `fields` and `render`.
+
 ## Checking
 
-`check(values, { format })` never throws. It returns `{ valid, values, diagnostics, review, snapshots, template }`:
+`check(values, { format })` never throws. It returns `{ valid, values, diagnostics, review, rules, snapshots, template }`:
 
 ```ts
 const checked = launch.check(brief);
@@ -147,8 +290,11 @@ It checks, in order:
    `template/asset-cropped`. These catch the template's own mistakes, not only bad values: size a `contain` image with
    `fitInside(image, box)`.
 
-`snapshots` holds the design for each format checked (`default` for a template with one size), where it's valid: what
-to render. `check(element)`, from the same entry, checks a design whose root is a template, in its `format` or, without
+`snapshots` holds the design for each format checked (`default` for a template with one size), where it's valid, as a
+**snapshot**: the design collected once and captured as inert data, which `render()`, `validate()`, `prepare()`,
+`inspect()`, `renderPdf()` and `renderImage()` take in place of an element and never collect again. So what was
+checked is what's rendered: slot content that would render something else the second time never gets a second time.
+Rendering `design()`'s element instead runs a slot's code again, unchecked. `check(element)`, from the same entry, checks a design whose root is a template, in its `format` or, without
 one, in every format.
 
 ## Designs as data

@@ -6,7 +6,9 @@
  */
 import type { JsonSchema, PropSpec, PropSpecs, RootName } from "@hyper-elements/core";
 import { coverCrop, regionsOf, type Definition, type Format } from "./checks";
-import { imageRules, isList, isObjectSpec, specsOf, type ImageRules } from "./fields";
+import { imageRules, isBlocks, isList, isObjectSpec, specsOf, type ImageRules } from "./fields";
+import { CORE_RULES, type LintRuleDescriptor, type TemplateRules } from "./rules";
+import { isSlot, type ResolvedSlot } from "./slots";
 
 /** The shape of what `describe()` returns: a new version is a new shape. */
 export const DESCRIBE_VERSION = 1;
@@ -26,6 +28,22 @@ export interface FieldDescription extends ImageRules {
   regions?: Record<string, { box: [number, number]; pixels: [number, number] } | "measured by check">;
   /** A cover image: the smallest size that fills every format's region without upscaling, and what each crops. */
   suggested?: { width: number; height: number; crop: Record<string, string> };
+  /** A field of a block type (`body[].image`): that block's type. */
+  block?: string;
+  /** A slot: the components its content may use, by type (`"all"`, with what it denies and the set it resolves to). */
+  allow?: string[] | "all";
+  deny?: string[];
+  allowed?: string[];
+  styles?: "none" | "theme" | "free";
+  count?: Record<string, { min?: number; max?: number }>;
+}
+
+/** The rules a template requires, as whoever fills it reads them before starting. */
+export interface RulesDescription {
+  lint: Array<{ id: string; summary: string; fix: string }>;
+  core: Array<{ code: string; stage: "read" | "measured" }>;
+  links?: TemplateRules["links"];
+  root?: string[];
 }
 
 export interface TemplateDescription {
@@ -38,6 +56,9 @@ export interface TemplateDescription {
   guidance?: string;
   formats?: Record<string, Format>;
   fields: FieldDescription[];
+  rules: RulesDescription;
+  /** The theme's tokens by group, which slot content uses (`token("colors.primary")`), as inspect() lists them. */
+  theme: unknown;
   /** A JSON Schema of the values. */
   valuesSchema: JsonSchema;
   /** What's fixed: everything not a field. */
@@ -53,6 +74,14 @@ export function schemaOf(spec: PropSpec): JsonSchema {
     return { type: "array", items: schemaOf(spec.item), ...(own.minItems !== undefined ? { minItems: own.minItems } : {}), ...(own.maxItems !== undefined ? { maxItems: own.maxItems } : {}) };
   }
   if (isObjectSpec(spec)) return valuesSchemaOf(spec.fields);
+  if (isBlocks(spec)) {
+    const own = spec.kind.jsonSchema() as { minItems?: number; maxItems?: number };
+    const oneOf = Object.entries(spec.blocks).map(([type, branch]) => {
+      const fields = valuesSchemaOf(branch.fields) as { properties: Record<string, unknown>; required?: string[] };
+      return { type: "object", required: ["type", ...(fields.required ?? [])], properties: { type: { const: type }, ...fields.properties }, additionalProperties: false };
+    });
+    return { type: "array", items: { oneOf }, ...(own.minItems !== undefined ? { minItems: own.minItems } : {}), ...(own.maxItems !== undefined ? { maxItems: own.maxItems } : {}) };
+  }
   if (imageRules(spec)) {
     return { type: "object", required: ["src", "width", "height"], properties: { src: { type: "string", minLength: 1 }, width: { type: "number", exclusiveMinimum: 0 }, height: { type: "number", exclusiveMinimum: 0 } }, additionalProperties: false };
   }
@@ -72,7 +101,7 @@ export function valuesSchemaOf(fields: PropSpecs): JsonSchema {
 
 /** The template described, with the regions read from `example` laid out in each format (`laidOut`). */
 export function describeTemplate(
-  definition: Definition & { description?: string; guidance?: string },
+  definition: Definition & { description?: string; guidance?: string; slots: readonly ResolvedSlot[]; rules: TemplateRules; theme: unknown },
   laidOut: Array<{ format: string | undefined; values: Record<string, unknown>; root: import("@hyper-elements/core").ResolvedNode }>
 ): TemplateDescription {
   const regions = new Map<string, Record<string, { box: [number, number]; pixels: [number, number] } | "measured by check">>();
@@ -86,9 +115,10 @@ export function describeTemplate(
       regions.set(pattern, byFormat);
     }
   }
-  const fields = specsOf(definition.fields).map(({ path, spec }): FieldDescription => {
+  const fields = specsOf(definition.fields).map(({ path, spec, block }): FieldDescription => {
     const rules = imageRules(spec);
     const kind = rules ? "image" : (KIND_NAMES[spec.kind.name] ?? spec.kind.name);
+    const slot = isSlot(spec) ? definition.slots.find((s) => s.path === path) : undefined;
     const out: FieldDescription = {
       path,
       kind,
@@ -99,6 +129,16 @@ export function describeTemplate(
       schema: schemaOf(spec),
       ...(rules ?? {}),
       ...(spec.guidance ? { guidance: spec.guidance } : {}),
+      ...(block ? { block } : {}),
+      ...(slot
+        ? {
+            allow: slot.all ? "all" : [...slot.builtIns, ...slot.customs.keys()],
+            ...(slot.all ? { deny: [...slot.denied], ...(slot.customs.size ? { allowCustom: [...slot.customs.keys()] } : {}) } : {}),
+            allowed: [...slot.builtIns, ...slot.customs.keys()],
+            styles: slot.styles,
+            count: { ...slot.count },
+          }
+        : {}),
     };
     const shown = regions.get(path);
     if (shown) {
@@ -120,6 +160,8 @@ export function describeTemplate(
     ...(definition.guidance ? { guidance: definition.guidance } : {}),
     ...(definition.formats ? { formats: definition.formats } : {}),
     fields,
+    rules: describeRules(definition.rules),
+    theme: definition.theme ?? null,
     valuesSchema: valuesSchemaOf(definition.fields),
     fixed: "Everything not listed: the layout, typography, colors, the fixed text and images, and the arrangement per format.",
   };
@@ -137,4 +179,18 @@ function suggest(regions: Record<string, { box: [number, number]; pixels: [numbe
     crop[format] = share < 0.005 ? "crops nothing" : `cuts ${Math.round(share * 100)}% of the ${side}`;
   }
   return { width, height, crop };
+}
+
+/** Each required rule as it's read before writing: a lint rule's summary and fix from lint's own descriptors. */
+function describeRules(rules: TemplateRules): RulesDescription {
+  const descriptors = ((rules.plugins?.lint as { rules?: readonly LintRuleDescriptor[] } | undefined)?.rules ?? []) as readonly LintRuleDescriptor[];
+  return {
+    lint: (rules.require?.lint ?? []).map((id) => {
+      const found = descriptors.find((d) => d.id === id);
+      return { id, summary: found?.summary ?? "", fix: found?.fix ?? "" };
+    }),
+    core: (rules.require?.core ?? []).map((code) => ({ code, stage: CORE_RULES[code]?.stage ?? "read" })),
+    ...(rules.links ? { links: rules.links } : {}),
+    ...(rules.root ? { root: Object.keys(rules.root) } : {}),
+  };
 }

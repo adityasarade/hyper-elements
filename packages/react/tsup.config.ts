@@ -39,5 +39,5 @@ export default defineConfig([
   output('pdf', ['@react-pdf/renderer']),
   output('image', ['satori', '@resvg/resvg-js']),
   // Templates: reusable designs with guardrails. No engine; the main entry is external, as for /pdf and /image.
-  output('template', []),
+  output('template', ['@hyper-elements/react/inspect']),
 ]);

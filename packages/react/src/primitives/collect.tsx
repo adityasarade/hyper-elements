@@ -32,6 +32,30 @@ export interface TemplateRequest {
 /** A template's own check, on the template object under this symbol: what an entry point given a template design calls. */
 export const TEMPLATE_RECORD = Symbol.for("hyper-elements.template");
 
+/** The brand every copy of Elements recognizes a snapshot by (`snapshot()`): its collected design is under it. */
+export const SNAPSHOT = Symbol.for("hyper-elements.snapshot");
+
+/** A required rule a template's check couldn't decide yet (one measured with fonts): a writer refuses the snapshot. */
+export interface PendingRule {
+  rule: string;
+  format?: string;
+  /** The writer that decides it ("@hyper-elements/react/image's renderImage()"). */
+  decidedBy: string;
+}
+
+/** What a snapshot holds, under `SNAPSHOT`. */
+export interface SnapshotData {
+  collected: CollectedTemplate;
+  template?: { id: string; version: string };
+  pending?: readonly PendingRule[];
+}
+
+/** A snapshot's data, where the value is one (from any copy of Elements). */
+export function snapshotData(value: unknown): SnapshotData | undefined {
+  const data = value && typeof value === "object" ? (value as Record<symbol, unknown>)[SNAPSHOT] : undefined;
+  return data && typeof data === "object" && "collected" in data ? (data as SnapshotData) : undefined;
+}
+
 /** What a template object carries under `TEMPLATE_RECORD`: its id, version and formats, and its check. */
 export interface TemplateRecord {
   id: string;
@@ -48,8 +72,8 @@ export interface TemplateCheck {
   diagnostics: Diagnostic[];
   /** What the template found that its design's own checks don't (its values, its bindings, its images): said beside them. */
   own: Diagnostic[];
-  /** The design for each format checked (`default` without formats). */
-  snapshots: Record<string, React.ReactElement>;
+  /** The design for each format checked (`default` without formats), as a snapshot (or, from an older copy, an element). */
+  snapshots: Record<string, unknown>;
 }
 
 interface PrimitiveCollection {
@@ -162,6 +186,10 @@ function toJsonNode({ type, props }: Recorded, diagnostics: Diagnostic[]): JsonN
     // What Elements 0.2's components gave the writers as they lowered into the tree (markup and CSS): the engine has
     // none now, and a template never had a say in it.
     if (key === "compat") diagnostics.push({ code: "jsx/compat", severity: "warning", message: `A <${type}>'s compat isn't a prop of a template: it's left out`, path: "jsx" });
+    // An annotated template's marker that reached a render: one in a component's own render, never in its design.
+    else if (key === "field" && typeof value === "object" && value !== null && (value as Record<symbol, unknown>)[Symbol.for("hyper-elements.open")]) {
+      diagnostics.push({ code: "template/inline-hidden", severity: "error", message: `A <${type}> holds a template's marker (open()) inside a component's own render: markers go on built-ins written in the template's design itself`, path: "jsx" });
+    }
     else if (NODE_KEYS.has(key) || (THEME_KEYS.has(key) && !CUSTOM_TYPE.test(type))) node[key] = value;
     else semantic[key] = value;
   }
@@ -255,8 +283,17 @@ function unfinishedDiagnostic(reason: string): Diagnostic {
   return { code: "jsx/async", severity: "error", message, path: "jsx" };
 }
 
-/** JSX rendered once, read back as JSON nodes, with the custom components it used. */
-export function collectNodes(element: React.ReactElement): {
+/** What a slot's mark is recorded as (`slotMark()`): a node only a snapshot reads, filling it with the slot's content. */
+export const SLOT_MARK = "#slot";
+
+/**
+ * JSX rendered once, read back as JSON nodes, with the custom components it used. With `whitespace`, text that's only
+ * whitespace at the top level is kept (a fragment's: `Hello{mark}world` keeps the space a slot gives).
+ */
+export function collectNodes(
+  element: React.ReactElement,
+  options: { whitespace?: boolean } = {}
+): {
   nodes: Array<JsonNode | string>;
   components: CustomDefinition<any>[];
   diagnostics: Diagnostic[];
@@ -293,7 +330,7 @@ export function collectNodes(element: React.ReactElement): {
     // The same problem in several places is said once.
     if (!diagnostics.some((d) => d.code === diagnostic.code && d.message === diagnostic.message)) diagnostics.push(diagnostic);
   }
-  const nodes = read(done.html.replace(COMMENTS, ""), collection, diagnostics).filter((child) => typeof child !== "string" || child.trim());
+  const nodes = read(done.html.replace(COMMENTS, ""), collection, diagnostics).filter((child) => options.whitespace || typeof child !== "string" || child.trim());
   for (const type of collection.clashes) {
     diagnostics.push({
       code: "custom/duplicate",
@@ -309,8 +346,11 @@ export function collectNodes(element: React.ReactElement): {
 }
 
 
+/** Whether a tree holds a slot's mark anywhere. */
+export const holdsMark = (node: JsonNode): boolean => node.type === SLOT_MARK || node.children.some((child) => typeof child !== "string" && holdsMark(child));
+
 /** Each bound node's template field, by its path as collected (the paths diagnostics name). */
-function boundFields(node: JsonNode, path: string, out: Map<string, string>): Map<string, string> {
+export function boundFields(node: JsonNode, path: string, out: Map<string, string>): Map<string, string> {
   if (typeof node.field === "string") out.set(path, node.field);
   node.children.forEach((child, index) => typeof child !== "string" && boundFields(child, `${path}.children[${index}]`, out));
   return out;
@@ -373,8 +413,11 @@ function recordOf(template: unknown): TemplateRecord | undefined {
  * template is handed to the template: its check runs, and the design it built for the format is what's collected.
  * With `all`, a template with formats and no `format` among its props is checked in each (validate() reports them all).
  */
-export function collectTemplate(element: React.ReactElement, options: { all?: boolean; built?: boolean } = {}): CollectedTemplate {
-  const { nodes: top, components, diagnostics, aborted, templates } = collectNodes(element);
+export function collectTemplate(element: React.ReactElement | object, options: { all?: boolean; built?: boolean } = {}): CollectedTemplate {
+  // A snapshot: collected once already, and never again.
+  const snapshot = snapshotData(element);
+  if (snapshot) return { ...snapshot.collected, ...(snapshot.template ? { template: snapshot.template } : {}) };
+  const { nodes: top, components, diagnostics, aborted, templates } = collectNodes(element as React.ReactElement);
   if (templates.length) {
     // What a template's render built is a design, never another template's.
     if (options.built) return { document: null, diagnostics: [...diagnostics, notRoot("A template's render returns a root (an Email, a Page, a Document or a Canvas), not another template")], components, collected: null };
@@ -392,6 +435,10 @@ export function collectTemplate(element: React.ReactElement, options: { all?: bo
         path: "jsx",
       });
     }
+    return { document: null, diagnostics, components, collected: null };
+  }
+  if (holdsMark(top[0])) {
+    diagnostics.push({ code: "jsx/slot-mark", severity: "error", message: "A slot's mark (slotMark()) is filled only by a snapshot of a template's design: render the template, or check() it", path: "jsx" });
     return { document: null, diagnostics, components, collected: null };
   }
   const result = checkDocument({ root: top[0] }, new Registry(components));
@@ -424,6 +471,6 @@ function handOff(request: TemplateRequest, said: Diagnostic[], options: { all?: 
   if (!checked.valid) return { document: null, diagnostics: [...said, ...checked.diagnostics], components: [], collected: null, template };
   const names = Object.keys(checked.snapshots);
   if (names.length !== 1) return { document: null, diagnostics: [...said, ...checked.diagnostics], components: [], collected: null, template, checkedFormats: checked };
-  const inner = collectTemplate(checked.snapshots[names[0]], { built: true });
+  const inner = collectTemplate(checked.snapshots[names[0]] as React.ReactElement, { built: true });
   return { ...inner, diagnostics: [...said, ...inner.diagnostics, ...checked.own], template };
 }

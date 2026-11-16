@@ -12,7 +12,7 @@
  */
 import { assetParts, fontStack, LAYOUT_VERSION, satoriResvg, writeCanvas, type Asset, type Font } from "@hyper-elements/core/image";
 import type { FontFace } from "@hyper-elements/core";
-import { ElementsError, prepare, type Diagnostic, type ResolvedNode } from "@hyper-elements/react";
+import { ElementsError, prepare, type Diagnostic, type ResolvedNode, type Snapshot } from "@hyper-elements/react";
 import type { ReactElement } from "react";
 
 export interface ImageFont {
@@ -46,7 +46,7 @@ export interface ImageResult {
 }
 
 /** A Canvas written as an image. Rejects with an `ElementsError` listing the problems if it has errors. */
-export async function renderImage(element: ReactElement, options: ImageOptions = {}): Promise<ImageResult> {
+export async function renderImage(element: ReactElement | Snapshot, options: ImageOptions = {}): Promise<ImageResult> {
   const { root, diagnostics } = canvasOf(element);
   const found: Diagnostic[] = [];
   const fonts = fontsOf(root, options.fonts ?? [], found);
@@ -76,13 +76,13 @@ export interface TemplateAssets {
  * gives it in `fonts` and `images`. A data: URI is read as it is (a font's, where no file is given in `fonts` for its
  * family). Rejects a template as renderImage() does: with errors, or with a root other than a Canvas.
  */
-export function templateAssets(element: ReactElement): TemplateAssets {
+export function templateAssets(element: ReactElement | Snapshot): TemplateAssets {
   const { root } = canvasOf(element);
   return { fonts: [...facesOf(root)], images: [...new Set(imagesOf(root).map(({ src }) => src))] };
 }
 
 /** The Canvas a template is, with prepare()'s diagnostics; a template with errors, or another root, throws. */
-function canvasOf(element: ReactElement): { root: ResolvedNode; diagnostics: Diagnostic[] } {
+function canvasOf(element: ReactElement | Snapshot): { root: ResolvedNode; diagnostics: Diagnostic[] } {
   const { root, diagnostics, layout } = prepare(element);
   readable(layout, "image");
   if (!root) throw new ElementsError(diagnostics);

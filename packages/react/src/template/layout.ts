@@ -104,3 +104,26 @@ function svg(bytes: Uint8Array): SniffedImage | undefined {
   if (width === undefined || height === undefined) return undefined;
   return { width, height, type: "svg", alpha: true };
 }
+
+// ─── checkLayout(): its types (Phase 2 measures) ────────────────────────────
+
+/** What `checkLayout()` takes beside a template and its values: a layout measured by `layoutImage()` (Phase 2). */
+export interface CheckLayoutOptions {
+  format?: string;
+  /** Pixels per px, as it's rendered: the format's, or the caller's. */
+  scale?: number;
+  /** `layoutImage()`'s result for the format's snapshot. */
+  layout: unknown;
+  /** Each image field's file, sniffed (`sniffImage()`), by its field path. */
+  files?: Record<string, SniffedImage>;
+  /** `check()`'s result, whose measured rules this decides. */
+  checked?: { rules: ReadonlyArray<{ rule: string; source: string; format?: string; status: string }> };
+}
+
+/** What `checkLayout()` returns: each region's box and pixels, the fitted text, the rules complete, and what it found. */
+export interface LayoutCheck {
+  regions: Record<string, Record<string, { box: [number, number]; pixels: [number, number] }>>;
+  fits: unknown[];
+  rules: Array<{ rule: string; source: "lint" | "core" | "template"; format?: string; status: "passed" | "failed" | "not-run"; diagnostics: unknown[] }>;
+  diagnostics: unknown[];
+}

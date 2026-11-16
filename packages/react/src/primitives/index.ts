@@ -95,6 +95,7 @@ export {
   type FieldInputs,
   type FieldValue,
   type FieldValues,
+  type BlocksSpec,
   type ListSpec,
   type ObjectSpec,
   type RenderContext,
@@ -102,6 +103,7 @@ export {
 } from "./custom";
 export { defineTheme, extendTheme, token } from "./theme";
 export type { Alias, ComponentTheme, Register, StyleName, Theme, ThemeInput, ThemeStyle, Token, TokenPath, TokenPaths, TokenRefs, Tokenized, VariantName, VariantProp } from "./theme";
+export { captureFragment, readFragment, slotMark, snapshot, type CapturedNode, type FragmentCapture, type Snapshot, type SnapshotOptions } from "./snapshot";
 export { outline, prepare, render, validate, type RenderOptions, type RenderResult, type ResolvedNode, type TemplateUsed, type ValidateOptions, type ValidationResult } from "./render";
 export { BLOCK_MAP_VERSION, ElementsError, formatDiagnostics, PLUGIN_API } from "@hyper-elements/core";
 export type { BlockMap, BlockMapEntry, Diagnostic, ElementsPlugin, PluginDiagnostic, PluginInput, PluginNode, PluginOutput, PluginsOption, Severity } from "@hyper-elements/core";

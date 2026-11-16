@@ -14,10 +14,12 @@ import {
   type RenderResult,
   type ResolvedNode,
 } from "@hyper-elements/core";
-import { collectTemplate, withFields } from "./collect";
+import { collectTemplate, snapshotData, withFields } from "./collect";
 import { outlineOf } from "./outline";
+import type { Snapshot } from "./snapshot";
 
 function template(element: unknown, call: string, options?: { all?: boolean }) {
+  if (snapshotData(element)) return collectTemplate(element as object, options);
   if (!React.isValidElement(element)) {
     throw new TypeError(`[Elements] ${call}() takes a design as JSX (<Email>…</Email>, <Page>…</Page>), not ${element === null ? "null" : typeof element}`);
   }
@@ -31,6 +33,19 @@ export interface TemplateUsed {
 }
 
 const used = (template: TemplateUsed | undefined): { template?: TemplateUsed } => (template ? { template } : {});
+
+/**
+ * A snapshot whose template requires a rule it couldn't decide yet (one measured with fonts): a writer refuses it,
+ * naming the rule and the writer that decides it, so no required rule is passed by not running.
+ */
+function undecided(element: unknown, writer: string): Diagnostic[] {
+  return (snapshotData(element)?.pending ?? []).map((rule) => ({
+    code: "template/rule-not-run",
+    severity: "error" as const,
+    message: `${writer} can't decide the rule ${rule.rule}${rule.format ? ` (${rule.format})` : ""}, which the template requires: ${rule.decidedBy} does`,
+    path: "rules",
+  }));
+}
 
 /** Where the email client checks are: said once for an Email that doesn't pass email-clients' plugin (plan email-client-models, D7). */
 const MORE_CHECKS: Diagnostic = {
@@ -75,8 +90,10 @@ function movedNote(options: { emailClients?: unknown } | undefined): Diagnostic[
  * rejects with an `ElementsError` listing the problems if the
  * template has errors (see `validate()`).
  */
-export async function render(element: React.ReactElement, options: RenderOptions = {}): Promise<RenderResult & { template?: TemplateUsed }> {
+export async function render(element: React.ReactElement | Snapshot, options: RenderOptions = {}): Promise<RenderResult & { template?: TemplateUsed }> {
   checkPluginsOption(options.plugins);
+  const refused = undecided(element, "render()");
+  if (refused.length) throw new ElementsError(refused);
   const { document, diagnostics, components, fields, template: from } = template(element, "render");
   if (!document || diagnostics.some((d) => d.severity === "error")) throw new ElementsError(diagnostics);
   const rendered = renderTemplate(document, { ...options, components });
@@ -106,7 +123,7 @@ export interface ValidationResult {
  * `validate(email, { plugins: [await emailClients()] })` with
  * @hyper-elements/email-clients; without it, an Email gets one note saying so.
  */
-export function validate(element: React.ReactElement, options: ValidateOptions = {}): ValidationResult {
+export function validate(element: React.ReactElement | Snapshot, options: ValidateOptions = {}): ValidationResult {
   checkPluginsOption(options.plugins);
   // A template design with formats and none named is checked in each.
   const { document, diagnostics, components, fields, template: from, checkedFormats } = template(element, "validate", { all: true });
@@ -121,7 +138,7 @@ export function validate(element: React.ReactElement, options: ValidateOptions =
  * shows (a heading's words, a link's URL, an image's alt text), and whether a Row stacks on phones. To check a
  * template's layout without reading its HTML. Throws an `ElementsError` listing the problems if it has errors.
  */
-export function outline(element: React.ReactElement): string {
+export function outline(element: React.ReactElement | Snapshot): string {
   const { document, diagnostics, components } = template(element, "outline");
   if (!document || diagnostics.some((d) => d.severity === "error")) throw new ElementsError(diagnostics);
   // Laying it out finds problems of its own (a composite's, an output's): those are the ones it throws.
@@ -138,12 +155,15 @@ export function outline(element: React.ReactElement): string {
  * format it's in (a writer refuses one it doesn't read).
  */
 export function prepare(
-  element: React.ReactElement,
+  element: React.ReactElement | Snapshot,
   options?: Record<string, never>
 ): { root: ResolvedNode | null; diagnostics: Diagnostic[]; layout: number; template?: TemplateUsed } {
   const { document, diagnostics, components, fields, template: from } = template(element, "prepare");
   // It takes no options since 0.4: `emailClients` from code written for 0.3 gets the note validate() and render() give, last.
   const moved = movedNote(options as { emailClients?: unknown } | undefined);
+  // What a writer is given (/pdf and /image prepare what they draw): a required rule not decided yet is refused.
+  const refused = undecided(element, "A writer");
+  if (refused.length) return { root: null, diagnostics: [...diagnostics, ...refused], layout: LAYOUT_VERSION, ...used(from) };
   if (!document || diagnostics.some((d) => d.severity === "error")) return { root: null, diagnostics: [...diagnostics, ...moved], layout: LAYOUT_VERSION, ...used(from) };
   const prepared = prepareTemplate(document, { components });
   const root = prepared.resolved?.root ?? null;
