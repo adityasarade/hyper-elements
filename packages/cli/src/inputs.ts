@@ -88,7 +88,7 @@ export async function findInputs(positional: string[], cwd: string, folderSkip =
   let stdin = false;
   for (const given of positional) {
     if (given === "-") {
-      if (!options.html) throw new UsageError("- reads an HTML email from stdin, which only check and preview take: this command takes templates (.tsx, .jsx, .ts, .js).");
+      if (!options.html) throw new UsageError("- reads an HTML email from stdin, which only check and preview take: this command takes designs (.tsx, .jsx, .ts, .js).");
       if (stdin) throw new UsageError("- (stdin) is given twice.");
       stdin = true;
       const file = join(cwd, "stdin");
@@ -113,16 +113,16 @@ export async function findInputs(positional: string[], cwd: string, folderSkip =
       }
       if (!templates) {
         throw new UsageError(
-          `${given} holds no template: a template is a module whose default export is a component.${options.html ? " A folder's HTML files aren't checked: give them by name (emails/*.html)." : ""}`,
+          `${given} holds no design: a design file is a module whose default export is a component.${options.html ? " A folder's HTML files aren't checked: give them by name (emails/*.html)." : ""}`,
         );
       }
     } else {
       if (HTML.test(path)) {
-        if (!options.html) throw new UsageError(`${given} is HTML: it's already HTML. render, outline, inspect and dev take templates (.tsx, .jsx, .ts, .js); check and preview take an HTML email too.`);
+        if (!options.html) throw new UsageError(`${given} is HTML: it's already HTML. render, outline, inspect and dev take designs (.tsx, .jsx, .ts, .js); check and preview take an HTML email too.`);
         add(path, "html");
         continue;
       }
-      if (!MODULE.test(path)) throw new UsageError(`${given} isn't a template: give a .tsx, .jsx, .ts or .js file (or .mts, .mjs, .cts, .cjs)${options.html ? ", or an HTML email (.html, .htm)" : ""}.`);
+      if (!MODULE.test(path)) throw new UsageError(`${given} isn't a design file: give a .tsx, .jsx, .ts or .js file (or .mts, .mjs, .cts, .cjs)${options.html ? ", or an HTML email (.html, .htm)" : ""}.`);
       add(path);
     }
   }

@@ -398,7 +398,7 @@ export async function startDev(cwd: string, args: string[], options: { runtime?:
     text: async (url) => (await fetch(base + url)).text(),
     exited,
   };
-  if (!(await until(() => /Rendered \d+ templates?|✗ /.test(err), 30_000))) throw new Error(`dev didn't render:\n${out}\n${err}`);
+  if (!(await until(() => /Rendered \d+ designs?|✗ /.test(err), 30_000))) throw new Error(`dev didn't render:\n${out}\n${err}`);
   return dev;
 }
 

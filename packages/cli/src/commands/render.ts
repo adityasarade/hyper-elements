@@ -105,7 +105,7 @@ async function renderDrawn(context: TemplateContext, root: "Document" | "Canvas"
     };
   }
   if (Array.isArray(entry)) {
-    return { status: "error", diagnostics: [], error: `A ${root}'s ${drawn.file} needs ${entry.join(" and ")}, not installed where this template is: npm i ${entry.join(" ")}` };
+    return { status: "error", diagnostics: [], error: `A ${root}'s ${drawn.file} needs ${entry.join(" and ")}, not installed where this design is: npm i ${entry.join(" ")}` };
   }
 
   const loaded = await loadAssets(entry.templateAssets(element), {

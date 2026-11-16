@@ -4,7 +4,7 @@ import CodeBlock from "./CodeBlock.astro";
 import { site } from "../lib/site";
 
 const guide = "node_modules/@hyper-elements/react/GUIDE.md";
-const rule = `Before writing a Hyper Elements template, read ${guide}.`;
+const rule = `Before writing a Hyper Elements design, read ${guide}.`;
 const agents = [
   { id: "claude", name: "Claude Code", file: "CLAUDE.md", lang: "markdown", code: `@${guide}` },
   { id: "codex", name: "Codex", file: "AGENTS.md", lang: "markdown", code: rule },

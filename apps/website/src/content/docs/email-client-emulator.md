@@ -149,7 +149,7 @@ npm install -D @hyper-elements/cli playwright-core
 npx hyper-elements preview email.html --findings
 ```
 
-If you need Chromium, download it once with `npx hyper-elements preview --install-browser`. For Hyper Elements templates, [install the CLI in your project](/docs/cli#install) and run `npx hyper-elements preview emails/welcome.tsx`.
+If you need Chromium, download it once with `npx hyper-elements preview --install-browser`. For Hyper Elements designs, [install the CLI in your project](/docs/cli#install) and run `npx hyper-elements preview emails/welcome.tsx`.
 
 For an agent or a CI job that wants what each client changed as data, there are three ways, by what it has:
 
@@ -162,7 +162,7 @@ For an agent or a CI job that wants what each client changed as data, there are 
 - **No send-and-wait loop.** A preview takes as long as a render, so you can check every change, not only the last one before a campaign.
 - **Free, with no API.** There's no account to make, no key to keep, and no limit on how many previews you make.
 - **Nothing leaves your machine.** The email isn't sent anywhere or uploaded to a screenshot service, which matters for customer data, unreleased products and regulated content.
-- **It runs where your code runs.** In a test, in CI, or in an agent's loop: an agent with a browser can open a preview, read what the client changed, and fix the template.
+- **It runs where your code runs.** In a test, in CI, or in an agent's loop: an agent with a browser can open a preview, read what the client changed, and fix the design.
 - **The same answer every time.** The same email gives the same preview, so a preview can be a snapshot in a test.
 
 ## Compared with screenshot services
@@ -208,7 +208,7 @@ Each preview lists, at its top, what the client changed and anything it couldn't
 
 ## Checks and the emulator
 
-The same package checks a template without drawing it: `emailClients()` is a plugin for `validate()` and `render()`, and names the clients each problem is about, with the fix. See [Diagnostics](/docs/diagnostics).
+The same package checks a design without drawing it: `emailClients()` is a plugin for `validate()` and `render()`, and names the clients each problem is about, with the fix. See [Diagnostics](/docs/diagnostics).
 
 ```tsx
 import { validate } from "@hyper-elements/react";
@@ -240,4 +240,4 @@ Yes. `@hyper-elements/email-clients` is free and runs on your machine: no API ke
 
 ### Can my coding agent use it?
 
-Yes. An agent can run `npx hyper-elements preview emails/welcome.tsx --findings --json` (or call `renderInEmailClients()` after rendering), read what each client changed, and fix the template. See [Test an email from the shell](#test-an-email-from-the-shell) and [AI agents](/docs/guides/ai-agents).
+Yes. An agent can run `npx hyper-elements preview emails/welcome.tsx --findings --json` (or call `renderInEmailClients()` after rendering), read what each client changed, and fix the design. See [Test an email from the shell](#test-an-email-from-the-shell) and [AI agents](/docs/guides/ai-agents).

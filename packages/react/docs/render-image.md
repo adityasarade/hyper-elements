@@ -19,7 +19,7 @@ Give satori's range as above: pnpm and yarn otherwise add satori's newest versio
 | `@resvg/resvg-js` | `^2.6.2` | Draws that SVG as a PNG (optional: only for `/image`) |
 | `react` | `>=18` | |
 
-The tree `prepare()` lays out says its format (its layout version), and `renderImage` reads the one it's built with. Where the `@hyper-elements/react` it loads writes another (a second install beside it), it throws an `ElementsError` (`image/version`) rather than drawing the template wrong.
+The tree `prepare()` lays out says its format (its layout version), and `renderImage` reads the one it's built with. Where the `@hyper-elements/react` it loads writes another (a second install beside it), it throws an `ElementsError` (`image/version`) rather than drawing the design wrong.
 
 Node.js only: it writes the image on the server.
 
@@ -48,7 +48,7 @@ const { image, width, height, diagnostics } = await renderImage(<SocialCard />, 
 await writeFile("card.png", image);
 ```
 
-`renderImage(element, options)` returns `{ image, width, height, diagnostics }`: the file's bytes, its size in pixels, and the warnings and notes. Errors reject with an `ElementsError` listing them. The same template writes the same bytes.
+`renderImage(element, options)` returns `{ image, width, height, diagnostics }`: the file's bytes, its size in pixels, and the warnings and notes. Errors reject with an `ElementsError` listing them. The same design writes the same bytes.
 
 | Option | |
 |--------|---|
@@ -59,17 +59,17 @@ await writeFile("card.png", image);
 
 ## Fonts and images are given as bytes
 
-Nothing is fetched. Give each file the template needs:
+Nothing is fetched. Give each file the design needs:
 
-- **Fonts** in `fonts`: `{ family, src, weight?, style? }`, one entry per file, `src` a TTF, OTF or WOFF file's bytes. `family` is the name the template's `fontFamily` stacks use. A Canvas's own `fonts` given as `data:` URIs are drawn too; ones given by URL aren't loaded. An image needs at least one font: text whose `fontFamily` has no file given is drawn in the first font given.
-- **Images** in `images`, by the URL the template gives them (`{ "https://…/photo.png": bytes }`), or as `data:` URIs in the template: PNG, JPEG, GIF or SVG.
+- **Fonts** in `fonts`: `{ family, src, weight?, style? }`, one entry per file, `src` a TTF, OTF or WOFF file's bytes. `family` is the name the design's `fontFamily` stacks use. A Canvas's own `fonts` given as `data:` URIs are drawn too; ones given by URL aren't loaded. An image needs at least one font: text whose `fontFamily` has no file given is drawn in the first font given.
+- **Images** in `images`, by the URL the design gives them (`{ "https://…/photo.png": bytes }`), or as `data:` URIs in the design: PNG, JPEG, GIF or SVG.
 
 ## Diagnostics
 
 | Code | Severity | When |
 |------|----------|------|
-| `image/root` | error | The template isn't a Canvas |
-| `image/version` | error | The `@hyper-elements/react` loaded lays the template out in another layout version than `/image` reads |
+| `image/root` | error | The design isn't a Canvas |
+| `image/version` | error | The `@hyper-elements/react` loaded lays the design out in another layout version than `/image` reads |
 | `image/font` | error | The Canvas has text and no font is given |
 | `image/font` | warning | A font in the Canvas's `fonts` isn't given, or a file given is WOFF2 |
 | `image/font-weight` | warning | Text in a weight or style of a family that isn't given: it's drawn in the nearest file given |

@@ -69,7 +69,7 @@ export type ConditionStyles<D> = D extends ComponentDefinition<any, infer S, inf
 
 /** What every primitive takes beside its own props. */
 interface Extras<Style, Conditions> {
-  /** Stable id; one is assigned in document order when it's left out. */
+  /** Stable id: an anchor or a reference. None is generated when it's left out. */
   id?: string;
   /**
    * Its style, and inside it its styles on phones (`mobile`) and on hover (`hover`), where it takes them. A value may be

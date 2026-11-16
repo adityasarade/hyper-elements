@@ -108,15 +108,15 @@ function groupName(late: Late): string {
   return parts.join(", ");
 }
 
-/** The summary, as text: `noun` names what was run (templates; HTML emails, or both: inputs). */
-export function summaryText(summary: SummaryLine, noun: "template" | "email" | "input" = "template"): string {
+/** The summary, as text: `noun` names what was run (designs; HTML emails, or both: inputs). */
+export function summaryText(summary: SummaryLine, noun: "design" | "email" | "input" = "design"): string {
   const { templates, errors, warnings, skipped, late } = summary.summary;
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
   let text = `${plural(templates, noun)}: ${plural(errors, "error")}, ${plural(warnings, "warning")}, ${skipped} skipped\n`;
   for (const item of late) {
     text +=
       item.kind === "throw"
-        ? `✗ template code threw outside a render (${groupName(item)}): ${item.message}\n`
+        ? `✗ design code threw outside a render (${groupName(item)}): ${item.message}\n`
         : `✗ the child process for ${groupName(item)} ended badly after its results (${item.reason}: ${item.detail})\n`;
   }
   return text;

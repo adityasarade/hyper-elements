@@ -11,20 +11,20 @@ pnpm --filter @hyper-elements/website check:playground   # after build: the play
 
 ## Every preview is real output
 
-Nothing on the site is a mockup. `scripts/generate.mjs` renders every example in `examples/` with Hyper Elements itself: the templates (`templates/`), one example per component (`components/`), and the home page's own examples (`showcase/`). It writes:
+Nothing on the site is a mockup. `scripts/generate.mjs` renders every example in `examples/` with Hyper Elements itself: the gallery's designs (`templates/`), one example per component (`components/`), and the home page's own examples (`showcase/`). It writes:
 
 | Output | What |
 |--------|------|
 | `src/generated/examples.json` | Each example's source, HTML, plain text, outline and diagnostics |
 | `src/generated/reference/*.md` | One page per component, split from the package's own `REFERENCE.md` |
-| `public/generated/templates/` | Each Document template as a real PDF and each Canvas template as a real PNG |
+| `public/generated/templates/` | Each Document design as a real PDF and each Canvas design as a real PNG |
 
 `src/generated/migrate/before.tsx` and `after.tsx` aren't written by `generate`: they're a React Email template and what `@hyper-elements/migrate` wrote for it, committed by hand. Run the migrate CLI on `before.tsx` and replace `after.tsx` when the converter changes.
 
 Everything generated is committed, so the site builds without the engine. Run `generate` after changing an example or the engine:
 
 1. Build the engine first, from the repo root: `pnpm build`. The script renders with `packages/react`'s built `dist/`.
-2. Run `pnpm --filter @hyper-elements/website generate`. The PDFs and PNGs need the templates' fonts as TTF files, so the first run fetches them from Google Fonts into `node_modules/.cache`; later runs use the cache.
+2. Run `pnpm --filter @hyper-elements/website generate`. The PDFs and PNGs need the designs' fonts as TTF files, so the first run fetches them from Google Fonts into `node_modules/.cache`; later runs use the cache.
 
 An example that doesn't render fails the script with the engine's own error.
 
@@ -39,7 +39,7 @@ and dark) are images of the launch email (`examples/showcase/email.tsx`) in each
 are. Replace them when the launch email changes.
 
 The Email client emulator page's images (`public/generated/email-clients/*.png`) are its welcome email and two
-templates, plus the launch email for the home page's emulator tile, each drawn by `@hyper-elements/email-clients` in classic
+designs, plus the launch email for the home page's emulator tile, each drawn by `@hyper-elements/email-clients` in classic
 Outlook, Gmail, Apple Mail and the Gmail app and captured in Chromium.
 Rebuild them after a release of the emulator, with the packages built and Playwright's Chromium installed:
 `pnpm --filter @hyper-elements/website generate:email-clients`.
@@ -73,14 +73,14 @@ Names and links (package names, GitHub, install commands) are in `src/lib/site.t
 
 ## The playground
 
-`/playground` renders a template in the visitor's browser with the engine itself: an Email, a Page, a Document (print HTML and a PDF) or a Canvas (a PNG or an SVG), with its diagnostics, its outline and, for an Email, the email client checks and previews.
+`/playground` renders a design in the visitor's browser with the engine itself: an Email, a Page, a Document (print HTML and a PDF) or a Canvas (a PNG or an SVG), with its diagnostics, its outline and, for an Email, the email client checks and previews.
 
 - **The engine it runs is this repository's, from its sources.** `scripts/playground-runtime.mjs` bundles `packages/*/src` with esbuild into the scripts the page's sandbox loads (`/playground/runtime/*.js`), so the playground needs no `pnpm build` and always runs the checkout it's built from. It does need the workspace installed: React, react-pdf and Satori are resolved from `packages/react` and `packages/internal/core`, as `generate` resolves them.
 - **The code runs in a sandbox**: a frame with an origin of its own and no network, in a worker that's closed after each render. `playground/README.md` says how, and what the page does with what comes back. Read it before changing a frame's `sandbox` or how a preview's document is made.
-- **Templates** (the playground's Template menu, `starters` in its API) are the site's examples, listed in `src/lib/playground.ts`. The browser check's own templates are in `scripts/fixtures/`.
+- **Designs** (the playground's Design menu, `starters` in its API) are the site's examples, listed in `src/lib/playground.ts`. The browser check's own designs are in `scripts/fixtures/`.
 - **Agents** drive it by a link (`#code=`), by `window.hyperElementsPlayground` or by WebMCP tools (`src/playground/agent.ts`). The page documents all three under the bench.
 
-After `build`, run `pnpm --filter @hyper-elements/website check:playground`. It opens the built page in Chromium (Playwright's, from `packages/react`) and checks that every root renders, that a broken template shows its diagnostics, that a mismatched closing tag and a misspelled import are errors with their lines, that code from a link can't reach the site's origin or the network and isn't kept as the visitor's draft, that markup in a template doesn't run in the preview, and that a loop is stopped. It makes no requests off this machine.
+After `build`, run `pnpm --filter @hyper-elements/website check:playground`. It opens the built page in Chromium (Playwright's, from `packages/react`) and checks that every root renders, that a broken design shows its diagnostics, that a mismatched closing tag and a misspelled import are errors with their lines, that code from a link can't reach the site's origin or the network and isn't kept as the visitor's draft, that markup in a design doesn't run in the preview, and that a loop is stopped. It makes no requests off this machine.
 
 ## Email testing
 

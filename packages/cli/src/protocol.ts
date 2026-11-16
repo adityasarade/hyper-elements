@@ -49,7 +49,7 @@ export interface StartMessage {
 }
 
 export interface ChildOptions {
-  /** `--props`: one object for every template, over PreviewProps. */
+  /** `--props`: one object for every design, instead of its PreviewProps. */
   props?: Record<string, unknown>;
   pretty?: boolean;
   clients?: string[];
