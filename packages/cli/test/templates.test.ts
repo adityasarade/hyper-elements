@@ -8,7 +8,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { cli, decodePng, differingBox, LAUNCH_VALUES, launchTemplate, lines, makePng, pngSize, project, valuesFile, withFixtures } from "./helpers";
 
-const codes = (line: { diagnostics: Array<{ code: string }> }) => line.diagnostics.map((d) => d.code);
+/** The errors' codes (a template loaded with no trusted list also has its warning, cli/template-untrusted). */
+const codes = (line: { diagnostics: Array<{ code: string; severity: string }> }) => line.diagnostics.filter((d) => d.severity === "error").map((d) => d.code);
 const json = (dir: string, file: string) => JSON.parse(readFileSync(join(dir, file), "utf8"));
 
 /** A project with the launch template and the fixtures' fonts and images. */
@@ -148,7 +149,7 @@ describe("the agent loop", () => {
     writeFileSync(join(dir, "templates/launch.tsx"), launchTemplate().replace('src: "../images/tide.png", width: 64, height: 64 } }', 'src: "../images/small.png", width: 40, height: 40 } }'));
     const small = await cli(dir, ["check", "templates/launch.tsx", "--json"]);
     expect(small.code).toBe(1);
-    expect(lines(small)[0].diagnostics).toEqual([expect.objectContaining({ code: "template/asset-pixels", templateFormat: "square", field: "art" })]);
+    expect(lines(small)[0].diagnostics.filter((d: { severity: string }) => d.severity === "error")).toEqual([expect.objectContaining({ code: "template/asset-pixels", templateFormat: "square", field: "art" })]);
     const text = await cli(dir, ["check", "templates/launch.tsx"]);
     expect(text.stdout).toContain("[square] error template/asset-pixels");
     expect(text.stdout).toContain("art (square): 32×32, needs 64×64px");

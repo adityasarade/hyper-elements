@@ -8,7 +8,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { cli, copyElements, email, LAUNCH_VALUES, launchTemplate, lines, makePng, noteTemplate, project, valuesFile, withFixtures } from "./helpers";
 
-const codes = (line: { diagnostics: Array<{ code: string }> }) => line.diagnostics.map((d) => d.code);
+/** The errors' codes (a template loaded with no trusted list also has its warning, cli/template-untrusted). */
+const codes = (line: { diagnostics: Array<{ code: string; severity: string }> }) => line.diagnostics.filter((d) => d.severity === "error").map((d) => d.code);
 const json = (dir: string, file: string) => JSON.parse(readFileSync(join(dir, file), "utf8"));
 
 /** An Email of stories, each with an optional image: images inside a list of objects. */
@@ -78,7 +79,7 @@ describe("design new and design set", () => {
     writeFileSync(join(dir, "c.png"), makePng(40, 10, [9, 9, 9]));
     const changed = await cli(dir, ["design", "set", "designs/d.values.json", "stories[0].title=Changed", "--json"]);
     expect(changed.code, changed.stdout).toBe(0);
-    expect(codes(JSON.parse(changed.stdout))).toContain("template/asset-changed");
+    expect(JSON.parse(changed.stdout).diagnostics.map((d: { code: string }) => d.code)).toContain("template/asset-changed");
     expect(json(dir, "designs/d.values.json").assets["stories[0].image"].source).toBeUndefined();
   });
 

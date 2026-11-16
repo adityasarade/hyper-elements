@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { dirname, relative, resolve, sep } from "node:path";
 import { loadAssets, offlineFailure } from "../assets";
 import type { TemplateModule, TemplateObject } from "../elements";
-import type { ChildOptions, Diagnostic, DesignRequest, ResultMessage, TemplateLayout } from "../protocol";
+import type { ChildOptions, Diagnostic, DesignRequest, ResultMessage, SlotsNeeded, SlotsReply, TemplateLayout } from "../protocol";
 import { checkTemplate } from "./check";
 import { inspectTemplate } from "./inspect";
 import { outlineTemplate } from "./outline";
@@ -58,6 +58,35 @@ export function rebase<T>(values: T, from: string, to: string): T {
   return copy;
 }
 
+/** A module a slot may be stored as (`{ "module": "./launch.body.tsx" }`), by its extension. */
+export const SLOT_MODULE = /\.(tsx|ts|jsx|js|mts|mjs|cts|cjs)$/;
+
+/** The slots stored as `{ module }` among some values (a template's slots are its top-level fields that take JSX). */
+export function storedModules(tpl: TemplateObject, values: Record<string, unknown>): Array<{ path: string; module: string }> {
+  const fields = (tpl.describe() as { fields: Array<{ path: string; allow?: unknown }> }).fields;
+  return fields
+    .filter((field) => field.allow !== undefined && /^[A-Za-z_$][\w$]*$/.test(field.path))
+    .flatMap((field) => {
+      const value = values[field.path] as { module?: unknown } | undefined;
+      return value && typeof value === "object" && typeof value.module === "string" ? [{ path: field.path, module: value.module }] : [];
+    });
+}
+
+/** The captures for a design's slots stored as modules: asked of the parent, which captures them in a process of their own. */
+async function fragmentsFor(run: TemplateRun, values: Record<string, unknown>, from: string): Promise<{ fragments?: Record<string, unknown>; error?: Diagnostic }> {
+  const needed = storedModules(run.tpl, values);
+  if (!needed.length) return {};
+  if (!run.slots) return { error: cliDiagnostic("slot-module", "error", "A slot stored as its module needs a capture child, which this command doesn't start") };
+  const reply = await run.slots(needed, from);
+  if (reply.type === "slots-failed") return { error: cliDiagnostic("slot-module", "error", reply.error, "fix the slot module so it loads and its default export renders the slot's content") };
+  return { fragments: reply.captures };
+}
+
+/** Each local file a design names (an image, a slot's module), by field path, as its values give it. */
+function filesOf(tpl: TemplateObject, values: Record<string, unknown>): Array<{ path: string; src: string }> {
+  return [...imageValues(values).filter(({ value }) => local(value.src)).map(({ path, value }) => ({ path, src: value.src })), ...storedModules(tpl, values).map(({ path, module }) => ({ path, src: module }))];
+}
+
 export interface TemplateRun {
   tpl: TemplateObject;
   module: TemplateModule;
@@ -66,6 +95,8 @@ export interface TemplateRun {
   inspect(element: unknown): TemplateContext["inspection"];
   options: ChildOptions;
   command: string;
+  /** The captures of slots stored as `{ module }`, from the parent's capture child (the template channel's exchange). */
+  slots?(slots: SlotsNeeded["slots"], from: string): Promise<SlotsReply>;
 }
 
 type Fields = Partial<ResultMessage> & Pick<ResultMessage, "status">;
@@ -147,6 +178,21 @@ export async function runValues(run: TemplateRun, input: { file: string; values:
   const read = module.readValuesFile(envelope, tpl);
   if (!read.values || hasErrors(read.diagnostics)) return { status: "error", template, diagnostics: [...notes, ...read.diagnostics] };
   // Its images are relative to the values file; the run reads them as its template's own, relative to the module.
+  // A file whose hash isn't the one recorded changed under the same name (Decision 7): said, never refused.
+  const recordedAssets = (read.assets ?? {}) as Record<string, { sha256?: string }>;
+  for (const { path, src } of filesOf(tpl, read.values)) {
+    const expected = recordedAssets[path]?.sha256;
+    if (!expected) continue;
+    let actual: string | undefined;
+    try {
+      actual = sha256(readFileSync(resolve(dirname(input.values.file), src)));
+    } catch {
+      continue;
+    }
+    if (actual !== expected) notes.push({ code: "template/asset-changed", severity: "warning", message: `${src} isn't the file this design recorded: it changed under the same name`, path: `values.${path}`, field: path, fix: "check it, then record it again with design set (with --source where it has one)" });
+  }
+  const slotted = await fragmentsFor(run, read.values, input.values.file);
+  if (slotted.error) return { status: "error", template, diagnostics: [...notes, slotted.error] };
   const values = rebase(read.values, dirname(input.values.file), dirname(input.file));
   const format = input.templateFormat;
   // A template with formats is checked in the ones the file lists: a file that lists none can't pass by checking nothing.
@@ -154,7 +200,7 @@ export async function runValues(run: TemplateRun, input: { file: string; values:
   if (format === undefined && names.length) {
     return { status: "error", template, diagnostics: [...notes, { code: "template/format", severity: "error", message: `${relative(run.context.cwd, input.values.file)} lists no formats: ${tpl.id} has ${names.join(", ")}`, path: "formats", fix: `list the ones wanted: "formats": ${JSON.stringify(names)}` }] };
   }
-  const checked = tpl.check(values, format !== undefined ? { format } : {});
+  const checked = tpl.check(values, { ...(format !== undefined ? { format } : {}), ...(slotted.fragments ? { fragments: slotted.fragments } : {}) });
   // An image whose file has no source recorded is of unknown origin: a reviewer checks it (Decision 7).
   const assets = (read.assets ?? {}) as Record<string, { source?: unknown }>;
   const unknown = imageValues(read.values)
@@ -235,7 +281,8 @@ export function setAt(values: Record<string, unknown>, path: string, value: unkn
 
 /** The paths whose values differ between two sets of values: each changed leaf (an image is one). */
 function changes(before: unknown, after: unknown, path = ""): string[] {
-  const leaf = (value: unknown) => value === null || typeof value !== "object" || ("src" in (value as object) && "width" in (value as object));
+  // An image, and a slot stored as its module or its capture, is one value.
+  const leaf = (value: unknown) => value === null || typeof value !== "object" || ("src" in (value as object) && "width" in (value as object)) || "module" in (value as object) || "fragment" in (value as object);
   if (leaf(before) || leaf(after) || Array.isArray(before) !== Array.isArray(after)) return JSON.stringify(before) === JSON.stringify(after) ? [] : [path];
   const keys = new Set([...Object.keys(before as object), ...Object.keys(after as object)]);
   const out: string[] = [];
@@ -248,6 +295,7 @@ function changes(before: unknown, after: unknown, path = ""): string[] {
 
 /** The assets entries for some values (Decision 7): each local image's hash, its source carried by its file, not its path. */
 function assetsFor(
+  tpl: TemplateObject,
   values: Record<string, unknown>,
   folder: string,
   old: Record<string, { sha256?: string; source?: unknown }>,
@@ -256,19 +304,18 @@ function assetsFor(
   notes: Diagnostic[]
 ): Record<string, { sha256?: string; source?: unknown }> {
   const bySrc = new Map<string, { sha256?: string; source?: unknown }>();
-  for (const { path, value } of imageValues(oldValues ?? {})) if (old[path]) bySrc.set(value.src, old[path]);
+  for (const { path, src } of filesOf(tpl, oldValues ?? {})) if (old[path]) bySrc.set(src, old[path]);
   const out: Record<string, { sha256?: string; source?: unknown }> = {};
-  for (const { path, value } of imageValues(values)) {
-    if (!local(value.src)) continue;
+  for (const { path, src } of filesOf(tpl, values)) {
     let hash: string | undefined;
     try {
-      hash = sha256(readFileSync(resolve(folder, value.src)));
+      hash = sha256(readFileSync(resolve(folder, src)));
     } catch {
       hash = undefined;
     }
-    const before = bySrc.get(value.src);
+    const before = bySrc.get(src);
     const changed = before?.sha256 !== undefined && hash !== undefined && before.sha256 !== hash;
-    if (changed) notes.push({ code: "template/asset-changed", severity: "warning", message: `${value.src} changed under the same name: it's a new file, with no source unless --source gives one`, path: `values.${path}` });
+    if (changed) notes.push({ code: "template/asset-changed", severity: "warning", message: `${src} changed under the same name: it's a new file, with no source unless --source gives one`, path: `values.${path}` });
     const source = sources[path] ?? (before && !changed ? before.source : undefined);
     out[path] = { ...(hash ? { sha256: hash } : {}), ...(source ? { source } : {}) };
   }
@@ -309,7 +356,11 @@ export async function runDesign(run: TemplateRun, input: { file: string }, reque
   for (const set of request.sets) {
     let value = set.value;
     // `@path`: an image, its size read from its file, its path relative to the values file.
-    if (set.file !== undefined) {
+    if (set.file !== undefined && SLOT_MODULE.test(set.file)) {
+      // A module: a slot's content, stored as its module (its hash recorded with the images').
+      const path = posix(relative(folder, set.file));
+      value = { module: path.startsWith(".") ? path : `./${path}` };
+    } else if (set.file !== undefined) {
       let bytes: Uint8Array;
       try {
         bytes = readFileSync(set.file);
@@ -328,10 +379,12 @@ export async function runDesign(run: TemplateRun, input: { file: string }, reque
     }
   }
   // Checked as a run would check it: in every format, its images read as the template's own.
+  const slotted = await fragmentsFor(run, values, request.output);
+  if (slotted.error) return failed([slotted.error]);
   const checking = rebase(values, folder, dirname(input.file));
   let valid = true;
   for (const format of formats.length ? formats : [undefined]) {
-    const checked = tpl.check(checking, format !== undefined ? { format } : {});
+    const checked = tpl.check(checking, { ...(format !== undefined ? { format } : {}), ...(slotted.fragments ? { fragments: slotted.fragments } : {}) });
     // Said once: a value's problem is the same in each format.
     diagnostics.push(...measuredHere(run, checked.diagnostics));
     if (!checked.valid) valid = false;
@@ -339,7 +392,7 @@ export async function runDesign(run: TemplateRun, input: { file: string }, reque
   const errors = diagnostics.filter((d) => d.severity === "error");
   const missing = [...new Set(errors.filter((d) => d.code === "template/required").map((d) => d.path.replace(/^values\./, "")))];
   if (!valid && !request.draft) return failed([]);
-  const assets = assetsFor(values, folder, oldAssets, request.kind === "set" ? before : undefined, request.sources ?? {}, diagnostics);
+  const assets = assetsFor(tpl, values, folder, oldAssets, request.kind === "set" ? before : undefined, request.sources ?? {}, diagnostics);
   const sha = sha256(readFileSync(input.file));
   const options = { module: moduleSpec, ...(formats.length ? { formats } : {}), sha256: sha, ...(Object.keys(assets).length ? { assets } : {}) };
   let file: Record<string, unknown>;

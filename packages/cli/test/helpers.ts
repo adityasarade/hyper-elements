@@ -592,3 +592,48 @@ export function valuesFile(module: string, values: Record<string, unknown>, opti
 
 /** The launch template's values for a design in designs/, its art from images/. */
 export const LAUNCH_VALUES = { headline: "Orbit is here", launchDate: "2026-12-03", art: { src: "../images/tide.png", width: 64, height: 64 } };
+
+/**
+ * A newsletter template (an Email): a subject, a body slot the filler writes with Column, Heading and Text, and a fixed
+ * footer. `migrate` and `version` for a major version that renames the slot.
+ */
+export function newsTemplate(options: { version?: string; slot?: string; migrate?: string; sidebar?: boolean; extra?: string } = {}): string {
+  const slot = options.slot ?? "body";
+  return `import { Column, Email, Heading, Section, Text, prop } from "@hyper-elements/react";
+import { field, template } from "@hyper-elements/react/template";
+${options.extra ?? ""}
+export default template({
+  id: "acme.News",
+  version: "${options.version ?? "1.0.0"}",
+  label: "News",
+  root: "Email",
+  fields: {
+    subject: prop.text({ label: "Subject", required: true, maxLength: 70 }),
+    ${slot}: field.slot({ label: "Body", required: true, allow: [Column, Heading, Text], guidance: "Short sections: a Heading and a Text each." }),
+    ${options.sidebar ? `sidebar: field.slot({ label: "Sidebar", allow: [Column, Text] }),` : ""}
+  },
+  ${options.migrate ? `migrate: ${options.migrate},` : ""}
+  example: { subject: "Hi", ${slot}: <Column><Text>Example body</Text></Column> },
+  render(v) {
+    return (
+      <Email lang="en" previewText="The news this week, in one short email for you">
+        <Heading level={1}>{v.subject}</Heading>
+        <Section field="${slot}">{v.${slot}}</Section>
+        ${options.sidebar ? `{v.sidebar ? <Section field="sidebar">{v.sidebar}</Section> : null}` : ""}
+        <Text>Fixed footer</Text>
+      </Email>
+    );
+  },
+});
+`;
+}
+
+/** A slot module: its default export renders the slot's content (JSX), with `before` run when it loads. */
+export function slotModule(content: string, before = "", imports = "Column, Heading, Text"): string {
+  return `import { ${imports} } from "@hyper-elements/react";
+${before}
+export default function Body() {
+  return ${content};
+}
+`;
+}

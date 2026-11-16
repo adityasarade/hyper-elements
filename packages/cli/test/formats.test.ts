@@ -8,7 +8,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { canvas, cli, copyElements, LAUNCH_VALUES, launchTemplate, lines, makePng, project, valuesFile, withFixtures } from "./helpers";
 
-const codes = (line: { diagnostics: Array<{ code: string }> }) => line.diagnostics.map((d) => d.code);
+/** The errors' codes (a template loaded with no trusted list also has its warning, cli/template-untrusted). */
+const codes = (line: { diagnostics: Array<{ code: string; severity: string }> }) => line.diagnostics.filter((d) => d.severity === "error").map((d) => d.code);
 const FONTS = `[{ family: "Inter", src: "../fonts/Inter-Regular.ttf", weight: 400 }]`;
 const launchProject = (files: Record<string, string> = {}) => withFixtures(project({ "templates/launch.tsx": launchTemplate(), "designs/a.values.json": valuesFile("../templates/launch.tsx", LAUNCH_VALUES), ...files }));
 

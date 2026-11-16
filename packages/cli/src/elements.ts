@@ -57,6 +57,7 @@ export interface TemplateObject {
 
 export interface ReactModule {
   createElement(type: unknown, props?: Record<string, unknown> | null): unknown;
+  isValidElement?(value: unknown): boolean;
 }
 
 export interface EmailClientsModule {

@@ -163,8 +163,16 @@ function specProblems(spec: TemplateSpec<PropSpecs, Record<string, Format>>): Di
   return out;
 }
 
-/** What check() hands a design's capture (check(element)): a stack every copy of this entry shares. */
-type Capture = (result: CheckResult<any, any>) => void;
+/**
+ * What a template's check hands a design's capture (check(element), templateRequest()): its result, and the request
+ * it checked (the template, its props as recorded, its format). A stack every copy of this entry shares.
+ */
+type Capture = (result: CheckResult<any, any>, request: TemplateRequestOf) => void;
+interface TemplateRequestOf {
+  template: Template<any, any>;
+  props: Record<string, unknown>;
+  format?: string;
+}
 const CAPTURES = Symbol.for("hyper-elements.template.capture");
 const captures = () => ((globalThis as Record<symbol, unknown>)[CAPTURES] ??= []) as Capture[];
 
@@ -283,7 +291,7 @@ export function template<const F extends PropSpecs, const Fm extends Record<stri
       const result = run(props, options);
       const stack = captures();
       const capture = stack[stack.length - 1];
-      if (capture) capture(result);
+      if (capture) capture(result, { template: Template, props, ...(options.format !== undefined ? { format: options.format } : {}) });
       return { valid: result.valid, diagnostics: result.diagnostics, own: result.own, snapshots: result.snapshots as Record<string, unknown> };
     },
   });
@@ -423,6 +431,31 @@ export function check(element: React.ReactElement): CheckResult {
     ? validated.diagnostics
     : [...validated.diagnostics, fail("template/not-template", "The design's root isn't a template: check() checks a design made from one (<Newsletter … />)", "jsx")];
   return { valid: false, diagnostics, review: [], rules: [], snapshots: {}, template: { id: "", version: "" } };
+}
+
+/**
+ * A design's template request (`<Launch format="square" … />`): the template that's its root, the props it was given
+ * (owned as the root recorded them: a slot's JSX stays the element it is) and its format. For a tool that checks the
+ * design somewhere else (the CLI captures it in one process and checks it in another). Diagnostics where the root
+ * isn't one template; never throws.
+ */
+export function templateRequest(element: React.ReactElement): { template?: Template; props?: Record<string, unknown>; format?: string; diagnostics: Diagnostic[] } {
+  let request: TemplateRequestOf | undefined;
+  const stack = captures();
+  stack.push((_result, given) => {
+    request ??= given;
+  });
+  let validated;
+  try {
+    validated = validate(element);
+  } finally {
+    stack.pop();
+  }
+  if (request) return { template: request.template as Template, props: request.props, ...(request.format !== undefined ? { format: request.format } : {}), diagnostics: [] };
+  const diagnostics = validated.diagnostics.some((d) => d.code === "template/not-root" || d.code === "template/format")
+    ? validated.diagnostics
+    : [...validated.diagnostics, fail("template/not-template", "The design's root isn't a template (<Newsletter … />)", "jsx")];
+  return { diagnostics };
 }
 
 // ─── Dates ──────────────────────────────────────────────────────────────────

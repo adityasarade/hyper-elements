@@ -7,6 +7,7 @@
  * folder's HTML files aren't picked up (a folder holds templates, and often the HTML rendered from them).
  */
 import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
 import { readFile } from "node:fs/promises";
 import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
 import { walk } from "@hyper-elements/template-loader";
@@ -28,6 +29,9 @@ export interface Input {
    */
   values?: { file: string; envelope: Record<string, unknown> };
   templateFormat?: string;
+  /** A TSX template design's expansion: the template module's export that's its template, and what it must be. */
+  templateExport?: string;
+  expect?: { id: string; version: string; formats: string[] };
   /** Where its outputs are named from, where that isn't its `file`: a values file's folder and stem (`launch`). */
   output?: { folder: string; stem: string };
   /** `-`: the HTML read from stdin, named `stdin` (its `file` is `stdin` in the current folder, which isn't read). */
@@ -183,5 +187,47 @@ export function packageFolder(dir: string): string | null {
   for (let current = dir; ; current = dirname(current)) {
     if (existsSync(join(current, "package.json"))) return current;
     if (dirname(current) === current) return null;
+  }
+}
+
+/** A module's static import specifiers (`import … from`, `export … from`, `import x = require(…)`), in order, once each. */
+export async function staticImports(path: string, source: string): Promise<string[]> {
+  const ts = (await import("typescript")).default;
+  const kind = /\.[cm]?tsx$|\.jsx$/.test(path) ? ts.ScriptKind.TSX : /\.[cm]?ts$/.test(path) ? ts.ScriptKind.TS : ts.ScriptKind.JSX;
+  const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, false, kind);
+  const out = new Set<string>();
+  for (const statement of file.statements) {
+    if ((ts.isImportDeclaration(statement) || ts.isExportDeclaration(statement)) && statement.moduleSpecifier && ts.isStringLiteral(statement.moduleSpecifier)) out.add(statement.moduleSpecifier.text);
+    else if (ts.isImportEqualsDeclaration(statement) && ts.isExternalModuleReference(statement.moduleReference) && ts.isStringLiteral(statement.moduleReference.expression)) out.add(statement.moduleReference.expression.text);
+  }
+  return [...out];
+}
+
+const EXTENSIONS = [".tsx", ".ts", ".jsx", ".js", ".mts", ".mjs", ".cts", ".cjs"];
+
+/**
+ * The file an import of `specifier` from `from` loads, as tsx resolves it: a relative path with or without its
+ * extension (or a `.js` that names a `.ts` file), a folder's index, or a package (from `from`'s folder). Undefined where
+ * none resolves; an absolute path is never one (a design names its template relatively, or by package).
+ */
+export function resolveImport(from: string, specifier: string): string | undefined {
+  if (specifier.startsWith("/") || /^[A-Za-z]:[\\/]/.test(specifier) || specifier.startsWith("file:")) return undefined;
+  const isFile = (path: string) => {
+    try {
+      return statSync(path).isFile();
+    } catch {
+      return false;
+    }
+  };
+  if (specifier.startsWith("./") || specifier.startsWith("../") || specifier === "." || specifier === "..") {
+    const base = resolve(dirname(from), specifier);
+    const twins = /\.([cm]?)js$/.test(base) ? [base.replace(/\.([cm]?)js$/, ".$1ts"), base.replace(/\.js$/, ".tsx")] : [];
+    for (const candidate of [base, ...twins, ...EXTENSIONS.map((ext) => base + ext), ...EXTENSIONS.map((ext) => join(base, `index${ext}`))]) if (isFile(candidate)) return candidate;
+    return undefined;
+  }
+  try {
+    return createRequire(from).resolve(specifier);
+  } catch {
+    return undefined;
   }
 }

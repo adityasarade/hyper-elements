@@ -191,7 +191,11 @@ npx hyper-elements design set designs/orbit.values.json launchDate=2026-12-10   
 
 In `design new` and `design set`, a value is JSON where it parses, else text, and `@path` is an image file: its size is read from it, and its hash goes in the file's `assets` with the `--source` given. A value the template refuses exits `1` and leaves the file as it was. `--draft` writes it anyway, with what's `missing`; `render` refuses a draft until a `design set` completes it.
 
-A template module is an input too: `check` runs it with its example in every format, which is a template's CI. `render` of one exits `2`: render a values file made from it.
+A design can also be TSX with the template as its root (`export default () => <Newsletter subject="…" body={<Column>…</Column>} />`): the CLI loads it in a process of its own as far as the template's props, then checks and renders it as it does a values file, one output per format. `design new <template> --from designs/june.tsx -o june.values.json` writes its values file. A slot in a values file can be its module (`design set june.values.json body=@designs/june.body.tsx`), which runs in a process of its own that can reply only with what it rendered.
+
+List the templates your designs may use in `package.json`, `"hyperElements": { "templates": ["templates/**"] }`: a template outside the list is refused (`cli/template-untrusted`), and a template is loaded in a process that refuses anything it imports outside the list and your installed packages. In CI, `--require-template` fails anything a template didn't check.
+
+A template module is an input too: `check` runs it with its example in every format, which is a template's CI. `render` of one exits `2`: render a design made from it.
 
 ## JSON and exit codes
 

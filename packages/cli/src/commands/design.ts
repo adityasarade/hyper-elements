@@ -5,16 +5,26 @@
  * fail, unless --draft). Exit 0 written, 1 where the values fail (the file left as it was), 2 where the run can't do
  * what it was asked. With `--json`, one line: the file, its template, what changed, the diagnostics.
  */
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { UsageError, type Args } from "../args";
 import { writeAtomically } from "../destinations";
-import { displayPath, type Input } from "../inputs";
+import { displayPath, resolveImport, staticImports, type Input } from "../inputs";
 import { cleanFiles, ownToken, parseToken } from "../loader-module";
 import { formatDiagnostics } from "../output";
 import type { DesignRequest, Diagnostic } from "../protocol";
-import { runChild, type Io, type RunState } from "../run";
+import { runCapture, runChild, templateChildOptions, type Io, type RunState } from "../run";
+import { rebase } from "./template";
+import { readTrust, trusted, untrusted } from "../trust";
 import { envelopeProblem, templateModule } from "../values-files";
+
+const realOr = (path: string) => {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
+};
 
 /** A JSON file's object, or a usage error saying what it's for. */
 function readObject(path: string, cwd: string, what: string): Record<string, unknown> {
@@ -82,7 +92,30 @@ export async function runDesign(args: Args, io: Io, state: RunState): Promise<nu
   const token = ownToken();
   state.token = token;
   state.folders.add(resolve(module, ".."));
-  const report = await runChild("design", [input], true, args, undefined, token, io, { design: { ...request, output } as DesignRequest });
+  // --from: a TSX design's values, captured in a capture child (its slots as { fragment }), made from this template.
+  if (design.from !== undefined) {
+    const from = resolve(cwd, design.from);
+    if (!existsSync(from)) throw new UsageError(`--from ${design.from} isn't there: it's a TSX design made from the template.`);
+    state.folders.add(dirname(from));
+    const imports = await staticImports(from, readFileSync(from, "utf8"));
+    const reply = (await runCapture([{ id: 0, file: from, capture: { kind: "design", imports } }], from, args, token, io)).get(0);
+    const notFrom = (message: string) => fail(io, args, output, [{ code: "cli/template-design", severity: "error", message, path: "" }]);
+    if (reply?.type !== "captured-design") return notFrom(`--from ${design.from}: ${reply?.type === "capture-failed" ? reply.error : "its capture gave no template"}`);
+    const used = typeof reply.specifier === "string" && imports.includes(reply.specifier) ? resolveImport(from, reply.specifier) : undefined;
+    if (!used || realOr(used) !== realOr(module)) return notFrom(`--from ${design.from} is made from ${reply.template?.id ?? "another template"} (${String(reply.specifier)}), not ${args.positional[1]}`);
+    if (!reply.values || typeof reply.values !== "object" || Array.isArray(reply.values)) return notFrom(`--from ${design.from}: its capture isn't a template design's`);
+    // Its images are relative to the design; the values file's, to it.
+    request.values = rebase(reply.values, dirname(from), dirname(output));
+    // Where its `assets` export says an image came from, unless --source says otherwise.
+    const given = reply.assets as Record<string, { source?: unknown }> | undefined;
+    const sources: Record<string, Record<string, unknown>> = {};
+    for (const [path, entry] of Object.entries(given ?? {})) if (entry?.source && typeof entry.source === "object") sources[path] = entry.source as Record<string, unknown>;
+    if (Object.keys(sources).length) request.sources = { ...sources, ...(request.sources ?? {}) };
+  }
+  // The template is loaded in a template child, guarded where the project lists its trusted templates (Decision 31).
+  const trust = readTrust(cwd);
+  if (trust.list && !trusted(module, trust.list)) return fail(io, args, output, [untrusted(displayPath(cwd, module), trust)]);
+  const report = await runChild("design", [input], true, args, undefined, token, io, { design: { ...request, output } as DesignRequest, ...templateChildOptions(trust, [module]) });
   const own = parseToken(`// ${token}`)!;
   cleanFiles(state.folders, (owner) => !!owner && owner.host === own.host && owner.pid === own.pid && owner.random === own.random);
   const result = report.results.get(0);
