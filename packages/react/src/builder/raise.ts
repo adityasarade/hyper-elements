@@ -9,7 +9,7 @@
  */
 import { prepareTemplate, type Json, type Node, type ResolvedNode } from "@hyper-elements/core";
 import type React from "react";
-import { collectTemplate } from "../primitives/collect";
+import { collectTemplate, snapshotData } from "../primitives/collect";
 import { add, boxRowOf, builderId, gapOf, hasBox, hiding, linesOf, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";
 import { block, columnWith, rowWith, type Block, type Body, type BodyFields, type Row } from "./design";
 import { hiddenOf, leftOut, merge } from "./hide";
@@ -36,6 +36,8 @@ const BROWSER_TEXT: Record<string, unknown> = { fontSize: 16, fontStyle: "normal
 
 export function raise(element: React.ReactElement): Raised {
   const report: string[] = [];
+  // The builder takes a design's element; a snapshot is the guardrail path's, which the builder isn't part of.
+  if (snapshotData(element)) return { body: null, report: ["builder/snapshot: toDesign() takes a design's element, not a snapshot"] };
   const { document, diagnostics, components, template } = collectTemplate(element);
   // A template's guardrails aren't the builder's: it takes the design a template builds, as a plain root.
   if (template) return { body: null, report: [`builder/template: the design's root is the template ${template.id}: the builder takes the design it builds, toDesign(Template.design(values))`] };

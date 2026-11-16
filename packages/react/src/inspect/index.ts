@@ -27,7 +27,8 @@ import {
   type RootName,
   type StyleGroup,
 } from "@hyper-elements/core";
-import { collectTemplate, withFields, type JsonNode } from "../primitives/collect";
+import type { Snapshot } from "../primitives/snapshot";
+import { collectTemplate, snapshotData, withFields, type JsonNode } from "../primitives/collect";
 
 export type { ComponentDescription, ConditionName, Diagnostic, PropertyDescription, RootName, StyleGroup };
 
@@ -143,8 +144,8 @@ export interface Inspection {
  * What a template holds, as data: each component, what it's given, whether its root takes it, and the problems
  * found on it. It checks what `validate()` checks, without rendering.
  */
-export function inspect(element: React.ReactElement): Inspection {
-  if (!React.isValidElement(element)) {
+export function inspect(element: React.ReactElement | Snapshot): Inspection {
+  if (!React.isValidElement(element) && !snapshotData(element)) {
     throw new TypeError(`[Elements] inspect() takes a design as JSX (<Email>…</Email>, <Page>…</Page>), not ${element === null ? "null" : typeof element}`);
   }
   const { document, diagnostics: read, components, collected, fields, template } = collectTemplate(element);

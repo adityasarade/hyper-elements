@@ -4,10 +4,12 @@
  * `field` that names no field, an image with rules that nothing shows), and how each bound image is shown (distorted,
  * or cropped past what its rules allow). These catch a template's own mistakes, not only bad values.
  */
-import type { Diagnostic, PropSpecs, ResolvedNode, RootName } from "@hyper-elements/core";
-import { prepare, validate } from "@hyper-elements/react";
+import type { CustomDefinition, Diagnostic, PropSpecs, ResolvedNode, RootName } from "@hyper-elements/core";
+import { prepare, readFragment, slotMark, snapshot, validate, type FragmentCapture, type Snapshot } from "@hyper-elements/react";
 import React from "react";
 import { fieldAt, imagePaths, type ImageRules } from "./fields";
+import { decideRules, pluginsOf, type RuleResult, type TemplateRules } from "./rules";
+import { isStoredSlot, preflight, type BrandMap, type ResolvedSlot } from "./slots";
 
 export const TEMPLATE_RECORD = Symbol.for("hyper-elements.template");
 
@@ -32,40 +34,98 @@ export interface Definition {
 }
 
 export interface Built {
-  /** The design, where the render gave one. */
-  element?: React.ReactElement;
+  /** The design, as a snapshot, where the render gave one. */
+  snapshot?: Snapshot;
   /** The design's own problems, as `validate()` finds them. */
   design: Diagnostic[];
-  /** What the template found in it. */
+  /** What the template found in it, and its required rules' findings. */
   own: Diagnostic[];
   /** It laid out, for what reads its boxes (describe()'s regions). */
   root?: ResolvedNode | null;
+  /** Each required rule's result. */
+  rules: RuleResult[];
+}
+
+/** What building a design needs beside its values: the template's slots, the brand-valued styles, its rules. */
+export interface BuildContext {
+  slots: readonly ResolvedSlot[];
+  brand: BrandMap;
+  rules: TemplateRules;
+  /** Captures for slots stored as `{ module }`, by path. */
+  fragments?: Readonly<Record<string, FragmentCapture>>;
 }
 
 const error = (code: string, message: string, path: string, extra: Partial<Diagnostic> = {}): Diagnostic => ({ code, severity: "error", message, path, ...extra });
 
-/** The design built from checked values for one format, and checked. */
-export function build(definition: Definition, values: Record<string, unknown>, format: string | undefined): Built {
+/**
+ * The design built from checked values for one format, and checked. Each slot's value is a mark when the render runs
+ * (the template never sees its content), its content is captured on its own and spliced in, and the preflight checks
+ * it before anything is read: what's checked and rendered is the one snapshot this returns.
+ */
+export function build(definition: Definition, values: Record<string, unknown>, format: string | undefined, context: BuildContext): Built {
+  const marked: Record<string, unknown> = { ...values };
+  const fragments: Record<string, React.ReactElement | FragmentCapture> = {};
+  const problems: Diagnostic[] = [];
+  for (const slot of context.slots) {
+    const value = values[slot.path];
+    if (value === undefined) continue;
+    marked[slot.path] = slotMark(slot.path);
+    if (React.isValidElement(value)) fragments[slot.path] = value;
+    else if (isStoredSlot(value) && "fragment" in value) {
+      try {
+        fragments[slot.path] = readFragment(value.fragment);
+      } catch (thrown) {
+        problems.push(...((thrown as { diagnostics?: Diagnostic[] }).diagnostics ?? []).map((d) => ({ ...d, path: `values.${slot.path}` })));
+      }
+    } else if (context.fragments?.[slot.path]) fragments[slot.path] = context.fragments[slot.path];
+  }
+  if (problems.length) return { design: [], own: problems, rules: [] };
   let element: unknown;
   try {
-    element = definition.render(values, { format });
+    element = definition.render(marked, { format });
   } catch (thrown) {
-    return { design: [], own: [error("template/render", `${definition.id}'s render threw: ${thrown instanceof Error ? thrown.message : String(thrown)}`, "root")] };
+    return { design: [], own: [error("template/render", `${definition.id}'s render threw: ${thrown instanceof Error ? thrown.message : String(thrown)}`, "root")], rules: [] };
   }
-  if (!React.isValidElement(element)) return { design: [], own: [error("template/render", `${definition.id}'s render returns its root as JSX (<${definition.root}>…</${definition.root}>), not ${element === null ? "null" : typeof element}`, "root")] };
+  if (!React.isValidElement(element)) return { design: [], own: [error("template/render", `${definition.id}'s render returns its root as JSX (<${definition.root}>…</${definition.root}>), not ${element === null ? "null" : typeof element}`, "root")], rules: [] };
   if ((element.type as unknown as Record<symbol, unknown> | null)?.[TEMPLATE_RECORD]) {
-    return { element, design: [], own: [error("template/root", `${definition.id}'s render returns another template: it returns a ${definition.root}`, "root")] };
+    return { design: [], own: [error("template/root", `${definition.id}'s render returns another template: it returns a ${definition.root}`, "root")], rules: [] };
   }
-  // No plugins: the design's own checks (a call's note about where email client checks are isn't the template's).
-  const checked = validate(element, { plugins: [] });
+  const bind: Record<string, readonly CustomDefinition<any>[]> = {};
+  for (const slot of context.slots) bind[slot.path] = [...slot.customs.values()];
+  const snap = snapshot(element, {
+    fragments,
+    bind,
+    preflight: (path, capture, host, marks) => {
+      const slot = context.slots.find((s) => s.path === path);
+      return slot ? preflight({ slot, brand: context.brand, id: definition.id }, capture, host, marks) : [];
+    },
+  });
+  // The design's own checks, with the template's plugins (lint's findings are its rules' to raise).
+  const checked = validate(snap, { plugins: pluginsOf(context.rules) });
   const own: Diagnostic[] = [];
-  if (!checked.valid) return { element, design: checked.diagnostics, own };
-  const { root } = prepare(element);
-  if (!root) return { element, design: checked.diagnostics, own };
+  if (!checked.valid) return { snapshot: snap, design: checked.diagnostics, own, rules: [] };
+  const { root } = prepare(snap);
+  if (!root) return { snapshot: snap, design: checked.diagnostics, own, rules: [] };
   if (root.type !== definition.root) own.push(error("template/root", `${definition.id} is a ${definition.root}: its render returned a ${root.type}`, "root"));
   if (format !== undefined) own.push(...formatProblems(definition, format, root));
-  own.push(...bindingProblems(definition, values, root));
-  return { element, design: checked.diagnostics, own, root };
+  own.push(...bindingProblems(definition, values, root, new Set(context.slots.map((slot) => slot.path))));
+  const decided = decideRules(context.rules, { id: definition.id, root: definition.root, ...(format !== undefined ? { format } : {}), validated: checked.diagnostics, laidOut: root });
+  own.push(...decided.diagnostics);
+  return { snapshot: snap, design: checked.diagnostics.filter((d) => !decided.raised.has(d)), own, root, rules: decided.results };
+}
+
+const SNAPSHOT = Symbol.for("hyper-elements.snapshot");
+
+/**
+ * A snapshot with its template and the required rules it couldn't decide (measured ones): a writer given it refuses
+ * it until one that can decide them does (Decision 31).
+ */
+export function withTemplate(snap: Snapshot, template: { id: string; version: string }, rules: readonly RuleResult[]): Snapshot {
+  const data = (snap as unknown as Record<symbol, Record<string, unknown>>)[SNAPSHOT];
+  const pending = rules.filter((rule) => rule.status === "not-run" && rule.source === "core").map((rule) => ({ rule: rule.rule, ...(rule.format ? { format: rule.format } : {}), decidedBy: "@hyper-elements/react/image's renderImage()" }));
+  const out = { kind: "hyper-elements.snapshot" as const };
+  Object.defineProperty(out, SNAPSHOT, { value: Object.freeze({ ...data, template, ...(pending.length ? { pending: Object.freeze(pending) } : {}) }) });
+  return Object.freeze(out);
 }
 
 /** A Canvas the format's size, a Document on the format's page. */
@@ -106,10 +166,17 @@ export function coverCrop(file: { width: number; height: number }, box: [number,
 
 const percent = (share: number) => `${Math.round(share * 100)}%`;
 
-function bindingProblems(definition: Definition, values: Record<string, unknown>, root: ResolvedNode): Diagnostic[] {
+function bindingProblems(definition: Definition, values: Record<string, unknown>, root: ResolvedNode, slots: ReadonlySet<string>): Diagnostic[] {
   const out: Diagnostic[] = [];
   const bound = new Map<string, Array<{ node: ResolvedNode; parent?: ResolvedNode }>>();
+  // What's under a slot's host is the slot's content: its fields are its own (template/slot-field), never read.
+  const inSlot = new Set<ResolvedNode>();
   walk(root, (node, parent) => {
+    if (inSlot.has(node)) {
+      for (const child of node.children) if (typeof child !== "string") inSlot.add(child);
+      return;
+    }
+    if (node.field && slots.has(node.field)) for (const child of node.children) if (typeof child !== "string") inSlot.add(child);
     if (!node.field) return;
     if (!fieldAt(definition.fields, values, node.field)) {
       out.push(error("template/unknown-binding", `field="${node.field}" names no field of ${definition.id} with a value here`, `${node.path}.field`, { field: node.field }));

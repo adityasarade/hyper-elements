@@ -9,7 +9,7 @@ import React from "react";
 import { Button, Column, Document, ElementsError, Email, Heading, Html, Image, Layer, Link, List, ListItem, MergeTag, Menu, Page, Text, Row, Section, Social, Span, Table, TableCell, TableRow, Video, render } from "../primitives/index";
 import { toDesign } from "../builder/index";
 import { prop } from "../primitives/index";
-import { template } from "../template/index";
+import { field, template } from "../template/index";
 import { textJsonHtml } from "../builder/text-json";
 
 const PAYLOADS = [
@@ -135,6 +135,30 @@ describe("a template's values", () => {
       }
     }
     expect(rendered).toBeGreaterThan(PAYLOADS.length);
+  });
+
+  it("markup in a slot's text adds no element, through the snapshot check() returns", async () => {
+    const T = template({
+      id: "acme.HostileSlot",
+      version: "1.0.0",
+      label: "Hostile slot",
+      root: "Email",
+      fields: { body: field.slot({ label: "Body", allow: "all", styles: "free" }) },
+      example: {},
+      render: (v) => (
+        <Email lang="en">
+          <Section field="body">{v.body}</Section>
+        </Email>
+      ),
+    });
+    let rendered = 0;
+    for (const payload of PAYLOADS) {
+      const checked = T.check({ body: <Column><Heading>{payload}</Heading><Text><Link href={`https://example.com/${payload}`}>{payload}</Link></Text></Column> });
+      if (!checked.valid) continue;
+      rendered++;
+      expect(injected((await render(checked.snapshots.default!)).html), payload).toEqual([]);
+    }
+    expect(rendered).toBeGreaterThan(PAYLOADS.length / 2);
   });
 
   it("a field key with markup in it is template/field-path, and no writer writes it", async () => {

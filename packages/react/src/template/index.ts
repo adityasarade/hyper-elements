@@ -10,14 +10,22 @@
  * evaluates strings: it runs wherever a design does.
  */
 import type { Diagnostic, PropSpec, PropSpecs, RootName } from "@hyper-elements/core";
-import { ElementsError, validate, type FieldInputs, type FieldValues } from "@hyper-elements/react";
+import { captureFragment, ElementsError, readFragment, validate, type FieldInputs, type FieldValues, type FragmentCapture, type Snapshot } from "@hyper-elements/react";
+import { inspect } from "@hyper-elements/react/inspect";
 import React from "react";
-import { build, TEMPLATE_RECORD, type Definition, type Format } from "./checks";
+import { fromAnnotated, type AnnotatedSpec } from "./annotated";
+import { build, TEMPLATE_RECORD, withTemplate, type BuildContext, type Definition, type Format } from "./checks";
 import { describeTemplate, type TemplateDescription } from "./describe";
-import { specsOf } from "./fields";
+import { isBlocks, isList, isObjectSpec, specsOf } from "./fields";
+import { readRules, type RuleResult, type TemplateRules } from "./rules";
+import { brandMap, isSlot, isStoredSlot, resolveSlot, type ResolvedSlot } from "./slots";
 import { compareVersions, isVersion, mergePatch, own, readValue, readValues, versionParts } from "./values";
 
 export { field, type ImageRules, type ImageSpec, type ImageType, type ImageValue } from "./fields";
+export { open, type AnnotatedSpec, type Open } from "./annotated";
+export { CORE_RULES, type LinkRules, type LintRuleDescriptor, type RuleResult, type TemplateRules } from "./rules";
+export type { SlotOptions, SlotSpec, SlotStyles, StoredSlot } from "./slots";
+export type { CheckLayoutOptions, LayoutCheck } from "./layout";
 export { fitInside, sniffImage, type SniffedImage } from "./layout";
 export { DESCRIBE_VERSION, type FieldDescription, type TemplateDescription } from "./describe";
 export type { Format } from "./checks";
@@ -50,6 +58,8 @@ export interface TemplateSpec<F extends PropSpecs, Fm extends Record<string, For
   example: FieldInputs<F>;
   /** By major version: a values file of that major's values, as this version takes them. */
   migrate?: Record<number, (values: Record<string, unknown>) => unknown>;
+  /** Rules over the result: lint rules and core codes required, links and root props (Decision 25). */
+  rules?: TemplateRules;
   /** The design for some checked values, in a format: the template's whole root (nothing beside it reaches the output). */
   render(values: FieldValues<F>, context: { format: FormatName<Fm> }): React.ReactElement;
 }
@@ -66,17 +76,8 @@ export interface CheckResult<F extends PropSpecs = PropSpecs, Fm extends Record<
   /** What a reviewer checks by eye: each field's guidance and the template's, as it was asked. Never changes `valid`. */
   review: Array<{ field?: string; template?: string; guidance: string }>;
   /** The design for each format checked (`default` for a template with one size), where it's valid: what to render. */
-  snapshots: Partial<Record<[keyof Fm] extends [never] ? "default" : keyof Fm & string, React.ReactElement>>;
+  snapshots: Partial<Record<[keyof Fm] extends [never] ? "default" : keyof Fm & string, Snapshot>>;
   template: { id: string; version: string };
-}
-
-/** A required rule's result in one format: `passed`, `failed`, or `not-run` (which fails closed). */
-export interface RuleResult {
-  rule: string;
-  source: "lint" | "core" | "template";
-  format?: string;
-  status: "passed" | "failed" | "not-run";
-  diagnostics: Diagnostic[];
 }
 
 /** What a template's component takes: its fields' values, and `format`, one of its format names. */
@@ -95,8 +96,12 @@ export interface Template<F extends PropSpecs = PropSpecs, Fm extends Record<str
   readonly fields: F;
   readonly example: FieldInputs<F>;
   readonly migrate?: Record<number, (values: Record<string, unknown>) => unknown>;
-  /** The values read, each format's design built and checked. Never throws. */
-  check(values: unknown, options?: { format?: FormatName<Fm> }): CheckResult<F, Fm>;
+  readonly rules: TemplateRules;
+  /**
+   * The values read, each format's design built and checked, and every required rule decided. Never throws. A slot
+   * stored as `{ module }` takes its content captured, in `fragments` by its path.
+   */
+  check(values: unknown, options?: { format?: FormatName<Fm>; fragments?: Record<string, FragmentCapture> }): CheckResult<F, Fm>;
   /** The design for some values, in a format: the root its render returns. Throws an `ElementsError` for bad values. */
   design(values: FieldInputs<F>, options?: { format?: FormatName<Fm> }): React.ReactElement;
   /** `values` with `patch`'s fields changed (objects merged, lists replaced); the rest keep their references. Throws for bad ones. */
@@ -137,6 +142,17 @@ function specProblems(spec: TemplateSpec<PropSpecs, Record<string, Format>>): Di
     for (const { path, spec: field } of specsOf(spec.fields)) {
       if (!field || typeof field.kind?.parse !== "function" || typeof field.label !== "string") out.push(fail("template/spec", `${path} is a field's spec (prop.text(…), field.image(…)), with a label`, `fields.${path}`));
     }
+  if (isPlainObject(spec.fields)) {
+    for (const { path, spec: field, block } of specsOf(spec.fields)) {
+      if (field && isSlot(field) && (path.includes(".") || path.includes("[") || block)) out.push(fail("template/spec", `A slot is a top-level field, never inside a list, an object or a block: ${path}`, `fields.${path}`));
+      if (field && isBlocks(field)) {
+        for (const [type, branch] of Object.entries(field.blocks)) {
+          if (!branch || !isObjectSpec(branch)) out.push(fail("template/spec", `The block type ${type} of ${path} is a prop.object() spec`, `fields.${path}.${type}`));
+          else if (Object.prototype.hasOwnProperty.call(branch.fields, "type")) out.push(fail("template/block-type", `The block type ${type} of ${path} has a field named type: a block's type is its name`, `fields.${path}.${type}.type`));
+        }
+      }
+    }
+  }
   for (const name of Object.keys(isPlainObject(spec.fields) ? spec.fields : {})) {
     if (RESERVED.includes(name)) out.push(fail("template/field-name", `A field can't be named ${name}: it's a prop of the template's component (format, key, ref, children)`, `fields.${name}`));
   }
@@ -156,14 +172,30 @@ const captures = () => ((globalThis as Record<symbol, unknown>)[CAPTURES] ??= []
 const COLLECTING = Symbol.for("@hyper-elements/react/primitives/collecting");
 
 /** A template: its parts, its fields, its checks, and a component that makes it a design's root. */
-export function template<const F extends PropSpecs, const Fm extends Record<string, Format> = Record<never, Format>>(spec: TemplateSpec<F, Fm>): Template<F, Fm> {
+export function template<const F extends PropSpecs, const Fm extends Record<string, Format> = Record<never, Format>>(given: TemplateSpec<F, Fm> | AnnotatedSpec<F>): Template<F, Fm> {
+  // An annotated design (Decision 32) is read into fields, an example and a render first.
+  const spec = ("open" in given ? fromAnnotated(given as AnnotatedSpec<F>) : given) as TemplateSpec<F, Fm>;
   const problems = specProblems(spec as unknown as TemplateSpec<PropSpecs, Record<string, Format>>);
+  const { rules, problems: ruleProblems } = readRules(spec.rules, spec.root, spec.id);
+  problems.push(...ruleProblems);
+  // Owned when it's defined: changing the spec afterwards (its fields, rules, formats, render) changes nothing.
+  const fields = isPlainObject(spec.fields) ? (ownFields(spec.fields) as F) : ({} as F);
+  const slots: ResolvedSlot[] = [];
+  for (const [path, field] of Object.entries(fields)) {
+    if (!isSlot(field)) continue;
+    const resolved = resolveSlot(path, field, spec.root);
+    problems.push(...resolved.problems);
+    if (resolved.slot) slots.push(resolved.slot);
+  }
   if (problems.length) throw new ElementsError(problems);
-  const formats = spec.formats ? (JSON.parse(JSON.stringify(spec.formats)) as Fm) : undefined;
+  const formats = spec.formats ? (deepFreeze(JSON.parse(JSON.stringify(spec.formats))) as Fm) : undefined;
   const names = formats ? Object.keys(formats) : [];
-  const fields = { ...spec.fields };
-  const definition: Definition = { id: spec.id, version: spec.version, label: spec.label, root: spec.root, formats, fields, render: spec.render as Definition["render"] };
+  const render = spec.render;
+  const definition: Definition = { id: spec.id, version: spec.version, label: spec.label, root: spec.root, formats, fields, render: render as Definition["render"] };
   const name = `${spec.id} ${spec.version}`;
+  const brand = slots.length ? brandMap() : { styles: new Map(), props: new Map() };
+  const reading = () => ({ diagnostics: [] as Diagnostic[], name, isElement: React.isValidElement });
+  const context = (fragments?: Record<string, FragmentCapture>): BuildContext => ({ slots, brand, rules, ...(fragments ? { fragments } : {}) });
 
   const formatProblem = (format: unknown): Diagnostic | undefined => {
     if (format === undefined) return undefined;
@@ -176,33 +208,60 @@ export function template<const F extends PropSpecs, const Fm extends Record<stri
     ...(spec.guidance ? [{ template: spec.id, guidance: spec.guidance }] : []),
   ];
 
+  /** Slots stored as `{ module }` need their captures; one given for a slot that has its content already is two places. */
+  const slotProblems = (values: Record<string, unknown>, fragments: Record<string, unknown> | undefined): Diagnostic[] => {
+    const out: Diagnostic[] = [];
+    for (const slot of slots) {
+      const value = values[slot.path];
+      const given = fragments?.[slot.path];
+      const stored = isStoredSlot(value) ? value : undefined;
+      if (stored && "module" in stored && !given) out.push(fail("template/slot-unloaded", `The slot ${slot.path} is stored as its module (${stored.module}): check() needs its content, captured (fragments), or the slot's JSX`, `values.${slot.path}`));
+      if (given && !(stored && "module" in stored)) out.push(fail("template/slot-twice", `The slot ${slot.path}'s content is given twice: in the values and in fragments. A slot's content comes from one place`, `values.${slot.path}`));
+    }
+    for (const path of Object.keys(fragments ?? {})) if (!slots.some((slot) => slot.path === path)) out.push(fail("template/unknown-field", `${spec.id} has no slot ${path} for the fragment given`, `fragments.${path}`));
+    return out;
+  };
+
   /** The check, with what the template found apart from the designs' own problems (for an entry point's hand-off). */
-  const run = (input: unknown, options: { format?: unknown } = {}): CheckResult<F, Fm> & { own: Diagnostic[] } => {
-    const reading = { diagnostics: [] as Diagnostic[], name };
+  const run = (input: unknown, options: { format?: unknown; fragments?: Record<string, unknown> } = {}): CheckResult<F, Fm> & { own: Diagnostic[] } => {
+    const read = reading();
     const format = formatProblem(options.format);
-    const values = readValues(fields, input, "values", reading);
-    const base = { review: review(), rules: [], template: { id: spec.id, version: spec.version } };
-    if (format || !values || hasErrors(reading.diagnostics)) {
-      const diagnostics = [...(format ? [format] : []), ...reading.diagnostics];
-      return { ...base, valid: false, ...(values && !hasErrors(reading.diagnostics) ? { values: values as FieldValues<F> } : {}), diagnostics, own: diagnostics, snapshots: {} };
+    const values = readValues(fields, input, "values", read);
+    const base = { review: review(), template: { id: spec.id, version: spec.version } };
+    const early = [...(format ? [format] : []), ...read.diagnostics, ...(values ? slotProblems(values, options.fragments) : [])];
+    let fragments: Record<string, FragmentCapture> | undefined;
+    if (options.fragments && !hasErrors(early)) {
+      fragments = {};
+      for (const [path, capture] of Object.entries(options.fragments)) {
+        try {
+          fragments[path] = readFragment(capture);
+        } catch (thrown) {
+          early.push(...((thrown as { diagnostics?: Diagnostic[] }).diagnostics ?? []).map((d) => ({ ...d, path: `fragments.${path}` })));
+        }
+      }
+    }
+    if (!values || hasErrors(early)) {
+      return { ...base, rules: [], valid: false, ...(values && !hasErrors(read.diagnostics) ? { values: values as FieldValues<F> } : {}), diagnostics: early, own: early, snapshots: {} };
     }
     const checked = options.format !== undefined ? [options.format as string] : names.length ? names : [undefined];
-    const own = [...reading.diagnostics];
-    const diagnostics = [...reading.diagnostics];
-    const snapshots: Record<string, React.ReactElement> = {};
+    const own = [...early];
+    const diagnostics = [...early];
+    const results: RuleResult[] = [];
+    const snapshots: Record<string, Snapshot> = {};
     for (const format of checked) {
-      const built = build(definition, values, format);
+      const built = build(definition, values, format, context(fragments));
       // In a template of several formats, each problem says which format it's in.
       const tag = (d: Diagnostic): Diagnostic => (names.length > 1 && checked.length > 1 ? { ...d, message: `In the ${format} format: ${d.message}` } : d);
       own.push(...built.own.map(tag));
       diagnostics.push(...built.design.map(tag), ...built.own.map(tag));
-      if (built.element) snapshots[format ?? "default"] = built.element;
+      results.push(...built.rules);
+      if (built.snapshot) snapshots[format ?? "default"] = withTemplate(built.snapshot, base.template, built.rules);
     }
     const valid = !hasErrors(diagnostics);
-    return { ...base, valid, values: values as FieldValues<F>, diagnostics, own, snapshots: (valid ? snapshots : {}) as CheckResult<F, Fm>["snapshots"] };
+    return { ...base, rules: results, valid, values: values as FieldValues<F>, diagnostics, own, snapshots: (valid ? snapshots : {}) as CheckResult<F, Fm>["snapshots"] };
   };
 
-  const check = (input: unknown, options: { format?: FormatName<Fm> } = {}): CheckResult<F, Fm> => {
+  const check = (input: unknown, options: { format?: FormatName<Fm>; fragments?: Record<string, FragmentCapture> } = {}): CheckResult<F, Fm> => {
     const { own: _, ...result } = run(input, options);
     return result;
   };
@@ -225,26 +284,30 @@ export function template<const F extends PropSpecs, const Fm extends Record<stri
       const stack = captures();
       const capture = stack[stack.length - 1];
       if (capture) capture(result);
-      return { valid: result.valid, diagnostics: result.diagnostics, own: result.own, snapshots: result.snapshots as Record<string, React.ReactElement> };
+      return { valid: result.valid, diagnostics: result.diagnostics, own: result.own, snapshots: result.snapshots as Record<string, unknown> };
     },
   });
 
   const design = (values: unknown, options: { format?: FormatName<Fm> } = {}): React.ReactElement => {
-    const reading = { diagnostics: [] as Diagnostic[], name };
+    const read = reading();
     const format = formatProblem(options.format) ?? (options.format === undefined && names.length > 1 ? fail("template/format", `${spec.id} has ${names.length} formats (${names.join(", ")}): name one`, "values.format") : undefined);
-    const read = readValues(fields, values, "values", reading);
-    const diagnostics = [...(format ? [format] : []), ...reading.diagnostics];
-    if (!read || hasErrors(diagnostics)) throw new ElementsError(diagnostics);
-    return spec.render(read as FieldValues<F>, { format: (options.format ?? names[0]) as FormatName<Fm> });
+    const values_ = readValues(fields, values, "values", read);
+    const diagnostics = [...(format ? [format] : []), ...read.diagnostics];
+    // design() renders a slot's JSX as it is (unchecked: check()'s snapshots are what's checked); a stored one can't be.
+    for (const slot of slots) {
+      if (isStoredSlot(values_?.[slot.path])) diagnostics.push(fail("template/slot-unloaded", `design() takes the slot ${slot.path}'s JSX; check() reads it stored`, `values.${slot.path}`));
+    }
+    if (!values_ || hasErrors(diagnostics)) throw new ElementsError(diagnostics);
+    return render(values_ as FieldValues<F>, { format: (options.format ?? names[0]) as FormatName<Fm> });
   };
 
   const update = (values: FieldValues<F>, patch: Record<string, unknown>): FieldValues<F> => {
     if (!isPlainObject(values) || !isPlainObject(patch)) throw new TypeError(`[Elements] ${spec.id}.update() takes values (from check()) and a patch of fields, each an object`);
-    const reading = { diagnostics: [] as Diagnostic[], name };
+    const read = reading();
     const out: Record<string, unknown> = { ...values };
     for (const key of Object.keys(patch)) {
       if (!Object.prototype.hasOwnProperty.call(fields, key)) {
-        reading.diagnostics.push({
+        read.diagnostics.push({
           code: "template/unknown-field",
           severity: "error",
           message: `${name} has no field "${key}" (its fields: ${Object.keys(fields).join(", ")}); what isn't a field is fixed by the template`,
@@ -255,26 +318,28 @@ export function template<const F extends PropSpecs, const Fm extends Record<stri
       }
       const field: PropSpec = fields[key];
       // An object is merged (JSON Merge Patch: null removes a key); anything else, a list too, is replaced.
-      const given = patch[key] === null ? undefined : "fields" in field && isPlainObject(patch[key]) ? mergePatch(values[key as keyof typeof values], patch[key]) : patch[key];
-      const value = readValue(field, own(given, React.isValidElement), `values.${key}`, reading);
+      const value_ = patch[key] === null ? undefined : "fields" in field && isPlainObject(patch[key]) ? mergePatch(values[key as keyof typeof values], patch[key]) : patch[key];
+      const value = readValue(field, own(value_, React.isValidElement), `values.${key}`, read);
       if (value === undefined) delete out[key];
       else out[key] = value;
     }
-    if (hasErrors(reading.diagnostics)) throw new ElementsError(reading.diagnostics);
+    if (hasErrors(read.diagnostics)) throw new ElementsError(read.diagnostics);
     return out as FieldValues<F>;
   };
 
   const describe = (): TemplateDescription => {
-    const reading = { diagnostics: [] as Diagnostic[], name };
-    const example = readValues(fields, spec.example, "example", reading);
+    const read = reading();
+    const example = readValues(fields, spec.example, "example", read);
     const laidOut: Parameters<typeof describeTemplate>[1] = [];
-    if (example && !hasErrors(reading.diagnostics)) {
+    let theme: unknown = null;
+    if (example && !hasErrors(read.diagnostics)) {
       for (const format of names.length ? names : [undefined]) {
-        const built = build(definition, example, format);
+        const built = build(definition, example, format, context());
         if (built.root) laidOut.push({ format, values: example, root: built.root });
+        if (theme === null && built.snapshot) theme = inspect(built.snapshot).theme;
       }
     }
-    return describeTemplate({ ...definition, description: spec.description, guidance: spec.guidance }, laidOut);
+    return describeTemplate({ ...definition, description: spec.description, guidance: spec.guidance, slots, rules, theme }, laidOut);
   };
 
   Object.defineProperty(Template, "name", { value: spec.id.split(".").pop() });
@@ -288,15 +353,43 @@ export function template<const F extends PropSpecs, const Fm extends Record<stri
     root: spec.root,
     ...(formats ? { formats } : {}),
     fields,
+    rules,
     example: spec.example,
-    ...(spec.migrate ? { migrate: spec.migrate } : {}),
+    ...(spec.migrate ? { migrate: Object.freeze({ ...spec.migrate }) } : {}),
     check,
     design,
     update,
     describe,
   });
   Object.defineProperty(Template, TEMPLATE_RECORD, { value: record });
-  return Template;
+  return Object.freeze(Template);
+}
+
+const deepFreeze = <T>(value: T): T => {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const item of Object.values(value)) deepFreeze(item);
+  }
+  return value;
+};
+
+/**
+ * Fields owned: a new record of shallow, frozen copies of each spec, their data (defaults, rules, a list's item, an
+ * object's fields, a block's types) copied and frozen. A kind and a slot's allowed components are kept by reference:
+ * a kind's parse() is code, and a slot allows a component by its identity.
+ */
+function ownFields(fields: PropSpecs): PropSpecs {
+  const ownSpec = (spec: PropSpec): PropSpec => {
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(spec)) {
+      if (key === "kind" || key === "slot") out[key] = value;
+      else if (key === "item") out.item = ownSpec(value as PropSpec);
+      else if ((key === "fields" || key === "blocks") && value && typeof value === "object") out[key] = ownFields(value as PropSpecs);
+      else out[key] = value && typeof value === "object" ? deepFreeze(JSON.parse(JSON.stringify(value))) : value;
+    }
+    return Object.freeze(out) as unknown as PropSpec;
+  };
+  return Object.freeze(Object.fromEntries(Object.entries(fields).map(([name, spec]) => [name, spec && typeof spec === "object" ? ownSpec(spec) : spec])));
 }
 
 /** The template a value is (a template, or `memo()`/`forwardRef()` of one), or undefined. */
@@ -364,12 +457,22 @@ export interface AssetRecord {
 
 /** Values written as a values file (JSON in and out, no file system): checked first, and refused (thrown) with problems. */
 export function toValuesFile(template: Template<any, any>, values: unknown, options: { module: string; formats?: string[]; sha256?: string; assets?: Record<string, AssetRecord> }): ValuesFile {
-  const checked = template.check(values);
+  // The values read, not built: a slot stored as its module has no content here, and a slot's JSX is stored captured.
+  const reading = { diagnostics: [] as Diagnostic[], name: `${template.id} ${template.version}`, isElement: React.isValidElement };
+  const read = readValues(template.fields, own(values, React.isValidElement), "values", reading);
   const formatNames = Object.keys(template.formats ?? {});
   const unknown = (options.formats ?? []).filter((format) => !formatNames.includes(format));
-  const diagnostics = [...(checked.values ? checked.diagnostics.filter((d) => d.path.startsWith("values")) : checked.diagnostics)];
+  const diagnostics = [...reading.diagnostics];
   for (const format of unknown) diagnostics.push(fail("template/format", `${template.id} has the formats ${formatNames.join(", ") || "(none)"}, not ${JSON.stringify(format)}`, "formats"));
-  if (!checked.values || hasErrors(diagnostics)) throw new ElementsError(diagnostics);
+  if (!read || hasErrors(diagnostics)) throw new ElementsError(diagnostics);
+  const stored: Record<string, unknown> = { ...read };
+  for (const [name, value] of Object.entries(read)) {
+    if (!React.isValidElement(value)) continue;
+    const fragment = captureFragment(value);
+    if (fragment.aborted || hasErrors(fragment.diagnostics)) throw new ElementsError(fragment.diagnostics.map((d) => ({ ...d, path: `values.${name}` })));
+    stored[name] = { fragment: JSON.parse(JSON.stringify(fragment)) };
+  }
+  const checked = { values: stored };
   return {
     version: 1,
     template: { module: options.module, id: template.id, version: template.version, ...(options.sha256 ? { sha256: options.sha256 } : {}) },
@@ -427,7 +530,7 @@ export function readValuesFile(
     }
     diagnostics.push({ code: "template/upgraded", severity: "info", message: `Made with ${template.id} ${recorded}, read with ${template.version}${from < to ? " through its migrations" : ""}: the next write records the new version`, path: "template.version" });
   }
-  const reading = { diagnostics, name: `${template.id} ${template.version}` };
+  const reading = { diagnostics, name: `${template.id} ${template.version}`, isElement: React.isValidElement };
   const read = readValues(template.fields, values, "values", reading);
   const formatNames = Object.keys(template.formats ?? {});
   const formats = Array.isArray(file.formats) ? file.formats.filter((f): f is string => typeof f === "string") : undefined;

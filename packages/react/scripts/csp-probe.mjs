@@ -62,6 +62,21 @@ try {
     console.error('CSP_FAIL: a template rendered no output');
     process.exit(2);
   }
+  // A slot: its content captured on its own, its policies checked, and the snapshot rendered.
+  const Slotted = t.template({
+    id: 'acme.Slotted',
+    version: '1.0.0',
+    label: 'Slotted',
+    root: 'Email',
+    fields: { body: t.field.slot({ label: 'Body', allow: 'all', styles: 'free', count: { Button: { max: 1 } } }) },
+    example: {},
+    render: (v) => h(p.Email, null, h(p.Section, { field: 'body' }, v.body)),
+  });
+  const slotted = Slotted.check({ body: h(p.Column, null, h(p.Text, null, 'Slot content')) });
+  if (!slotted.valid || !(await p.render(slotted.snapshots.default)).html.includes('Slot content')) {
+    console.error('CSP_FAIL: a template with a slot rendered no output');
+    process.exit(2);
+  }
 
   console.info(
     `CSP_OK: @hyper-elements/react imports + renders its components in every root (HTML and plain text), and ` +

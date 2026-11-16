@@ -122,14 +122,16 @@ jobs:
       # written for classic Outlook apart (its own col and first-row cell, without width: auto);
       # 327,400 bytes (10,352 more) for templates' part of the main entry: the list, object and
       # date kinds and their prop helpers, the field key, and a template design's request handed
-      # to its template by the render that collects it.
+      # to its template by the render that collects it; 345,100 bytes (17,692 more) for snapshots: a design captured
+      # once as inert data (snapshot(), slotMark(), captureFragment() and readFragment(), with their plain-data
+      # grammar and limits), the blocks kind, and frozen kinds and definitions.
       - name: Check main entry bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
           test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=327400
+          MAX_SIZE=345100
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::Main entry bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -152,13 +154,14 @@ jobs:
       # grew: 485.5KB for the same scan and encoding, in the writers it shares;
       # 479,000 bytes for a Table's free column written for classic Outlook apart;
       # 484,500 bytes (5,503 more) for the same kinds, field key and template hand-off,
-      # and builder/template for a template design.
+      # and builder/template for a template design; 486,200 bytes (1,639 more) for the blocks kind, frozen kinds and
+      # definitions, and refusing a snapshot.
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=484500
+          MAX_SIZE=486200
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -166,16 +169,17 @@ jobs:
           fi
           echo "✅ /builder bundle within budget"
 
-      # Templates (/template, dist/template.js): about 41.1KB unminified ESM (template(), reading
+      # Templates (/template, dist/template.js): about 86.2KB unminified ESM (template(), reading
       # values by their fields, the checks of a design built from them, describe(), values files and
-      # versions, fitInside(), sniffImage() and formatDate()). The main entry is external. Set from that
-      # plus 10%. Raise it on purpose, with what grew.
+      # versions, fitInside(), sniffImage() and formatDate(); slots and their preflight, blocks, rules
+      # over the result with lint's and core's, links and root props, and annotated templates). The
+      # main entry and /inspect are external. Set from that plus 10%. Raise it on purpose, with what grew.
       - name: Check /template bundle size
         run: |
           BUNDLE="packages/react/dist/template.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/template.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=45200
+          MAX_SIZE=94800
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/template bundle size $SIZE exceeds budget of $MAX_SIZE bytes"

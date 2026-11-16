@@ -4,7 +4,8 @@
  * values file (the template's reference and version, the values, and each asset's hash and provenance beside them).
  */
 import type { Diagnostic, PropSpec, PropSpecs } from "@hyper-elements/core";
-import { imageRules, isList, isObjectSpec, type ImageRules, type ImageType } from "./fields";
+import { imageRules, isBlocks, isList, isObjectSpec, type ImageRules, type ImageType } from "./fields";
+import { isSlot, isStoredSlot } from "./slots";
 
 /** A value a template's component was given that isn't plain data (a function, a class instance): never read. */
 export class Unowned {
@@ -42,6 +43,8 @@ interface Reading {
   diagnostics: Diagnostic[];
   /** The template's id and version, for messages. */
   name: string;
+  /** Whether a value is JSX (a slot's content, kept as it is). */
+  isElement: (value: unknown) => boolean;
 }
 
 const error = (code: string, message: string, path: string, fix?: string): Diagnostic => ({ code, severity: "error", message, path, ...(fix ? { fix } : {}) });
@@ -80,10 +83,34 @@ export function readValue(spec: PropSpec, input: unknown, at: string, reading: R
   if (input === undefined) {
     if (spec.default !== undefined) return structuredCopy(spec.default);
     if (spec.required) return void reading.diagnostics.push(error("template/required", `${spec.label} is required`, at));
-    if (!isList(spec)) return undefined;
+    if (!isList(spec) && !isBlocks(spec)) return undefined;
     input = [];
   }
+  if (isSlot(spec)) {
+    // JSX (the content, read when the design is built), or its stored form (a module or a captured fragment).
+    if (reading.isElement(input) || isStoredSlot(input)) return input;
+    return void reading.diagnostics.push(error("template/value", `${spec.label} is JSX (its content, <Column>…</Column>), or stored as { module } or { fragment }`, at));
+  }
   if (input instanceof Unowned) return void reading.diagnostics.push(error("jsx/value", `${spec.label} is plain data, not ${input.what}`, at));
+  if (isBlocks(spec)) {
+    if (!Array.isArray(input)) return void reading.diagnostics.push(error("template/value", `${spec.label} is a list of blocks, not ${describe(input)}`, at));
+    const schema = spec.kind.jsonSchema() as { minItems?: number; maxItems?: number };
+    const [min, max] = [schema.minItems, schema.maxItems];
+    if ((min !== undefined && input.length < min) || (max !== undefined && input.length > max)) {
+      reading.diagnostics.push(error("template/count", `${plural(input.length, "block")}; this template takes ${countWords(min, max)}`, at));
+    }
+    const types = Object.keys(spec.blocks);
+    return input.map((item, index) => {
+      const where = `${at}[${index}]`;
+      const type = isPlainObject(item) ? item.type : undefined;
+      if (!isPlainObject(item) || typeof type !== "string" || !Object.prototype.hasOwnProperty.call(spec.blocks, type)) {
+        return void reading.diagnostics.push(error("template/value", `A block is { type, … } with type ${types.map((t) => JSON.stringify(t)).join(" or ")}, not ${isPlainObject(item) ? JSON.stringify(type) : describe(item)}`, where));
+      }
+      const { type: _, ...rest } = item;
+      const read = readValues(spec.blocks[type].fields, rest, where, reading);
+      return read && { type, ...read };
+    });
+  }
   if (isList(spec)) {
     if (!Array.isArray(input)) return void reading.diagnostics.push(error("template/value", `${spec.label} is a list, not ${describe(input)}`, at));
     const schema = spec.kind.jsonSchema() as { minItems?: number; maxItems?: number };
