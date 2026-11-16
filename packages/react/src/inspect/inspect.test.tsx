@@ -157,7 +157,7 @@ describe("inspect()", () => {
   });
 
   it("takes only a template", () => {
-    expect(() => inspect(null as never)).toThrow(/takes a template as JSX/);
+    expect(() => inspect(null as never)).toThrow(/takes a design as JSX/);
     expect(inspect(<>{null}</>)).toMatchObject({ root: null, valid: false, nodes: [] });
   });
 });

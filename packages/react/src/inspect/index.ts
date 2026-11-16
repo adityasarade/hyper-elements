@@ -27,7 +27,7 @@ import {
   type RootName,
   type StyleGroup,
 } from "@hyper-elements/core";
-import { collectTemplate, type JsonNode } from "../primitives/collect";
+import { collectTemplate, withFields, type JsonNode } from "../primitives/collect";
 
 export type { ComponentDescription, ConditionName, Diagnostic, PropertyDescription, RootName, StyleGroup };
 
@@ -96,6 +96,8 @@ export interface InspectedNode {
   path: string;
   type: string;
   id?: string;
+  /** The template field it shows, where a template's render binds it (`headline`, `stories[1].image`). */
+  field?: string;
   /** The roots its component may go in. */
   roots: RootName[];
   /** Whether the template's root takes it. */
@@ -133,6 +135,8 @@ export interface Inspection {
   nodes: InspectedNode[];
   /** Everything found, as `validate()` finds it. */
   diagnostics: Diagnostic[];
+  /** The template the design's root was (its id and version), where it was one: what's inspected is the design it built. */
+  template?: { id: string; version: string };
 }
 
 /**
@@ -141,11 +145,11 @@ export interface Inspection {
  */
 export function inspect(element: React.ReactElement): Inspection {
   if (!React.isValidElement(element)) {
-    throw new TypeError(`[Elements] inspect() takes a template as JSX (<Email>…</Email>, <Page>…</Page>), not ${element === null ? "null" : typeof element}`);
+    throw new TypeError(`[Elements] inspect() takes a design as JSX (<Email>…</Email>, <Page>…</Page>), not ${element === null ? "null" : typeof element}`);
   }
-  const { document, diagnostics: read, components, collected } = collectTemplate(element);
+  const { document, diagnostics: read, components, collected, fields, template } = collectTemplate(element);
   const failed = read.some((d) => d.severity === "error");
-  const diagnostics = [...read, ...(document && !failed ? validateTemplate(document, { components }).diagnostics : [])];
+  const diagnostics = [...read, ...(document && !failed ? withFields(validateTemplate(document, { components }).diagnostics, fields) : [])];
   const registry = new Registry(components);
   const rootType = document?.root.type;
   const root = rootType && (ROOT_NAMES as readonly string[]).includes(rootType) ? (rootType as RootName) : null;
@@ -157,6 +161,7 @@ export function inspect(element: React.ReactElement): Inspection {
       path,
       type: node.type,
       ...(typeof node.id === "string" && node.id ? { id: node.id } : {}),
+      ...(typeof node.field === "string" && !CUSTOM_TYPE.test(node.type) ? { field: node.field } : {}),
       roots,
       allowed: !!root && roots.includes(root),
       given: given(node),
@@ -169,7 +174,7 @@ export function inspect(element: React.ReactElement): Inspection {
   // The tree as collected, not as read: reading leaves out a component its root doesn't take (and merges text), and
   // what's listed here is every component written, at the paths diagnostics name.
   if (document && collected) visit(collected, "root");
-  return { version: INSPECT_VERSION, root, theme: describeTheme(document?.theme, registry), valid: !diagnostics.some((d) => d.severity === "error"), nodes, diagnostics };
+  return { version: INSPECT_VERSION, root, theme: describeTheme(document?.theme, registry), valid: !diagnostics.some((d) => d.severity === "error"), nodes, diagnostics, ...(template ? { template } : {}) };
 }
 
 /** A theme, as `inspect()` lists it. */

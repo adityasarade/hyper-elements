@@ -63,5 +63,17 @@
  "./image": [
   "renderImage",
   "templateAssets"
+ ],
+ "./template": [
+  "DESCRIBE_VERSION",
+  "check",
+  "field",
+  "fitInside",
+  "formatDate",
+  "readValuesFile",
+  "sniffImage",
+  "template",
+  "templateOf",
+  "toValuesFile"
  ]
 }

@@ -30,6 +30,11 @@ export interface PropSpec<K extends Kind<any, any> = Kind<any, any>, R extends b
   label: string;
   description?: string;
   /**
+   * How to fill it well, in plain English, for whoever (or whatever agent) gives its value: never enforced, only shown
+   * (`describeComponents()`, a template's `describe()` and its `check()`'s review items). `description` says what it is.
+   */
+  guidance?: string;
+  /**
    * The roots it may be given under (default: every root its component goes in). Under another root it's a
    * `prop/not-supported` error naming these.
    */

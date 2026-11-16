@@ -8,7 +8,7 @@ import type { ComponentDefinition, RootName, StyleSpecs } from "./define";
 import { Diagnostics, ElementsError, type Diagnostic } from "./diagnostics";
 import { type Child, type ElementsDocument, type Json, type Node } from "./model";
 import { CUSTOM_TYPE, propsWithDefaults, registryOf, type ComponentsOption, type Registry } from "./registry";
-import { a, nearest } from "./nearest";
+import { a, nearest, show } from "./nearest";
 import { COMPONENTS } from "./components";
 import { aliasHint, holdsToken, readScope, readTheme, resolveValue, scopePaths, themedStyle, themeNames, ThemeEnvironment, type Problem, type ThemeData } from "./theme";
 
@@ -18,7 +18,7 @@ export interface CheckResult {
   diagnostics: Diagnostic[];
 }
 
-const NODE_KEYS = ["id", "type", "props", "style", "mobile", "hover", "hidden", "children", "variant", "tokens", "theme"];
+const NODE_KEYS = ["id", "type", "field", "props", "style", "mobile", "hover", "hidden", "children", "variant", "tokens", "theme"];
 /** The body text styles a box passes down, each with the role a theme sets it with. */
 const BODY_ROLES = { color: ["color", "colors.foreground"], fontFamily: ["font", "fonts.body"], fontSize: ["size", "fontSizes.body"], lineHeight: ["line height", "lineHeights.body"] } as const;
 type InheritedKey = keyof typeof BODY_ROLES;
@@ -27,6 +27,8 @@ const INHERITED = Object.keys(BODY_ROLES) as InheritedKey[];
 const SCOPES = new Set(["Section", "Row", "Column", "Grid"]);
 /** An id is written into HTML ids and CSS selectors. */
 const ID = /^[A-Za-z][A-Za-z0-9_-]*$/;
+/** A template field's path: a name, then `[index]` into a list or `.name` into an object (`stories[1].image`). */
+export const FIELD_PATH = /^[A-Za-z_][A-Za-z0-9_]*(?:\[(?:0|[1-9][0-9]*)\]|\.[A-Za-z_][A-Za-z0-9_]*)*$/;
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -291,6 +293,16 @@ function readNode(input: unknown, path: string, parent: ComponentDefinition | nu
 
   const node: Node = id === undefined ? { type: definition.type } : { id, type: definition.type };
   const custom = CUSTOM_TYPE.test(definition.type);
+
+  // The template field it shows: a built-in's, in the template's own render. What a custom component renders is the
+  // component's, not the template's, so a binding there isn't read.
+  if (input.field !== undefined) {
+    if (typeof input.field !== "string" || !FIELD_PATH.test(input.field)) {
+      d.error("template/field-path", `A field is a template field's path (headline, features[1], stories[1].image), not ${show(input.field)}`, `${path}.field`, id);
+    } else if (context.idPrefix !== undefined) {
+      d.add("field/dropped", "info", `The field "${input.field}" is left out: a binding is read only on a built-in in the template's own render, not in what a custom component renders`, `${path}.field`, id);
+    } else node.field = input.field;
+  }
   const isRoot = definition.categories.includes("root");
   const saved = { environment: context.environment, inherited: context.inherited };
 

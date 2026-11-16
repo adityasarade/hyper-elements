@@ -103,6 +103,16 @@
         "default": "./dist/image.cjs"
       }
     },
+    "./template": {
+      "import": {
+        "types": "./dist/template.d.ts",
+        "default": "./dist/template.js"
+      },
+      "require": {
+        "types": "./dist/template.d.cts",
+        "default": "./dist/template.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "typesVersions": {
@@ -118,6 +128,9 @@
       ],
       "image": [
         "./dist/image.d.ts"
+      ],
+      "template": [
+        "./dist/template.d.ts"
       ]
     }
   },
@@ -128,6 +141,7 @@
     "dist/inspect.*",
     "dist/pdf.*",
     "dist/image.*",
+    "dist/template.*",
     "README.md",
     "GUIDE.md",
     "REFERENCE.md",
