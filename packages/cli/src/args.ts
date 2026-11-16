@@ -15,6 +15,7 @@ Usage:
   hyper-elements describe [Component | template.tsx] [--root Email] [--json]
   hyper-elements design new <template> -o <name.values.json> [--values f] [--set k=v]
   hyper-elements design set <name.values.json> <field>=<value>...
+  hyper-elements template extract <design.tsx> --id <id> --field <id>... -o <file>
   hyper-elements dev <files or folders...> [options]
   hyper-elements migrate [migrate's arguments...]
 
@@ -54,7 +55,10 @@ design   new writes a values file from a template and values (--values, a
          (features[1]=..., a value as JSON or text, an image as @path, its
          --source path=source.json), checked by the template in each format:
          the file is written only if they pass.
-
+template extract writes a template from a design a person approved: each
+         --field names an id in it, whose literal text or image becomes a
+         field (ids name-0, name-1, ... a list) and its example. Then add
+         its rules and formats, set its version, and check it.
 migrate  runs @hyper-elements/migrate (the project's, else npx's) with the
          arguments given.
 dev      serves a page on 127.0.0.1 showing each design (an Email or a Page
@@ -127,6 +131,11 @@ Options:
                         ({"kind":"generated",…}), kept in assets
   --draft               design: write the file even if values are missing or
                         wrong, as a draft (render refuses it)
+  --id <id>             template extract: the template's id (acme.Launch)
+  --field <id>          template extract: an id in the design that becomes a
+                        field (repeatable)
+  --label <text>        template extract: its label (default: from its id)
+  --force               template extract: replace the -o file if it's there
   --root <root>         describe: only what this root takes (Email, Page,
                         Document or Canvas)
   --timeout <seconds>   How long a process rendering designs may run: past
@@ -180,6 +189,8 @@ export interface Args {
   templateFormat?: string;
   /** check, render: every input must be a template's design (true), or this template's (its id). */
   requireTemplate?: true | string;
+  /** template extract: the template's id, the fields (ids in the design), its label, where it's written. */
+  extract?: { id: string; fields: string[]; label?: string; output: string; force: boolean };
   /** design: new or set, and what each takes. */
   design?: { action: "new" | "set"; output?: string; values?: string; from?: string; draft: boolean; sets: Array<{ path: string; value: string }>; sources: Array<{ path: string; value: string }> };
   /** dev: the port to serve on. */
@@ -195,13 +206,13 @@ export class UsageError extends Error {}
 /** A template's id, as --require-template takes one: dotted names (acme.Newsletter). */
 const TEMPLATE_ID = /^[A-Za-z][\w-]*(\.[A-Za-z][\w-]*)+$/;
 
-const COMMANDS: Command[] = ["render", "check", "outline", "preview", "inspect", "describe", "migrate", "dev", "design"];
+const COMMANDS: Command[] = ["render", "check", "outline", "preview", "inspect", "describe", "migrate", "dev", "design", "template"];
 /** The options each command takes, and whether each takes a value. */
 const OPTIONS: Record<string, { value: boolean; commands: Command[] }> = {
   out: { value: true, commands: ["render", "preview"] },
   base: { value: true, commands: ["render", "preview"] },
   props: { value: true, commands: ["render", "check", "outline", "preview", "inspect"] },
-  json: { value: false, commands: ["render", "check", "outline", "preview", "inspect", "describe", "design"] },
+  json: { value: false, commands: ["render", "check", "outline", "preview", "inspect", "describe", "design", "template"] },
   stdout: { value: false, commands: ["render"] },
   pretty: { value: false, commands: ["render"] },
   html: { value: false, commands: ["render"] },
@@ -211,7 +222,11 @@ const OPTIONS: Record<string, { value: boolean; commands: Command[] }> = {
   refresh: { value: false, commands: ["render", "check"] },
   offline: { value: false, commands: ["render", "check"] },
   "template-format": { value: true, commands: ["render", "check", "outline", "inspect"] },
-  output: { value: true, commands: ["design"] },
+  output: { value: true, commands: ["design", "template"] },
+  id: { value: true, commands: ["template"] },
+  field: { value: true, commands: ["template"] },
+  label: { value: true, commands: ["template"] },
+  force: { value: false, commands: ["template"] },
   values: { value: true, commands: ["design"] },
   draft: { value: false, commands: ["design"] },
   source: { value: true, commands: ["design"] },
@@ -237,7 +252,7 @@ const OPTIONS: Record<string, { value: boolean; commands: Command[] }> = {
 const DEV_OPTIONS = ["props", "clients", "dark", "fonts", "public", "offline", "timeout"];
 for (const name of DEV_OPTIONS) OPTIONS[name].commands.push("dev");
 
-const COMMAND_LIST = "render, check, outline, preview, inspect, describe, design, dev or migrate";
+const COMMAND_LIST = "render, check, outline, preview, inspect, describe, design, template, dev or migrate";
 
 /** `--timeout`: seconds, or a number with `ms` or `s`. */
 function duration(text: string): number {
@@ -257,7 +272,7 @@ export function parseArgs(argv: string[]): Args {
   }
   const values: Record<string, string | true> = {};
   /** The options given more than once on purpose: design's --set and --source. */
-  const lists: Record<string, string[]> = { set: [], source: [] };
+  const lists: Record<string, string[]> = { set: [], source: [], field: [] };
   const positional: string[] = [];
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
@@ -265,8 +280,8 @@ export function parseArgs(argv: string[]): Args {
       positional.push(...rest.slice(i + 1));
       break;
     }
-    // design's -o is its --output.
-    if (command === "design" && arg === "-o") {
+    // design's and template's -o is their --output.
+    if ((command === "design" || command === "template") && arg === "-o") {
       if ("output" in values) throw new UsageError("--output is given twice.");
       const value = rest[++i];
       if (value === undefined) throw new UsageError("-o needs a value: the values file to write.");
@@ -371,6 +386,17 @@ export function parseArgs(argv: string[]): Args {
   }
   if (args.command === "describe") {
     if (positional.length > 1) throw new UsageError("describe takes one component or template, or none for all the components.");
+    return args;
+  }
+  if (args.command === "template") {
+    const [action, ...files] = positional;
+    if (action !== "extract") throw new UsageError("template takes extract: template extract designs/orbit.tsx --id acme.Launch --field headline -o templates/launch.tsx");
+    if (files.length !== 1) throw new UsageError("template extract takes one design: template extract designs/orbit.tsx --id acme.Launch --field headline -o templates/launch.tsx");
+    if (typeof values.id !== "string" || !/^[A-Za-z][\w-]*(\.[A-Za-z][\w-]*)+$/.test(values.id)) throw new UsageError("template extract needs the template's --id, dotted (acme.LaunchGraphic).");
+    if (!lists.field.length) throw new UsageError("template extract needs a --field for each id in the design that becomes a field (--field headline --field artwork).");
+    if (typeof values.output !== "string") throw new UsageError("template extract writes a template module: give it with -o templates/name.tsx");
+    if (!/\.(tsx|jsx)$/.test(values.output)) throw new UsageError(`A template module written from JSX is a .tsx or .jsx file, not ${JSON.stringify(values.output)}`);
+    args.extract = { id: values.id, fields: lists.field, ...(typeof values.label === "string" ? { label: values.label } : {}), output: values.output, force: values.force === true };
     return args;
   }
   if (args.command === "design") {

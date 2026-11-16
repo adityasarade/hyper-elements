@@ -352,6 +352,21 @@ them, and `check` and `render` take them, one input per format (`out/orbit.squar
 whose root is a template. `templateRequest(design)` gives a tool what such a design's root asked for (the template,
 its props, its format) without checking it, as the CLI does before checking it in another process.
 
+## From an existing design
+
+A design a person approved can become a template: give each part that changes an `id`, then extract it with the
+[CLI](/docs/cli#templates):
+
+```bash
+npx hyper-elements template extract designs/orbit.tsx --id acme.LaunchGraphic \
+  --field headline --field features --field launchDate --field artwork -o templates/launch-graphic.tsx
+```
+
+A literal text child becomes a `prop.text` field and an Image's literal `src` a `field.image`, the literal becoming
+`example`; ids `features-0`, `features-1`, … become one `prop.list`. Each node keeps its `id` and gains `field`, and
+the rest of the file (its theme, variants and components) stays as written, so the template renders its example to
+the design's bytes. A computed value is `extract/not-literal`. Then add the rules and formats, and set `version`.
+
 ## Discovering a template
 
 `describe()` returns what whoever fills a template needs before starting, synchronously: its formats, every field (its

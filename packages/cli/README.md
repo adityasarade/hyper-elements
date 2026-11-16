@@ -60,6 +60,7 @@ Welcome.PreviewProps = { name: "Ada" };
 | `describe [Component \| template.tsx]` | Lists every component a design can use (or one), with its props and styles, from `describeComponents()` (or `describeComponent()`); `--root Email` narrows it to what that root takes. No design is loaded: it reads the `@hyper-elements/react` the current folder resolves. Given a template module (a path, or a name ending in `.tsx`, `.ts`, `.jsx`, `.js`), what the template's `describe()` says: its formats, each field with its kind, guidance and image regions, its rules, and `valuesSchema`. See [Templates](#templates). |
 | `design new <template> -o <name.values.json>` | Writes a values file, a design made from a template: `--values brief.json` and `--set field=value` give the values, checked by the template in every format; nothing is written where they fail (exit 1), unless `--draft`. See [Templates](#templates). |
 | `design set <name.values.json> <field=value>…` | Changes some of a values file's values, checked as `design new` checks them: the file is rewritten only if they pass, and only the values named change. |
+| `template extract <design> --id <id> --field <id>… -o <file>` | Writes a template from a design a person approved, by a codemod on its source (no design code runs): each `--field` names an `id` in the design. See [Templates](#templates). |
 | `dev <files or folders…>` | Serves a page on `127.0.0.1` that shows each design, and renders them again when the project changes, until Ctrl-C. See [dev](#dev). |
 | `migrate …` | Runs [`@hyper-elements/migrate`](https://www.npmjs.com/package/@hyper-elements/migrate) with the arguments given, unchanged: the project's, else `npx @hyper-elements/migrate`. Its output and exit codes are migrate's. |
 
@@ -170,6 +171,14 @@ npx hyper-elements design set designs/orbit.values.json launchDate=2026-12-10   
   imports, statically, dynamically or with `require()`, is refused before it runs, naming who imported it. Without the
   list, templates load as any design does, with `"trusted": false` and a `cli/template-untrusted` warning. On Bun,
   whose plugins can't see every load, a project with the list runs its templates on Node (exit 2 on Bun).
+- **From an existing design.** `template extract designs/orbit.tsx --id acme.LaunchGraphic --field headline --field
+  features --field artwork -o templates/launch-graphic.tsx` turns a design into a template. Each `--field` names an
+  `id`: a literal text child becomes a `prop.text` field and an Image's literal `src` a `field.image`, the literal its
+  `example`; siblings with ids `features-0`, `features-1`, … become one `prop.list`. The node keeps its `id` (it's
+  output) and gains `field`. A value that isn't a literal is `extract/not-literal`, with its line and column, and
+  nothing is written (exit 1). Relative imports and `src` paths are rewritten for the template's folder, and the rest
+  of the file stays as written. The template renders its example to the design's bytes; add its rules and formats,
+  set its `version`, and `check` it.
 - **`--require-template [id]`** on `check` and `render` fails every input (exit 1, nothing written) that isn't a
   design a template checked, or one of another template.
 
