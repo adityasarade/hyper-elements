@@ -4,7 +4,7 @@
 import type { Diagnostic, FontNeed, Result, RootName } from "../../playground/protocol";
 import { base64 } from "./dom";
 import type { Editor } from "./editor";
-import type { StarterInfo } from "./gallery";
+import type { StarterInfo } from "./templates";
 import type { View } from "./main";
 import { ROOTS, rootsIn, switchRoot } from "./roots";
 import type { Bundle, Sandbox } from "./sandbox";
@@ -139,7 +139,7 @@ export function installAgentPaths(host: AgentHost) {
   const HELP = `Hyper Elements playground (window.hyperElementsPlayground), running @hyper-elements/react ${host.engine} in this tab.
 
   await hyperElementsPlayground.ready()                    // the engine is loaded and the first render is done
-  hyperElementsPlayground.reference()                      // Promise<string>: the guide to every component, prop and style
+  hyperElementsPlayground.reference()                      // Promise<string>: the guide to every element, prop and style
   await hyperElementsPlayground.render(code, options)      // render without touching the page
       options.root     "Email" | "Page" | "Document" | "Canvas": rewrite the code's root first
       options.include  ["html", "text", "outline", "pdf", "png", "svg"] (default: html, text, outline; files in base64)
@@ -152,7 +152,7 @@ export function installAgentPaths(host: AgentHost) {
   hyperElementsPlayground.setView("pdf")                   // preview | clients | html | text | pdf | png | svg (those the root has)
   hyperElementsPlayground.setDevice("phone")               // desktop | phone
   hyperElementsPlayground.setLayout("preview")             // split | code | preview
-  await hyperElementsPlayground.loadStarter("four-outputs")
+  await hyperElementsPlayground.loadStarter("launch-email")
   hyperElementsPlayground.starters()                       // [{ id, title, description, root }]
   await hyperElementsPlayground.getShareUrl()              // a link that carries the editor's code
   hyperElementsPlayground.encode(code)                     // base64url, for a #code= link
@@ -166,7 +166,7 @@ A diagnostic says what's wrong and what to write instead. Fix what they say, the
   const codeProperty = {
     type: "string",
     description:
-      'A Hyper Elements template (@hyper-elements/react): a module that exports it (export default function Welcome() { return <Email>…</Email>; }), or its JSX alone, e.g. <Email><Text>Hi</Text></Email>. Styles go in style={{ }}; a number is px. Call get_hyper_elements_reference first for the components.',
+      'A Hyper Elements template (@hyper-elements/react): a module that exports it (export default function Welcome() { return <Email>…</Email>; }), or its JSX alone, e.g. <Email><Text>Hi</Text></Email>. Styles go in style={{ }}; a number is px. Call get_hyper_elements_reference first for the elements.',
   };
   const rootProperty = { type: "string", enum: [...ROOTS], description: "Render under this root instead of the code's: Email (email HTML and plain text), Page (a web page), Document (print HTML and a PDF) or Canvas (a PNG or SVG). Rewrites the root's tag." };
 
@@ -215,7 +215,7 @@ A diagnostic says what's wrong and what to write instead. Fix what they say, the
     {
       name: "get_hyper_elements_reference",
       title: "The Hyper Elements guide",
-      description: "The guide to writing a Hyper Elements template: how one is written, the common mistakes, themes, and every component with its props and styles. Read it before writing code.",
+      description: "The guide to writing a Hyper Elements template: how one is written, the common mistakes, themes, and every element with its props and styles. Read it before writing code.",
       inputSchema: { type: "object", properties: {}, additionalProperties: false },
       annotations: { readOnlyHint: true },
       execute: async () => ({ package: "@hyper-elements/react", version: host.engine, guide: await reference() }),

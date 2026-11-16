@@ -32,6 +32,7 @@ describe("renderInEmailClients()", () => {
       { id: "gmail", client: "gmail", computer: "windows", variant: "desktop", dark: false, width: 820, filename: "gmail.html", approximate: false },
       { id: "gmail.mac", client: "gmail", computer: "mac", variant: "desktop", dark: false, width: 820, filename: "gmail.mac.html", approximate: false },
       { id: "apple-mail", client: "apple-mail", variant: "desktop", dark: false, width: 820, filename: "apple-mail.html", approximate: false },
+      { id: "apple-mail.iphone", client: "apple-mail", variant: "phone", dark: false, width: 393, filename: "apple-mail.iphone.html", approximate: false },
     ]);
     expect(DEFAULT_PREVIEW_CLIENTS).toEqual(["outlook", "outlook-com", "gmail", "apple-mail"]);
     expect(skipped).toEqual([]);
@@ -57,16 +58,24 @@ describe("renderInEmailClients()", () => {
   });
 
   it("keeps the order asked for, each client once, light before dark; skips what can't be previewed, saying why", async () => {
-    const { previews, skipped } = await renderInEmailClients(welcome, { emailClients: ["gmail-app", "apple-mail", "yahoo", "outlook", "apple-mail"], dark: true });
+    const { previews, skipped } = await renderInEmailClients(welcome, { emailClients: ["gmail-app", "apple-mail", "yahoo", "samsung-email", "outlook", "apple-mail"], dark: true });
     expect(previews.map((p) => [p.id, p.filename, p.variant, p.width])).toEqual([
       ["gmail-app", "gmail-app.html", "phone", 380],
+      ["gmail-app.iphone", "gmail-app.iphone.html", "phone", 345],
       ["apple-mail", "apple-mail.html", "desktop", 820],
+      ["apple-mail.iphone", "apple-mail.iphone.html", "phone", 393],
       ["apple-mail.dark", "apple-mail.dark.html", "desktop", 820],
+      ["apple-mail.iphone.dark", "apple-mail.iphone.dark.html", "phone", 393],
+      ["yahoo", "yahoo.html", "desktop", 758],
+      ["yahoo.mac", "yahoo.mac.html", "desktop", 758],
+      ["yahoo.dark", "yahoo.dark.html", "desktop", 758],
+      ["yahoo.mac.dark", "yahoo.mac.dark.html", "desktop", 758],
       ["outlook", "outlook.html", "desktop", 820],
     ]);
+    expect(previews.find((p) => p.id === "yahoo.mac.dark")).toMatchObject({ model: "yahoo", computer: "mac", dark: true });
     expect(skipped).toEqual([
       { client: "gmail-app", dark: true, reason: "Gmail app's dark mode isn't measured" },
-      { client: "yahoo", dark: false, reason: "Yahoo Mail has no model to draw with: what's known of it is caniemail's tables" },
+      { client: "samsung-email", dark: false, reason: "Samsung Email has no model to draw with: what's known of it is caniemail's tables" },
       { client: "outlook", dark: true, reason: "Classic Outlook's dark mode isn't measured" },
     ]);
     // Every client with a model is one the plugin knows.
@@ -104,8 +113,10 @@ describe("renderInEmailClients()", () => {
   it("writes each file, with its fonts inline, the models and the runtime, in under 2 MB; about half that for classic Outlook", async () => {
     const { previews } = await renderInEmailClients(welcome, { emailClients: [...PREVIEW_CLIENTS], dark: true, fonts: "inline" });
     for (const preview of previews) expect([preview.id, Buffer.byteLength(preview.html) < 2_000_000]).toEqual([preview.id, true]);
+    // Classic Outlook's: Selawik, Carlito and the Aptos stand-in inline (models 1.9.0; Office's cloud fonts only where
+    // the email names them), and the models' script (about 12 KB larger with Outlook for Mac's model, models 1.12.0).
     const outlook = previews.find((p) => p.id === "outlook")!;
-    expect(Buffer.byteLength(outlook.html)).toBeLessThan(1_100_000);
+    expect(Buffer.byteLength(outlook.html)).toBeLessThan(1_300_000);
     const config = embedded(outlook.html, "email-client-config");
     expect(Object.keys(config.fontSources).some((file: string) => file.startsWith("InterVariable"))).toBe(false);
     expect(config.faces.some((face: string) => face.endsWith('"Inter"'))).toBe(false);
@@ -131,7 +142,7 @@ describe("renderInEmailClients()", () => {
 
   it("previews webmail as read on Windows and on a Mac, or on the computers asked for; the rest once", async () => {
     const both = await renderInEmailClients(welcome, { emailClients: ["outlook", "outlook-com", "gmail", "gmail-app"] });
-    expect(both.previews.map((p) => [p.id, p.computer ?? null])).toEqual([["outlook", null], ["outlook-com", "windows"], ["outlook-com.mac", "mac"], ["gmail", "windows"], ["gmail.mac", "mac"], ["gmail-app", null]]);
+    expect(both.previews.map((p) => [p.id, p.computer ?? null])).toEqual([["outlook", null], ["outlook-com", "windows"], ["outlook-com.mac", "mac"], ["gmail", "windows"], ["gmail.mac", "mac"], ["gmail-app", null], ["gmail-app.iphone", null]]);
     expect(embedded(both.previews[1]!.html, "email-client-config")).toMatchObject({ client: "outlook-com", computer: "windows" });
     const mac = await renderInEmailClients(welcome, { emailClients: ["outlook-com"], computers: ["mac"] });
     expect(mac.previews.map((p) => p.filename)).toEqual(["outlook-com.mac.html"]);
@@ -140,7 +151,7 @@ describe("renderInEmailClients()", () => {
   });
 
   it("refuses widths that aren't a width for a client there's a model of", async () => {
-    await expect(renderInEmailClients(welcome, { widths: { yahoo: 540 } as never })).rejects.toThrow(/"yahoo", which isn't a client there's a model of/);
+    await expect(renderInEmailClients(welcome, { widths: { "samsung-email": 540 } as never })).rejects.toThrow(/"samsung-email", which isn't a client there's a model of/);
     await expect(renderInEmailClients(welcome, { widths: { "outlook-com": 100 } })).rejects.toThrow(/a width is a number of px from 240 to 2560/);
     await expect(renderInEmailClients(welcome, { widths: { "outlook-com": "540" as never } })).rejects.toThrow(/gives outlook-com "540"/);
     await expect(renderInEmailClients(welcome, { widths: [540] as never })).rejects.toThrow(/takes an object of widths by client/);

@@ -12,8 +12,8 @@ playground/
   sandbox/pdf.ts     adds @hyper-elements/react/pdf (react-pdf's browser build)
   sandbox/image.ts   adds @hyper-elements/react/image (Satori, resvg as WebAssembly)
   sandbox/clients.ts adds @hyper-elements/email-clients (the checks' plugin, the previews)
-  sandbox/shims/     what the engines need of Node in a browser, and the React and core the bundles share
-  starters/          the playground's own starters (the rest are the site's examples)
+  sandbox/shims/     what the engines need of Node in a browser, fflate without the Worker it starts, and the React
+                     and core the bundles share
 ```
 
 `scripts/playground-runtime.mjs` bundles each of `sandbox/*.ts` into one script with esbuild, from this repository's
@@ -93,6 +93,11 @@ their sha256, and takes away the network. The page reads those hashes from the s
 `/playground/runtime/preview-scripts.json`, built with the clients bundle from the same sources
 (`scripts/playground-runtime.mjs`, which stops the build if a script isn't the one its package's hash says). Without
 them the page shows no preview rather than a looser policy.
+
+The email testing page also injects its own height reporter, authorized with a fresh nonce in both policies.
+After the client model finishes, it reports the rendered content height so the surrounding panel can scroll the
+entire email. The page accepts only bounded numeric heights from the current preview window with its matching token.
+The reporter never runs template code or gives the frame access to the site's origin.
 
 **Never give that frame its document as `srcdoc` or from a `blob:` URL.** Both would have the site's origin, and with
 those two flags a script in it would have the site. The check script fails on any frame with `allow-same-origin`

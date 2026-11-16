@@ -22,6 +22,10 @@ const HTML = `<!DOCTYPE html>
 `;
 
 const DEFAULT_PREVIEWS = ["apple-mail.html", "gmail.html", "gmail.mac.html", "outlook-com.html", "outlook-com.mac.html", "outlook.html"];
+// With nothing installed, npm installs the published email-clients: Apple Mail's iPhone preview comes with it once it
+// has one (its file left out here, and checked on its own).
+const IPHONE = "apple-mail.iphone.html";
+const noIphone = (files: string[]) => files.filter((file) => !file.endsWith(IPHONE));
 
 /** A project with nothing installed: no node_modules at all. */
 const bare = (files: Record<string, string>) => project(files, { modules: [] });
@@ -107,7 +111,7 @@ describe("check on HTML", () => {
     expect(readdirSync(join(dir, "mail"))).toEqual(["welcome.html"]);
   });
 
-  it("--clients yahoo,gmail checks for those two: Yahoo has no model to preview with, and its checks still run", async () => {
+  it("--clients yahoo,gmail checks for those two, and check writes no previews", async () => {
     const dir = bare({ "mail/welcome.html": HTML });
     const ran = await cli(dir, ["check", "mail/welcome.html", "--json", "--clients", "yahoo,gmail"]);
     expect(ran.code, ran.stderr).toBe(0);
@@ -162,11 +166,13 @@ describe("preview on HTML", () => {
     const dir = bare({ "mail/welcome.html": HTML });
     const ran = await cli(dir, ["preview", "mail/welcome.html", "--json"]);
     expect(ran.code, ran.stderr).toBe(0);
-    expect(readdirSync(join(dir, "out/clients/mail/welcome")).sort()).toEqual(DEFAULT_PREVIEWS);
+    const written = readdirSync(join(dir, "out/clients/mail/welcome")).sort();
+    expect(noIphone(written)).toEqual(DEFAULT_PREVIEWS);
+    expect(written.filter((file) => file === IPHONE).length).toBeLessThanOrEqual(1);
     const [line] = lines(ran);
     expect(line).toMatchObject({ command: "preview", file: "mail/welcome.html", input: "html", root: null, status: "ok" });
-    expect(line.previews.map((p: any) => p.path).sort()).toEqual(DEFAULT_PREVIEWS.map((f) => `out/clients/mail/welcome/${f}`));
-    expect(line.outputs.sort()).toEqual(DEFAULT_PREVIEWS.map((f) => `out/clients/mail/welcome/${f}`));
+    expect(noIphone(line.previews.map((p: any) => p.path)).sort()).toEqual(DEFAULT_PREVIEWS.map((f) => `out/clients/mail/welcome/${f}`));
+    expect(noIphone(line.outputs).sort()).toEqual(DEFAULT_PREVIEWS.map((f) => `out/clients/mail/welcome/${f}`));
     // The email as given, as data inside each file.
     expect(readFileSync(join(dir, "out/clients/mail/welcome/gmail.html"), "utf8")).toContain("data-email-client-ready");
     expect(readFileSync(join(dir, "out/clients/mail/welcome/gmail.html"), "utf8")).toContain("Welcome aboard");
@@ -180,14 +186,14 @@ describe("preview on HTML", () => {
     expect(lines(ran)[0]).toMatchObject({ file: "stdin", input: "html", previews: [{ id: "gmail", path: "out/clients/stdin/gmail.html" }, { id: "gmail.mac", path: "out/clients/stdin/gmail.mac.html" }] });
   });
 
-  it("--clients yahoo,gmail: no Yahoo preview (cli/preview-skipped), its checks still run", async () => {
+  it("--clients gmx,gmail: no GMX preview (cli/preview-skipped), its checks still run", async () => {
     const dir = bare({ "mail/welcome.html": HTML });
-    const ran = await cli(dir, ["preview", "mail/welcome.html", "--json", "--clients", "yahoo,gmail"]);
+    const ran = await cli(dir, ["preview", "mail/welcome.html", "--json", "--clients", "gmx,gmail"]);
     expect(ran.code, ran.stderr).toBe(0);
     const [line] = lines(ran);
     expect(line.previews.map((p: any) => p.id)).toEqual(["gmail", "gmail.mac"]);
-    expect(line.diagnostics.filter((d: any) => d.code === "cli/preview-skipped").map((d: any) => d.clients)).toEqual([["yahoo"]]);
-    expect(line.diagnostics.some((d: any) => d.code === "email/html-css" && d.clients.includes("yahoo"))).toBe(true);
+    expect(line.diagnostics.filter((d: any) => d.code === "cli/preview-skipped").map((d: any) => d.clients)).toEqual([["gmx"]]);
+    expect(line.diagnostics.some((d: any) => d.code === "email/html-css" && d.clients.includes("gmx"))).toBe(true);
   });
 
   it("two HTML files with one name from different folders get a folder each, at their paths", async () => {

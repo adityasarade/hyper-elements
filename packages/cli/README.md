@@ -1,15 +1,29 @@
 # @hyper-elements/cli
 
+Check existing HTML emails and preview Outlook, Gmail and Apple Mail locally, with no React or Hyper Elements
+installation required:
+
+```bash
+npx @hyper-elements/cli check email.html
+npx @hyper-elements/cli preview email.html
+```
+
+The preview command writes `out/clients/email/outlook.html` and the other client previews to open in Chromium or Chrome.
+To collect browser findings automatically, see [Previews](#previews) for `playwright-core` and browser setup.
+
 Render, check and preview [Hyper Elements](https://github.com/hyper-elements/hyper-elements) templates from the shell,
 with no script of your own: an Email's HTML and plain text, a Page's HTML, a Document's PDF, a Canvas's image, the email
 client checks, and an Email as each email client draws it, with stable exit codes and JSON for agents and CI.
+
+For templates, install `@hyper-elements/cli` beside `@hyper-elements/react` in your project (`npm install -D @hyper-elements/cli`),
+then use the `hyper-elements` command:
 
 ```bash
 npx hyper-elements render emails/          # out/emails/welcome.html, out/emails/welcome.txt, … paths kept
 npx hyper-elements render docs/ cards/     # out/docs/invoice.pdf, out/cards/social.png
 npx hyper-elements check emails/ --json    # validate() and the email client checks; exit 1 on errors
 npx hyper-elements outline emails/welcome.tsx
-npx hyper-elements preview emails/welcome.tsx --findings   # out/clients/emails/welcome/outlook.html, … drawn in Chromium
+npx hyper-elements preview emails/welcome.tsx   # out/clients/emails/welcome/outlook.html, …
 npx hyper-elements describe Button --root Email --json
 npx @hyper-elements/cli check email.html   # any HTML email: the email client checks, with nothing installed
 npx hyper-elements dev emails/ docs/       # a page on 127.0.0.1 showing each template, rendered again on each change
@@ -40,8 +54,8 @@ Welcome.PreviewProps = { name: "Ada" };
 | `check <files or folders…>` | Validates each template and writes nothing. Where the project has `@hyper-elements/email-clients`, its email client checks run too (`--clients gmail,outlook` picks the clients); [lint](#lint)'s checks run on an Email and a Page (`--no-lint` leaves them out). `--rendered` also renders, for the checks only the written HTML has (Gmail's size limit). `--max-warnings N` fails the run past N warnings. An HTML email is checked too: see [Any HTML email](#any-html-email). |
 | `outline <file>` | Prints the template laid out: each block with its width. |
 | `preview <files or folders…>` | Writes each Email as the email clients draw it, with the project's `@hyper-elements/email-clients` (`renderInEmailClients()`): one self-contained HTML file per client and variant, in `<out>/clients/<its path>/<name>/` (its path from the current folder, or `--base`), named by the preview (`outlook.html`, `gmail.mac.html`, `apple-mail.dark.html`). `--clients`, `--dark` and `--fonts inline` are `renderInEmailClients()`'s options. `--findings` draws each file in Chromium and reports what it found; `--screenshots` also writes a PNG of each; `--serve` serves them on `127.0.0.1`. See [Previews](#previews); an HTML email is previewed too ([Any HTML email](#any-html-email)). |
-| `inspect <files or folders…>` | Lists what each template holds, as `inspect()` gives it: each component at its path, what it's given, whether its root takes it, and the problems found on it. |
-| `describe [Component]` | Lists every component a template can use (or one), with its props and styles, from `describeComponents()` (or `describeComponent()`); `--root Email` narrows it to what that root takes. No template is loaded: it reads the `@hyper-elements/react` the current folder resolves. |
+| `inspect <files or folders…>` | Lists what each template holds, as `inspect()` gives it: each element at its path, what it's given, whether its root takes it, and the problems found on it. |
+| `describe [Element]` | Lists every element a template can use (or one), with its props and styles, from `describeElements()` (or `describeElement()`); `--root Email` narrows it to what that root takes. No template is loaded: it reads the `@hyper-elements/react` the current folder resolves. |
 | `dev <files or folders…>` | Serves a page on `127.0.0.1` that shows each template, and renders them again when the project changes, until Ctrl-C. See [dev](#dev). |
 | `migrate …` | Runs [`@hyper-elements/migrate`](https://www.npmjs.com/package/@hyper-elements/migrate) with the arguments given, unchanged: the project's, else `npx @hyper-elements/migrate`. Its output and exit codes are migrate's. |
 
@@ -98,8 +112,8 @@ Each preview gets `ready` (`ok`, `incomplete` where a font or image was missing,
 preview whose page says `error` fails its template (`cli/preview-failed`, exit 1); one that's `incomplete` doesn't.
 Where no browser is found, the files are still written and the email client checks reported, each preview's `findings`
 is `null`, the input has `"browser": null, "reason": "no-browser"`, and the run exits 2. Where `playwright-core` isn't
-installed, the same, with `"reason": "no-playwright-core"` and stderr saying how to install it; with npx, add it to the
-run: `npx -p @hyper-elements/cli -p playwright-core hyper-elements preview email.html --findings`.
+installed, the same, with `"reason": "no-playwright-core"` and stderr saying how to install it. Install both packages in
+the project with `npm install -D @hyper-elements/cli playwright-core`, then run `npx hyper-elements preview email.html --findings`.
 
 ```json
 {"version":1,"command":"preview","file":"emails/welcome.tsx","input":"template","root":"Email","status":"ok","outputs":["out/clients/emails/welcome/gmail.html","out/clients/emails/welcome/gmail.mac.html"],"diagnostics":[],"previews":[{"id":"gmail","client":"gmail","path":"out/clients/welcome/gmail.html","ready":"ok","findings":{…}},{"id":"gmail.mac","client":"gmail","path":"out/clients/welcome/gmail.mac.html","ready":"ok","findings":{…}}],"browser":"chromium 148.0.7778.96, playwright"}
@@ -124,8 +138,17 @@ already HTML.
 
 ```bash
 npx @hyper-elements/cli check email.html --json
-cat email.html | npx @hyper-elements/cli preview - --findings
+cat email.html | npx @hyper-elements/cli preview -
 ```
+
+To collect findings, install the CLI and its optional browser dependency together, and have Chrome, Edge or Playwright's Chromium installed:
+
+```bash
+npm install -D @hyper-elements/cli playwright-core
+npx hyper-elements preview email.html --findings
+```
+
+If you need Chromium, download it once with `npx hyper-elements preview --install-browser`.
 
 Both call `@hyper-elements/email-clients`' `renderInEmailClients(html)`. `check` keeps only its diagnostics, for the
 clients `--clients` names or, by default, those the plugin checks a template for (Yahoo and AOL among them, which have
@@ -227,7 +250,7 @@ opening "Email" tag`; on Bun, in Bun's words), with "(and N more errors)" where 
 An HTML email's line has `"input": "html"` and `"root": null` ([Any HTML email](#any-html-email)).
 `inspect --json` writes `{"version":1,"command":"inspect","file","status","inspection"}` per template, `inspection`
 being `inspect()`'s result as it is (`null`, with `diagnostics` and `error`, where the template didn't load), then the
-summary line. `describe --json` writes one line, `describeComponents()`'s or `describeComponent()`'s result as it is,
+summary line. `describe --json` writes one line, `describeElements()`'s or `describeElement()`'s result as it is,
 with its own `version`. `outline` is text only.
 
 - **0**: every template rendered, checked or previewed without errors.
@@ -239,7 +262,7 @@ with its own `version`. `outline` is text only.
   folders given, or no input, folder or file, that turned out to be one: each is still listed, as skipped), Elements
   missing or outside the supported range, outputs that would collide, a template that called `process.exit`, template
   code that threw outside a render, or a Document's PDF on Bun; `preview` without email-clients, or `--findings` with
-  no browser found; `describe` for a component or root there isn't. A run with at least one template skips the inputs
+  no browser found; `describe` for an element or root there isn't. A run with at least one template skips the inputs
   that aren't templates and exits as its templates do.
 
 ## How it runs templates

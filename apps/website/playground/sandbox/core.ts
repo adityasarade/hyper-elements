@@ -6,7 +6,8 @@
 // as data (text shown as text, HTML only inside another sandboxed frame).
 import * as Elements from "@hyper-elements/react";
 import { lint } from "@hyper-elements/lint";
-import { describeComponents, inspect } from "@hyper-elements/react/inspect";
+import { lintHtml } from "@hyper-elements/lint/html";
+import { describeElements, inspect } from "@hyper-elements/react/inspect";
 import { shownAnywhere } from "@hyper-elements/core";
 import * as React from "react";
 import * as jsxRuntime from "react/jsx-runtime";
@@ -24,9 +25,13 @@ type Extras = {
   };
   clients?: {
     emailClients: (options?: object) => Promise<Elements.ElementsPlugin>;
-    renderInEmailClients: (element: React.ReactElement, options?: object) => Promise<{ previews: Array<Record<string, unknown>>; skipped: Array<Record<string, unknown>>; diagnostics: Elements.Diagnostic[] }>;
+    renderInEmailClients: (element: React.ReactElement | string, options?: object) => Promise<{ previews: Array<Record<string, unknown>>; skipped: Array<Record<string, unknown>>; diagnostics: Array<Elements.Diagnostic & { line?: number | null }> }>;
     /** Each client's name, as @hyper-elements/email-clients says it. */
     names: Record<string, string>;
+    /** The clients there's a model to preview with. */
+    previewClients: string[];
+    /** renderInEmailClients(html)'s own input check: throws unless the HTML is a whole email. */
+    checkWholeEmail: (html: unknown) => void;
   };
 };
 
@@ -106,8 +111,9 @@ for (const [name, value] of Object.entries(Elements)) {
   }
   elementsModule[name] = stand;
 }
-// A template's own component (component()) notes its line too.
-elementsModule.component = (spec: { type?: string }) => locate(String(spec?.type ?? "component"), Elements.component(spec as never) as object);
+// A template's own element (defineElement(), or component(), its name before) notes its line too.
+elementsModule.defineElement = (spec: { type?: string }) => locate(String(spec?.type ?? "element"), Elements.defineElement(spec as never) as object);
+elementsModule.component = elementsModule.defineElement;
 
 type Source = { lineNumber?: number } | undefined;
 const withLine = (type: unknown, props: Record<string, unknown>, source: Source) =>
@@ -444,10 +450,40 @@ const isElementsError = (error: unknown): error is Elements.ElementsError => err
 async function handle(request: Request): Promise<Result> {
   const started = performance.now();
   const result: Result = { ok: false, kind: request.kind, root: null, diagnostics: [], nodes: [], logs: [], ms: 0 };
+  if (request.kind === "html-previews") {
+    try {
+      result.diagnostics = lintHtml(request.html).diagnostics.map((d) => ({ ...d, path: "html" }));
+      if (!sandbox.extras.clients) throw new Error(missing("clients", "The email client previews"));
+      try {
+        sandbox.extras.clients.checkWholeEmail(request.html);
+      } catch (invalid) {
+        // HTML that isn't a whole email is the input's problem, shown on its first line.
+        result.error = { kind: "template", message: describe(invalid) };
+        result.diagnostics.unshift({ code: "email/html-input", severity: "error", message: invalid instanceof Error ? invalid.message : describe(invalid), path: "html", line: 1 });
+        result.ms = Math.round(performance.now() - started);
+        return result;
+      }
+      const output = await sandbox.extras.clients.renderInEmailClients(request.html, { emailClients: request.clients, dark: request.dark, fonts: "url" });
+      result.previews = output.previews.map((p) => ({
+        id: String(p.id), client: String(p.client),
+        ...(p.computer === "windows" || p.computer === "mac" ? { computer: p.computer } : {}),
+        dark: Boolean(p.dark), width: Number(p.width), approximate: Boolean(p.approximate), html: String(p.html),
+      }));
+      result.skipped = output.skipped.map((s) => ({ client: String(s.client ?? ""), reason: String(s.reason ?? "") }));
+      result.diagnostics.push(...output.diagnostics.map((d) => ({ ...d, line: d.line ?? undefined })));
+      result.clientNames = sandbox.extras.clients.names;
+      result.ok = true;
+    } catch (error) {
+      // This request is HTML, so a worker stack position is not a line in the user's document.
+      result.error = { kind: "runtime", message: describe(error) };
+    }
+    result.ms = Math.round(performance.now() - started);
+    return result;
+  }
   if (request.kind === "describe") {
     // What each component takes, from the definitions: no code runs for it.
     const named = (properties: ReadonlyArray<{ path: string; accepts: string }>, group: string) => properties.filter((p) => p.path.startsWith(`${group}.`)).map((p) => ({ name: p.path.slice(group.length + 1), detail: p.accepts }));
-    result.components = describeComponents().components.map((component) => ({
+    result.components = describeElements().elements.map((component) => ({
       name: component.type === "DocumentPage" ? "Document.Page" : component.type,
       summary: component.description,
       props: named(component.properties, "props"),
@@ -466,7 +502,7 @@ async function handle(request: Request): Promise<Result> {
     const rendered = trace;
     result.root = inspection.root as RootName | null;
     result.nodes = sourceNodes(inspection.nodes, rendered);
-    if (inspection.theme) result.theme = { tokens: inspection.theme.tokens.length, styles: inspection.theme.styles, variants: inspection.theme.components.flatMap((c) => c.variants.map((v) => `${c.type}.${v}`)) };
+    if (inspection.theme) result.theme = { tokens: inspection.theme.tokens.length, styles: inspection.theme.styles, variants: inspection.theme.elements.flatMap((c) => c.variants.map((v) => `${c.type}.${v}`)) };
     const isEmail = result.root === "Email";
     if (isEmail && sandbox.extras.clients) result.clientNames = sandbox.extras.clients.names;
     // An Email's client checks, where their bundle is loaded and they're on (`checks`, the "Email clients" switch), and
@@ -507,8 +543,16 @@ async function handle(request: Request): Promise<Result> {
         result.diagnostics = lines(output.diagnostics);
       } else if (request.kind === "previews") {
         if (!sandbox.extras.clients) throw new Error(missing("clients", "The email client previews"));
-        const output = await sandbox.extras.clients.renderInEmailClients(element, { emailClients: request.clients, dark: request.dark, fonts: "url" });
-        result.previews = output.previews.map((p) => ({ id: String(p.id), client: String(p.client), dark: Boolean(p.dark), width: Number(p.width), approximate: Boolean(p.approximate), html: String(p.html) }));
+        const output = await sandbox.extras.clients.renderInEmailClients(element, { emailClients: request.clients ?? sandbox.extras.clients.previewClients, dark: request.dark, fonts: "url" });
+        result.previews = output.previews.map((p) => ({
+          id: String(p.id),
+          client: String(p.client),
+          ...(p.computer === "windows" || p.computer === "mac" ? { computer: p.computer } : {}),
+          dark: Boolean(p.dark),
+          width: Number(p.width),
+          approximate: Boolean(p.approximate),
+          html: String(p.html),
+        }));
         result.skipped = output.skipped.map((s) => ({ client: String(s.client ?? s.id ?? ""), reason: String(s.reason ?? "") }));
         result.diagnostics = lines(output.diagnostics);
       }

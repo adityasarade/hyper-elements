@@ -1,13 +1,14 @@
 /**
  * The fonts a preview draws with: the open stand-ins the captures were scored with (Selawik for Segoe UI, Carlito for
- * Calibri, Android's own fonts for the Gmail apps; SIL OFL 1.1, in fonts/ with their licences, as WOFF2), loaded from a
+ * Calibri, Inter at Aptos's widths for Aptos, Office's cloud fonts, Android's own fonts for the Gmail apps; SIL OFL 1.1,
+ * in fonts/ with their licences, as WOFF2), loaded from a
  * URL or inlined. Which
  * files each client loads, and the faces drawn from them, are the models package's (fontFiles, and its browser
  * script's fontCss).
  */
 import { loadModelsPackage } from "./models";
 import { version } from "../package.json";
-import type { Computer, PreviewClient } from "./clients";
+import type { Computer, ModelClient } from "./clients";
 
 /** Where `fonts: "url"` loads the stand-ins from: this package's own files, by its version. */
 export const FONT_ORIGIN = "https://cdn.jsdelivr.net";
@@ -21,14 +22,19 @@ export type ReadFont = (file: string) => Promise<string>;
 
 /**
  * Reads the package's own font files (fonts/, beside dist/). Where a bundler has moved this package's code away from
- * its files (bundled into an app's server build), it says so: the files aren't there to read.
+ * its files (bundled into an app's server build), it says so: the files aren't there to read. Where fonts/ is there but
+ * not the file, a models release newer than this package names a file it doesn't ship: that's
+ * `email-clients/font-missing`, and fontSources leaves the file out (the preview draws with the faces it has).
  */
 export async function readPackageFont(file: string): Promise<string> {
-  const { readFile } = await import("node:fs/promises");
+  const { readFile, access } = await import("node:fs/promises");
   const url = new URL(`../fonts/${file}`, import.meta.url);
   try {
     return (await readFile(url)).toString("base64");
   } catch (cause) {
+    if (await access(new URL("../fonts/", import.meta.url)).then(() => true, () => false)) {
+      throw Object.assign(new Error(`fonts/ has no ${file}`), { name: "email-clients/font-missing", cause });
+    }
     const error: Error & { cause?: unknown } = new Error(
       `fonts: "inline" reads @hyper-elements/email-clients' font files from its fonts/ folder, and ${url.href} isn't there to read: ` +
         `the package was bundled away from its files. Leave it out of the bundle (Next.js: serverExternalPackages: ["@hyper-elements/email-clients"]), or use fonts: "url"`
@@ -41,11 +47,17 @@ export async function readPackageFont(file: string): Promise<string> {
 
 /**
  * The stand-ins for a family an email chooses itself, by their files here: loaded, and inlined, only where the email
- * names the family. The others (Segoe UI, Calibri, the client's default) are what the client draws with whatever the
- * email names. None since models 1.7.0: Inter was one, until the models learnt Windows doesn't have it (a stack naming
- * it draws in its next font, as classic Outlook does).
+ * names the family. The others (Segoe UI, Calibri, Aptos, the client's default) are what the client draws with whatever
+ * the email names. Since models 1.9.0, Office's cloud fonts, which classic Outlook draws by name (Inter was one until
+ * models 1.7.0, when they learnt Windows doesn't have it).
  */
-export const NAMED_ONLY: Readonly<Record<string, readonly string[]>> = {};
+export const NAMED_ONLY: Readonly<Record<string, readonly string[]>> = {
+  Lato: ["Lato-Regular.woff2", "Lato-Bold.woff2", "Lato-Italic.woff2", "Lato-BoldItalic.woff2"],
+  Montserrat: ["Montserrat-Variable.woff2", "Montserrat-Italic-Variable.woff2"],
+  "Open Sans": ["OpenSans-Variable.woff2", "OpenSans-Italic-Variable.woff2"],
+  Poppins: ["Poppins-Regular.woff2", "Poppins-SemiBold.woff2", "Poppins-Bold.woff2", "Poppins-Italic.woff2", "Poppins-BoldItalic.woff2"],
+  "Nunito Sans": ["NunitoSans-Variable.woff2", "NunitoSans-Italic-Variable.woff2"],
+};
 
 const ENTITIES: Record<string, string> = { quot: '"', apos: "'", "#39": "'", "#x27": "'", amp: "&" };
 
@@ -68,9 +80,32 @@ export function unnamed(html: string, known: Readonly<Record<string, readonly st
   return { files: new Set(families.flatMap((family) => known[family]!)), families };
 }
 
-/** The source each of a client's files is given: its URL, or a data: URL. `skip`: files the email doesn't need. */
-export async function fontSources(client: PreviewClient, how: "url" | "inline", read: ReadFont = readPackageFont, skip: ReadonlySet<string> = new Set(), computer?: Computer): Promise<Record<string, string>> {
-  const files = (await loadModelsPackage()).fontFiles(client, computer).filter((file) => !skip.has(file));
-  const sources = await Promise.all(files.map(async (file) => [file, how === "url" ? fontUrl(file) : `data:font/woff2;base64,${await read(file)}`] as const));
-  return Object.fromEntries(sources);
+/**
+ * Files a client draws its own text with, though a NAMED_ONLY family shares them: AOL Mail's web font, its italic drawn
+ * with Open Sans Italic at its widths (models 1.11.0), whether or not the email names Open Sans. (Its upright is the
+ * AOLWidths faces since models 1.12.3, Roboto where they're missing.)
+ */
+export const CLIENT_FILES: Partial<Record<ModelClient, readonly string[]>> = { aol: ["Roboto-Variable.woff2", "OpenSans-Italic-Variable.woff2"] };
+
+/**
+ * The source each of a client's files is given: its URL, or a data: URL. `skip`: files the email doesn't need. A file
+ * the models name that this package doesn't ship (`email-clients/font-missing`) is left out, so a newer models release
+ * changes a preview's faces at most, never fails it.
+ */
+export async function fontSources(client: ModelClient, how: "url" | "inline", read: ReadFont = readPackageFont, skip: ReadonlySet<string> = new Set(), computer?: Computer): Promise<Record<string, string>> {
+  const own = CLIENT_FILES[client] ?? [];
+  const files = (await loadModelsPackage()).fontFiles(client, computer).filter((file) => own.includes(file) || !skip.has(file));
+  const sources = await Promise.all(
+    files.map((file) =>
+      how === "url"
+        ? [file, fontUrl(file)]
+        : read(file).then(
+            (b) => [file, `data:font/woff2;base64,${b}`],
+            (e: Error) => {
+              if (e.name !== "email-clients/font-missing") throw e;
+            }
+          )
+    )
+  );
+  return Object.fromEntries(sources.filter((s) => s !== undefined) as string[][]);
 }

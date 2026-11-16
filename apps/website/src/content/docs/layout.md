@@ -3,7 +3,7 @@ title: "Layout"
 description: "Arrange blocks with Section, Row, Column, Grid and Layer, and on a Page with Box and CSS's flex and grid. Space with gap and padding, size with widths and flex shares, and stack on phones."
 ---
 
-Five components arrange blocks: `Section`, `Row`, `Column`, `Grid` and `Layer`. None is required, since a root stacks its children. Reach for them when you want bands, columns, cards or words over an image.
+Five elements arrange blocks: `Section`, `Row`, `Column`, `Grid` and `Layer`. None is required, since a root stacks its children. Reach for them when you want bands, columns, cards or words over an image.
 
 ```tsx
 import { Column, Email, Text, Row } from "@hyper-elements/react";

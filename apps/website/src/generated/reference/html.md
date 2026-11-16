@@ -2,10 +2,10 @@
 "title": "Html"
 "group": "Blocks"
 "order": 22
-"summary": "Markup written as it is, for what no component says (the builder's HTML block): in an email and on a page as given, nothing in it checked or escaped. A Document's PDF and a Canvas's image draw its plain text."
+"summary": "Markup written as it is, for what no element says (the builder's HTML block): in an email and on a page as given, nothing in it checked or escaped. A Document's PDF and a Canvas's image draw its plain text."
 ---
 
-Markup written as it is, for what no component says (the builder's HTML block): in an email and on a page as given, nothing in it checked or escaped. A Document's PDF and a Canvas's image draw its plain text.
+Markup written as it is, for what no element says (the builder's HTML block): in an email and on a page as given, nothing in it checked or escaped. A Document's PDF and a Canvas's image draw its plain text.
 
 Holds: nothing.
 

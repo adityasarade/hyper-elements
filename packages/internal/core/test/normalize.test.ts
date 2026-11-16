@@ -126,7 +126,7 @@ describe("checkDocument", () => {
       '"zzz" isn\'t a style a Heading takes. See Heading in @hyper-elements/react/GUIDE.md',
       // A page style in an Email: what an Email does instead.
       'A Column\'s "backgroundImage" is for a Page, not an Email: put a Layer around it, its first child an Image (the Layer\'s height crops it to cover), the rest over it',
-      "A Row takes layout components, block components; a ListItem can't go in it. See Row in @hyper-elements/react/GUIDE.md",
+      "A Row takes layout elements, block elements; a ListItem can't go in it. See Row in @hyper-elements/react/GUIDE.md",
     ]);
   });
 

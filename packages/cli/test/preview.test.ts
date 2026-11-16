@@ -9,7 +9,8 @@ import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 import { CLI_ROOT, cli, email, exists, lines, noBrowserEnv, project, WINDOWS, WITH_CLIENTS } from "./helpers";
 
-const DEFAULT_FILES = ["apple-mail.html", "gmail.html", "gmail.mac.html", "outlook-com.html", "outlook-com.mac.html", "outlook.html"];
+// Apple Mail on a Mac and an iPhone (email-clients on models 1.9.0), Outlook.com and Gmail on Windows and a Mac.
+const DEFAULT_FILES = ["apple-mail.html", "apple-mail.iphone.html", "gmail.html", "gmail.mac.html", "outlook-com.html", "outlook-com.mac.html", "outlook.html"];
 
 describe("preview", () => {
   it("writes one file per preview, named by its filename, in the template's own folder", async () => {
@@ -38,25 +39,25 @@ describe("preview", () => {
     const dir = project({ "emails/a.tsx": email() }, { modules: WITH_CLIENTS });
     const ran = await cli(dir, ["preview", "emails/a.tsx", "--dark", "--fonts", "inline", "--clients", "apple-mail,outlook"]);
     expect(ran.code, ran.stderr).toBe(0);
-    expect(readdirSync(join(dir, "out/clients/emails/a")).sort()).toEqual(["apple-mail.dark.html", "apple-mail.html", "outlook.html"]);
+    expect(readdirSync(join(dir, "out/clients/emails/a")).sort()).toEqual(["apple-mail.dark.html", "apple-mail.html", "apple-mail.iphone.dark.html", "apple-mail.iphone.html", "outlook.html"]);
     expect(readFileSync(join(dir, "out/clients/emails/a/outlook.html"), "utf8")).not.toContain("cdn.jsdelivr.net");
     expect(ran.stdout).toContain("apple-mail.dark: out/clients/emails/a/apple-mail.dark.html");
   });
 
-  it("--clients gmail,yahoo --dark: the previews without a model are cli/preview-skipped notes", async () => {
+  it("--clients gmail,samsung-email --dark: the previews without a model are cli/preview-skipped notes", async () => {
     const dir = project({ "emails/a.tsx": email() }, { modules: WITH_CLIENTS });
-    const ran = await cli(dir, ["preview", "emails", "--json", "--clients", "gmail,yahoo", "--dark"]);
+    const ran = await cli(dir, ["preview", "emails", "--json", "--clients", "gmail,samsung-email", "--dark"]);
     expect(ran.code, ran.stderr).toBe(0);
     const [line] = lines(ran);
     const skipped = line.diagnostics.filter((d: any) => d.code === "cli/preview-skipped");
     expect(skipped.map((d: any) => [d.severity, d.clients])).toEqual([
       ["info", ["gmail"]],
-      ["info", ["yahoo"]],
+      ["info", ["samsung-email"]],
     ]);
     expect(skipped[0].message).toMatch(/dark/);
     expect(skipped[1].message).toMatch(/no model/);
     expect(line.previews.map((p: any) => p.id)).toEqual(["gmail", "gmail.mac"]);
-    const text = await cli(dir, ["preview", "emails", "--clients", "gmail,yahoo", "--dark"]);
+    const text = await cli(dir, ["preview", "emails", "--clients", "gmail,samsung-email", "--dark"]);
     expect(text.stdout).toContain("info cli/preview-skipped");
   });
 
