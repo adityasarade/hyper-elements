@@ -23,7 +23,7 @@ export interface Diagnostic {
   excerpt?: string;
 }
 
-export type Command = "render" | "check" | "outline" | "preview" | "inspect" | "describe" | "migrate" | "dev" | "design";
+export type Command = "render" | "check" | "outline" | "preview" | "inspect" | "describe" | "migrate" | "dev" | "design" | "template";
 /** A capture child's command, beside the others: it loads slot modules and template designs, and replies with captures only. */
 export type ChildCommand = Command | "capture";
 export type Root = "Email" | "Page" | "Document" | "Canvas";

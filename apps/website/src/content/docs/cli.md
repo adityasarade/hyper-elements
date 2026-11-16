@@ -64,6 +64,7 @@ Give the commands files or folders. A folder is searched for designs, leaving ou
 | `describe [Component \| template.tsx]` | Lists the components a design can use, with their props and styles; `--root Email` narrows it to what that root takes. Given a template module, what the template takes: its formats, fields, image regions and rules |
 | `design new <template> -o <name.values.json>` | Writes a design made from a template, as a values file, once the template has checked its values |
 | `design set <name.values.json> <field=value>…` | Changes some of a values file's values, checked by the template; the file is left as it was if they fail |
+| `template extract <design> --id <id> --field <id>… -o <file>` | Writes a template from an approved design: each `--field` names an `id` in it, whose literal text or image becomes a field |
 | `dev <files or folders…>` | Serves a page on `127.0.0.1` that shows each design, rendered again when the project changes |
 | `migrate …` | Runs [`@hyper-elements/migrate`](/docs/migrate/react-email) with the arguments given |
 
@@ -194,6 +195,8 @@ In `design new` and `design set`, a value is JSON where it parses, else text, an
 A design can also be TSX with the template as its root (`export default () => <Newsletter subject="…" body={<Column>…</Column>} />`): the CLI loads it in a process of its own as far as the template's props, then checks and renders it as it does a values file, one output per format. `design new <template> --from designs/june.tsx -o june.values.json` writes its values file. A slot in a values file can be its module (`design set june.values.json body=@designs/june.body.tsx`), which runs in a process of its own that can reply only with what it rendered.
 
 List the templates your designs may use in `package.json`, `"hyperElements": { "templates": ["templates/**"] }`: a template outside the list is refused (`cli/template-untrusted`), and a template is loaded in a process that refuses anything it imports outside the list and your installed packages. In CI, `--require-template` fails anything a template didn't check.
+
+To make a template from a design a person approved, give the parts that change an `id` and extract it: `npx hyper-elements template extract designs/orbit.tsx --id acme.LaunchGraphic --field headline --field features --field artwork -o templates/launch-graphic.tsx`. Each literal becomes a field and its example (ids `features-0`, `features-1`, … one list), the rest stays as written, and a computed value is reported with its line, with nothing written. The template renders its example to the design's bytes; then add its rules and formats, and set its version.
 
 A template module is an input too: `check` runs it with its example in every format, which is a template's CI. `render` of one exits `2`: render a design made from it.
 

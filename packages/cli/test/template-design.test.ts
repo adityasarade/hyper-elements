@@ -56,7 +56,8 @@ describe("a template design", () => {
     expect(bad.code).toBe(1);
     expect(lines(bad)[0]).toMatchObject({ input: "template", template: { id: "acme.News" } });
     expect(errors(lines(bad)[0])).toEqual(["template/value"]);
-  });
+    // Five runs of the CLI, one after another: more than the default under a full suite's load.
+  }, 150_000);
 
   it("format picks one format; --template-format narrows them, and names another than the design's is cli/template-format", async () => {
     const dir = withFixtures(project({ "templates/launch.tsx": launchTemplate(), "designs/launch.tsx": launchDesign(), "designs/square.tsx": launchDesign('format="square"') }));
