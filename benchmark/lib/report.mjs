@@ -157,7 +157,56 @@ for (const suite of [...new Set(rows.map((r) => r.suite))]) {
       console.table(escapes);
       out[suite] = { ...out[suite], escapes };
     }
-    const authored = kits.filter((kit) => rs.some((r) => r.kit === kit && r.measures));
+    // The launch graphic: each format's outcome (correct, failed with a reason, or a violation that escaped), per kit,
+    // and the hostile launches' by variant.
+    const launched = kits.filter((kit) => rs.some((r) => r.kit === kit && r.measures?.outcomes));
+    if (launched.length) {
+      const outcomes = launched.map((kit) => {
+        const all = rs.filter((r) => r.kit === kit && r.measures?.outcomes).flatMap((r) => Object.values(r.measures.outcomes));
+        return { kit, formats: all.length, correct: all.filter((o) => o === "correct").length, failed: all.filter((o) => o === "failed").length, escaped: all.filter((o) => o === "escaped").length };
+      });
+      console.log("Launch graphics: each format's outcome (failed: not drawn, with the reason; escaped: drawn off the brand):");
+      console.table(outcomes);
+      const hostile = rs.filter((r) => r.measures?.outcomes && /^launch-h-/.test(r.brief));
+      if (hostile.length) {
+        const byVariant = {};
+        for (const r of hostile) {
+          const v = (byVariant[r.brief.slice("launch-h-".length)] ??= {});
+          const o = Object.values(r.measures.outcomes);
+          v[r.kit] = o.includes("escaped") ? "escaped" : o.includes("failed") ? "failed" : "correct";
+        }
+        console.log("Hostile launches, by variant:");
+        console.table(byVariant);
+      }
+      out[suite] = { ...out[suite], launchOutcomes: outcomes };
+    }
+    // Break-even: how many assets before a template's authoring pays for itself against a baseline, from the medians
+    // (authoring's extra cost over the baseline's, divided by the per-asset saving in production), in time and tokens.
+    const tasks = [
+      { task: "newsletter", he: "he", others: ["react-email", "mjml", "html"], production: (r) => /^news-/.test(r.brief) },
+      { task: "launch", he: "launch-he", others: ["launch-satori", "launch-playwright"], production: (r) => /^launch-(?!h-|r-|authoring)/.test(r.brief) },
+    ];
+    const breakEven = [];
+    for (const t of tasks) {
+      const med = (kit, pick, value) => median(rs.filter((r) => r.kit === kit && pick(r) && r.pass).map(value));
+      const cost = { seconds: (r) => r.wallMs / 1000, tokens: total };
+      for (const other of t.others) {
+        const row = { task: t.task, against: other };
+        for (const [unit, value] of Object.entries(cost)) {
+          const authoring = med(`${t.he}-author`, () => true, value) - med(`${other}-author`, () => true, value);
+          const saving = med(other, t.production, value) - med(t.he, t.production, value);
+          row[`${unit}PerAsset`] = Number.isFinite(saving) ? +saving.toFixed(1) : null;
+          row[`breakEven${unit === "seconds" ? "Time" : "Tokens"}`] = Number.isFinite(authoring) && Number.isFinite(saving) ? (saving > 0 ? Math.max(0, Math.ceil(authoring / saving)) : "never") : null;
+        }
+        if (Object.values(row).some((v) => v !== null && v !== t.task && v !== other)) breakEven.push(row);
+      }
+    }
+    if (breakEven.length) {
+      console.log("Break-even (assets, from passing runs' medians: the template's extra authoring cost over the per-asset saving):");
+      console.table(breakEven);
+      out[suite] = { ...out[suite], breakEven };
+    }
+    const authored = kits.filter((kit) => rs.some((r) => r.kit === kit && r.measures && !r.measures.outcomes));
     if (authored.length) {
       const authoring = authored.map((kit) => {
         const k = rs.filter((r) => r.kit === kit && r.measures).map((r) => r.measures);

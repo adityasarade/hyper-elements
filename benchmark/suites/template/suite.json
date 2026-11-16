@@ -26,6 +26,29 @@
     ],
     "authoring": [
       "authoring"
+    ],
+    "launch": [
+      "launch-launch",
+      "launch-summit",
+      "launch-pricing",
+      "launch-inbox",
+      "launch-hiring"
+    ],
+    "launch-hostile": [
+      "launch-h-long",
+      "launch-h-lines",
+      "launch-h-german",
+      "launch-h-wide",
+      "launch-h-nobold",
+      "launch-h-arabic",
+      "launch-h-offbrand"
+    ],
+    "launch-revision": [
+      "launch-r-date",
+      "launch-r-feature"
+    ],
+    "launch-authoring": [
+      "launch-authoring"
     ]
   }
 }

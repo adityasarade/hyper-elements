@@ -1,6 +1,7 @@
 // The template suite's own test, before any agent runs (no API):
 //
-//   node suites/template/selftest.mjs [--only refs,negative,authoring] [--kits he,react-email,mjml,html] [--write-references]
+//   node suites/template/selftest.mjs [--only refs,negative,authoring,launch-refs,launch-negative,launch-hostile,launch-revision,launch-authoring]
+//     [--kits he,react-email,mjml,html] [--launch-kits launch-he,launch-satori,launch-playwright] [--write-references]
 //
 // 1. refs: each kit's reference issue of each brief (suites/template/reference) renders, passes the email checker and
 //    keeps every guardrail; its header and footer are the kit's own (tools/brand-reference.json, which
@@ -11,6 +12,17 @@
 // 3. authoring: each kit's newsletter as Orbit's maintainers wrote it, given the authoring check: the reference issue
 //    passes; the template refuses every hostile body (none escapes), and in every other kit each hostile body is
 //    taken and breaks the guardrail it names, so the check can see each escape.
+//
+// The launch graphic (the launch groups):
+// 4. launch-refs: each kit's reference launch of each brief draws both formats and passes the launch check.
+// 5. launch-negative: references broken on purpose (the logo moved, the screenshot cropped, another font, a feature
+//    cut short, no artwork, the headline's color) each fail the check named.
+// 6. launch-hostile: each kit's reference template given each hostile launch. The template's results are an
+//    actionable failure or a correct render, never an escape; and no kit's off-brand result passes the check.
+// 7. launch-revision: each kit's finished launch changed as the revision briefs ask passes the revision check (only
+//    the change redrawn, the artwork unchanged), and a change that redraws more fails it.
+// 8. launch-authoring: each kit's maintainers' template, as an authoring agent would leave it, passes the authoring
+//    check.
 import { spawn } from "node:child_process";
 import { cp, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -24,8 +36,9 @@ const arg = (name, def) => {
   const i = process.argv.indexOf(`--${name}`);
   return i > -1 ? process.argv[i + 1] : def;
 };
-const only = arg("only", "refs,negative,authoring").split(",");
+const only = arg("only", "refs,negative,authoring,launch-refs,launch-negative,launch-hostile,launch-revision,launch-authoring").split(",");
 const kits = arg("kits", "he,react-email,mjml,html").split(",");
+const launchKits = arg("launch-kits", "launch-he,launch-satori,launch-playwright").split(",");
 const writeReferences = process.argv.includes("--write-references");
 const briefs = await briefsOf("template", "email");
 const root = join(bench, "runs", "selftest-template");
@@ -172,6 +185,107 @@ if (only.includes("authoring")) {
     const unseen = bodies.filter((b) => !b.escaped || !b.broke.includes(b.expected));
     if (unseen.length) fail(`${kit}: hostile bodies the check didn't see break their guardrail: ${unseen.map((b) => `${b.name} (broke ${b.broke?.join(", ") || "nothing"}, expected ${b.expected})`).join("; ")}`);
     else console.log(`  ✓ ${kit}: ${escaped} of ${hostile} escaped, each breaking its guardrail (${bodies.map((b) => b.expected).join(", ")})`);
+  }
+}
+
+// ─── The launch graphic ─────────────────────────────────────────────────────
+
+/** A launch kit's reference (or `values`) in a fresh run, edited, drawn in both formats and checked. */
+async function launchAttempt(name, kit, brief, { values, design = kit.replace(/-(revise|author)$/, ""), edit = (_path, text) => text } = {}) {
+  const dir = await makeRun("template", kit, brief, name, root);
+  for (const [path, text] of Object.entries((await referenceOf(design))(values ?? (await briefOf("template", brief)).values))) {
+    await mkdir(dirname(join(dir, path)), { recursive: true });
+    await writeFile(join(dir, path), text);
+  }
+  // An edit of the kit's own files, in this run (a broken template).
+  for (const path of ["templates/launch.tsx", "templates/launch.ts"]) if (existsSync(join(dir, path))) await writeFile(join(dir, path), edit(path, await readFile(join(dir, path), "utf8")));
+  const render = await sh("node", ["tools/render-launch.mjs"], dir);
+  const check = lastJson((await sh("node", ["tools/check.mjs", "--json"], dir)).out);
+  return { dir, render, check };
+}
+const failing = (check) => (check?.results ?? []).filter((r) => !r.ok);
+const briefsIn = (group) => briefsOf("template", group);
+
+if (only.includes("launch-refs")) {
+  console.log("Launch references: each draws both formats and passes the launch check.");
+  for (const brief of await briefsIn("launch")) {
+    for (const kit of launchKits) {
+      const { render, check } = await launchAttempt("ref", kit, brief);
+      if (!check?.pass) fail(`${kit} ${brief}: ${check ? failing(check).map((r) => `${r.name} — ${r.detail}`).join(" | ").slice(0, 600) : (render.err || render.out).slice(0, 400)}`);
+      else console.log(`  ✓ ${kit} ${brief} (${check.total} checks)`);
+    }
+  }
+}
+
+if (only.includes("launch-negative")) {
+  console.log("Broken launch references: each fails the check named.");
+  const brief = "launch-launch";
+  const at = (file, from, to) => (path, text) => (path === file ? sub(from, to)(text) : text);
+  const NEGATIVE = [
+    ["launch-satori", "square: inside its regions", "the logo moved", at("templates/launch.tsx", "logo: { left: 72, top: 72,", "logo: { left: 880, top: 72,")],
+    ["launch-satori", 'square: image "screenshot"', "the screenshot cropped to fill its box", at("templates/launch.tsx", "const s = Math.min(inner.width / v.screenshot.width, inner.height / v.screenshot.height);", "const s = Math.max(inner.width / v.screenshot.width, inner.height / v.screenshot.height);")],
+    ["launch-playwright", "square: only Inter", "the headline in another font", at("templates/launch.ts", "#headline { ${box(f.headline)} color: #f7f7fb;", "#headline { ${box(f.headline)} font-family: Georgia, serif; color: #f7f7fb;")],
+    ["launch-satori", 'square: copy "features-0"', "a feature cut short", at("templates/launch.tsx", "lineHeight: 1.3 }}>{feature}</div>", "lineHeight: 1.3 }}>{feature.slice(0, 10)}</div>")],
+    ["launch-satori", "square: artwork fills its region", "no artwork", (path, text) => (path === "templates/launch.tsx" ? text.replace(/\n\s*<img src=\{await dataUri\(v\.artwork\.src\)\}[^\n]*/, "") : text)],
+    ["launch-he", 'square: font "headline"', "the headline in another color", at("templates/launch.tsx", 'style={{ color: "#f7f7fb", fontWeight: 700, lineHeight: 1.1 }}', 'style={{ color: "#ffd166", fontWeight: 700, lineHeight: 1.1 }}')],
+  ];
+  for (const [kit, named, what, edit] of NEGATIVE) {
+    if (!launchKits.includes(kit)) continue;
+    const { check } = await launchAttempt(`neg-${named.replace(/\W+/g, "-")}`, kit, brief, { edit });
+    const names = failing(check).map((r) => r.name);
+    if (!names.includes(named)) fail(`${kit}, ${what}: expected "${named}" to fail; failed: ${names.join(", ") || "nothing"}`);
+    else console.log(`  ✓ ${kit}, ${what}: ${named}`);
+  }
+}
+
+if (only.includes("launch-hostile")) {
+  console.log("Hostile launches: the template fails each loudly or draws it right; no off-brand result passes.");
+  const table = [];
+  for (const brief of await briefsIn("launch-hostile")) {
+    const { hostile } = await briefOf("template", brief);
+    const row = { hostile };
+    for (const kit of launchKits) {
+      const { check } = await launchAttempt("hostile", kit, brief);
+      const outcomes = Object.values(check?.measures?.outcomes ?? {});
+      const outcome = outcomes.includes("escaped") ? "escaped" : outcomes.includes("failed") ? "failed" : outcomes.length ? "correct" : "no result";
+      row[kit] = outcome;
+      // An off-brand launch can't be drawn right: the check must not pass one.
+      if (["long", "lines", "wide", "arabic", "nobold"].includes(hostile) && outcome === "correct") fail(`${kit} ${hostile}: the check passed an off-brand launch`);
+      if (kit === "launch-he" && outcome === "escaped") fail(`launch-he ${hostile}: a violation escaped the template: ${failing(check).map((r) => r.name).join(", ")}`);
+      if (kit === "launch-he" && ["german", "offbrand"].includes(hostile) && outcome !== "correct") fail(`launch-he ${hostile}: expected a correct render: ${failing(check).map((r) => `${r.name} — ${r.detail}`).join(" | ").slice(0, 400)}`);
+    }
+    table.push(row);
+  }
+  console.table(table);
+}
+
+if (only.includes("launch-revision")) {
+  console.log("Revisions: the change, and only the change, redrawn.");
+  for (const brief of await briefsIn("launch-revision")) {
+    for (const kit of launchKits.map((k) => `${k}-revise`)) {
+      const { check } = await launchAttempt("revise", kit, brief);
+      if (!check?.pass) fail(`${kit} ${brief}: ${failing(check).map((r) => `${r.name} — ${r.detail}`).join(" | ").slice(0, 500)}`);
+      else console.log(`  ✓ ${kit} ${brief}`);
+    }
+  }
+  if (launchKits.includes("launch-he")) {
+    const values = { ...(await briefOf("template", "launch-r-date")).values, headline: "Meet Orbit 3.0: release notes, written for you" };
+    const { check } = await launchAttempt("revise-more", "launch-he-revise", "launch-r-date", { values });
+    const names = failing(check).map((r) => r.name);
+    if (!names.includes("square: only the change is redrawn")) fail(`launch-he-revise, a change that redraws the headline too: expected "square: only the change is redrawn" to fail; failed: ${names.join(", ") || "nothing"}`);
+    else console.log("  ✓ launch-he-revise, a change that redraws the headline too: only the change is redrawn");
+  }
+}
+
+if (only.includes("launch-authoring")) {
+  console.log("Launch authoring: each kit's maintainers' template, as an authoring agent would leave it, passes.");
+  for (const kit of launchKits) {
+    const dir = await makeRun("template", `${kit}-author`, "launch-authoring", "maintainers", root);
+    await cp(join(suiteDir, "kits", kit, "templates"), join(dir, "templates"), { recursive: true });
+    const ran = await sh("node", ["tools/check.mjs", "--json"], dir);
+    const result = lastJson(ran.out);
+    if (!result?.pass) fail(`${kit}: ${result ? failing(result).map((r) => `${r.name} — ${r.detail}`).join(" | ").slice(0, 500) : (ran.err || ran.out).slice(0, 300)}`);
+    else console.log(`  ✓ ${kit}-author (${result.total} checks)`);
   }
 }
 
