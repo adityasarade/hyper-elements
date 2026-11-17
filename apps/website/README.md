@@ -50,12 +50,15 @@ by `scripts/compare-previews.mjs`. Its one email in two themes is `examples/bran
 `examples/showcase/brand-north.tsx` and `brand-bloom.tsx`. Redraw them after `generate` when one of those examples changes:
 `pnpm --filter @hyper-elements/website generate:compare`.
 
-The templates guide's full example (`/docs/guides/templates`, and `packages/react/docs/templates.md`) is run for real:
-`scripts/templates-guide.mjs` runs the guide's commands with the built CLI on `examples/templates-guide/` in a
-temporary project, and writes the images the guide shows (`public/generated/templates-guide/*.png`) and each command's
-output (`src/generated/templates-guide.json`), which the guide quotes. It fails if either copy of the guide doesn't hold
-the example's template as it is. Run it again after a change to the example, the template entry or the CLI's output:
-`pnpm --filter @hyper-elements/website generate:templates-guide`.
+The templates docs' examples (`/docs/guides/templates` and its reference pages, and `packages/react/docs/templates.md`)
+are run for real: `scripts/templates-guide.mjs` runs the docs' commands with the built CLI on
+`examples/templates-guide/` (a launch graphic and a newsletter) in a temporary project. It writes the images the docs
+show (`public/generated/templates-guide/`: the graphic in its formats, its parts diagram from the boxes
+`layoutImage()` measured, and the newsletter as Chromium draws it) and each command's output
+(`src/generated/templates-guide.json`). It fails if a doc's copy of an example file, an excerpt of one (a block that
+starts `// from <file>`), or the output the guide quotes isn't what the example is or what the command printed. Run it
+again after a change to the examples, the template entry or the CLI's output, with the packages built and
+Playwright's Chromium installed: `pnpm --filter @hyper-elements/website generate:templates-guide`.
 
 Images the examples use live in `public/img/` and are referenced as `https://hyperelements.dev/img/…`, so a copied example works anywhere. Previews load them from the site itself.
 

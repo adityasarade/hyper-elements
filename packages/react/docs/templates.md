@@ -45,7 +45,6 @@ number given for text are type errors.
 ## Writing a template
 
 ```tsx
-// templates/launch-graphic.tsx
 import { Canvas, Column, Heading, Image, Layer, List, ListItem, Row, Text, prop } from "@hyper-elements/react";
 import { field, fitInside, formatDate, template } from "@hyper-elements/react/template";
 

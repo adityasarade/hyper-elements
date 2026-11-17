@@ -180,6 +180,12 @@ const tag = (diagnostics: readonly Diagnostic[], format: string | undefined): Di
 /** What validate() says of fit is the HTML preview's: not said where the CLI measures the Canvas (check, render), or draws nothing (design). */
 const measuredHere = (run: TemplateRun, diagnostics: Diagnostic[]): Diagnostic[] =>
   run.tpl.root === "Canvas" && (run.command === "check" || run.command === "render" || run.command === "design") ? diagnostics.filter((d) => !(d.code === "web/degraded" && /\.props\.fit$/.test(d.path))) : diagnostics;
+/**
+ * The template's own check validates its design with its own plugins, so it says where the email client checks come
+ * from (`email/more-checks`); where the CLI's run then made those checks, that note is no longer true.
+ */
+const withoutStaleNote = (fromTemplate: readonly Diagnostic[], fromRun: readonly Diagnostic[]): Diagnostic[] =>
+  fromRun.some((d) => d.code === "email/more-checks") ? [...fromTemplate] : fromTemplate.filter((d) => d.code !== "email/more-checks");
 const unique = (diagnostics: Diagnostic[]): Diagnostic[] => {
   const seen = new Set<string>();
   return diagnostics.filter((d) => {
@@ -273,7 +279,8 @@ export async function runValues(run: TemplateRun, input: { file: string; values:
   if (!checked.valid) return { status: "error", template, layout, diagnostics: [...notes, ...read.diagnostics, ...checked.diagnostics] };
   // Its images' files are beside the values file; where the CLI draws it, they were written relative to the module.
   const { filesRead, decided, ...result } = await runFormat(run, checked, format, readsImages(tpl.root) ? dirname(input.file) : dirname(input.values.file));
-  const diagnostics = settled(measuredHere(run, unique([...notes, ...read.diagnostics, ...checked.diagnostics, ...result.diagnostics])), filesRead, decided);
+  const said = run.command === "check" || run.command === "render" ? withoutStaleNote(checked.diagnostics, result.diagnostics) : checked.diagnostics;
+  const diagnostics = settled(measuredHere(run, unique([...notes, ...read.diagnostics, ...said, ...result.diagnostics])), filesRead, decided);
   return { ...result, status: hasErrors(diagnostics) ? "error" : result.status, template, layout: { ...layout, ...result.layout, review }, diagnostics };
 }
 
@@ -309,7 +316,8 @@ export async function runTemplateModule(run: TemplateRun): Promise<Fields> {
       continue;
     }
     const { filesRead, decided, ...result } = await runFormat(run, checked, format, dirname(run.context.file));
-    diagnostics.push(...tag(settled(measuredHere(run, [...checked.diagnostics, ...result.diagnostics]), filesRead, decided), format));
+    const said = run.command === "check" ? withoutStaleNote(checked.diagnostics, result.diagnostics) : checked.diagnostics;
+    diagnostics.push(...tag(settled(measuredHere(run, [...said, ...result.diagnostics]), filesRead, decided), format));
     layout.rules.push(...((result.layout?.rules as unknown[] | undefined) ?? checked.rules));
     layout.fits.push(...((result.layout?.fits as Array<Record<string, unknown>> | undefined) ?? []).map((fit) => ({ ...fit, ...(format !== undefined ? { templateFormat: format } : {}) })));
     for (const [field, byFormat] of Object.entries(result.layout?.regions ?? {})) layout.regions[field] = { ...(layout.regions[field] as object | undefined), ...(byFormat as object) };

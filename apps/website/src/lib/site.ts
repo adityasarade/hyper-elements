@@ -61,7 +61,16 @@ export const docsNav: DocGroup[] = [
       { slug: "rendering", label: "Rendering" },
       { slug: "cli", label: "Command line" },
       { slug: "defining-elements", label: "Defining elements" },
+    ],
+  },
+  {
+    title: "Templates",
+    items: [
       { slug: "guides/templates", label: "Templates" },
+      { slug: "guides/templates-fields", label: "Fields, images and formats" },
+      { slug: "guides/templates-slots", label: "Slots, blocks and rules" },
+      { slug: "guides/templates-checks", label: "Checks and diagnostics" },
+      { slug: "guides/templates-cli", label: "In the command line" },
     ],
   },
   {

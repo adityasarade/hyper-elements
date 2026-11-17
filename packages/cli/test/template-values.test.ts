@@ -5,7 +5,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { cli, exists, LAUNCH_VALUES, launchTemplate, lines, makePng, newsTemplate, noteTemplate, ON_BUN, project, slotModule, valuesFile, withFixtures } from "./helpers";
+import { cli, exists, LAUNCH_VALUES, launchTemplate, lines, makePng, newsTemplate, noteTemplate, ON_BUN, project, slotModule, valuesFile, WITH_CLIENTS, withFixtures } from "./helpers";
 
 /** An Email template with an image field and a title. */
 const promoTemplate = () => `import { Email, Image, Text, prop } from "@hyper-elements/react";
@@ -318,5 +318,15 @@ describe("a measured rule its template requires, in a Canvas the CLI measures", 
     expect([fits.status, said(fits, "template/rule-not-run"), fits.rules.map((r: { rule: string; status: string }) => `${r.rule} ${r.status}`)]).toEqual(["ok", [], ["image/fit passed", "image/overflow passed"]]);
     expect([long.status, said(long, "template/rule-not-run"), said(long, "image/fit")]).toEqual(["error", [], ["error required"]]);
     expect(ran.code).toBe(1);
+  });
+});
+
+describe("a template's design, where the CLI makes the email client checks", () => {
+  it("isn't told to install them: the template's own note about where they come from is dropped", async () => {
+    const files = { "templates/note.tsx": noteTemplate(), "designs/a.values.json": valuesFile("../templates/note.tsx", { title: "Hi", body: "Body" }, { id: "acme.Note", formats: null }) };
+    const noted = (ran: Awaited<ReturnType<typeof cli>>) => lines(ran)[0].diagnostics.filter((d: { code: string }) => d.code === "email/more-checks").length;
+    // Without the package, the note stands: nothing made those checks.
+    expect(noted(await cli(project(files), ["check", "designs/a.values.json", "--no-lint", "--json"]))).toBe(1);
+    expect(noted(await cli(project(files, { modules: WITH_CLIENTS }), ["check", "designs/a.values.json", "--no-lint", "--json"]))).toBe(0);
   });
 });

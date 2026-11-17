@@ -267,7 +267,16 @@ const isCurrent = (s: string) => s === slug;
   .prose :global(.output-gallery figure) { margin: 0; min-width: 0; }
   .prose :global(.output-gallery img) { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; }
   .prose :global(.output-gallery figcaption) { margin-top: 6px; font-size: 13px; line-height: 1.4; color: var(--text-3); }
+  .prose :global(.output-gallery.single) { grid-template-columns: minmax(0, 560px); }
   @media (max-width: 560px) { .prose :global(.output-gallery), .prose :global(.output-gallery.even) { grid-template-columns: minmax(0, 1fr); } }
+  /* A diagram: one image at the text's width. */
+  .prose :global(figure.diagram) { margin: 0 0 28px; }
+  .prose :global(figure.diagram img) { display: block; width: 100%; height: auto; border-radius: 12px; }
+  /* A long listing, folded until it's wanted. */
+  .prose :global(details) { margin: 0 0 24px; border: 1px solid var(--line); border-radius: 8px; }
+  .prose :global(details > summary) { padding: 10px 14px; cursor: pointer; font-size: 14px; color: var(--text-2); }
+  .prose :global(details[open] > summary) { border-bottom: 1px solid var(--line); }
+  .prose :global(details > :not(summary)) { margin: 12px 14px; }
   .lightbox { width: min(980px, calc(100vw - 32px)); max-width: none; height: calc(100vh - 48px); max-height: none; margin: auto; padding: 0; border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--bg-1); color: var(--text); box-shadow: var(--shadow); overflow: hidden; }
   .lightbox[open] { display: flex; flex-direction: column; }
   .lightbox::backdrop { background: rgba(0, 0, 0, 0.72); }
