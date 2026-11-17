@@ -194,9 +194,11 @@ function untokened(value: Json | undefined, kind: string): string | undefined {
   if (kind === "border" || kind === "line") {
     if (typeof value === "string") return "a border written as a string (its color a literal): write it as an object, its color a token()";
     if (typeof value !== "object" || value === null || Array.isArray(value)) return "not a token()";
-    const sides = "width" in value || "style" in value || "color" in value ? [value] : Object.values(value);
+    const sides = "width" in value || "style" in value || "color" in value || !Object.keys(value).length ? [value] : Object.values(value);
     for (const side of sides) {
-      if (side === null || typeof side !== "object" || Array.isArray(side)) continue;
+      // A side is read as the whole border is: a string holds a literal color, as "3px solid #ff0000" does for every side.
+      if (typeof side === "string") return "a border side written as a string (its color a literal): write it as an object, its color a token()";
+      if (side === null || typeof side !== "object" || Array.isArray(side)) return "not a token()";
       const color = (side as Record<string, Json>).color;
       if (color === undefined) return "a border side with no color (it's drawn black): give its color as a token()";
       if (!isToken(color)) return "a border whose color isn't a token()";
@@ -237,7 +239,8 @@ export function preflight(context: PreflightContext, capture: FragmentCapture, h
   const counts = new Map<string, number>();
   const allowed = [...slot.builtIns].concat([...slot.customs.keys()]);
   const list = allowed.length > 12 ? `${allowed.slice(0, 12).join(", ")}, …` : allowed.join(", ");
-  const visit = (node: CapturedNode, path: string) => {
+  // `hidden`: the widths at which something that holds the node hides it (a node inside a hidden one isn't shown either).
+  const visit = (node: CapturedNode, path: string, hidden: { mobile: boolean; desktop: boolean }) => {
     const custom = CUSTOM_TYPE.test(node.type);
     if (node.type === "#slot") return;
     // Which components: built-ins by type, a component() by its definition, never its name.
@@ -266,7 +269,8 @@ export function preflight(context: PreflightContext, capture: FragmentCapture, h
       );
       return;
     }
-    const shown = !(node.hidden?.mobile && node.hidden?.desktop);
+    const hiddenAt = { mobile: hidden.mobile || !!node.hidden?.mobile, desktop: hidden.desktop || !!node.hidden?.desktop };
+    const shown = !(hiddenAt.mobile && hiddenAt.desktop);
     if (shown) counts.set(node.type, (counts.get(node.type) ?? 0) + 1);
     // No attributes: id and hidden go through id and hidden, which validation, counting and lint read.
     if (node.props && "attrs" in node.props) out.push(problem("template/slot-attrs", `A slot's content can't set attrs (they can hide it or take another node's id): use id and hidden`, `${path}.props.attrs`));
@@ -275,9 +279,9 @@ export function preflight(context: PreflightContext, capture: FragmentCapture, h
       for (const key of ["tokens", "theme"] as const) if (node[key] !== undefined) out.push(problem("template/slot-tokens", `A slot's content can't set ${key}: they'd change what the theme's tokens mean inside it`, `${path}.${key}`));
       out.push(...styleProblems(node, path, context, custom ? definitions.get(node.type) ?? slot.customs.get(node.type) : undefined));
     }
-    node.children.forEach((child, i) => typeof child !== "string" && visit(child, `${path}.children[${i}]`));
+    node.children.forEach((child, i) => typeof child !== "string" && visit(child, `${path}.children[${i}]`, hiddenAt));
   };
-  host.node.children.forEach((child, i) => typeof child !== "string" && visit(child, `${host.path}.children[${i}]`));
+  host.node.children.forEach((child, i) => typeof child !== "string" && visit(child, `${host.path}.children[${i}]`, { mobile: false, desktop: false }));
   for (const [type, { min, max }] of Object.entries(slot.count)) {
     const n = counts.get(type) ?? 0;
     if ((min !== undefined && n < min) || (max !== undefined && n > max)) {

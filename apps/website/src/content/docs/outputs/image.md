@@ -120,7 +120,7 @@ An image with text needs at least one font. Text whose `fontFamily` has no file 
 
 ## Fitting text, measuring and strict
 
-A Heading or a Text in a Canvas takes `fit={{ sizes, maxLines }}`: `renderImage()` measures it with the fonts given and draws the largest size at which its lines, its widest word and any fixed-height box around it fit, or fails with `image/fit` naming the lines and roughly what to cut. `sizes` is a list of px sizes or `{ min, max, step }`; with only `maxLines` it checks the size the text has. The HTML preview draws the largest size.
+A Heading or a Text in a Canvas takes `fit={{ sizes, maxLines }}`: `renderImage()` measures it with the fonts given and draws the largest size at which its lines, its widest piece that can't break (a word, or words a no-break space holds together; Chinese and Japanese text breaks between its characters) and any fixed-height box around it fit, or fails with `image/fit` naming the lines and roughly what to cut. Several fitted nodes are sized in document order, each tried with the ones after it at their smallest size. `sizes` is a list of px sizes or `{ min, max, step }`; with only `maxLines` it checks the size the text has. The HTML preview draws the largest size.
 
 `layoutImage(design, { fonts, images, scale, strict })` measures without drawing: each block's box, each fitted node's sizes and the one chosen, and the characters no font covers. `strict: true` makes a missing font, weight or character, and content past the Canvas, errors; a template's design is drawn strict.
 

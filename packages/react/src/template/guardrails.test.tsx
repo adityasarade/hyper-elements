@@ -149,6 +149,11 @@ describe("slots", () => {
         [<Column style={{ gap: 8 }} />, "style.gap"],
         [<Divider style={{ borderTop: "1px solid #ff0000" }} />, "style.borderTop"],
         [<Column style={{ border: { width: 1, style: "solid" } } as never} />, "style.border"],
+        // A side written as a string holds a literal color, as the whole border written as one does; so does no side at all.
+        [<Column style={{ border: { bottom: "3px solid #ff0000" } }} />, "style.border"],
+        [<Column style={{ border: { top: { width: 1, style: "solid", color: token("colors.primary") }, left: "1px dashed #00ff00" } } as never} />, "style.border"],
+        [<Column style={{ border: "3px solid #ff0000" }} />, "style.border"],
+        [<Column style={{ mobile: { border: { bottom: "3px solid #ff0000" } } }} />, "style.mobile.border"],
         [<ProductCard sku="A" accent="#ff0000" />, "props.accent"],
       ];
       for (const [node, key] of literals) {
@@ -190,6 +195,14 @@ describe("slots", () => {
     // A Button hidden at both widths isn't counted: one shown, one hidden, passes.
     const hidden = <Column><Button href="https://acme.com">Go</Button><Button href="https://acme.com" hidden={{ mobile: true, desktop: true }}>Hidden</Button><Button href="https://acme.com" hidden={{ mobile: true, desktop: true }}>Hidden</Button></Column>;
     expect(codesOf(body(hidden).diagnostics)).toEqual([]);
+    // Nor is one inside something hidden at both widths, or shown at neither between it and what holds it.
+    const inside = <Column><Text>Text</Text><Column hidden={{ mobile: true, desktop: true }}><Button href="https://acme.com">Go</Button></Column></Column>;
+    expect(codesOf(body(inside).diagnostics)).toEqual(["template/slot-count"]);
+    const between = <Column><Text>Text</Text><Column hidden={{ mobile: true }}><Button href="https://acme.com" hidden={{ desktop: true }}>Go</Button></Column></Column>;
+    expect(codesOf(body(between).diagnostics)).toEqual(["template/slot-count"]);
+    // One shown on phones only, inside something hidden on desktop, is shown.
+    const phones = <Column><Text>Text</Text><Column hidden={{ desktop: true }}><Button href="https://acme.com">Go</Button></Column></Column>;
+    expect(codesOf(body(phones).diagnostics)).toEqual([]);
   });
 
   it("is what its host may hold: a Section in a Section is children/not-allowed, as today", () => {

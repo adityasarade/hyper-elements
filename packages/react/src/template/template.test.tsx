@@ -445,7 +445,8 @@ describe("values files and versions", () => {
     expect(file).toMatchObject({ version: 1, template: { module: "../templates/launch.tsx", id: "acme.LaunchGraphic", version: "1.0.0" }, formats: ["square"] });
     expect(file.values.locale).toBe("en-US");
     const back = readValuesFile(JSON.parse(JSON.stringify(file)), launch);
-    expect(back).toEqual({ values: file.values, formats: ["square"], assets: file.assets, diagnostics: [] });
+    // Its values as the template takes them (here, as they are), and what only the artwork's file says, left undecided.
+    expect(back).toEqual({ values: file.values, migrated: file.values, formats: ["square"], assets: file.assets, diagnostics: [expect.objectContaining({ code: "template/asset-unread", severity: "info", path: "values.artwork" })] });
     expect(() => toValuesFile(launch, { ...launch.example, headline: 3 }, { module: "x" })).toThrow(/template\/value/);
   });
 

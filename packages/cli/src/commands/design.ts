@@ -14,7 +14,6 @@ import { cleanFiles, ownToken, parseToken } from "../loader-module";
 import { formatDiagnostics } from "../output";
 import type { DesignRequest, Diagnostic } from "../protocol";
 import { runCapture, runChild, templateChildOptions, type Io, type RunState } from "../run";
-import { rebase } from "./template";
 import { readTrust, trusted, untrusted } from "../trust";
 import { envelopeProblem, templateModule } from "../values-files";
 
@@ -104,8 +103,9 @@ export async function runDesign(args: Args, io: Io, state: RunState): Promise<nu
     const used = typeof reply.specifier === "string" && imports.includes(reply.specifier) ? resolveImport(from, reply.specifier) : undefined;
     if (!used || realOr(used) !== realOr(module)) return notFrom(`--from ${design.from} is made from ${reply.template?.id ?? "another template"} (${String(reply.specifier)}), not ${args.positional[1]}`);
     if (!reply.values || typeof reply.values !== "object" || Array.isArray(reply.values)) return notFrom(`--from ${design.from}: its capture isn't a template design's`);
-    // Its images are relative to the design; the values file's, to it.
-    request.values = rebase(reply.values, dirname(from), dirname(output));
+    // Its images are relative to the design; the values file's, to it: rewritten in the child, which knows the root.
+    request.values = reply.values as Record<string, unknown>;
+    request.valuesFolder = dirname(from);
     // Where its `assets` export says an image came from, unless --source says otherwise.
     const given = reply.assets as Record<string, { source?: unknown }> | undefined;
     const sources: Record<string, Record<string, unknown>> = {};

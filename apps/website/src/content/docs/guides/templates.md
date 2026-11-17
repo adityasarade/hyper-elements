@@ -128,6 +128,269 @@ export default template({
 - A field can't be named `format`, `key`, `ref` or `children` (`template/field-name`): they're props of the
   template's component.
 
+## A full example: a launch graphic
+
+A template for a product's launch graphic in two formats, start to finish: the template, a design made from it, its
+check, and what's drawn. Everything shown here is what the commands wrote. The project:
+
+```text
+templates/launch-graphic.tsx       the template
+templates/assets/orbit-logo.png    its logo: the template's own
+fonts/Inter-Regular.ttf            the brand's fonts
+fonts/Inter-Bold.ttf
+designs/art/screenshot.png         a launch's pictures
+designs/art/waves.png
+brief.json                         a launch's copy
+package.json                       "hyperElements": { "templates": ["templates/**"] }
+```
+
+### The template
+
+The layout of each format, the colors, the fonts and the logo are the template's. A launch gives six values: a
+headline, exactly three features, a date, a language, a product screenshot and a piece of artwork. The headline has a
+fixed room in each format and is fitted to it: drawn at the largest of its sizes that takes three lines or fewer. The
+screenshot is shown whole over the artwork, which fills its region.
+
+```tsx
+// templates/launch-graphic.tsx
+import { Canvas, Column, Heading, Image, Layer, Row, Text, prop } from "@hyper-elements/react";
+import { field, fitInside, formatDate, template } from "@hyper-elements/react/template";
+
+// The brand's fonts: a file for each weight the design uses.
+const FONTS = [
+  { family: "Inter", src: "../fonts/Inter-Regular.ttf", weight: 400 },
+  { family: "Inter", src: "../fonts/Inter-Bold.ttf", weight: 700 },
+];
+
+// Each format's layout. It's the template's: no value changes it.
+const LAYOUT = {
+  square: { width: 1080, height: 1080, padding: 72, gap: 32, words: 936, headline: { height: 264, sizes: [72, 64, 56, 48] }, text: 30, art: { width: 936, height: 343 } },
+  landscape: { width: 1200, height: 630, padding: 56, gap: 24, words: 548, headline: { height: 186, sizes: [56, 48, 40] }, text: 24, art: { width: 504, height: 518 } },
+} as const;
+
+export default template({
+  id: "acme.LaunchGraphic",
+  version: "1.0.0",
+  label: "Product launch graphic",
+  guidance: "For product launches only. Sentence case, no emoji, no exclamation marks.",
+  root: "Canvas",
+  formats: { square: { width: 1080, height: 1080 }, landscape: { width: 1200, height: 630 } },
+  fields: {
+    headline: prop.text({ label: "Headline", required: true, maxLength: 90 }),
+    features: prop.list(prop.text({ label: "Feature", maxLength: 40 }), { label: "Features", required: true, min: 3, max: 3 }),
+    launchDate: prop.date({ label: "Launch date", required: true }),
+    locale: prop.choice(["en-US", "de-DE"], { label: "Language", default: "en-US" }),
+    screenshot: field.image({ label: "Product screenshot", required: true, fit: "contain", aspect: { min: 1.2, max: 2 }, minWidth: 1000, accepts: ["png"] }),
+    artwork: field.image({ label: "Artwork", required: true, fit: "cover", maxCrop: 0.6, accepts: ["png"], guidance: "Abstract light waves in violet and teal. No text, logos or people." }),
+  },
+  // What only measuring decides has to hold: nothing past the Canvas, a font for every character, a headline that fits.
+  rules: { require: { core: ["image/overflow", "image/glyph", "image/fit"] } },
+  example: {
+    headline: "Meet Orbit 3.0: release notes that write themselves",
+    features: ["Drafts from merged PRs", "Your voice, every release", "Ships to Slack and email"],
+    launchDate: "2026-12-03",
+    screenshot: { src: "../designs/art/screenshot.png", width: 1200, height: 750 },
+    artwork: { src: "../designs/art/waves.png", width: 1080, height: 680 },
+  },
+  render(v, { format }) {
+    const f = LAYOUT[format];
+    const words = (
+      <Column style={{ width: f.words, gap: 16 }}>
+        {/* The headline's room is fixed, and its size is the largest that fits it in three lines. */}
+        <Column style={{ height: f.headline.height }}>
+          <Heading field="headline" level={1} fit={{ sizes: [...f.headline.sizes], maxLines: 3 }} style={{ color: "#f7f7fb", lineHeight: 1.1 }}>
+            {v.headline}
+          </Heading>
+        </Column>
+        <Column style={{ gap: 8 }}>
+          {v.features.map((feature, i) => (
+            <Text key={i} field={`features[${i}]`} style={{ color: "#c7d2fe", fontSize: f.text, lineHeight: 1.3 }}>
+              {feature}
+            </Text>
+          ))}
+        </Column>
+        <Text field="launchDate" style={{ color: "#2dd4bf", fontSize: f.text - 2, fontWeight: 700, lineHeight: 1.25 }}>
+          {formatDate(v.launchDate, v.locale, { dateStyle: "long" })}
+        </Text>
+      </Column>
+    );
+    // The artwork covers its region; the screenshot is shown whole over it.
+    const art = (
+      <Layer style={{ ...f.art, alignItems: "center", justifyItems: "center" }}>
+        <Image field="artwork" src={v.artwork} alt="" />
+        <Image field="screenshot" src={v.screenshot} alt="The product" style={fitInside(v.screenshot, { width: f.art.width - 48, height: f.art.height - 48 })} />
+      </Layer>
+    );
+    const logo = <Image src={{ src: "./assets/orbit-logo.png", width: 252, height: 128 }} alt="Orbit" style={{ width: 126 }} />;
+    return (
+      <Canvas width={f.width} height={f.height} fonts={FONTS} lang={v.locale} style={{ backgroundColor: "#0b1020", fontFamily: "Inter", padding: f.padding }}>
+        {format === "square" ? (
+          <Column style={{ gap: f.gap }}>
+            {logo}
+            {words}
+            {art}
+          </Column>
+        ) : (
+          <Row style={{ gap: 36 }}>
+            <Column style={{ width: f.words, gap: f.gap }}>
+              {logo}
+              {words}
+            </Column>
+            {art}
+          </Row>
+        )}
+      </Canvas>
+    );
+  },
+});
+```
+
+### A design made from it
+
+`brief.json` holds the launch's copy:
+
+```json
+{
+  "headline": "Meet Orbit 3.0: release notes that write themselves",
+  "features": ["Drafts from merged PRs", "Your voice, every release", "Ships to Slack and email"],
+  "launchDate": "2026-12-03"
+}
+```
+
+`design new` makes the design from it, with each picture given as its file:
+
+```bash
+npx hyper-elements design new templates/launch-graphic.tsx -o designs/orbit.values.json --values brief.json --set screenshot=@designs/art/screenshot.png --set artwork=@designs/art/waves.png
+```
+
+It writes `designs/orbit.values.json`: the template it's made from, the formats it's for, its values (each picture's
+size read from its file, a default written out) and each file's hash. The template checked the values before the file
+was written.
+
+```json
+{
+  "version": 1,
+  "template": { "module": "../templates/launch-graphic.tsx", "id": "acme.LaunchGraphic", "version": "1.0.0", "sha256": "9b2e4e91393b…" },
+  "formats": ["square", "landscape"],
+  "values": {
+    "headline": "Meet Orbit 3.0: release notes that write themselves",
+    "features": ["Drafts from merged PRs", "Your voice, every release", "Ships to Slack and email"],
+    "launchDate": "2026-12-03",
+    "locale": "en-US",
+    "screenshot": {"src": "./art/screenshot.png", "width": 1200, "height": 750},
+    "artwork": {"src": "./art/waves.png", "width": 1080, "height": 680}
+  },
+  "assets": {
+    "screenshot": {"sha256": "26796c37ec9b…"},
+    "artwork": {"sha256": "20967b6fadce…"}
+  }
+}
+```
+
+### Checked, then drawn
+
+```bash
+npx hyper-elements check designs/orbit.values.json
+```
+
+```text
+✓ designs/orbit.values.json [square] (Canvas)
+  artwork (square): 936×343, needs 936×343px
+  screenshot (square): 472×295, needs 472×295px
+  fit headline: 72px (fits at 72, 64, 56, 48)
+  review artwork: Abstract light waves in violet and teal. No text, logos or people.
+  review acme.LaunchGraphic: For product launches only. Sentence case, no emoji, no exclamation marks.
+  review screenshot: Of unknown origin: no source is recorded for this image (give one with design set … --source)
+  review artwork: Of unknown origin: no source is recorded for this image (give one with design set … --source)
+✓ designs/orbit.values.json [landscape] (Canvas)
+  artwork (landscape): 504×518, needs 504×518px
+  screenshot (landscape): 456×285, needs 456×285px
+  fit headline: 56px (fits at 56, 48, 40)
+  review artwork: Abstract light waves in violet and teal. No text, logos or people.
+  review acme.LaunchGraphic: For product launches only. Sentence case, no emoji, no exclamation marks.
+  review screenshot: Of unknown origin: no source is recorded for this image (give one with design set … --source)
+  review artwork: Of unknown origin: no source is recorded for this image (give one with design set … --source)
+2 designs: 0 errors, 0 warnings, 0 skipped
+```
+
+Each format is checked on its own: the values, the design the template builds, and what only measuring it with its
+fonts says. `fit headline` is the size the headline is drawn at; each picture's line is its region and the pixels it
+needs at the scale it's rendered at; `review` lists what a person judges, which never fails a run.
+
+```bash
+npx hyper-elements render designs/orbit.values.json
+```
+
+```text
+✓ designs/orbit.values.json [square] (Canvas) → out/designs/orbit.square.png
+✓ designs/orbit.values.json [landscape] (Canvas) → out/designs/orbit.landscape.png
+2 designs: 0 errors, 0 warnings, 0 skipped
+```
+
+<div class="output-gallery">
+<figure><a href="/generated/templates-guide/orbit-square.png" title="Open the square launch graphic at full size"><img src="/generated/templates-guide/orbit-square.png" width="1080" height="1080" loading="lazy" alt="The square launch graphic: Orbit's logo, the headline in three lines, three features, the launch date, and the product screenshot over the artwork"></a><figcaption>square, 1080×1080</figcaption></figure>
+<figure><a href="/generated/templates-guide/orbit-landscape.png" title="Open the landscape launch graphic at full size"><img src="/generated/templates-guide/orbit-landscape.png" width="1200" height="630" loading="lazy" alt="The landscape launch graphic: the same copy on the left, the product screenshot over the artwork on the right"></a><figcaption>landscape, 1200×630</figcaption></figure>
+</div>
+
+### A longer headline
+
+Changing one value keeps the rest, and the template fits the new headline:
+
+```bash
+npx hyper-elements design set designs/orbit.values.json "headline=Meet Orbit 3.0: release notes that write themselves, in your voice"
+```
+
+The square format still takes it at 72px. The landscape format's headline is narrower: there it's drawn at 40px, not
+56px, in the same three lines, and nothing else in the design moves.
+
+<div class="output-gallery even">
+<figure><a href="/generated/templates-guide/orbit-landscape.png" title="Open the landscape launch graphic at full size"><img src="/generated/templates-guide/orbit-landscape.png" width="1200" height="630" loading="lazy" alt="The landscape launch graphic with its first headline, drawn at 56px"></a><figcaption>51 characters, drawn at 56px</figcaption></figure>
+<figure><a href="/generated/templates-guide/long-landscape.png" title="Open the landscape launch graphic with the longer headline at full size"><img src="/generated/templates-guide/long-landscape.png" width="1200" height="630" loading="lazy" alt="The landscape launch graphic with the longer headline, drawn at 40px in three lines, the rest of the design where it was"></a><figcaption>66 characters, drawn at 40px</figcaption></figure>
+</div>
+
+### What it refuses
+
+A banner in place of the screenshot is refused as it's set, and the file stays as it was:
+
+```bash
+npx hyper-elements design set designs/orbit.values.json screenshot=@designs/art/banner.png
+```
+
+```text
+✗ designs/orbit.values.json: not written
+    error template/asset-aspect at values.screenshot: Product screenshot is 1600×400, 4:1; it takes 2:1 or narrower
+```
+
+A headline inside its 90 characters that can't fit the landscape format's three lines, even at its smallest size, is
+refused when the design is measured. `check` exits 1, and `render` writes nothing for a format that fails:
+
+```bash
+npx hyper-elements design set designs/orbit.values.json "headline=Meet Orbit 3.0: release notes that write themselves, in your own voice"
+npx hyper-elements check designs/orbit.values.json
+```
+
+```text
+✓ designs/orbit.values.json [square] (Canvas)
+  artwork (square): 936×343, needs 936×343px
+  screenshot (square): 472×295, needs 472×295px
+  fit headline: 64px (fits at 64, 56, 48)
+  review artwork: Abstract light waves in violet and teal. No text, logos or people.
+  review acme.LaunchGraphic: For product launches only. Sentence case, no emoji, no exclamation marks.
+  review screenshot: Of unknown origin: no source is recorded for this image (give one with design set … --source)
+  review artwork: Of unknown origin: no source is recorded for this image (give one with design set … --source)
+✗ designs/orbit.values.json [landscape] (Canvas)
+    error image/fit at root.children[0].children[0].children[1].children[0].children[0]: This Heading doesn't fit: it takes 4 lines at 40px, its smallest size, and fits 3: cut about 18 characters (required by acme.LaunchGraphic) Fix: Shorten the text, or give the template a smaller size
+  rule image/fit (landscape): failed
+  artwork (landscape): 504×518, needs 504×518px
+  screenshot (landscape): 456×285, needs 456×285px
+  fit headline: no size fits
+  review artwork: Abstract light waves in violet and teal. No text, logos or people.
+  review acme.LaunchGraphic: For product launches only. Sentence case, no emoji, no exclamation marks.
+  review screenshot: Of unknown origin: no source is recorded for this image (give one with design set … --source)
+  review artwork: Of unknown origin: no source is recorded for this image (give one with design set … --source)
+2 designs: 1 error, 0 warnings, 0 skipped
+```
+
 ## Slots
 
 A slot is JSX the filler writes, inside limits the template sets. The template places it in a built-in bound to it,
@@ -281,7 +544,9 @@ It checks, in order:
 1. **The values**, by their fields: a field the template doesn't have (`template/unknown-field`, naming the fields it
    has), a missing required one (`template/required`), a value its kind refuses (`template/value`), a list outside its
    counts (`template/count`), and each image's declared size against its rules (`template/asset-aspect`,
-   `template/asset-pixels`, and `template/asset-type` from the file's extension).
+   `template/asset-pixels`, and `template/asset-type` from the file's extension). What only an image's file says
+   (whether it's transparent, its type where its name doesn't give one) isn't decided here, and never counts as
+   passed: it's a note, `template/asset-unread`, until `checkLayout()` is given the file.
 2. **The design it builds in each format**, as `validate()` checks any design, and what only the template knows: its
    root and its format's size (`template/root`, `template/format`), its bindings (`template/unknown-binding` for a
    `field` that names no field; `template/unbound`, a warning, for an image with rules that nothing shows), and how
@@ -315,7 +580,11 @@ const { image } = await renderImage(checked.snapshots.square!, { fonts, images, 
 - `checkLayout()` is synchronous and pure. It gives each bound image's region (its box, and the pixels it needs at the
   scale it's rendered), each fitted field's sizes, and checks each image's file: its size against the one declared
   (`template/asset-size`), its type and transparency against the rules (`template/asset-type`, `template/asset-alpha`),
-  and whether it would be upscaled in its region (`template/asset-pixels`).
+  and whether it would be upscaled in its region (`template/asset-pixels`). An image's region is the template's own
+  node bound to its field: a slot's content that names the field is never read as one.
+- A file's rules aren't a Canvas's alone. For an Email, a Page or a Document there's no layout to measure, and
+  `checkLayout(template, values, { layout: { nodes: [], fits: [], diagnostics: [] }, files })` checks each file given
+  against its size, type and transparency.
 - Given `check()`'s result, it decides the measured rules a template requires (`image/overflow`, `image/glyph`,
   `image/fit`), by format, and returns the complete `rules`.
 - `renderImage()` of a template's snapshot, or of a template design, draws it `strict` and decides those rules itself:

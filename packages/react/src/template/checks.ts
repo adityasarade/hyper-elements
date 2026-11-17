@@ -9,7 +9,7 @@ import { prepare, readFragment, slotMark, snapshot, validate, type FragmentCaptu
 import React from "react";
 import { fieldAt, imagePaths, type ImageRules } from "./fields";
 import { decideRules, pluginsOf, type RuleResult, type TemplateRules } from "./rules";
-import { isStoredSlot, preflight, type BrandMap, type ResolvedSlot } from "./slots";
+import { isSlot, isStoredSlot, preflight, type BrandMap, type ResolvedSlot } from "./slots";
 
 export const TEMPLATE_RECORD = Symbol.for("hyper-elements.template");
 
@@ -166,10 +166,11 @@ export function coverCrop(file: { width: number; height: number }, box: [number,
 
 const percent = (share: number) => `${Math.round(share * 100)}%`;
 
-function bindingProblems(definition: Definition, values: Record<string, unknown>, root: ResolvedNode, slots: ReadonlySet<string>): Diagnostic[] {
-  const out: Diagnostic[] = [];
-  const bound = new Map<string, Array<{ node: ResolvedNode; parent?: ResolvedNode }>>();
-  // What's under a slot's host is the slot's content: its fields are its own (template/slot-field), never read.
+/**
+ * Every node the template itself wrote, with the one that holds it. What's under a slot's host is the slot's content:
+ * its fields are its own (template/slot-field), never a binding the template reads.
+ */
+function walkOwn(root: ResolvedNode, slots: ReadonlySet<string>, visit: (node: ResolvedNode, parent: ResolvedNode | undefined) => void): void {
   const inSlot = new Set<ResolvedNode>();
   walk(root, (node, parent) => {
     if (inSlot.has(node)) {
@@ -177,6 +178,14 @@ function bindingProblems(definition: Definition, values: Record<string, unknown>
       return;
     }
     if (node.field && slots.has(node.field)) for (const child of node.children) if (typeof child !== "string") inSlot.add(child);
+    visit(node, parent);
+  });
+}
+
+function bindingProblems(definition: Definition, values: Record<string, unknown>, root: ResolvedNode, slots: ReadonlySet<string>): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  const bound = new Map<string, Array<{ node: ResolvedNode; parent?: ResolvedNode }>>();
+  walkOwn(root, slots, (node, parent) => {
     if (!node.field) return;
     if (!fieldAt(definition.fields, values, node.field)) {
       out.push(error("template/unknown-binding", `field="${node.field}" names no field of ${definition.id} with a value here`, `${node.path}.field`, { field: node.field }));
@@ -219,7 +228,7 @@ function imageProblems(path: string, rules: ImageRules, file: { width: number; h
 /** Each bound image's box and pixels, for describe()'s regions: from the layout of `values` in one format. */
 export function regionsOf(definition: Definition, values: Record<string, unknown>, root: ResolvedNode, scale: number): Map<string, { box: [number, number]; pixels: [number, number] } | "measured by check"> {
   const out = new Map<string, { box: [number, number]; pixels: [number, number] } | "measured by check">();
-  walk(root, (node, parent) => {
+  walkOwn(root, new Set(Object.keys(definition.fields).filter((name) => isSlot(definition.fields[name]))), (node, parent) => {
     if (!node.field || node.type !== "Image" || out.has(node.field)) return;
     const found = fieldAt(definition.fields, values, node.field);
     const file = (found?.value ?? {}) as { width?: number; height?: number };

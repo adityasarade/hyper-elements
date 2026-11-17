@@ -4,7 +4,7 @@
  * path, the text no given font covers, and what runs past the Canvas. What `layoutImage()` returns and what
  * `renderImage()` draws by.
  */
-import { fontStack, lineHeightPx, satoriLayout, satoriMissing, satoriWords, writeCanvas, type DrawnCanvas, type Font, type LaidOutBox, type Style } from "@hyper-elements/core/image";
+import { fontStack, lineHeightPx, satoriLayout, satoriMissing, satoriWidest, satoriWords, writeCanvas, type DrawnCanvas, type Font, type LaidOutBox, type Style } from "@hyper-elements/core/image";
 import type { Diagnostic, ResolvedNode } from "@hyper-elements/react";
 
 export interface LaidOutNode {
@@ -76,18 +76,22 @@ const childNodes = (node: ResolvedNode) => node.children.filter((child): child i
 const INLINE = new Set(["Span", "Link", "LineBreak", "MergeTag"]);
 const TEXT_BLOCKS = new Set(["Heading", "Text", "ListItem", "Button", "Link", "TableCell", "Html", "Video"]);
 
-/** A node's words, as drawn: its text and its runs' (an inline Image has none). */
-function wordsOf(node: ResolvedNode): string[] {
-  const out: string[] = [];
+/** A node's text as it wraps: its own and its runs', with a line break where a LineBreak is (an inline Image has none). */
+function wrappingText(node: ResolvedNode): string {
+  const parts: string[] = [];
   const visit = (n: ResolvedNode) => {
     for (const child of n.children) {
-      if (typeof child === "string") out.push(...child.split(/\s+/).filter(Boolean));
+      if (typeof child === "string") parts.push(child);
+      else if (child.type === "LineBreak") parts.push("\n");
       else if (shown(child) && child.type !== "Image") visit(child);
     }
   };
   visit(node);
-  return out;
+  return parts.join("");
 }
+
+/** A text's pieces between the spaces a line breaks at: what a message names (a no-break space holds its words together). */
+const piecesOf = (text: string): string[] => [...new Set(text.split(/[ \t\n\r\u1680\u2000-\u2006\u2008-\u200a\u2028\u2029\u205f\u3000]+/).filter(Boolean))];
 
 const textOf = (node: ResolvedNode): string => {
   const parts: string[] = [];
@@ -181,6 +185,13 @@ export async function measure(context: Context, options: { strict: boolean; scal
   walk(root, (node, ancestors) => {
     if ((node.type === "Heading" || node.type === "Text") && node.props.fit) fitted.push({ node, ancestors });
   });
+  // Each fitted node's smallest size: a node is tried with those after it at theirs, so one that can still shrink is
+  // never why an earlier one doesn't fit (sizes are chosen in document order, the first taking the room it can).
+  const smallest = new Map<string, number>();
+  for (const { node } of fitted) {
+    const given = (node.props.fit as { sizes?: number[] }).sizes;
+    if (given?.length) smallest.set(node.path, Math.min(...given));
+  }
   for (const { node, ancestors } of fitted) {
     const fit = node.props.fit as { sizes?: number[]; maxLines?: number };
     const inline = inlineProblem(node);
@@ -189,12 +200,13 @@ export async function measure(context: Context, options: { strict: boolean; scal
       continue;
     }
     const list = fit.sizes?.length ? fit.sizes : [node.text.fontSize];
-    const words = [...new Set(wordsOf(node))];
+    const text = wrappingText(node);
     const contentWidth = node.contentWidth ?? (node.width ?? 0) - frame(node).left - frame(node).right;
     const fixed = ancestors.filter((a) => typeof a.style.height === "number");
     const results: Array<{ size: number; fits: boolean; lines: number; widestWord?: string }> = [];
     for (const size of list) {
-      const trying = new Map(sizes).set(node.path, size);
+      // The fitted nodes after this one at their smallest: what they need at least, which this one's size leaves them.
+      const trying = new Map([...smallest, ...sizes]).set(node.path, size);
       const { boxes } = await satoriLayout(canvasFor(context, trying), { natural: true });
       const box = boxes.get(node.path);
       if (!box) {
@@ -202,9 +214,17 @@ export async function measure(context: Context, options: { strict: boolean; scal
         continue;
       }
       const lines = linesIn(node, box, size);
-      const widths = await satoriWords(words.map((word) => ({ text: word, style: wordStyle(context, node, size) })), context.fonts);
-      const widest = widths.reduce((best, width, i) => (width > best.width ? { width, word: words[i] } : best), { width: 0, word: "" });
-      const wordFits = widest.width <= contentWidth + 0.5;
+      // Its widest piece that can't break, as Satori breaks lines: a node's box doesn't grow with one, so it's measured.
+      const style = wordStyle(context, node, size);
+      const [widestPiece] = await satoriWidest([{ text, style }], context.fonts);
+      const wordFits = widestPiece <= contentWidth + 0.5;
+      // Named for the message: the widest of its pieces between spaces.
+      let widest = { width: 0, word: "" };
+      if (!wordFits) {
+        const pieces = piecesOf(text);
+        const widths = await satoriWords(pieces.map((piece) => ({ text: piece, style })), context.fonts);
+        widest = widths.reduce((best, width, i) => (width > best.width ? { width, word: pieces[i] } : best), widest);
+      }
       const linesFit = fit.maxLines === undefined || lines <= fit.maxLines;
       // Its fixed-height ancestors' content stays inside them.
       const insideFixed = fixed.every((ancestor) => {
@@ -229,16 +249,15 @@ export async function measure(context: Context, options: { strict: boolean; scal
       ...(above ? { next: { size: above.size, lines: above.lines, ...(above.widestWord ? { widestWord: above.widestWord } : {}) } } : {}),
     });
     if (chosen === null) {
-      const smallest = results[results.length - 1];
-      const text = textOf(node);
-      const cut = fit.maxLines && smallest.lines > fit.maxLines ? Math.ceil(text.length * (1 - fit.maxLines / smallest.lines)) : 0;
-      const why = smallest.widestWord
-        ? `"${smallest.widestWord}" is wider than its ${Math.round(contentWidth)}px even at ${smallest.size}px`
-        : fit.maxLines && smallest.lines > fit.maxLines
-          ? `it takes ${smallest.lines} lines at ${smallest.size}px, its smallest size, and fits ${fit.maxLines}: cut about ${cut} characters`
-          : `it doesn't fit inside a box of fixed height at ${smallest.size}px, its smallest size`;
+      const last = results[results.length - 1];
+      const cut = fit.maxLines && last.lines > fit.maxLines ? Math.ceil(textOf(node).length * (1 - fit.maxLines / last.lines)) : 0;
+      const why = last.widestWord
+        ? `"${last.widestWord}" is wider than its ${Math.round(contentWidth)}px even at ${last.size}px`
+        : fit.maxLines && last.lines > fit.maxLines
+          ? `it takes ${last.lines} lines at ${last.size}px, its smallest size, and fits ${fit.maxLines}: cut about ${cut} characters`
+          : `it doesn't fit inside a box of fixed height at ${last.size}px, its smallest size`;
       diagnostics.push({ code: "image/fit", severity: "error", message: `This ${node.type} doesn't fit: ${why}`, ...where(node), fix: "Shorten the text, or give the template a smaller size" });
-      sizes.set(node.path, smallest.size);
+      sizes.set(node.path, last.size);
     } else sizes.set(node.path, chosen);
   }
   // The whole laid out once at the chosen sizes: boxes, missing glyphs, overflow.

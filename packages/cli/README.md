@@ -139,9 +139,13 @@ npx hyper-elements design set designs/orbit.values.json launchDate=2026-12-10   
   scale it's rendered at (the format's, or `--scale`): fitted text, and each image against its region and its file
   (`template/asset-pixels`, `template/asset-cropped`, `template/asset-type`). `check --json` adds `fits`, `regions`
   (each image's box and the pixels it needs), `rules` and `review` (what a reviewer looks at by eye; never an error).
-  `render` checks the same, and writes nothing for an input that fails.
-- **Paths.** The module is relative to the values file (or a package specifier, kept as given), and so are its
-  images. A module changed under the same version is `template/changed`; a newer minor version is read again, a
+  `render` checks the same, and writes nothing for an input that fails. For an Email, a Page and a Document, an image
+  that's a file beside the design is read too, and checked against its rules for its type, its transparency and the
+  size it's given as (`template/asset-type`, `template/asset-alpha`, `template/asset-size`); one that isn't read (a
+  URL) leaves those undecided, said as `template/asset-unread`.
+- **Paths.** The module is relative to the values file (or a package specifier, kept as given), and so are the image
+  files of a Canvas or a Document, which the CLI reads to draw it. An Email's or a Page's image `src` is written as
+  it's given: a URL, a service's tag (`{{logo_url}}`), `cid:`. A module changed under the same version is `template/changed`; a newer minor version is read again, a
   newer major through the template's migrations, and an older one is `template/version`.
 - **A template module** is an input too: `check`, `inspect` and `outline` run it with its `example` in each format, its
   diagnostics each with its `templateFormat`. `render` of one is `cli/render-template` (exit 2): render a values file.
@@ -149,7 +153,10 @@ npx hyper-elements design set designs/orbit.values.json launchDate=2026-12-10   
   read from it and whose hash goes in `assets`, and `--source field=source.json` records where it came from. An
   image's entry follows its file: moved to another field, it keeps its hash and source; changed under the same name,
   it has no source until one is given (`template/asset-changed`), and `check`'s `review` lists an image with no
-  source. A value the template refuses exits 1 and leaves the file's bytes as they were. `--draft` writes the file
+  source. A value the template refuses exits 1 and leaves the file's bytes as they were. `design set` reads the file
+  as its template takes it now (its migrations run, for a draft too) and checks it after the sets, so a set can repair
+  a file whose values the template refuses; a file of another template, or of a newer version, is left as it is.
+  `--draft` writes the file
   anyway, with `"draft": true` and what's `missing`; `render` refuses a draft (`cli/draft`), and a `design set` that
   completes it removes both. With `--json`, one line: the file, its template, the paths that `changed`, the
   diagnostics.
@@ -157,7 +164,8 @@ npx hyper-elements design set designs/orbit.values.json launchDate=2026-12-10   
 - **TSX template designs.** A design whose root is a template is found in the child that loads it, set aside, and
   loaded again in a process of its own (a capture child) as far as its template's props; it's then checked like a
   values file, one input per format (`june.square.png`), in a template child that loads the template and not the
-  design. Its slots' JSX is captured there and checked by the template. A design whose template can't be found among
+  design. Its slots' JSX is captured there and checked by the template. It's rendered with the props any design is:
+  `--props file.json`, then its `PreviewProps`. A design whose template can't be found among
   its own imports, or whose props aren't data (a function), is `cli/template-design`. `design new <template> --from
   designs/june.tsx -o june.values.json` writes its values file.
 - **Slots stored as modules.** A values file's slot can be `{ "module": "./june.body.tsx" }`, relative to it
@@ -169,7 +177,9 @@ npx hyper-elements design set designs/orbit.values.json launchDate=2026-12-10   
   module, a values file's or a design's template outside it is `cli/template-untrusted` (exit 1). A template child
   then loads only what the list holds, installed packages and its own loader modules: anything else a template
   imports, statically, dynamically or with `require()`, is refused before it runs, naming who imported it. Without the
-  list, templates load as any design does, with `"trusted": false` and a `cli/template-untrusted` warning. On Bun,
+  list, templates load as any design does, with `"trusted": false` and a `cli/template-untrusted` warning. A design
+  kept in a listed folder still runs as a design. A `package.json` that can't be read as JSON stops the run (exit 2):
+  it can't say there's no list. On Bun,
   whose plugins can't see every load, a project with the list runs its templates on Node (exit 2 on Bun).
 - **From an existing design.** `template extract designs/orbit.tsx --id acme.LaunchGraphic --field headline --field
   features --field artwork -o templates/launch-graphic.tsx` turns a design into a template. Each `--field` names an

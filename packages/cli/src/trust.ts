@@ -86,11 +86,13 @@ const isPackageSpecifier = (entry: string) => !entry.startsWith(".") && !entry.s
 export function readTrust(cwd: string): Trust {
   const manifest = nearestManifest(cwd);
   if (!manifest) return {};
+  // Read as Node reads it (a byte-order mark first is fine). One that can't be read can't say there's no list: the
+  // run stops, where taking it for "no list" would load templates unguarded.
   let parsed: unknown;
   try {
-    parsed = JSON.parse(readFileSync(manifest, "utf8"));
-  } catch {
-    return {};
+    parsed = JSON.parse(readFileSync(manifest, "utf8").replace(/^\uFEFF/, ""));
+  } catch (error) {
+    throw new UsageError(`${relative(cwd, manifest) || "package.json"} isn't JSON (${(error as Error).message.split("\n")[0]}): its trusted templates (hyperElements.templates) can't be read.`);
   }
   const value = (parsed as { hyperElements?: { templates?: unknown } } | null)?.hyperElements?.templates;
   if (value === undefined) return {};

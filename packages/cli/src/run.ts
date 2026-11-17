@@ -302,7 +302,7 @@ export function templateChildOptions(trust: Trust, modules: string[]): Partial<S
 const SETS_ASIDE = new Set<string>(["render", "check", "inspect", "outline"]);
 
 /** A TSX template design's capture, read: one input per format, each its template module's, or why not. */
-async function expandDesign(input: Input, args: Args, token: string, io: Io, nextId: () => number): Promise<{ inputs: Input[] } | { error: Diagnostic }> {
+async function expandDesign(input: Input, args: Args, props: Record<string, unknown> | undefined, token: string, io: Io, nextId: () => number): Promise<{ inputs: Input[] } | { error: Diagnostic }> {
   const fail = (message: string, code = "template-design", fix?: string) => ({ error: cliDiagnostic(code, "error", message, fix) });
   let imports: string[];
   try {
@@ -310,7 +310,7 @@ async function expandDesign(input: Input, args: Args, token: string, io: Io, nex
   } catch (error) {
     return fail(`${input.display} couldn't be read: ${errorLine(error)}`);
   }
-  const replies = await runCapture([{ id: 0, file: input.file, capture: { kind: "design", imports } }], input.file, args, token, io);
+  const replies = await runCapture([{ id: 0, file: input.file, capture: { kind: "design", imports } }], input.file, args, token, io, props);
   const reply = replies.get(0);
   if (reply?.type !== "captured-design") return fail(`${input.display}: ${reply?.type === "capture-failed" ? reply.error : "its capture gave no template"}`, "template-design", "a template design is export default () => <Template … />, its template imported from its module");
   // Its shape, as nothing it sends is believed beyond it.
@@ -381,7 +381,7 @@ export interface CaptureRequest {
  * large, an exit or a timeout before every reply) fails the requests it hasn't answered. Once each has its reply, the
  * child is ended with everything it started.
  */
-export function runCapture(requests: CaptureRequest[], resolveFrom: string, args: Args, token: string, io: Io): Promise<Map<number, CaptureMessage>> {
+export function runCapture(requests: CaptureRequest[], resolveFrom: string, args: Args, token: string, io: Io, props?: Record<string, unknown>): Promise<Map<number, CaptureMessage>> {
   const index = children++;
   const message: StartMessage = {
     type: "start",
@@ -393,7 +393,8 @@ export function runCapture(requests: CaptureRequest[], resolveFrom: string, args
     sequence: index * 100_000,
     tsconfig: tsconfigPath(index),
     deadline: args.timeout + 5_000,
-    options: {},
+    // A design is captured with the props it's rendered with (--props); a slot's content takes none.
+    options: props ? { props } : {},
     resolveFrom,
   };
   const replies = new Map<number, CaptureMessage>();
@@ -737,10 +738,20 @@ export async function run(args: Args, io: Io, state: RunState = { folders: new S
     }
   };
 
-  // Ordinary inputs first, in ordinary children. Values files' inputs are their templates', for template children; so,
-  // where the project lists its trusted templates, is a listed file given itself: it's never loaded unguarded.
-  const direct = (input: Input) => !!input.values || (!!trust.list && trusted(input.file, trust.list));
-  await runGroups(runnable.filter((input) => !direct(input)), false);
+  // Where the project lists its trusted templates, a listed file given itself is loaded guarded first, in a template
+  // child: a template module is checked there. One that isn't a template (a design kept beside its template, a
+  // template's part) has nothing for a template child to check, and then runs as any input does, below.
+  const listed = (input: Input) => !input.values && !!trust.list && trusted(input.file, trust.list);
+  const listedInputs = runnable.filter(listed);
+  await runGroups(listedInputs, true);
+  const notTemplatesListed = listedInputs.filter((input) => notTemplates.has(input.id));
+  for (const input of notTemplatesListed) {
+    notTemplates.delete(input.id);
+    fromTemplateChild.delete(input.id);
+    outcomes.delete(input.id);
+  }
+  // Ordinary inputs, in ordinary children. Values files' inputs are their templates', for template children.
+  await runGroups([...runnable.filter((input) => !input.values && !listed(input)), ...notTemplatesListed], false);
 
   // TSX template designs: each captured in a capture child, then expanded into one input per format (Decision 31).
   const expansions = new Map<number, Input[]>();
@@ -749,7 +760,7 @@ export async function run(args: Args, io: Io, state: RunState = { folders: new S
       if (asUsage) usage.add(input.id);
       outcomes.set(input.id, { file: input.display, root: null, status: "error", outputs: [], diagnostics: [diagnostic], input: "template" });
     };
-    const expanded = await expandDesign(input, args, token, io, () => nextId++);
+    const expanded = await expandDesign(input, args, props, token, io, () => nextId++);
     if ("error" in expanded) {
       fail(expanded.error);
       continue;
@@ -779,7 +790,7 @@ export async function run(args: Args, io: Io, state: RunState = { folders: new S
 
   // Template children: values files' inputs, template modules and designs' expansions, each template module trusted.
   const templateInputs: Input[] = [];
-  for (const input of [...runnable.filter(direct), ...asideModules, ...[...expansions.values()].flat()]) {
+  for (const input of [...runnable.filter((input) => !!input.values), ...asideModules, ...[...expansions.values()].flat()]) {
     if (trust.list && !trusted(input.file, trust.list)) {
       outcomes.set(input.id, { file: input.display, root: null, status: "error", outputs: [], diagnostics: [untrusted(displayPath(cwd, input.file), trust)], ...(input.kind === "values" ? { input: "values" as const } : {}), ...(input.templateFormat ? { templateFormat: input.templateFormat } : {}) });
       continue;

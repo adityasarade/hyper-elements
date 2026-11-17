@@ -59,9 +59,7 @@ export interface ImageResult {
  * template's snapshot is drawn `strict`, and the measured rules its template requires are decided here.
  */
 export async function renderImage(element: ReactElement | Snapshot, options: ImageOptions = {}): Promise<ImageResult> {
-  const pending = pendingOf(element);
-  const { context, diagnostics, found } = canvasFor(element, options, options.strict === true || pending.rules.length > 0);
-  const strict = options.strict === true || pending.rules.length > 0;
+  const { context, diagnostics, found, pending, strict } = canvasFor(element, options);
   const { layout, sizes } = await measure(context, { strict, scale: options.scale ?? 1 });
   const all = [...diagnostics, ...found, ...layout.diagnostics];
   decide(pending, all);
@@ -82,16 +80,19 @@ export async function renderImage(element: ReactElement | Snapshot, options: Ima
  * for a design it can't read; the measured findings are in `diagnostics`.
  */
 export async function layoutImage(element: ReactElement | Snapshot, options: Omit<ImageOptions, "format"> = {}): Promise<ImageLayout> {
-  const pending = pendingOf(element);
-  const strict = options.strict === true || pending.rules.length > 0;
-  const { context, diagnostics, found } = canvasFor(element, options, strict);
+  const { context, diagnostics, found, strict } = canvasFor(element, options);
   const { layout } = await measure(context, { strict, scale: options.scale ?? 1 });
   return { ...layout, diagnostics: [...diagnostics, ...found, ...layout.diagnostics] };
 }
 
-/** The Canvas a design is, read with its fonts and images, ready to measure. Throws for what can't be read. */
-function canvasFor(element: ReactElement | Snapshot, options: Omit<ImageOptions, "format">, strict: boolean) {
-  const { root, diagnostics } = canvasOf(element);
+/**
+ * The Canvas a design is, read with its fonts and images, ready to measure. Throws for what can't be read. The design
+ * is collected once: its tree and its template's undecided rules come from the same read. A template's design is
+ * measured and drawn strict, whatever its rules.
+ */
+function canvasFor(element: ReactElement | Snapshot, options: Omit<ImageOptions, "format">) {
+  const { root, diagnostics, pending } = canvasOf(element);
+  const strict = options.strict === true || pending.template !== undefined;
   const found: Diagnostic[] = [];
   const fonts = fontsOf(root, options.fonts ?? [], found, strict);
   const images = imageSources(root, options.images ?? {}, found);
@@ -100,23 +101,23 @@ function canvasFor(element: ReactElement | Snapshot, options: Omit<ImageOptions,
   if (found.some((d) => d.severity === "error" && (d.code === "image/image" || d.path === "root"))) throw new ElementsError([...diagnostics, ...found]);
   found.push(...missingFaces(root, fonts, strict));
   const families = new Set(fonts.map((font) => font.family.toLowerCase()));
-  return { context: { root, fonts, families, fallback: fonts[0]?.family ?? "", image: (src: string) => images.get(src) }, diagnostics, found };
+  return { context: { root, fonts, families, fallback: fonts[0]?.family ?? "", image: (src: string) => images.get(src) }, diagnostics, found, pending, strict };
 }
 
 /** Given to prepare(): this entry decides a template's measured rules, so they're handed over, not refused. */
 const DECIDES = Symbol.for("hyper-elements.decides-measured");
 
 /**
- * The measured rules a template requires that its check left undecided, for a snapshot or a template design: this
- * entry decides them (and draws strict). prepare() hands them over when asked with DECIDES.
+ * A snapshot's or a template design's template, and the measured rules it requires that its check left undecided:
+ * this entry decides them. prepare() hands them over when asked with DECIDES.
  */
-function pendingOf(element: ReactElement | Snapshot): { rules: Array<{ rule: string; format?: string }>; template?: { id: string } } {
-  const prepared = prepare(element, { [DECIDES]: true } as never) as ReturnType<typeof prepare> & { [DECIDES]?: Array<{ rule: string; format?: string }> };
-  return { rules: [...(prepared[DECIDES] ?? [])], ...(prepared.template ? { template: prepared.template } : {}) };
+interface Pending {
+  rules: Array<{ rule: string; format?: string }>;
+  template?: { id: string };
 }
 
 /** Each measured rule a template requires: failed where its code was found (raised to an error), else passed. */
-function decide(pending: ReturnType<typeof pendingOf>, diagnostics: Diagnostic[]): void {
+function decide(pending: Pending, diagnostics: Diagnostic[]): void {
   for (const { rule } of pending.rules) {
     for (let i = 0; i < diagnostics.length; i++) {
       const d = diagnostics[i];
@@ -142,16 +143,18 @@ export function templateAssets(element: ReactElement | Snapshot): TemplateAssets
   return { fonts: [...facesOf(root)], images: [...new Set(imagesOf(root).map(({ src }) => src))] };
 }
 
-/** The Canvas a template is, with prepare()'s diagnostics; a template with errors, or another root, throws. */
-function canvasOf(element: ReactElement | Snapshot): { root: ResolvedNode; diagnostics: Diagnostic[] } {
-  const { root, diagnostics, layout } = prepare(element, { [DECIDES]: true } as never);
+/** The Canvas a template is, with prepare()'s diagnostics and what its template left to decide; a template with errors, or another root, throws. */
+function canvasOf(element: ReactElement | Snapshot): { root: ResolvedNode; diagnostics: Diagnostic[]; pending: Pending } {
+  const prepared = prepare(element, { [DECIDES]: true } as never) as ReturnType<typeof prepare> & { [DECIDES]?: Array<{ rule: string; format?: string }> };
+  const { root, diagnostics, layout } = prepared;
+  const pending: Pending = { rules: [...(prepared[DECIDES] ?? [])], ...(prepared.template ? { template: prepared.template } : {}) };
   readable(layout, "image");
   if (!root) throw new ElementsError(diagnostics);
   if (root.type !== "Canvas") {
     throw new ElementsError([...diagnostics, { code: "image/root", severity: "error", message: `Image output is a Canvas's: this template is a ${root.type}`, path: "root" }]);
   }
   // What prepare() says of fit is the HTML preview's (its largest size); the image measures it.
-  return { root, diagnostics: diagnostics.filter((d) => !(d.code === "web/degraded" && /\.props\.fit$/.test(d.path))) };
+  return { root, diagnostics: diagnostics.filter((d) => !(d.code === "web/degraded" && /\.props\.fit$/.test(d.path))), pending };
 }
 
 /**

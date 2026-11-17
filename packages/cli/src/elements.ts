@@ -30,7 +30,7 @@ export interface ElementsInspect {
 
 /** `@hyper-elements/react/template`, as the project has it (0.5): what values files and template modules are read with. */
 export interface TemplateModule {
-  readValuesFile(file: unknown, template: unknown): { values?: Record<string, unknown>; formats?: string[]; assets: Record<string, unknown>; diagnostics: Diagnostic[] };
+  readValuesFile(file: unknown, template: unknown): { values?: Record<string, unknown>; migrated?: Record<string, unknown>; formats?: string[]; assets: Record<string, unknown>; diagnostics: Diagnostic[] };
   toValuesFile(template: unknown, values: unknown, options: { module: string; formats?: string[]; sha256?: string; assets?: Record<string, unknown> }): Record<string, unknown>;
   checkLayout(template: unknown, values: unknown, options: Record<string, unknown>): { regions: Record<string, unknown>; fits: unknown[]; rules: unknown[]; diagnostics: Diagnostic[] };
   sniffImage(bytes: Uint8Array): { width: number; height: number; type: string; alpha: boolean } | undefined;

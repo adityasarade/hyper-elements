@@ -151,6 +151,8 @@ export interface DesignRequest {
   output: string;
   /** new: the values given (--values); set: the file's envelope as it is. */
   values?: Record<string, unknown>;
+  /** new, from a TSX design (--from): the folder its values' image files are relative to (the design's). */
+  valuesFolder?: string;
   envelope?: Record<string, unknown>;
   /** Each value set, in order: a JSON value or text, or `file`, an image's absolute path (`@path`). */
   sets: Array<{ path: string; value?: unknown; file?: string }>;

@@ -304,9 +304,10 @@ function readNode(input: unknown, path: string, parent: ComponentDefinition | nu
     } else node.field = input.field;
   }
 
-  // fit with sizes sets the font size: one written beside it says another (authored, before themes and defaults merge).
+  // fit with sizes sets the font size: one written beside it says another. Only as authored: once a theme is merged,
+  // the node's style holds the size the theme gives its element, which fit's sizes replace.
   const fitGiven = isObject(input.props) ? (input.props as Record<string, unknown>).fit : undefined;
-  if (isObject(fitGiven) && fitGiven.sizes !== undefined && isObject(input.style) && (input.style as Record<string, unknown>).fontSize !== undefined) {
+  if (context.mode === "authored" && isObject(fitGiven) && fitGiven.sizes !== undefined && isObject(input.style) && (input.style as Record<string, unknown>).fontSize !== undefined) {
     d.error("style/fit", "fit sets its font size from its sizes: leave fontSize out (fit with only maxLines checks the size it has)", `${path}.style.fontSize`, id);
   }
   const isRoot = definition.categories.includes("root");

@@ -7,6 +7,7 @@ import type { Diagnostic, PropSpecs } from "@hyper-elements/core";
 import { coverCrop } from "./checks";
 import { imagePaths, type ImageType } from "./fields";
 import type { RuleResult } from "./rules";
+import { isSlot } from "./slots";
 
 /**
  * The size an image is shown at to fit whole inside `box`, at its own aspect: for a `contain` image's `style`, so a
@@ -153,8 +154,10 @@ export function checkLayout(template: { id: string; fields: PropSpecs; formats?:
   const diagnostics: Diagnostic[] = [];
   const regions: LayoutCheck["regions"] = {};
   const boxes = new Map<string, { width: number; height: number }>();
+  // What's under a slot's host is the slot's content: a `field` there is its own, never the template's binding.
+  const hosts = options.layout.nodes.filter((node) => node.field !== undefined && Object.hasOwn(template.fields, node.field) && isSlot(template.fields[node.field])).map((node) => `${node.path}.`);
   for (const node of options.layout.nodes) {
-    if (!node.field || node.type !== "Image" || boxes.has(node.field)) continue;
+    if (!node.field || node.type !== "Image" || boxes.has(node.field) || hosts.some((host) => node.path.startsWith(host))) continue;
     boxes.set(node.field, node);
     regions[node.field] = { [format]: { box: [round(node.width), round(node.height)], pixels: [Math.round(node.width * scale), Math.round(node.height * scale)] } };
   }

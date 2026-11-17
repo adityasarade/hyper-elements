@@ -148,6 +148,11 @@ function readImage(value: unknown, rules: ImageRules, label: string, at: string,
   if (rules.accepts && type && !rules.accepts.includes(type)) {
     reading.diagnostics.push(error("template/asset-type", `${label} is ${type === "jpeg" ? "a JPEG" : `an ${type.toUpperCase()}`} file; it takes ${rules.accepts.map((t) => t.toUpperCase()).join(" or ")}`, at));
   }
+  // What only the file says isn't decided here, and is never taken as passed: said, until what reads the file decides it.
+  const unread = [...(rules.transparent ? ["whether it's transparent"] : []), ...(rules.accepts && !type ? ["its type"] : [])];
+  if (unread.length) {
+    reading.diagnostics.push({ code: "template/asset-unread", severity: "info", message: `${label}: ${unread.join(" and ")} ${unread.length > 1 ? "are" : "is"} told from its file, which isn't read here: checkLayout() given the file decides it, as the command line does for a file it can read`, path: at });
+  }
   return value;
 }
 

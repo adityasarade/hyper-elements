@@ -6,7 +6,7 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
-import { Canvas, Column, Heading, Image, Layer, LineBreak, Link, List, ListItem, MergeTag, Span, Table, TableCell, TableRow, Text, prop, validate } from "@hyper-elements/react";
+import { Canvas, Column, defineTheme, Email, Heading, Image, Layer, LineBreak, Link, List, ListItem, MergeTag, Span, Table, TableCell, TableRow, Text, prop, validate } from "@hyper-elements/react";
 import type { ReactElement } from "react";
 import { layoutImage, renderImage } from "../../src/image";
 import { checkLayout, field, template } from "../../src/template";
@@ -102,9 +102,19 @@ describe("fit", () => {
     expect(codes((await layoutImage(mixed, { fonts })).diagnostics)).toEqual(["fit/inline"]);
   });
 
-  it("takes maxLines beside an authored fontSize, and refuses sizes beside one (style/fit)", () => {
+  it("takes maxLines beside an authored fontSize, and refuses sizes beside one (style/fit)", async () => {
     expect(validate(headline({ maxLines: 2 }, { fontSize: 40 })).valid).toBe(true);
     expect(codes(validate(headline({ sizes: [40, 30] }, { fontSize: 40 })).diagnostics)).toEqual(["style/fit"]);
+    // A size the theme gives the element isn't one written beside fit: the sizes replace it, in every entry point.
+    const themed = (style: object = {}) => (
+      <Canvas width={600} height={300} theme={defineTheme({ elements: { Heading: { fontSize: 44, by: { level: { 1: { fontSize: 40 } } } } } })} style={{ fontFamily: "Liberation Sans", padding: 20 }}>
+        <Heading level={1} fit={{ sizes: [48, 32, 24], maxLines: 2 }} style={style}>A headline that takes two lines at its largest size</Heading>
+      </Canvas>
+    );
+    expect(codes(validate(themed()).diagnostics)).toEqual([]);
+    const laid = await layoutImage(themed(), { fonts });
+    expect([codes(laid.diagnostics), [48, 32, 24].includes(laid.fits[0].chosen as number)]).toEqual([[], true]);
+    expect(codes(validate(themed({ fontSize: 40 })).diagnostics)).toEqual(["style/fit"]);
   });
 
   it("is image/fit where no size fits, naming the lines and roughly what to cut", async () => {
@@ -139,6 +149,42 @@ describe("fit", () => {
     const a = await renderImage(two, { fonts });
     const b = await renderImage(two, { fonts });
     expect(Buffer.from(a.image).equals(Buffer.from(b.image))).toBe(true);
+  });
+
+  it("tries a node with the fitted nodes after it at their smallest: one that can still shrink isn't why it doesn't fit", async () => {
+    const PARAGRAPH = "Orbit reads every pull request you merge and drafts the release notes for you, in your voice, with the changes that matter to the people who use what you ship, grouped by what they do and not by who wrote them.";
+    const card = (
+      <Canvas width={1000} height={400} style={{ fontFamily: "Liberation Sans", padding: 20 }}>
+        <Column style={{ height: 300, width: 900 }}>
+          <Heading fit={{ sizes: [60, 40] }}>Short title</Heading>
+          <Text fit={{ sizes: [40, 16] }}>{PARAGRAPH}</Text>
+        </Column>
+      </Canvas>
+    );
+    const { fits, diagnostics } = await layoutImage(card, { fonts, strict: true });
+    expect(codes(diagnostics)).toEqual([]);
+    // The Heading takes its largest size, which the Text at 16px leaves room for; the Text then takes what's left.
+    expect(fits.map((f) => f.chosen)).toEqual([60, 16]);
+  });
+
+  it("measures the pieces a line can't break, as the engine breaks lines: not at a no-break space, between Chinese or Japanese characters", async () => {
+    const column = (heading: ReactElement, width: number) => (
+      <Canvas width={800} height={600} style={{ fontFamily: "Liberation Sans", padding: 20 }}>
+        <Column style={{ width }}>{heading}</Column>
+      </Canvas>
+    );
+    // "10 000 000 EUR" held together by no-break spaces is one piece, 296px wide at 40px: too wide for 300px at 60px.
+    const held = await layoutImage(column(<Heading fit={{ sizes: [60, 40, 20] }}>{"Save 10\u00a0000\u00a0000\u00a0EUR today"}</Heading>, 300), { fonts, strict: true });
+    expect([codes(held.diagnostics), held.fits[0].chosen]).toEqual([[], 40]);
+    // With spaces a line breaks at, each number is a piece, and the largest size fits.
+    const spaced = await layoutImage(column(<Heading fit={{ sizes: [60, 40, 20] }}>Save 10 000 000 EUR today</Heading>, 300), { fonts, strict: true });
+    expect(spaced.fits[0].chosen).toBe(60);
+    // A sentence with no spaces wraps between its characters: it fits on lines, and isn't one word too wide for its box.
+    const sentence = await layoutImage(column(<Heading fit={{ sizes: [48, 36, 24], maxLines: 3 }}>我们很高兴地宣布全新的发布说明功能现已上线每次发布都保持你的语气</Heading>, 560), { fonts });
+    expect([codes(sentence.diagnostics).filter((code) => code === "image/fit"), sentence.fits[0].chosen !== null]).toEqual([[], true]);
+    // One piece too wide at every size is still said, by name.
+    const long = await layoutImage(column(<Heading fit={{ sizes: [60, 40] }}>{"Save 10\u00a0000\u00a0000\u00a0EUR today"}</Heading>, 200), { fonts });
+    expect(long.diagnostics.find((d) => d.code === "image/fit")?.message).toContain('"10\u00a0000\u00a0000\u00a0EUR" is wider than its 200px even at 40px');
   });
 });
 
@@ -251,5 +297,61 @@ describe("a template's checkLayout()", () => {
     const found = checkLayout(Card, checked.values, { format: "square", layout, files: { photo: { width: 300, height: 300, type: "png", alpha: false } } });
     // The file is 300px, not the 400px declared, and its region needs 400px at the format's scale.
     expect(found.diagnostics.map((d) => d.code)).toEqual(["template/asset-size", "template/asset-pixels"]);
+  });
+
+  it("reads an image's region from the template's own node, never from a slot's content that names its field", async () => {
+    const Slotted = template({
+      id: "acme.Slotted",
+      version: "1.0.0",
+      label: "Slotted",
+      root: "Canvas",
+      fields: {
+        note: field.slot({ label: "Note", allow: [Column, Text, Image], styles: "free" }),
+        photo: field.image({ label: "Photo", required: true, fit: "contain" }),
+      },
+      example: { photo: { src: "https://img.test/p.png", width: 100, height: 100 } },
+      render: (v) => (
+        <Canvas width={600} height={600} style={{ fontFamily: "Liberation Sans", padding: 20, gap: 10 }}>
+          <Column field="note">{v.note}</Column>
+          <Image field="photo" src={v.photo} alt="" style={{ width: 400 }} />
+        </Canvas>
+      ),
+    });
+    const measured = async (note?: ReactElement) => {
+      const checked = Slotted.check({ ...Slotted.example, ...(note ? { note } : {}) });
+      expect(codes(checked.diagnostics)).toEqual([]);
+      return checkLayout(Slotted, checked.values, { layout: await layoutImage(checked.snapshots.default!, { fonts, images }) });
+    };
+    // A 100px file in a 400px region is upscaled, whatever the slot holds.
+    expect((await measured()).diagnostics.map((d) => d.code)).toEqual(["template/asset-pixels"]);
+    const claimed = await measured(<Image field="photo" src={{ src: "https://img.test/p.png", width: 100, height: 100 }} alt="" style={{ width: 10 }} />);
+    expect(claimed.diagnostics.map((d) => d.code)).toEqual(["template/asset-pixels"]);
+    expect(claimed.regions.photo.default).toEqual({ box: [400, 400], pixels: [400, 400] });
+    expect(Slotted.describe().fields.find((f) => f.path === "photo")).toMatchObject({ path: "photo" });
+  });
+
+  it("says what only an image's file decides until the file is given, and then decides it", async () => {
+    const Logo = template({
+      id: "acme.Logo",
+      version: "1.0.0",
+      label: "Logo",
+      root: "Email",
+      fields: { logo: field.image({ label: "Logo", required: true, transparent: "required", accepts: ["png"] }) },
+      example: { logo: { src: "https://img.test/logo.png", width: 600, height: 200 } },
+      render: (v) => (
+        <Email lang="en" previewText="A logo, shown whole on a white ground, for a test">
+          <Image field="logo" src={v.logo} alt="Acme" />
+        </Email>
+      ),
+    });
+    const unread = (values: object) => Logo.check(values).diagnostics.filter((d) => d.code === "template/asset-unread").map((d) => [d.severity, d.path, d.message.replace(/ (is|are) told.*/, "")]);
+    // Its type is in its name; whether it's transparent isn't.
+    expect(unread(Logo.example)).toEqual([["info", "values.logo", "Logo: whether it's transparent"]]);
+    expect(unread({ logo: { src: "https://img.test/9f3a", width: 600, height: 200 } })).toEqual([["info", "values.logo", "Logo: whether it's transparent and its type"]]);
+    expect(Logo.check(Logo.example).valid).toBe(true);
+    const empty = { nodes: [], fits: [], diagnostics: [] };
+    const opaque = checkLayout(Logo, Logo.example, { layout: empty, files: { logo: { width: 600, height: 200, type: "jpeg", alpha: false } } });
+    expect(opaque.diagnostics.map((d) => d.code)).toEqual(["template/asset-type", "template/asset-alpha"]);
+    expect(checkLayout(Logo, Logo.example, { layout: empty, files: { logo: { width: 600, height: 200, type: "png", alpha: true } } }).diagnostics).toEqual([]);
   });
 });

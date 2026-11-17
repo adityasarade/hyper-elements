@@ -28,8 +28,9 @@ export const OgCard = template({
       { width: 1200, height: 630, style: { backgroundColor: "#0B1020", color: "#F7F7FB", fontFamily: "Inter", padding: 72, gap: 24, justifyContent: "end" } },
       v.badge ? h(Image, { field: "badge", src: v.badge, alt: "", style: { width: 160 } }) : null,
       v.kicker ? h(Text, { field: "kicker", style: { fontSize: 28, color: "#2DD4BF" } }, v.kicker) : null,
-      // A long title steps down a size, to fit two lines.
-      h(Heading, { field: "title", level: 1, fit: { sizes: [72, 64, 56, 48], maxLines: 2 }, style: { lineHeight: 1.1 } }, v.title)
+      // A long title steps down a size, to fit two lines. In the one weight the app has a font file for: a template's
+      // design is drawn strict, so a weight with no file is an error.
+      h(Heading, { field: "title", level: 1, fit: { sizes: [72, 64, 56, 48], maxLines: 2 }, style: { lineHeight: 1.1, fontWeight: 400 } }, v.title)
     ),
 });
 

@@ -88,12 +88,15 @@ function notPlain(value: unknown, path: string): string | undefined {
   return path;
 }
 
-/** The element a module's default export renders: as the CLI renders any design (no props: a slot's content is its own). */
-function elementOf(mod: Record<string, unknown>, react: ReactModule): unknown {
+/**
+ * The element a module's default export renders. A design's, with the props the CLI renders any design with (`--props`,
+ * then its `PreviewProps`, then none); a slot's content is its own, and takes none.
+ */
+function elementOf(mod: Record<string, unknown>, react: ReactModule, design?: { props: Record<string, unknown> | undefined }): unknown {
   const value = defaultExport(mod);
   const component = templateComponent(value);
   if (!component) throw new Error("its default export isn't a component");
-  return react.createElement(component.exported, {});
+  return react.createElement(component.exported, design ? (design.props ?? component.props) : {});
 }
 
 const failed = (input: ChildInput, error: unknown, code?: string) => send({ type: "capture-failed", request: input.id, error: errorLine(error), ...(code ? { code } : {}) });
@@ -105,7 +108,7 @@ export async function capture(message: StartMessage, written: Set<string>): Prom
   const slotsFrom = async () => {
     if (slotElements) return slotElements;
     const format = moduleFormat(message.resolveFrom!);
-    const loader = await loaderFor(message, message.resolveFrom!, elementsLoaderText(message.token, format, bun), format, written, sequence);
+    const loader = await loaderFor(message, message.resolveFrom!, elementsLoaderText(message.token, format, bun, message.resolveFrom!), format, written, sequence);
     slotElements = { elements: exportsOf<Elements>(await loader.load("@hyper-elements/react"), "captureFragment"), react: exportsOf<ReactModule>(await loader.load("react"), "createElement") };
     return slotElements;
   };
@@ -138,7 +141,7 @@ async function captureDesign(message: StartMessage, input: ChildInput, imports: 
   const template = exportsOf<Elements>(await loader.load("@hyper-elements/react/template"), "templateOf");
   const react = exportsOf<ReactModule>(await loader.load("react"), "createElement");
   if (typeof template.templateRequest !== "function" || typeof template.templateOf !== "function") return void (await failed(input, new Error("this design's @hyper-elements/react has no templateRequest(): templates need 0.5.0 or later"), DESIGN));
-  const request = template.templateRequest(elementOf(loader.template, react));
+  const request = template.templateRequest(elementOf(loader.template, react, { props: message.options.props }));
   if (!request.template) return void (await failed(input, new Error(request.diagnostics.filter((d) => d.code.startsWith("template/") || d.code.startsWith("jsx/")).map((d) => `${d.code}: ${d.message}`).join("; ") || "its root isn't a template"), DESIGN));
   const tpl = request.template as { id: string; version: string; formats?: Record<string, unknown> };
   // Which import it is: an export of one of the design's own imports that is the template (or wraps it).

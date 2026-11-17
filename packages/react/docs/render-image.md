@@ -67,8 +67,8 @@ Nothing is fetched. Give each file the design needs:
 ## Fitting text
 
 A Heading or a Text in a Canvas takes `fit`: the sizes it may be drawn at, and the lines it may take. `renderImage`
-measures it with the fonts it's given and draws the largest size at which its lines, its widest word and any box of a
-fixed height around it all fit:
+measures it with the fonts it's given and draws the largest size at which its lines, its widest piece that can't
+break and any box of a fixed height around it all fit:
 
 ```tsx
 <Heading fit={{ sizes: [88, 76, 64], maxLines: 3 }}>{title}</Heading>
@@ -79,6 +79,10 @@ fixed height around it all fit:
 - `sizes` is a list of px sizes or a range, largest first, at most 32. With `sizes`, `fit` sets the font size: a
   `fontSize` beside it is `style/fit`. With only `maxLines`, it checks the size the text has.
 - Where no size fits, it's `image/fit`, an error, with the lines it needs and roughly how many characters to cut.
+- A piece that can't break is measured as lines break: a word, words a no-break space holds together, the part of a
+  compound up to its hyphen. Chinese and Japanese text breaks between its characters.
+- Several fitted nodes are sized in document order, each tried with the ones after it at their smallest size: the
+  first takes the largest size that leaves the rest room, and never fails for a later one that can still shrink.
 - Runs inside it (a Span, a Link) are in its own size, font, weight and line height: one in another is `fit/inline`.
 - `fit` is a Canvas's: under an Email, a Page or a Document it's `prop/not-supported`. The Canvas's HTML preview draws
   the largest size.

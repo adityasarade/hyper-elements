@@ -90,8 +90,11 @@ export function outputBase(inputs: Input[], cwd: string, given?: string): string
  */
 export function inputHeldBy(folder: string, inputs: Input[]): Input | undefined {
   const real = canonicalPath(folder);
-  return inputs.find((input) => !input.stdin && (inside(input.real, real) || inside(canonicalPath(input.file), real)));
+  return inputs.find((input) => !input.stdin && filesOf(input).some((file) => inside(file, real)));
 }
+
+/** An input's own files, by real path: its module, and for a values file (or a design made from a template) that file too. */
+const filesOf = (input: Input): string[] => [input.real, canonicalPath(input.file), ...(input.values ? [canonicalPath(input.values.file)] : [])];
 
 /**
  * Checks `--out` (`holding: false`: all but whether it holds an input, for `preview`, whose folders are checked
@@ -112,15 +115,12 @@ export function planDestinations(inputs: Input[], base: string, out: string, cwd
     if (project) projects.add(canonicalPath(project));
   }
   for (const project of projects) if (foldPath(project) === foldPath(target)) refuse("a project's root (it holds a package.json)");
-  if (options.holding !== false) for (const input of inputs) if (inside(input.real, target) || inside(canonicalPath(input.file), target)) refuse(`a folder holding an input (${input.display})`);
+  if (options.holding !== false) for (const input of inputs) if (filesOf(input).some((file) => inside(file, target))) refuse(`a folder holding an input (${input.display})`);
 
   const byInput = new Map<number, Record<string, string>>();
   const taken = new Map<string, Input>();
   const inputsByKey = new Map<string, Input>();
-  for (const input of inputs) {
-    inputsByKey.set(foldPath(input.real), input);
-    inputsByKey.set(foldPath(canonicalPath(input.file)), input);
-  }
+  for (const input of inputs) for (const file of filesOf(input)) inputsByKey.set(foldPath(file), input);
   /** An input's names, all reserved, or why not (nothing reserved then). */
   const place = (input: Input): string | undefined => {
     // A values file's input: named from the values file, with its format (`launch.square.png`).

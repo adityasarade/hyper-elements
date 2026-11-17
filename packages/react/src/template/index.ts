@@ -400,12 +400,12 @@ function ownFields(fields: PropSpecs): PropSpecs {
   return Object.freeze(Object.fromEntries(Object.entries(fields).map(([name, spec]) => [name, spec && typeof spec === "object" ? ownSpec(spec) : spec])));
 }
 
-/** The template a value is (a template, or `memo()`/`forwardRef()` of one), or undefined. */
+/** The template a value is (a template, or `memo()`/`forwardRef()` of one), or undefined: not an element made from one. */
 export function templateOf(value: unknown): Template | undefined {
-  let current = value as { type?: unknown; render?: unknown } | undefined;
+  let current = value as { $$typeof?: unknown; type?: unknown; render?: unknown } | undefined;
   for (let i = 0; i < 4 && current; i++) {
     if (typeof current === "function" && (current as unknown as Record<symbol, unknown>)[TEMPLATE_RECORD]) return current as unknown as Template;
-    current = (current.type ?? current.render) as typeof current;
+    current = (current.$$typeof === Symbol.for("react.memo") ? current.type : current.$$typeof === Symbol.for("react.forward_ref") ? current.render : undefined) as typeof current;
   }
   return undefined;
 }
@@ -519,11 +519,14 @@ export function toValuesFile(template: Template<any, any>, values: unknown, opti
 /**
  * A values file read against the template it names: its id, its version (a newer minor is read again with a note, a
  * newer major through the template's migrations, an older template refused), then its values. Never throws.
+ * `migrated` is its values as this version of the template takes them (its id and version accepted, its migrations
+ * run), before its fields read them: what a tool changes in a file whose values aren't valid yet (a draft, or one to
+ * repair), so the migrations are never skipped.
  */
 export function readValuesFile(
   file: unknown,
   template: Template<any, any>
-): { values?: Record<string, unknown>; formats?: string[]; assets: Record<string, AssetRecord>; diagnostics: Diagnostic[] } {
+): { values?: Record<string, unknown>; migrated?: Record<string, unknown>; formats?: string[]; assets: Record<string, AssetRecord>; diagnostics: Diagnostic[] } {
   const diagnostics: Diagnostic[] = [];
   const done = () => ({ assets: {}, diagnostics });
   if (!isPlainObject(file) || file.version !== 1 || !isPlainObject(file.template) || !isPlainObject(file.values)) {
@@ -569,5 +572,5 @@ export function readValuesFile(
   const formats = Array.isArray(file.formats) ? file.formats.filter((f): f is string => typeof f === "string") : undefined;
   for (const format of formats ?? []) if (!formatNames.includes(format)) diagnostics.push(fail("template/format", `${template.id} has the formats ${formatNames.join(", ") || "(none)"}, not ${JSON.stringify(format)}`, "formats"));
   const assets = isPlainObject(file.assets) ? (JSON.parse(JSON.stringify(file.assets)) as Record<string, AssetRecord>) : {};
-  return { ...(read && !hasErrors(diagnostics) ? { values: read } : {}), ...(formats ? { formats } : {}), assets, diagnostics };
+  return { ...(read && !hasErrors(diagnostics) ? { values: read } : {}), ...(isPlainObject(values) ? { migrated: values as Record<string, unknown> } : {}), ...(formats ? { formats } : {}), assets, diagnostics };
 }

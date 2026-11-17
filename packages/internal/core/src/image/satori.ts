@@ -158,6 +158,32 @@ export async function satoriLayout(canvas: DrawnCanvas, options: { natural?: boo
  * Words measured at once, each in a flex item of its own with no width, in its style: each one's advance width, what
  * Satori wraps by (a node's box doesn't show a word wider than it; this does).
  */
+/** The spaces a line breaks at (not the ones that hold words together: U+00A0, U+2007, U+202F). */
+const BREAKING_SPACE = /[ \t\n\r\u1680\u2000-\u2006\u2008-\u200a\u2028\u2029\u205f\u3000]+/g;
+
+/**
+ * Each text's widest piece Satori can't break, in px: what must fit in a line's width. The text is laid out in a box
+ * too narrow for any of it, so it breaks wherever Satori breaks a line (between words, after a hyphen, between
+ * Chinese or Japanese characters, never at a no-break space), and its widest line is its widest piece. The spaces it
+ * breaks at are made zero-width first, so a piece isn't measured with the space after it.
+ */
+export async function satoriWidest(texts: Array<{ text: string; style: Style }>, fonts: DrawnCanvas["fonts"]): Promise<number[]> {
+  if (!texts.length) return [];
+  const found = new Map<string, number>();
+  const items = texts.map(({ text, style }, i) =>
+    createElement("div", { key: `c${i}`, style: { display: "flex", flexDirection: "column", alignItems: "flex-start", width: 1 } }, createElement("div", { key: `w${i}`, style: { display: "flex", ...style } }, text.replace(BREAKING_SPACE, "\u200b")))
+  );
+  await satori(clean(createElement("div", { style: { display: "flex", flexDirection: "column", alignItems: "flex-start" } }, ...items)) as ReactElement, {
+    width: 100000,
+    fonts: toFonts(fonts),
+    onNodeDetected: (node) => {
+      if (typeof node.key === "string") found.set(node.key, node.width);
+    },
+    loadAdditionalAsset: async () => [],
+  });
+  return texts.map((_, i) => found.get(`w${i}`) ?? 0);
+}
+
 export async function satoriWords(words: Array<{ text: string; style: Style }>, fonts: DrawnCanvas["fonts"]): Promise<number[]> {
   if (!words.length) return [];
   const found = new Map<string, number>();

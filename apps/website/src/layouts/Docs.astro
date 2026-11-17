@@ -261,6 +261,13 @@ const isCurrent = (s: string) => s === slug;
   @media (max-width: 760px) { .prose :global(.client-gallery) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 560px) { .prose :global(.client-gallery) { grid-template-columns: minmax(0, 1fr); } .prose :global(.client-gallery img[width="380"]) { max-width: 380px; } }
   .prose :global(.client-gallery a) { cursor: zoom-in; }
+  /* A design's rendered images side by side (the templates guide): a square beside a landscape at one height, or two alike. */
+  .prose :global(.output-gallery) { display: grid; grid-template-columns: minmax(0, 630fr) minmax(0, 1200fr); gap: 12px; align-items: start; margin: 0 0 28px; }
+  .prose :global(.output-gallery.even) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .prose :global(.output-gallery figure) { margin: 0; min-width: 0; }
+  .prose :global(.output-gallery img) { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; }
+  .prose :global(.output-gallery figcaption) { margin-top: 6px; font-size: 13px; line-height: 1.4; color: var(--text-3); }
+  @media (max-width: 560px) { .prose :global(.output-gallery), .prose :global(.output-gallery.even) { grid-template-columns: minmax(0, 1fr); } }
   .lightbox { width: min(980px, calc(100vw - 32px)); max-width: none; height: calc(100vh - 48px); max-height: none; margin: auto; padding: 0; border: 1px solid var(--line-2); border-radius: var(--radius); background: var(--bg-1); color: var(--text); box-shadow: var(--shadow); overflow: hidden; }
   .lightbox[open] { display: flex; flex-direction: column; }
   .lightbox::backdrop { background: rgba(0, 0, 0, 0.72); }
