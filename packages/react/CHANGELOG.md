@@ -52,8 +52,8 @@ A `Page` takes CSS's own layout, with typed styles. Templates that use none of i
 
 ### Elements, not components
 
-What a template is made of is called an element now, as the library's name says: the built-in ones (`Button`,
-`Text`, `Row`…) and a template's own. The names before keep working, deprecated, so nothing has to change:
+What a design is made of is called an element now, as the library's name says: the built-in ones (`Button`,
+`Text`, `Row`…) and custom ones. The names before keep working, deprecated, so nothing has to change:
 
 | Now | Before (deprecated) |
 |-----|---------------------|
@@ -73,7 +73,8 @@ What a template is made of is called an element now, as the library's name says:
   given under both, under `elements`.
 - `VariantName` reads an element's variants under either key.
 - `inspect()`'s theme lists each element's variants as `elements`, and as `components` too, the same list.
-- Messages say "element". Diagnostic codes are unchanged (`component/not-supported` among them).
+- Messages say "element". One diagnostic code changes with them: `component/not-supported` is now
+  `element/not-supported`. Code that matches on the old code needs the new one. The other codes are unchanged.
 
 ### A Table is the builder's table
 

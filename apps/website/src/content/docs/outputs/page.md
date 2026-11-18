@@ -49,7 +49,7 @@ The HTML above, shortened where it says `…`:
 
 - **Semantic tags**: `main`, `section`, `h1` to `h6`, `p`, `ul` and `ol`, `table`, `a`, `img`, and a `Box`'s own: `header`, `nav`, `article`, `aside`, `footer`, `figure` and the rest. A `Span as="strong"` is a `<strong>`.
 - **Styles inline**, with flexbox for Rows and stacks.
-- **A small stylesheet** for what inline styles can't say: phone styles, hiding, hover, and a Row stacking on phones. Its classes are short and named after their rule, so the same template always gets the same classes.
+- **A small stylesheet** for what inline styles can't say: phone styles, hiding, hover, and a Row stacking on phones. Its classes are short and named after their rule, so the same design always gets the same classes.
 - **No client-side JavaScript** and no React hydration markers. The page is plain HTML.
 
 The content is centered and as wide as the Page's `width` at most, 1200px by default. A `Section`'s background spans the window, with its content at that width. On phones, at 480px and narrower, Rows stack and `mobile` styles apply.
@@ -87,7 +87,7 @@ The page's own wrapper is a `div` when a Box is its `main`. Lengths take rem, em
 
 ## Embed it in your own page
 
-`render()` also returns the document in parts, so you can put the output inside a page of your own, a Next.js route or a CMS layout. With the `InvoiceContent` from [Templates and roots](/docs/templates#share-content-between-roots):
+`render()` also returns the document in parts, so you can put the output inside a page of your own, a Next.js route or a CMS layout. With the `InvoiceContent` from [Designs](/docs/designs#share-content-between-roots):
 
 ```tsx
 import { Page, render } from "@hyper-elements/react";

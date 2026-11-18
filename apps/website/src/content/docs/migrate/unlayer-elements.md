@@ -85,7 +85,7 @@ A module that comes back as it was because it's already on the new elements has 
 </Email>
 ```
 
-The new template draws what the old one drew. Unlayer Elements' components filled in defaults (a 500px email, Arial, 10px of padding on every block), and the new ones don't, so the codemod writes those values out. Delete the ones you don't want.
+The new design draws what the old template drew. Unlayer Elements' components filled in defaults (a 500px email, Arial, 10px of padding on every block), and the new ones don't, so the codemod writes those values out. Delete the ones you don't want.
 
 ## What it writes
 

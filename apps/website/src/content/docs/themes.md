@@ -38,7 +38,7 @@ export default function Welcome() {
 }
 ```
 
-Templates without a theme render as they always did. A theme only changes what it defines.
+Designs without a theme render as they always did. A theme only changes what it defines.
 
 ## defineTheme()
 
@@ -56,7 +56,7 @@ Templates without a theme render as they always did. A theme only changes what i
 | `styles` | Named styles, applied with `style={{ apply: [...] }}` |
 | `formats` | Overrides for one kind of root: `email`, `page`, `document`, `canvas` |
 
-The first six are tokens. A token's value is what the same style takes (a number is px), and it's checked when the template is read, whether a template uses it or not.
+The first six are tokens. A token's value is what the same style takes (a number is px), and it's checked when the design is read, whether a design uses it or not.
 
 - **Names are letters and digits**, so each token is also a CSS custom property's name. To group tokens, nest them: `colors: { gray: { 100: "#f3f4f6", 900: "#111827" } }` makes `colors.gray.100` and `colors.gray.900`. `gray-900` is an error that says to nest it.
 - **One token refers to another** as `"{colors.primary}"`, the [W3C Design Tokens](https://www.designtokens.org/) format's alias: `link: "{colors.primary}"`. That works only inside a theme. A reference to a token that doesn't exist, to one in another group, or a loop of references, is an error.
@@ -64,7 +64,7 @@ The first six are tokens. A token's value is what the same style takes (a number
 
 ## token()
 
-In a template, `token("colors.primary")` stands for a token's value, where a style or part of one takes it:
+In a design, `token("colors.primary")` stands for a token's value, where a style or part of one takes it:
 
 ```tsx
 <Column style={{ padding: token("spacing.lg"), border: { width: 1, style: "solid", color: token("colors.border") } }}>
@@ -85,11 +85,11 @@ A style takes tokens from the groups of its kind:
 
 A token from another group is an error (`theme/value`), and so is one that doesn't exist (`theme/missing-token`), with the token meant where it's a typo away. `brand.tokens.colors.primary` is the same as `token("colors.primary")`.
 
-`"{colors.primary}"` in a template is a string, not a token: the error for it says to write `token("colors.primary")`.
+`"{colors.primary}"` in a design is a string, not a token: the error for it says to write `token("colors.primary")`.
 
 ## Roles
 
-Some tokens are roles: where the theme defines them, the built-in elements read them without the template naming them.
+Some tokens are roles: where the theme defines them, the built-in elements read them without the design naming them.
 
 | Token | Is |
 |-------|----|
@@ -165,7 +165,7 @@ const brand = defineTheme({
 </Column>
 ```
 
-A named style, a variant or an element default may apply named styles too. Named styles that apply each other in a loop are an error. A template's own element takes no named styles: apply them in what it renders.
+A named style, a variant or an element default may apply named styles too. Named styles that apply each other in a loop are an error. A custom element takes no named styles: apply them in what it renders.
 
 ## Which wins
 
@@ -218,7 +218,7 @@ const customer = extendTheme(brand, { colors: { primary: "#b91c1c" }, fonts: { b
 
 ## Your own elements
 
-A [defineElement()](/docs/defining-elements)'s color, length and font props take a token like a style does. Its `render` gets the theme's tokens where the instance is, scopes included, as values in its second argument:
+A [defineElement()](/docs/custom-elements)'s color, length and font props take a token like a style does. Its `render` gets the theme's tokens where the instance is, scopes included, as values in its second argument:
 
 ```tsx
 const Badge = defineElement({
@@ -245,11 +245,11 @@ declare module "@hyper-elements/react" {
 }
 ```
 
-Then `token("colors.primry")`, `variant="tertiary"` and `apply: ["crad"]` are type errors. Without a registered theme they're strings, checked when the template is read. A theme made with `extendTheme()` can be registered too.
+Then `token("colors.primry")`, `variant="tertiary"` and `apply: ["crad"]` are type errors. Without a registered theme they're strings, checked when the design is read. A theme made with `extendTheme()` can be registered too.
 
 ## What's written
 
-A theme's values are written into each output as values, as if the template had set them: an email, a PDF and an image hold no theme.
+A theme's values are written into each output as values, as if the design had set them: an email, a PDF and an image hold no theme.
 
 - **A Page** also writes its tokens as CSS custom properties (`--colors-primary`, `--fontSizes-body`) on its root, and a scope's where they differ, for your own CSS and `Html` blocks.
 - **The visual editor** gets the values each block has. `toDesign()` says it keeps no theme.

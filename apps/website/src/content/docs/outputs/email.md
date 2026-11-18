@@ -75,7 +75,7 @@ The email client emulator, `renderInEmailClients()` from `@hyper-elements/email-
 
 ## What email can't do
 
-`validate()` tells you each of these for your template, with the path; the ones about particular clients come from `@hyper-elements/email-clients`' plugin:
+`validate()` tells you each of these for your design, with the path; the ones about particular clients come from `@hyper-elements/email-clients`' plugin:
 
 - **Svg.** The Email writer has no inline SVG (Gmail and classic Outlook drop it), so an `Svg` in an email is an error. Use an `Image` of it, a PNG.
 - **Layer.** An email draws one shape of it: an Image as wide as the Layer, with one child over it. The image is the cell's background, with VML for Outlook.

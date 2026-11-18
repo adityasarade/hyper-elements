@@ -85,13 +85,13 @@ a writer (`packages/internal/core/src/writers/{email,page}/`); see `packages/int
 ### Rendering Pipeline
 
 ```
-JSX → one React render collects the template (packages/react/src/primitives/collect.tsx)
+JSX → one React render collects the design (packages/react/src/primitives/collect.tsx)
   → packages/internal/core checks it and lays it out (each block's width)
   → its writers (packages/internal/core/src/writers) write the email, page or print HTML and the plain text
 ```
 
 `render()` writes the output its root says (`<Email>`, `<Page>`, `<Document>`, `<Canvas>`); `toDesign()` and
-`fromDesign()` (`@hyper-elements/react/builder`) take a template to the Unlayer builder's design JSON and back.
+`fromDesign()` (`@hyper-elements/react/builder`) take a design to a builder design (the Unlayer builder's design JSON) and back.
 
 ### Key Dependencies
 

@@ -1,18 +1,19 @@
 ---
 title: "Command line"
-description: "Check existing HTML emails and preview Outlook and Gmail locally, with no React required. Render Hyper Elements templates from the shell, with JSON and stable exit codes."
+description: "Check existing HTML emails and preview Outlook and Gmail locally, with no React required. Render Hyper Elements designs from the shell, with JSON and stable exit codes."
 ---
 
 `@hyper-elements/cli` checks existing HTML emails and previews Outlook, Gmail and Apple Mail locally, with no React required. Start with `npx @hyper-elements/cli check email.html` or `npx @hyper-elements/cli preview email.html` (see [Any HTML email](#any-html-email)).
 
-It also renders, checks and previews Hyper Elements templates from the shell, with no script of your own. It writes an Email's HTML and plain text, a Page's HTML, a Document's PDF and a Canvas's image, runs the email client checks, and draws an Email as each email client shows it. Every command has stable exit codes, and `--json` for agents and CI. After [installing the CLI](#install) in your template project:
+It also renders, checks and previews Hyper Elements designs from the shell, with no script of your own. It writes an Email's HTML and plain text, a Page's HTML, a Document's PDF and a Canvas's image, runs the email client checks, and draws an Email as each email client shows it. Every command has stable exit codes, and `--json` for agents and CI. After [installing the CLI](#install) in your project:
 
 ```bash
-npx hyper-elements check emails/           # validate each template, with the email client checks
+npx hyper-elements check emails/           # validate each design, with the email client checks
 npx hyper-elements render emails/          # out/emails/welcome.html, out/emails/welcome.txt, …
 npx hyper-elements outline emails/welcome.tsx
 npx hyper-elements preview emails/welcome.tsx   # each email client's preview, ready to open in Chromium
-npx hyper-elements dev emails/             # a local page showing each template, rendered again on each change
+npx hyper-elements dev emails/             # a local page showing each design, rendered again on each change
+npx hyper-elements render designs/orbit.values.json   # a design made from a template: one image per format
 ```
 
 ## Install
@@ -21,15 +22,15 @@ npx hyper-elements dev emails/             # a local page showing each template,
 npm install -D @hyper-elements/cli
 ```
 
-Install it beside `@hyper-elements/react` 0.4, in the project that holds your templates: the CLI loads Elements, React and `@hyper-elements/email-clients` the way each template does, so it renders with your versions. Then run it as `npx hyper-elements`. It runs on Node.js 20.6 or later, and on Bun 1.3 or later as `bunx --bun hyper-elements`.
+Install it beside `@hyper-elements/react` 0.4 or 0.5 (0.5 for [templates](#templates)), in the project that holds your designs: the CLI loads Elements, React and `@hyper-elements/email-clients` the way each design does, so it renders with your versions. Then run it as `npx hyper-elements`. It runs on Node.js 20.6 or later, and on Bun 1.3 or later as `bunx --bun hyper-elements`.
 
 To check an HTML email with nothing installed, run the package by its name: `npx @hyper-elements/cli check email.html` (see [Any HTML email](#any-html-email)).
 
 `preview --findings` and `--screenshots` draw the previews in Chromium with `playwright-core`, an optional peer. Install it beside the CLI to use them (`npm install -D playwright-core`); nothing else needs it.
 
-## A template
+## A design
 
-A template is a module whose default export is a component that renders an `<Email>`, a `<Page>`, a `<Document>` or a `<Canvas>`. Its props come from `--props file.json`, else the component's `PreviewProps`, else `{}`.
+A design file is a module whose default export is a component that renders an `<Email>`, a `<Page>`, a `<Document>` or a `<Canvas>`. Its props come from `--props file.json`, else the component's `PreviewProps`, else `{}`.
 
 ```tsx
 // emails/welcome.tsx
@@ -49,19 +50,22 @@ export default function Welcome({ name }: { name: string }) {
 Welcome.PreviewProps = { name: "Ada" };
 ```
 
-Give the commands files or folders. A folder is searched for templates, leaving out `node_modules`, build output, and folders whose name starts with `.` or `_`, so shared parts can live in `emails/_components/`. TypeScript, path aliases and workspace packages work as they do in your project.
+Give the commands files or folders. A folder is searched for designs, leaving out `node_modules`, build output, and folders whose name starts with `.` or `_`, so shared parts can live in `emails/_components/`. TypeScript, path aliases and workspace packages work as they do in your project.
 
 ## Commands
 
 | Command | What it does |
 |---------|--------------|
-| `render <files or folders…>` | Writes each template's output under `--out` (default `out/`): an Email's `name.html` and `name.txt`, a Page's `name.html`, a Document's `name.pdf`, a Canvas's `name.png` |
+| `render <files or folders…>` | Writes each design's output under `--out` (default `out/`): an Email's `name.html` and `name.txt`, a Page's `name.html`, a Document's `name.pdf`, a Canvas's `name.png` |
 | `check <files or folders…>` | Runs `validate()` with the email client checks, and writes nothing |
-| `outline <file>` | Prints the template laid out, each block with its width, as [`outline()`](/docs/rendering#outline) does |
+| `outline <file>` | Prints the design laid out, each block with its width, as [`outline()`](/docs/rendering#outline) does |
 | `preview <files or folders…>` | Writes each Email as the email clients show it, one file per client, with the [email client emulator](/docs/email-client-emulator) |
-| `inspect <files or folders…>` | Lists each element of a template, what it's given, whether its root takes it and the problems found on it |
-| `describe [Element]` | Lists the elements a template can use, with their props and styles; `--root Email` narrows it to what that root takes |
-| `dev <files or folders…>` | Serves a page on `127.0.0.1` that shows each template, rendered again when the project changes |
+| `inspect <files or folders…>` | Lists each element of a design, what it's given, whether its root takes it and the problems found on it |
+| `describe [Element \| template.tsx]` | Lists the elements a design can use, with their props and styles; `--root Email` narrows it to what that root takes. Given a template module, what the template takes: its formats, fields, image regions and rules |
+| `design new <template> -o <name.values.json>` | Writes a design made from a template, as a values file, once the template has checked its values |
+| `design set <name.values.json> <field=value>…` | Changes some of a values file's values, checked by the template; the file is left as it was if they fail |
+| `template extract <design> --id <id> --field <id>… -o <file>` | Writes a template from an approved design: each `--field` names an `id` in it, whose literal text or image becomes a field |
+| `dev <files or folders…>` | Serves a page on `127.0.0.1` that shows each design, rendered again when the project changes |
 | `migrate …` | Runs [`@hyper-elements/migrate`](/docs/migrate/react-email) with the arguments given |
 
 `npx hyper-elements --help` lists every option.
@@ -72,18 +76,18 @@ Give the commands files or folders. A folder is searched for templates, leaving 
 npx hyper-elements render emails/
 ```
 
-`render emails/` writes `out/emails/welcome.html` and `out/emails/welcome.txt` (each output keeps its path from the current folder, whatever else is given; `--base emails` writes `out/welcome.html`), and prints each template's diagnostics: with the email client checks where the project has `@hyper-elements/email-clients`, as `check` runs them (`--clients` picks the clients). Each output goes at the template's path relative to the folder holding every input, so `render emails/ docs/` writes `out/emails/…` and `out/docs/…`. `--pretty` indents the HTML, and `--stdout` writes one template's HTML, PDF or image to stdout. A template with errors writes nothing.
+`render emails/` writes `out/emails/welcome.html` and `out/emails/welcome.txt` (each output keeps its path from the current folder, whatever else is given; `--base emails` writes `out/welcome.html`), and prints each design's diagnostics: with the email client checks where the project has `@hyper-elements/email-clients`, as `check` runs them (`--clients` picks the clients). Each output goes at the design's path relative to the folder holding every input, so `render emails/ docs/` writes `out/emails/…` and `out/docs/…`. `--pretty` indents the HTML, and `--stdout` writes one design's HTML, PDF or image to stdout. A design with errors writes nothing.
 
 ### PDFs and images
 
 A Document is drawn with [`renderPdf()`](/docs/outputs/pdf) and a Canvas with [`renderImage()`](/docs/outputs/image), so install their engines beside Elements: `@react-pdf/renderer` for PDFs, `satori` and `@resvg/resvg-js` for images. `--html` also writes a Document's print HTML; `--format svg` writes a Canvas as SVG, and `--scale 2` with twice the pixels.
 
-Neither engine loads a font or an image itself. The CLI loads the ones the template names and hands them over:
+Neither engine loads a font or an image itself. The CLI loads the ones the design names and hands them over:
 
 | Source | Read from |
 |--------|-----------|
-| `fonts/Inter.ttf`, `./logo.png` | The template's folder |
-| `/logo.png` | `--public <dir>`; by default the first `public/` beside a `package.json`, from the template's folder up |
+| `fonts/Inter.ttf`, `./logo.png` | The design's folder |
+| `/logo.png` | `--public <dir>`; by default the first `public/` beside a `package.json`, from the design's folder up |
 | `data:` | The URI itself |
 | `https://…` | Fetched once and cached in `node_modules/.cache/hyper-elements/`; `--refresh` fetches again, `--offline` fetches nothing |
 
@@ -98,10 +102,10 @@ npx hyper-elements check emails/
 ```text
 ✓ emails/welcome.tsx (Email)
     info email/outlook-degraded at root.children[0].style.borderRadius: borderRadius on this Column in classic Outlook: square corners [outlook] See: https://www.caniemail.com/features/css-border-radius/
-1 template: 0 errors, 0 warnings, 0 skipped
+1 design: 0 errors, 0 warnings, 0 skipped
 ```
 
-`check` runs every check `render()` runs, without writing anything. Where the project has `@hyper-elements/email-clients` (`npm i -D @hyper-elements/email-clients`), its email client checks run too, naming the clients each problem is about; `--clients gmail,outlook` picks the clients. [Lint](#lint)'s checks run on each Email and Page. `--rendered` also renders each template, for the checks only the written HTML has (the email's size against Gmail's limit). `--max-warnings 0` fails the run on any warning.
+`check` runs every check `render()` runs, without writing anything. Where the project has `@hyper-elements/email-clients` (`npm i -D @hyper-elements/email-clients`), its email client checks run too, naming the clients each problem is about; `--clients gmail,outlook` picks the clients. [Lint](#lint)'s checks run on each Email and Page. `--rendered` also renders each design, for the checks only the written HTML has (the email's size against Gmail's limit). `--max-warnings 0` fails the run on any warning.
 
 ## Lint
 
@@ -113,7 +117,7 @@ Its options go in the `package.json` nearest the current folder, read once when 
 { "hyperElements": { "lint": { "rules": { "text-size": "off" }, "kind": "marketing" } } }
 ```
 
-An option of the wrong shape, or a rule, severity or kind lint doesn't know, exits 2 before anything is checked. Lint is the project's copy where the template resolves one (`npm i -D @hyper-elements/lint` picks its version), else the CLI's own, with an `info` note, `cli/lint-copy`.
+An option of the wrong shape, or a rule, severity or kind lint doesn't know, exits 2 before anything is checked. Lint is the project's copy where the design resolves one (`npm i -D @hyper-elements/lint` picks its version), else the CLI's own, with an `info` note, `cli/lint-copy`.
 
 ## preview
 
@@ -130,10 +134,10 @@ npx hyper-elements preview emails/welcome.tsx
   gmail.mac: out/clients/emails/welcome/gmail.mac.html
   apple-mail: out/clients/emails/welcome/apple-mail.html
   apple-mail.iphone: out/clients/emails/welcome/apple-mail.iphone.html
-1 template: 0 errors, 0 warnings, 0 skipped
+1 design: 0 errors, 0 warnings, 0 skipped
 ```
 
-`preview` writes each Email as the email clients show it, with the project's `@hyper-elements/email-clients` (`renderInEmailClients()`): one self-contained HTML file per client and variant, under `out/clients/<its path>/<name>/` (`out/clients/emails/welcome/` for `emails/welcome.tsx`). `--clients`, `--dark` and `--fonts inline` are [its options](/docs/email-client-emulator#options). A template whose root isn't an Email is skipped.
+`preview` writes each Email as the email clients show it, with the project's `@hyper-elements/email-clients` (`renderInEmailClients()`): one self-contained HTML file per client and variant, under `out/clients/<its path>/<name>/` (`out/clients/emails/welcome/` for `emails/welcome.tsx`). `--clients`, `--dark` and `--fonts inline` are [its options](/docs/email-client-emulator#options). A design whose root isn't an Email is skipped.
 
 A preview file draws the email when a browser opens it, and lists what the client changed. To have the CLI read those findings for you, add `--findings` (with `playwright-core` installed beside the CLI): it opens each file in Chromium and reports what it found. It uses the first of these that starts: the browser `CHROME_PATH` names, Playwright's own Chromium (`npx hyper-elements preview --install-browser` downloads it), then an installed Chrome or Edge. `--screenshots` also writes a PNG of each preview beside it.
 
@@ -145,7 +149,7 @@ Nothing is sent anywhere to be drawn: the requests a preview makes are its stand
 
 To try the client previews before installing anything, open the [email testing playground](/email-testing). It runs the email-clients package in your browser; the CLI also adds lint checks.
 
-`check` and `preview` also take an HTML email however it was made (MJML, React Email, by hand, an email builder's export): an `.html` or `.htm` file given by name, or `-` to read one from stdin. No template code runs, so neither React nor Elements is needed:
+`check` and `preview` also take an HTML email however it was made (MJML, React Email, by hand, an email builder's export): an `.html` or `.htm` file given by name, or `-` to read one from stdin. No design's code runs, so neither React nor Elements is needed:
 
 ```bash
 npx @hyper-elements/cli check email.html
@@ -161,7 +165,7 @@ npx hyper-elements preview email.html --findings
 
 If you need Chromium, download it once with `npx hyper-elements preview --install-browser`. See [preview](#preview) for browser selection and findings.
 
-Each diagnostic has the `line` in the file and an excerpt of it. `check` runs [lint](#lint)'s HTML rules on it too. A folder's HTML files aren't picked up, since a folder of templates often holds the HTML rendered from them: give them by name (`check emails/*.html`).
+Each diagnostic has the `line` in the file and an excerpt of it. `check` runs [lint](#lint)'s HTML rules on it too. A folder's HTML files aren't picked up, since a folder of designs often holds the HTML rendered from them: give them by name (`check emails/*.html`).
 
 ## dev
 
@@ -169,26 +173,43 @@ Each diagnostic has the `line` in the file and an excerpt of it. `check` runs [l
 npx hyper-elements dev emails/ docs/
 ```
 
-`dev` prints a URL on `127.0.0.1` and serves a page that lists the templates and shows the one you pick: an Email or a Page at desktop width and at 375px, a Document's PDF, a Canvas's image, its diagnostics, and, for an Email with `@hyper-elements/email-clients`, links to its previews in each email client. It renders every template again when the project's source, or a workspace package it depends on, changes. It writes nothing in the project, and runs until Ctrl-C. It serves on a free port; `--port <n>` picks one, to forward from a container or a remote machine (the path still starts with a random token).
+`dev` prints a URL on `127.0.0.1` and serves a page that lists the designs and shows the one you pick: an Email or a Page at desktop width and at 375px, a Document's PDF, a Canvas's image, its diagnostics, and, for an Email with `@hyper-elements/email-clients`, links to its previews in each email client. It renders every design again when the project's source, or a workspace package it depends on, changes. It writes nothing in the project, and runs until Ctrl-C. It serves on a free port; `--port <n>` picks one, to forward from a container or a remote machine (the path still starts with a random token).
+
+## Templates
+
+A [template](/docs/templates) is a design with fields: what may change, and the rules each value must meet. A design made from one is a values file, `name.values.json`, or a TSX file whose root is the template:
+
+```bash
+npx hyper-elements describe templates/launch.tsx --json        # formats, fields, image regions and rules
+npx hyper-elements design new templates/launch.tsx -o designs/orbit.values.json \
+  --values brief.json --set artwork=@art/waves.png --source artwork=source.json
+npx hyper-elements check designs/orbit.values.json --json      # values, images against their files, fit, each format
+npx hyper-elements render designs/orbit.values.json            # out/designs/orbit.square.png, orbit.landscape.png
+npx hyper-elements design set designs/orbit.values.json launchDate=2026-12-10   # one value; the rest as it was
+```
+
+`render`, `check`, `inspect` and `outline` run a design once per format, each with its own line and file. A value the template refuses exits `1`, and `render` writes nothing for a format that fails. `--require-template` fails anything a template didn't check, and `template extract` makes a template from a design a person approved.
+
+[Templates in the command line](/docs/templates/cli) has every command and flag, values files, trusted templates and the diagnostics. [Template examples](/docs/templates/examples) runs them on real ones.
 
 ## JSON and exit codes
 
-With `--json`, stdout holds one JSON line per template, then a summary line, and nothing else. What templates print goes to stderr.
+With `--json`, stdout holds one JSON line per design, then a summary line, and nothing else. What designs print goes to stderr.
 
 ```json
 {"version":1,"command":"check","file":"emails/broken.tsx","input":"template","root":"Email","status":"error","outputs":[],"diagnostics":[{"code":"style/unknown","severity":"error","message":"\"marginBottom\" isn't a style a Text takes: use the parent's gap, or padding. See Text in @hyper-elements/react/GUIDE.md","path":"root.children[0].style.marginBottom"}]}
 {"version":1,"summary":{"templates":1,"errors":1,"warnings":0,"skipped":0,"late":[]},"exitCode":1}
 ```
 
-Each diagnostic is the one [`validate()`](/docs/diagnostics) gives: `code`, `severity`, `message`, `path`, and the `clients` and `fix` where there are some. A template that doesn't load has no diagnostics but an `error`, which says why in one line; for a syntax error, in the template or a module it imports, that's the file, line, column and reason: `emails/welcome.tsx:3:34: Unexpected closing "Emal" tag does not match opening "Email" tag`. `preview --json` adds each preview's `path`, `ready` and `findings`, and the `browser` it drew in.
+Each diagnostic is the one [`validate()`](/docs/diagnostics) gives: `code`, `severity`, `message`, `path`, and the `clients` and `fix` where there are some. A design that doesn't load has no diagnostics but an `error`, which says why in one line; for a syntax error, in the design or a module it imports, that's the file, line, column and reason: `emails/welcome.tsx:3:34: Unexpected closing "Emal" tag does not match opening "Email" tag`. `preview --json` adds each preview's `path`, `ready` and `findings`, and the `browser` it drew in.
 
 | Exit code | Means |
 |-----------|-------|
-| `0` | Every template rendered, checked or previewed without errors |
-| `1` | A template has errors, failed to load or threw, or ran past `--timeout`; a PDF or image engine isn't installed; a preview failed in the browser; or the run passed `--max-warnings` |
-| `2` | The run couldn't do what it was asked: a usage error, no templates (none found, or no input that turned out to be one, such as a file whose default export isn't a component: each is still listed, as skipped), Elements missing, a Document's PDF on Bun, `preview` without `@hyper-elements/email-clients`, or `--findings` with no browser found |
+| `0` | Every design rendered, checked or previewed without errors |
+| `1` | A design has errors, failed to load or threw; a values file is wrong, a draft, or its values fail its template; or ran past `--timeout`; a PDF or image engine isn't installed; a preview failed in the browser; or the run passed `--max-warnings` |
+| `2` | The run couldn't do what it was asked: a usage error, `render` of a template module, templates with an Elements before 0.5, no designs (none found, or no input that turned out to be one, such as a file whose default export isn't a component: each is still listed, as skipped), Elements missing, a Document's PDF on Bun, `preview` without `@hyper-elements/email-clients`, or `--findings` with no browser found |
 
-In CI, fail the build on any problem in your templates:
+In CI, fail the build on any problem in your designs:
 
 ```bash
 npx hyper-elements check emails/ --max-warnings 0
@@ -204,8 +225,8 @@ An agent that can run commands needs no script to check its work. A loop from th
 
 Where no Chromium is found, `preview --findings` still writes the files, gives each preview `"findings": null` and the line `"browser": null, "reason": "no-browser"`, and exits `2`. Where `playwright-core` isn't installed, the reason is `"no-playwright-core"`, and stderr says how to install it. An agent with a browser of its own opens each file (or the URLs `--serve` prints), waits for `<html data-email-client-ready>`, and reads the JSON in `#email-client-findings`. With no browser at all, `check`'s diagnostics are what it has. See [AI agents](/docs/guides/ai-agents) and [Email client emulator](/docs/email-client-emulator#test-an-email-from-the-shell).
 
-## How it runs templates
+## How it runs designs
 
-Templates run in child processes, one per package and tsconfig, and each is loaded through a small module the CLI writes beside it for a moment, so a template resolves Elements and React as your own code does. The template's folder must be writable. `--timeout` (60 seconds by default) ends a template that loops or hangs: it fails, and the templates after it in its group run in a new process.
+Designs run in child processes, one per package and tsconfig, and each is loaded through a small module the CLI writes beside it for a moment, so a design resolves Elements and React as your own code does. The design's folder must be writable. `--timeout` (60 seconds by default) ends a design that loops or hangs: it fails, and the designs after it in its group run in a new process.
 
 On Bun, the CLI gives the same output as on Node.js, byte for byte, except a Document's PDF, which it refuses there (Bun's zlib compresses the PDF's streams differently): render Documents with Node.js. `check`, `outline` and `preview` work on Bun for every root.

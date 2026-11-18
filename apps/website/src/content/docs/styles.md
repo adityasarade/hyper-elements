@@ -1,5 +1,5 @@
 ---
-title: "Styles, phones and hover"
+title: "Styles"
 description: "Style elements with style={{ }} using CSS names, set phone and hover styles in its mobile and hover blocks, set where a Page's phones start, show blocks on one size with hidden, and load fonts."
 ---
 
@@ -67,7 +67,7 @@ In an email, every text style is written on the text itself, since Outlook doesn
 
 Box styles (`width`, `padding`, `backgroundColor`, `border`, `borderRadius` and the rest) aren't inherited.
 
-A [theme](/docs/themes) sets the root's text styles for every template that takes it, with its roles: `colors.foreground`, `fonts.body`, `fontSizes.body` and `lineHeights.body`.
+A [theme](/docs/themes) sets the root's text styles for every design that takes it, with its roles: `colors.foreground`, `fonts.body`, `fontSizes.body` and `lineHeights.body`.
 
 ### No margins
 
@@ -163,7 +163,7 @@ In an email, `validate()` notes that hover doesn't show everywhere: classic Outl
 
 ## Fonts
 
-The root's `fonts` lists the font files the template loads, one face each:
+The root's `fonts` lists the font files the design loads, one face each:
 
 ```tsx
 <Email
@@ -194,7 +194,7 @@ A root's `dir` and a text block's own `dir` (Text, Heading, ListItem, TableCell,
 
 ## What each output can't show
 
-A familiar CSS name doesn't promise every output can show it. Each style declares, for each output, whether its writer shows it as asked, partly, or not at all, and `validate()` reports what your template's output can't do. What email clients do with the HTML Elements writes comes from `@hyper-elements/email-clients`' plugin (`validate(email, { plugins: [await emailClients()] })`). Rounded corners are the common case: classic Outlook draws them square, and the plugin notes it.
+A familiar CSS name doesn't promise every output can show it. Each style declares, for each output, whether its writer shows it as asked, partly, or not at all, and `validate()` reports what your design's output can't do. What email clients do with the HTML Elements writes comes from `@hyper-elements/email-clients`' plugin (`validate(email, { plugins: [await emailClients()] })`). Rounded corners are the common case: classic Outlook draws them square, and the plugin notes it.
 
 ```text
 info email/outlook-degraded at root.children[0].style.borderRadius: borderRadius on this Column in classic Outlook: square corners

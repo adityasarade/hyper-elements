@@ -27,11 +27,12 @@ import {
   type RootName,
   type StyleGroup,
 } from "@hyper-elements/core";
-import { collectTemplate, type JsonNode } from "../primitives/collect";
+import type { Snapshot } from "../primitives/snapshot";
+import { collectTemplate, snapshotData, withFields, type JsonNode } from "../primitives/collect";
 
 export type { ConditionName, Diagnostic, PropertyDescription, RootName, StyleGroup };
 
-/** An element (a built-in one, or a template's own), with its props and styles, as `describeElements()` gives it. */
+/** An element (a built-in one, or a custom one), with its props and styles, as `describeElements()` gives it. */
 export type ElementDescription = Described;
 /** @deprecated Renamed `ElementDescription`. */
 export type ComponentDescription = Described;
@@ -39,7 +40,7 @@ export type ComponentDescription = Described;
 /** The shape of what this entry returns: a new version is a new shape. */
 export const INSPECT_VERSION = 2;
 
-/** A template's own element (made with `defineElement()`), described alongside the built-in ones. */
+/** A custom element (made with `defineElement()`), described alongside the built-in ones. */
 interface WithDefinition {
   definition: CustomDefinition<any>;
 }
@@ -47,7 +48,7 @@ interface WithDefinition {
 export interface DescribeOptions {
   /** Only what this root takes, with phone styles only under a root that has phones. */
   root?: RootName;
-  /** A template's own elements (made with `defineElement()`), described with the built-in ones. */
+  /** Custom elements (made with `defineElement()`), described with the built-in ones. */
   elements?: readonly WithDefinition[];
   /** @deprecated Renamed `elements`. Given with it, an element in `elements` wins over one of the same type here. */
   components?: readonly WithDefinition[];
@@ -123,6 +124,8 @@ export interface InspectedNode {
   path: string;
   type: string;
   id?: string;
+  /** The template field it shows, where a template's render binds it (`headline`, `stories[1].image`). */
+  field?: string;
   /** The roots its element may go in. */
   roots: RootName[];
   /** Whether the template's root takes it. */
@@ -162,19 +165,21 @@ export interface Inspection {
   nodes: InspectedNode[];
   /** Everything found, as `validate()` finds it. */
   diagnostics: Diagnostic[];
+  /** The template the design's root was (its id and version), where it was one: what's inspected is the design it built. */
+  template?: { id: string; version: string };
 }
 
 /**
  * What a template holds, as data: each element, what it's given, whether its root takes it, and the problems
  * found on it. It checks what `validate()` checks, without rendering.
  */
-export function inspect(element: React.ReactElement): Inspection {
-  if (!React.isValidElement(element)) {
-    throw new TypeError(`[Elements] inspect() takes a template as JSX (<Email>…</Email>, <Page>…</Page>), not ${element === null ? "null" : typeof element}`);
+export function inspect(element: React.ReactElement | Snapshot): Inspection {
+  if (!React.isValidElement(element) && !snapshotData(element)) {
+    throw new TypeError(`[Elements] inspect() takes a design as JSX (<Email>…</Email>, <Page>…</Page>), not ${element === null ? "null" : typeof element}`);
   }
-  const { document, diagnostics: read, components, collected } = collectTemplate(element);
+  const { document, diagnostics: read, components, collected, fields, template } = collectTemplate(element);
   const failed = read.some((d) => d.severity === "error");
-  const diagnostics = [...read, ...(document && !failed ? validateTemplate(document, { components }).diagnostics : [])];
+  const diagnostics = [...read, ...(document && !failed ? withFields(validateTemplate(document, { components }).diagnostics, fields) : [])];
   const registry = new Registry(components);
   const rootType = document?.root.type;
   const root = rootType && (ROOT_NAMES as readonly string[]).includes(rootType) ? (rootType as RootName) : null;
@@ -186,6 +191,7 @@ export function inspect(element: React.ReactElement): Inspection {
       path,
       type: node.type,
       ...(typeof node.id === "string" && node.id ? { id: node.id } : {}),
+      ...(typeof node.field === "string" && !CUSTOM_TYPE.test(node.type) ? { field: node.field } : {}),
       roots,
       allowed: !!root && roots.includes(root),
       given: given(node),
@@ -198,7 +204,7 @@ export function inspect(element: React.ReactElement): Inspection {
   // The tree as collected, not as read: reading leaves out an element its root doesn't take (and merges text), and
   // what's listed here is every element written, at the paths diagnostics name.
   if (document && collected) visit(collected, "root");
-  return { version: INSPECT_VERSION, root, theme: describeTheme(document?.theme, registry), valid: !diagnostics.some((d) => d.severity === "error"), nodes, diagnostics };
+  return { version: INSPECT_VERSION, root, theme: describeTheme(document?.theme, registry), valid: !diagnostics.some((d) => d.severity === "error"), nodes, diagnostics, ...(template ? { template } : {}) };
 }
 
 /** A theme, as `inspect()` lists it. */
@@ -223,7 +229,7 @@ function describeTheme(theme: { [key: string]: Json } | undefined, registry: Reg
 
 /**
  * The keys a node was given, by where they're written. A condition's block written in `style` (`style={{ mobile: { … } }}`)
- * is the condition's, as reading takes it; a template's own element takes no condition, so in its style it's a style.
+ * is the condition's, as reading takes it; a custom element takes no condition, so in its style it's a style.
  */
 function given(node: JsonNode): string[] {
   const keys = (prefix: string, values: unknown) => (values && typeof values === "object" && !Array.isArray(values) ? Object.keys(values).map((key) => `${prefix}.${key}`) : []);

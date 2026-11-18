@@ -120,7 +120,7 @@ export function expandDocument(document: ElementsDocument, options?: ComponentsO
   /** A custom node at `path` expanded; what it renders is at `self` (its own path, or the custom node's that rendered it). */
   const expandOne = (node: Node, definition: CustomDefinition, parent: ComponentDefinition, path: string, depth: number, self = path, environment = themed): Node | undefined => {
     if (depth >= MAX_DEPTH) {
-      d.error("custom/depth", `${node.type} expands into a template's own elements ${MAX_DEPTH} deep: does it contain itself?`, path, node.id);
+      d.error("custom/depth", `${node.type} expands into custom elements ${MAX_DEPTH} deep: does it contain itself?`, path, node.id);
       return undefined;
     }
     let raw: unknown;
@@ -150,10 +150,12 @@ export function expandDocument(document: ElementsDocument, options?: ComponentsO
     if (!expanded) return undefined;
     collectIds(expanded);
     // The custom node's place in a Row and its visibility go onto what it renders; a built-in's (a Menu's, a
-    // Social's) id and phone styles too. A template's own component's id is only what the ids in it go after.
+    // Social's) id and phone styles too. A custom element's id is only what the ids in it go after.
     if (node.style?.flex !== undefined) expanded.style = { ...expanded.style, flex: node.style.flex };
     if (node.hidden) expanded.hidden = { ...expanded.hidden, ...node.hidden };
     if (node.id && !expanded.id && !CUSTOM_TYPE.test(node.type)) expanded.id = node.id;
+    // So does a built-in's field: a Menu bound to a template field is the Row it becomes.
+    if (node.field && !expanded.field && !CUSTOM_TYPE.test(node.type)) expanded.field = node.field;
     for (const condition of CONDITIONS) {
       const rendered = registry.get(expanded.type);
       for (const [key, value] of Object.entries(node[condition.name] ?? {})) {

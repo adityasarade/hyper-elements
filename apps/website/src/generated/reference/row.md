@@ -11,7 +11,7 @@ Holds: Row, Column, Box, Grid, Layer, Svg, Text, Heading, Link, Button, Image, D
 
 Props:
 - `stackOnMobile`: true or false (default `true`). Its children stack full-width on phones (in an Email or a Page).
-- `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the template's; it starts on that side unless aligned otherwise.
+- `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the design's; it starts on that side unless aligned otherwise.
 
 `style`:
 - `display`: one of "block", "flex", "grid", "inline", "inline-block", "inline-flex", "none" (only in Page, Layout). How it lays out its children, as CSS display: a Box is a flex column unless it says otherwise.

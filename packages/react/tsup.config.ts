@@ -38,4 +38,6 @@ export default defineConfig([
   { ...shared, entry: { inspect: 'src/inspect/index.ts' } },
   output('pdf', ['@react-pdf/renderer']),
   output('image', ['satori', '@resvg/resvg-js']),
+  // Templates: reusable designs with guardrails. No engine; the main entry is external, as for /pdf and /image.
+  output('template', ['@hyper-elements/react/inspect']),
 ]);

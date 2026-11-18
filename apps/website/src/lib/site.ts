@@ -13,13 +13,13 @@ export const site = {
     "Install the hyper-elements skill (npx skills add hyper-elements/hyper-elements --skill hyper-elements -y, or read https://www.hyperelements.dev/skills/hyper-elements.md) and follow it to",
   /** The skill's job as a rule in CLAUDE.md or AGENTS.md, for an agent without it: true before the package is installed too. */
   agentRule:
-    "Templates use Hyper Elements (@hyper-elements/react).\nIf it isn't installed, install it with react and react-dom.\nBefore writing a template, read\nnode_modules/@hyper-elements/react/GUIDE.md.",
+    "Designs use Hyper Elements (@hyper-elements/react).\nIf it isn't installed, install it with react and react-dom.\nBefore writing a design, read\nnode_modules/@hyper-elements/react/GUIDE.md.",
   /** The email-testing skill alone, and a prompt that installs it and previews an email with it. */
   emailTestingSkill: "npx skills add hyper-elements/hyper-elements --skill email-testing",
   emailTestingPrompt:
-    "Install the email-testing skill (npx skills add hyper-elements/hyper-elements --skill email-testing -y, or read https://www.hyperelements.dev/skills/email-testing.md) and follow it to preview [my email: an HTML file or a template] in Outlook, Gmail, Yahoo Mail and Apple Mail, light and dark. Show me each client's screenshot and what it changed.",
+    "Install the email-testing skill (npx skills add hyper-elements/hyper-elements --skill email-testing -y, or read https://www.hyperelements.dev/skills/email-testing.md) and follow it to preview [my email: an HTML file or a design] in Outlook, Gmail, Yahoo Mail and Apple Mail, light and dark. Show me each client's screenshot and what it changed.",
   /** The engine's version line, shown in the header; links to the releases. */
-  version: "0.4",
+  version: "0.5",
   releases: "https://github.com/hyper-elements/hyper-elements/releases",
   repo: "hyper-elements/hyper-elements",
   description:
@@ -28,7 +28,7 @@ export const site = {
 
 export const mainNav = [
   { href: "/docs", label: "Docs" },
-  { href: "/components", label: "Elements" },
+  { href: "/elements", label: "Elements" },
   { href: "/templates", label: "Templates" },
   { href: "/ai", label: "AI" },
 ];
@@ -54,13 +54,13 @@ export const docsNav: DocGroup[] = [
   {
     title: "Core concepts",
     items: [
-      { slug: "templates", label: "Templates and roots" },
+      { slug: "designs", label: "Designs" },
       { slug: "layout", label: "Layout" },
-      { slug: "styles", label: "Styles, phones and hover" },
+      { slug: "styles", label: "Styles" },
       { slug: "themes", label: "Themes" },
       { slug: "rendering", label: "Rendering" },
+      { slug: "custom-elements", label: "Custom elements" },
       { slug: "cli", label: "Command line" },
-      { slug: "defining-elements", label: "Defining elements" },
     ],
   },
   {
@@ -70,6 +70,17 @@ export const docsNav: DocGroup[] = [
       { slug: "outputs/page", label: "Web pages" },
       { slug: "outputs/pdf", label: "Documents and PDF" },
       { slug: "outputs/image", label: "Images" },
+    ],
+  },
+  {
+    title: "Templates",
+    items: [
+      { slug: "templates", label: "Templates" },
+      { slug: "templates/examples", label: "Examples" },
+      { slug: "templates/fields", label: "Values: fields and images" },
+      { slug: "templates/slots", label: "Content: slots and blocks" },
+      { slug: "templates/rules", label: "Rules and checks" },
+      { slug: "templates/cli", label: "In the command line" },
     ],
   },
   {
