@@ -924,7 +924,8 @@ describe("registerTools", () => {
     // says so, its export fails, its audit has the error, and fromDesign() leaves the block out, saying which.
     const literal = { text: "A&lt;B" };
     expect(tool.renderer.Viewer.render(literal)).toContain("Short: its text &#34;A&#38;lt;B&#34; isn't one it takes (is longer than 3 characters)");
-    expect(() => tool.renderer.exporters.email(literal)).toThrow(`its text "A&lt;B" isn't one it takes (is longer than 3 characters)`);
+    // The export's error is plain text, which the builder writes as HTML: its "&" as JSON writes it escaped.
+    expect(() => tool.renderer.exporters.email(literal)).toThrow(`its text "A\\u0026lt;B" isn't one it takes (is longer than 3 characters)`);
     expect(tool.validator({ values: literal, defaultErrors: [] })).toEqual([expect.objectContaining({ severity: "ERROR", description: expect.stringContaining("longer than 3") })]);
     expect(fromDesign(design(literal), { elements: [Short] }).report).toEqual([`rows[0].columns[0].contents[0]: the custom tool "acme_short" has its text "A&lt;B" (is longer than 3 characters), which a acme.Short doesn't take: left out`]);
     // Where a text takes it, "A&lt;B" is drawn as the six characters typed, not as "A<B".
@@ -1156,6 +1157,28 @@ describe("a tool's fields", () => {
     vi.advanceTimersByTime(300);
     expect(kept).toEqual(["ab"]);
     expect(tool.renderer.exporters.email({ code: "ab", price: "7.5" })).toContain("ab 7.5");
+  });
+
+  it("says what a field or a block holds as plain text, which the builder writes in place of the HTML: no markup", () => {
+    const { input, tool, node } = field("price", "7.5");
+    const thrown = (values: Record<string, unknown>) => {
+      try {
+        tool.renderer.exporters.email(values);
+      } catch (error) {
+        return (error as Error).message;
+      }
+      throw new Error("the export didn't fail");
+    };
+    type(input, `<img src=x onerror="alert(1)">`);
+    input.dispatchEvent(new Event("change"));
+    const held = thrown({ code: "ABC", price: "7.5" });
+    expect(held).toContain(`Code's Price holds "\\u003cimg src=x onerror=\\"alert(1)\\"\\u003e", which isn't kept`);
+    expect(held).not.toMatch(/[<>&]/);
+    node.remove();
+    const saved = thrown({ code: "<b>&</b>", price: "7.5" });
+    expect(saved).toBe(`[Elements] Code (acme.Code) can't be drawn: its code "\\u003cb\\u003e\\u0026\\u003c/b\\u003e" isn't one it takes (is longer than 3 characters)`);
+    // Read as JSON, the value is what was typed.
+    expect(JSON.parse(`"${/"(.*)" isn't one/.exec(saved)![1]}"`)).toBe("<b>&</b>");
   });
 
   it("shows a value a design was saved with that its prop doesn't take, with why, to be corrected", () => {

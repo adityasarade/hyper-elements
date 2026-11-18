@@ -348,6 +348,14 @@ function draw(definition: CustomDefinition<any>, tools: readonly CustomDefinitio
 const problemOf = (error: unknown): string => (error instanceof ElementsError ? error.diagnostics[0]?.message : undefined) ?? String((error as Error)?.message ?? error);
 
 /**
+ * A diagnostic as plain text wherever it's put. It says what a field holds, as its user typed it, and the builder
+ * writes an export's error in place of its HTML, as HTML: a value there (`<img src=x onerror=…>`) would be markup. So
+ * `<`, `>` and `&` are written as a JSON string writes them escaped (`<`), which is text in HTML, and that same
+ * character read as JSON.
+ */
+const plain = (text: string): string => text.replace(/[<>&]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+
+/**
  * What stops an element's tool from drawing its block (`values`, as toDesign() writes them) as the builder exports it:
  * on its own, at the room its column leaves it (`body`'s content width, the row's `cells`, the column's `index` and
  * values), with no template around it, so with no theme (a theme's token in its render is none there). None where it
@@ -457,17 +465,17 @@ export function registerTools(builder: Builder, elements: readonly WithDefinitio
     // What the builder exports: the element as that output's markup. Where its values can't be drawn, the export
     // fails, saying which block and why (the builder writes that in place of the HTML): left out, the block would be
     // missing from an export that looks whole. It fails too while a field holds a value that isn't kept: the block
-    // has the value it had, not the one its user sees.
+    // has the value it had, not the one its user sees. What it says is plain text (plain()).
     const written = (root: "Email" | "Page") => (values: Values, ...rest: unknown[]) => {
       const held = unkeptValues();
-      if (held.length) throw new Error(`[Elements] ${held.join("; ")}: correct it to export`);
+      if (held.length) throw new Error(plain(`[Elements] ${held.join("; ")}: correct it to export`));
       const meta = obj(rest[rest.length - 1]);
       const cells = (Array.isArray(rest[2]) ? rest[2] : meta.rowCells) as number[] | undefined;
       const index = (typeof rest[1] === "number" ? rest[1] : meta.columnIndex) as number | undefined;
       try {
         return draw(definition, all, root, values, obj(rest[3] ?? meta.bodyValues), cells, index, obj(meta.columnValues));
       } catch (error) {
-        throw new Error(`[Elements] ${definition.label} (${definition.type}) can't be drawn: ${problemOf(error)}`);
+        throw new Error(plain(`[Elements] ${definition.label} (${definition.type}) can't be drawn: ${problemOf(error)}`));
       }
     };
     builder.registerTool({
