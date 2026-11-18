@@ -100,6 +100,8 @@ describe("properties where React can't load", () => {
     // An empty field is the prop not given, which one its element needs isn't.
     expect(checkValue(price, "")).toEqual({ ok: true, value: undefined });
     expect(checkValue(prop.number({ label: "Price", required: true }), "")).toEqual({ ok: false, message: "is needed" });
+    // Unless the empty text is one of the values the prop lists.
+    expect(checkValue(prop.choice(["", "urgent"], { label: "Badge", required: true }), "")).toEqual({ ok: true, value: "" });
     // Text is what's typed: "A&lt;B" is six characters, never "A<B".
     const code = prop.text({ label: "Code", maxLength: 3 });
     expect(checkValue(code, "A<B")).toEqual({ ok: true, value: "A<B" });

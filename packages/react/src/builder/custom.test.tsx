@@ -421,6 +421,15 @@ describe("fromDesign with elements", () => {
     expect(read.report).toEqual(['rows[0].columns[0].contents[0]: the custom tool "acme_named" has no name, which a acme.Named needs: left out']);
     // Filled, it's drawn.
     expect(tools[0].renderer.exporters.email({ name: "Ada" })).toContain("Ada");
+    // Where the empty text is one of the values a required prop lists, it's that value: drawn, exported and read back.
+    const Promo = defineElement({ type: "acme.Promo", label: "Promo", props: { badge: prop.choice(["", "urgent"], { label: "Badge", required: true, default: "" }) }, render: (p) => <Text>{`[${p.badge}]`}</Text> });
+    const promo = fakeBuilder();
+    registerTools(promo.builder, [Promo]);
+    expect(promo.tools[0].renderer.exporters.email({ badge: "" })).toContain("[]");
+    expect(promo.tools[0].validator({ values: { badge: "" }, defaultErrors: [] })).toEqual([]);
+    const back = fromDesign({ body: { rows: [{ cells: [1], columns: [{ contents: [{ type: "custom", slug: "acme_promo", values: { badge: "" } }] }] }] } }, { elements: [Promo] });
+    expect(back.report).toEqual([]);
+    expect(back.code).toContain('<Promo badge="" />');
   });
 
   it("refuses a link its field holds that Elements can't draw, rather than draw the prop's default in its place", async () => {

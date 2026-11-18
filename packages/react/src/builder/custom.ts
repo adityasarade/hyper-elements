@@ -8,6 +8,7 @@
  */
 import { checkDocument, ElementsError, expandDocument, propertyOf, registryOf, renderTemplate, type CustomDefinition, type Json, type LinkValue, type Node } from "@hyper-elements/core";
 import type { PropertyDefinition } from "../primitives/properties";
+import { listsEmpty } from "../primitives/properties/check";
 import { link } from "./blocks";
 import { block, type Block, type Hiding } from "./design";
 import { checkedControl, textField, unkeptValues } from "./field";
@@ -163,8 +164,9 @@ export function toolProps(definition: CustomDefinition<any>, values: Values, say
       continue;
     }
     heard.forEach(say);
-    // A text its element needs, left empty (as a block dragged in starts), is none: its field says it's needed.
-    if (given === "" && spec.required) continue;
+    // A text its element needs, left empty (as a block dragged in starts), is none: its field says it's needed. Where
+    // the empty text is one of the values the prop lists, it's that value.
+    if (given === "" && spec.required && !listsEmpty(spec)) continue;
     const parsed = spec.kind.parse(given);
     // Its default is what the element takes anyway: not written, as a template wouldn't. One it needs is given
     // either way (a template has to give it), its default too.
