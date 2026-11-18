@@ -1,0 +1,37 @@
+---
+// A template's thumbnail in every brand it's shown in, the first visible: its email, page or print HTML drawn live, or an
+// image's PNG. Only the shown brand's frame is written; the others are written when picked.
+import { previewHtml } from "../lib/examples";
+import { brandsFor, firstView, type TemplateInfo } from "../lib/kits";
+interface Props { t: TemplateInfo; height?: number }
+const { t, height = 300 } = Astro.props;
+const width = t.root === "Page" ? 1100 : t.root === "Document" ? 820 : t.root === "Canvas" ? 1200 : 640;
+const list = brandsFor(t);
+---
+<div class="kthumb" style={`height:${height}px`} aria-hidden="true">
+  {list.map((b, i) => {
+    const view = firstView(t, b.id);
+    if (!view) return null;
+    const bg = b.colors.background;
+    return t.root === "Canvas" ? (
+      <div class="kt-image" data-brand={b.id} hidden={i !== 0} style={`background:${bg}`}>
+        <img src={view.file} alt="" loading="lazy" />
+      </div>
+    ) : (
+      <div class="thumb view-frame" data-brand={b.id} data-fit={width} hidden={i !== 0} style={`height:${height}px;--frame-bg:${bg}`}>
+        <div class="scaler">
+          {i === 0 ? (
+            <iframe title="" tabindex="-1" srcdoc={previewHtml(view.html)} width={width} height={height} loading="lazy"></iframe>
+          ) : (
+            <iframe title="" tabindex="-1" data-srcdoc={previewHtml(view.html)} width={width} height={height}></iframe>
+          )}
+        </div>
+      </div>
+    );
+  })}
+</div>
+<style>
+  .kthumb { pointer-events: none; border-bottom: 1px solid var(--line); overflow: hidden; }
+  .kt-image { height: 100%; display: grid; place-items: center; }
+  .kt-image img { max-width: 100%; max-height: 100%; object-fit: contain; }
+</style>

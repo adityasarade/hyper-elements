@@ -1,35 +1,122 @@
 ---
 import Base from "../../layouts/Base.astro";
-import Thumb from "../../components/Thumb.astro";
-import { templates, thumbWidth } from "../../lib/examples";
+import BrandSwitch from "../../components/BrandSwitch.astro";
+import KitThumb from "../../components/KitThumb.astro";
+import { GROUPS, brands, kitCategories, kitList, kitTemplates, kitUrl, templateUrl } from "../../lib/kits";
+
+const outputs = [
+  { id: "all", label: "Everything" },
+  { id: "emails", label: "Emails" },
+  { id: "pages", label: "Pages" },
+  { id: "documents", label: "PDFs" },
+  { id: "images", label: "Images" },
+];
+const groups = GROUPS.map((group) => ({
+  group,
+  categories: Object.entries(kitCategories)
+    .filter(([, c]) => c.group === group)
+    .map(([id, c]) => ({ id, ...c, templates: kitTemplates.filter((t) => t.category === id) }))
+    .filter((c) => c.templates.length),
+})).filter((g) => g.categories.length);
+const kitName = (id: string) => kitList.find((k) => k.id === id)?.name ?? id;
+const several = kitList.filter((k) => kitTemplates.filter((t) => t.kit === k.id).length > 1);
 ---
-<Base title="Templates" description="Designs written with Hyper Elements: emails, a landing page, an invoice and social images, each shown as the engine renders it, with its code.">
+<Base title="Templates" description="Ready-made templates for emails, web pages, PDFs and images, with their guardrails set. Each takes your brand: pick a sample brand, preview it, and copy one file.">
   <section class="page-hero">
     <div class="wrap">
       <p class="eyebrow">Templates</p>
-      <h1 class="h-page"><span class="grad">Copy, paste, send.</span></h1>
-      <p class="lede">Complete designs you can drop into your app. Every one is rendered by the engine with its plain text, its phone layout and its diagnostics, so you see exactly what you'll ship.</p>
+      <h1 class="h-page"><span class="grad">Your brand, the guardrails set.</span></h1>
+      <p class="lede">Emails, pages, PDFs and images with the hard part done: phone layouts, plain text, accessible contrast, links that stay on your domains, and text that fits. None of them carries a brand. Pick a sample brand to preview them in, then copy one file and put your own brand at its top.</p>
+      <p class="hero-links"><a href="https://github.com/hyper-elements/hyper-elements/tree/main/templates">Browse the folder on GitHub</a> · <a href="https://github.com/hyper-elements/hyper-elements/blob/main/templates/CONTRIBUTING.md">Contribute a template</a></p>
     </div>
   </section>
   <div class="wrap">
-    <div class="grid grid-2">
-      {templates.map((t) => (
-        <a class="card tcard reveal" href={`/templates/${t.slug}`}>
-          <Thumb example={t} width={thumbWidth(t, { page: 1000, document: 860, email: 640 })} height={340} />
-          <div class="tcard-body">
-            <div class="tcard-top"><h2>{t.title}</h2><span class="chip">{`<${t.root}>`}</span></div>
-            <p>{t.description}</p>
-          </div>
-        </a>
-      ))}
+    <div class="controls panel">
+      <BrandSwitch brands={brands} />
+      <div class="outputs" role="radiogroup" aria-label="Output" data-outputs>
+        {outputs.map((o, i) => <button type="button" role="radio" aria-checked={i === 0 ? "true" : "false"} data-output-pick={o.id}>{o.label}</button>)}
+      </div>
     </div>
+
+    {groups.map(({ group, categories }) => (
+      <section class="group" data-group>
+        <h2 class="cg-title">{group}</h2>
+        {categories.map((c) => (
+          <div class="category" data-category>
+            <div class="cat-head">
+              <h3>{c.label}</h3>
+              <p>{c.useWhen}.</p>
+            </div>
+            <div class="grid grid-3">
+              {c.templates.map((t) => (
+                <a class="card tcard" href={templateUrl(t)} data-output={t.folder}>
+                  <KitThumb t={t} height={260} />
+                  <div class="tcard-body">
+                    <div class="tcard-top"><h4>{kitName(t.kit)}</h4><span class="chip">{t.output}</span></div>
+                    <p>{t.description}</p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        ))}
+      </section>
+    ))}
+
+    {several.length > 0 && (
+      <section class="group">
+        <h2 class="cg-title">Kits</h2>
+        <p class="kits-lede">A kit is a set of templates with one look, from one author. Some cover more than one output.</p>
+        <div class="kit-list">
+          {several.map((k) => (
+            <a class="card kit-card" href={kitUrl(k.id)}>
+              <h4>{k.name}</h4>
+              <p>{k.description}</p>
+              <span class="kit-count">{kitTemplates.filter((t) => t.kit === k.id).length} templates · by {k.author}</span>
+            </a>
+          ))}
+        </div>
+      </section>
+    )}
   </div>
 </Base>
 
+<script>
+  const buttons = [...document.querySelectorAll<HTMLElement>("[data-output-pick]")];
+  buttons.forEach((b) => b.addEventListener("click", () => {
+    const pick = b.dataset.outputPick!;
+    buttons.forEach((x) => x.setAttribute("aria-checked", String(x === b)));
+    document.querySelectorAll<HTMLElement>("[data-output]").forEach((card) => (card.hidden = pick !== "all" && card.dataset.output !== pick));
+    document.querySelectorAll<HTMLElement>("[data-category]").forEach((c) => (c.hidden = !c.querySelector("[data-output]:not([hidden])")));
+    document.querySelectorAll<HTMLElement>("[data-group]").forEach((g) => (g.hidden = !g.querySelector("[data-category]:not([hidden])")));
+    window.dispatchEvent(new Event("resize"));
+  }));
+</script>
+
 <style>
-  .page-hero { padding: 80px 0 48px; position: relative; }
-  .tcard { padding: 0; overflow: hidden; }
-  .tcard-body { padding: 18px 20px 22px; }
+  .page-hero { padding: 80px 0 32px; position: relative; }
+  .hero-links { margin-top: 18px; font-size: 14px; color: var(--text-3); }
+  .hero-links a { color: var(--text-2); }
+  .controls { display: grid; gap: 14px; padding: 16px 18px; margin-bottom: 40px; background: var(--bg); }
+  @media (min-width: 1100px) { .controls { position: sticky; top: calc(var(--header) + 8px); z-index: 5; } }
+  .outputs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .outputs button { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line-2); background: transparent; color: var(--text-2); font: 13px var(--sans); cursor: pointer; }
+  .outputs button[aria-checked="true"] { color: var(--text); border-color: var(--text-3); background: var(--bg-2); }
+  .group { margin-bottom: 56px; }
+  .cg-title { font: 500 12.5px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin: 0 0 16px; }
+  .category { margin-bottom: 32px; }
+  .cat-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+  .cat-head h3 { margin: 0; font-size: 20px; }
+  .cat-head p { margin: 0; color: var(--text-3); font-size: 14px; }
+  .tcard { padding: 0; overflow: hidden; text-decoration: none; }
+  .tcard-body { padding: 16px 18px 20px; }
   .tcard-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 6px; }
-  .tcard-top h2 { margin: 0; }
+  .tcard-top h4 { margin: 0; font-size: 16px; }
+  .tcard p { margin: 0; color: var(--text-3); font-size: 14px; }
+  .kits-lede { color: var(--text-3); margin: -6px 0 16px; }
+  .kit-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .kit-card { padding: 16px 18px; text-decoration: none; }
+  .kit-card h4 { margin: 0 0 6px; }
+  .kit-card p { margin: 0 0 10px; color: var(--text-3); font-size: 14px; }
+  .kit-count { font: 12px var(--mono); color: var(--text-3); }
 </style>

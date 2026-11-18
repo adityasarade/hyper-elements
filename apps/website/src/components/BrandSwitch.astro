@@ -1,0 +1,62 @@
+---
+// The sample brands to draw a page's templates in. Picking one shows every [data-brand] element of that brand and hides
+// the others, here and on the next templates page (the choice is kept in the browser where it can be).
+import type { BrandInfo } from "../lib/kits";
+interface Props { brands: BrandInfo[]; label?: string }
+const { brands, label = "Brand" } = Astro.props;
+---
+<div class="brand-switch" role="radiogroup" aria-label={label} data-brand-switch>
+  <span class="bs-label">{label}</span>
+  {brands.map((b, i) => (
+    <button type="button" role="radio" aria-checked={i === 0 ? "true" : "false"} data-brand-pick={b.id} title={b.name}>
+      <span class="swatch" style={`background:${b.colors.background};border-color:${b.colors.border}`}><i style={`background:${b.colors.primary}`}></i></span>
+      {b.name}
+    </button>
+  ))}
+</div>
+
+<script>
+  const KEY = "templates-brand";
+  const switches = [...document.querySelectorAll<HTMLElement>("[data-brand-switch]")];
+  const ids = new Set(switches.flatMap((s) => [...s.querySelectorAll<HTMLElement>("[data-brand-pick]")].map((b) => b.dataset.brandPick!)));
+  const pick = (id: string, remember: boolean) => {
+    if (!ids.has(id)) return;
+    document.querySelectorAll<HTMLElement>("[data-brand]").forEach((el) => {
+      const shown = el.dataset.brand === id;
+      el.hidden = !shown;
+      // A thumbnail's frame is written when it's first shown.
+      const lazy = shown ? el.querySelector<HTMLIFrameElement>("iframe[data-srcdoc]") : null;
+      if (lazy) {
+        lazy.srcdoc = lazy.dataset.srcdoc ?? "";
+        lazy.removeAttribute("data-srcdoc");
+      }
+    });
+    document.querySelectorAll<HTMLElement>("[data-brand-pick]").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.brandPick === id)));
+    if (remember) {
+      try {
+        localStorage.setItem(KEY, id);
+      } catch {}
+    }
+    // The previews fit themselves to their panels on resize.
+    window.dispatchEvent(new Event("resize"));
+  };
+  switches.forEach((s) => s.addEventListener("click", (e) => {
+    const button = (e.target as HTMLElement).closest<HTMLElement>("[data-brand-pick]");
+    if (button) pick(button.dataset.brandPick!, true);
+  }));
+  let saved: string | null = null;
+  try {
+    saved = localStorage.getItem(KEY);
+  } catch {}
+  if (saved) pick(saved, false);
+</script>
+
+<style>
+  .brand-switch { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .bs-label { font: 500 12px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin-right: 6px; }
+  .brand-switch button { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line-2); background: transparent; color: var(--text-2); font: 13px var(--sans); cursor: pointer; }
+  .brand-switch button:hover { color: var(--text); border-color: var(--line-3); }
+  .brand-switch button[aria-checked="true"] { color: var(--text); border-color: var(--text-3); background: var(--bg-2); }
+  .swatch { width: 18px; height: 18px; border-radius: 50%; border: 1px solid; display: inline-grid; place-items: center; }
+  .swatch i { width: 8px; height: 8px; border-radius: 50%; }
+</style>
