@@ -180,13 +180,17 @@ jobs:
       # design both ways, and registerTools(), with a field for every kind of prop and a team's own editors; and what
       # the builder keeps on such a block that isn't read, said as a built-in block's is), and fromDesign()'s code
       # writing each such element by the name its type ends with, with its namespace where that's another's too
-      # (537,771 bytes measured).
+      # (537,771 bytes measured); 542,100 for a block that can't be drawn as it's set said, not drawn otherwise: a value
+      # its prop doesn't take said in the canvas, its tool's validator checking a block's values and expanding its
+      # element with them (an error in the builder's audit), a text the builder gives as HTML (safeHtml) read as typed
+      # where its prop takes it only so, and an element its tool can't draw at the room its column leaves it (a theme's
+      # token in its render) kept an HTML block by toDesign() (4,310 bytes more; 542,081 measured).
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=537800
+          MAX_SIZE=542100
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"

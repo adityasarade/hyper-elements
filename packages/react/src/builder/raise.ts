@@ -14,7 +14,7 @@ import { prepareTemplate, type Json, type Node, type ResolvedNode } from "@hyper
 import type React from "react";
 import { collectTemplate, snapshotData } from "../primitives/collect";
 import { add, boxRowOf, builderId, gapOf, hasBox, hiding, linesOf, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";
-import { customBlock, unkept } from "./custom";
+import { customBlock, toolProblem, unkept } from "./custom";
 import { block, columnWith, rowWith, type Block, type Body, type BodyFields, type Row } from "./design";
 import { hiddenOf, leftOut, merge } from "./hide";
 import { lockedHtml } from "./locked";
@@ -101,6 +101,8 @@ export function raise(element: React.ReactElement, options: { customTools?: bool
     const given: Record<string, unknown> = { ...BROWSER_TEXT, color: resolvedRoot.text.color, fontFamily: resolvedRoot.text.fontFamily, fontWeight: resolvedRoot.text.fontWeight };
     return Object.fromEntries(Object.entries(text).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(given[key]))) as Record<string, Json>;
   };
+  /** Each element's tool's block, with what it's of. */
+  const tools = new Map<Block, { node: Node; path: string; around: Sides; definition: (typeof components)[number] }>();
   const place: Place = {
     at,
     report,
@@ -115,10 +117,17 @@ export function raise(element: React.ReactElement, options: { customTools?: bool
       // An element placed where a Section goes renders a band across the window, which no block in a column is; one
       // with a prop named as one of the builder's own for a block can't keep it there.
       const definition = options.customTools ? components.find((c) => c.type === node.type && !c.categories.includes("section") && !unkept(c)) : undefined;
+      if (!definition) return undefined;
       // The builder has these tools for emails and pages (registerTools()): in a document it keeps the block, as it
       // does an HTML block, and fromDesign() reads it back as the element.
-      if (definition && root.type === "Document") report.push(`${path}: a ${node.type} is its custom tool's block: ${NOT_IN_DOCUMENTS}`);
-      return definition && put(customBlock(node, definition, around, hiding));
+      if (root.type === "Document") {
+        report.push(`${path}: a ${node.type} is its custom tool's block: ${NOT_IN_DOCUMENTS}`);
+        return put(customBlock(node, definition, around, hiding));
+      }
+      // Checked once the rows are written, at the room its column leaves it there (below).
+      const made = put(customBlock(node, definition, around, hiding));
+      tools.set(made, { node, path, around, definition });
+      return made;
     },
     stack: (node, path, around) => stack(node, path, at(path), around),
     textAround,
@@ -323,6 +332,19 @@ export function raise(element: React.ReactElement, options: { customTools?: bool
   if (root.type === "Document") {
     const paper = { documentSize: (root.props?.size as string | undefined) ?? "A4", documentOrientation: (root.props?.orientation as string | undefined) ?? "portrait" };
     return { body: { root: root.type, fields: { ...common, ...paper }, values: bodyHidden, rows: body, headers, footers }, report };
+  }
+  // Each element's tool's block, drawn as the builder exports it: on its own, at the room its column leaves it, with
+  // no theme. One its tool can't draw so (a theme's token in its render) would be exported as nothing: it's an HTML
+  // block of its markup instead, drawn as the template draws it, and said.
+  for (const row of body) {
+    row.columns.forEach((column, index) => {
+      column.contents = column.contents.map((made) => {
+        const tool = tools.get(made);
+        if (!tool) return made;
+        const problem = toolProblem(tool.definition, components, root.type as "Email" | "Page", made.values, { contentWidth: common.contentWidth }, row.cells, index, { ...column.fields, ...column.values });
+        return problem ? place.locked(tool.node, tool.path, `its custom tool draws a ${tool.node.type} on its own, at the room its column leaves it and without the template's theme, and can't draw it so (${problem})`, tool.around) : made;
+      });
+    });
   }
   const previewText = root.type === "Email" && root.props?.previewText ? { previewText: String(root.props.previewText) } : {};
   return { body: { root: root.type, fields: common, ...previewText, values: bodyHidden, rows: body }, report };

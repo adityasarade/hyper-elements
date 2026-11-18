@@ -90,7 +90,11 @@ so the two can't differ, and rejects a template as they do (with errors, or anot
   `fromDesign(design, { elements })` reads those blocks back as the elements, its code writing each by the name its
   type ends with (`<ProductCard />`), or with its namespace where that's another's too (`AcmeCard`), and listing their
   types to import. Without the options, both do what they did. `registerTools()`'s `tools` takes the builder's own settings for a tool: `properties` that aren't the
-  element's props (a picker), and what the builder's `registerTool()` takes (`transformer`, `usageLimit`…).
+  element's props (a picker), and what the builder's `registerTool()` takes (`transformer`, `usageLimit`…). A block
+  with a value its prop doesn't take, or with none for a prop its element needs, is drawn as what's wrong in the
+  canvas, exported as nothing and an error in the builder's audit, and `fromDesign()` leaves it out and says so. An
+  element its tool can't draw on its own, at the room the builder gives its block (one with a theme's token in its
+  `render`), stays an HTML block, and `toDesign()`'s report says why.
 - **A property of your own, for an editor of your own.** `defineProperty()` defines a property once, as data: a name,
   the helper of `prop` it's made on, and the options its editor takes, each made with a helper too (`const currency =
   defineProperty({ name: "acme.currency", base: prop.number, options: { symbol: prop.text({ enum: ["$", "€", "£"],

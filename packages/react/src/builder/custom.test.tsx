@@ -3,7 +3,7 @@ import * as jsxRuntime from "react/jsx-runtime";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import * as primitives from "../primitives";
-import { Button, Column, defineElement, defineProperty, defineTheme, Document, Email, Heading, Image, Page, prop, render, Row, Section, Text, token } from "../primitives/index";
+import { Button, Column, defineElement, defineProperty, defineTheme, Document, Email, Heading, Image, Layer, Page, prop, render, Row, Section, Text, token } from "../primitives/index";
 import { fromDesign, registerTools, toDesign, toolName, type Builder, type EditorWidget } from "./index";
 
 type Values = Record<string, any>;
@@ -175,6 +175,97 @@ describe("toDesign with customTools", () => {
     expect(report.join("\n")).toContain("the builder keeps no theme");
   });
 
+  it("keeps an element its tool can't draw on its own, one with a theme's token in its render, as an HTML block drawn with the theme, and says why", () => {
+    const theme = defineTheme({ colors: { primary: "#0f766e" } });
+    const Note = defineElement({ type: "acme.Note", label: "Note", props: { text: prop.text({ label: "Text", default: "Note" }) }, render: (p) => <Text style={{ color: token("colors.primary") }}>{p.text}</Text> });
+    const { design, report } = toDesign(
+      <Email theme={theme}>
+        <Note text="Hello" />
+        <ProductCard name="Mug" />
+      </Email>,
+      { customTools: true }
+    );
+    const [note, product] = blocks(design);
+    expect(note.type).toBe("html");
+    expect(note.values.html).toContain("Hello");
+    expect(note.values.html).toContain("#0f766e");
+    // One its tool draws is still its tool's block.
+    expect(product.type).toBe("custom");
+    expect(report).toContainEqual(expect.stringMatching(/^root\.children\[0\]: its custom tool draws a acme\.Note on its own, at the room its column leaves it and without the template's theme, and can't draw it so \(There's no token "colors\.primary".*\): it's an HTML block of its own markup in the builder/));
+    // Dragged in from the panel, its tool says the same in the canvas and the builder's audit, and exports nothing.
+    const { builder, tools } = fakeBuilder();
+    registerTools(builder, [Note]);
+    expect(tools[0].renderer.Viewer.render({ text: "Hello" })).toContain("Note: There's no token &#34;colors.primary&#34;");
+    expect(tools[0].renderer.exporters.email({ text: "Hello" })).toBe("");
+    expect(tools[0].validator({ values: { text: "Hello" } })).toEqual([expect.objectContaining({ severity: "ERROR", description: expect.stringContaining('no token "colors.primary"') })]);
+  });
+
+  it("writes an element its tool draws at the room its block has as its tool's block, whatever it would be at another width", () => {
+    // In an email, a Layer's Image is as wide as the Layer: this one draws in a column of 300px, and in no wider one.
+    const Banner = defineElement({
+      type: "acme.PhotoBanner",
+      label: "Photo banner",
+      props: {},
+      render: () => (
+        <Layer style={{ height: 100 }}>
+          <Image src={{ src: "https://example.com/banner.png", width: 300, height: 100 }} style={{ width: 300 }} alt="" />
+          <Text>Banner</Text>
+        </Layer>
+      ),
+    });
+    const { design, report } = toDesign(
+      <Email width={600}>
+        <Row>
+          <Column>
+            <Banner />
+          </Column>
+          <Column>
+            <Text>Beside it</Text>
+          </Column>
+        </Row>
+      </Email>,
+      { customTools: true }
+    );
+    expect(blocks(design).map((content) => content.type)).toEqual(["custom", "paragraph"]);
+    expect(report.join("\n")).not.toContain("can't draw it so");
+    // Its values are all it takes: the builder's audit has nothing to say of it, whatever width it's drawn at.
+    const { builder, tools } = fakeBuilder();
+    registerTools(builder, [Banner]);
+    expect(tools[0].validator({ values: {}, defaultErrors: [] })).toEqual([]);
+    // And its block, as written, is drawn in its column.
+    expect(tools[0].renderer.Viewer.render(blocks(design)[0].values, { contentWidth: "600px" }, { rowCells: [1, 1], columnIndex: 0 })).toContain("banner.png");
+    // In a column of 300px the template's own, which the builder draws as wide as its row, its tool can't draw it: it's
+    // an HTML block, drawn as the template draws it, and said, not a block the builder would export as nothing.
+    const narrowed = toDesign(
+      <Email width={600}>
+        <Column style={{ width: 300 }}>
+          <Banner />
+        </Column>
+      </Email>,
+      { customTools: true }
+    );
+    expect(blocks(narrowed.design).map((content) => content.type)).toEqual(["html"]);
+    expect(blocks(narrowed.design)[0].values.html).toContain("banner.png");
+    expect(narrowed.report.join("\n")).toMatch(/its custom tool draws a acme\.PhotoBanner on its own, at the room its column leaves it and without the template's theme, and can't draw it so \(In an email, a Layer's Image is as wide as the Layer.*\): it's an HTML block/);
+  });
+
+  it("says in the builder's audit what stops a block from being drawn at any room: what its render does with its values", () => {
+    const Headline = defineElement({
+      type: "acme.Headline",
+      label: "Headline",
+      props: { title: prop.text({ label: "Title" }), subtitle: prop.text({ label: "Subtitle" }) },
+      render: (p) => {
+        if (!p.title && !p.subtitle) throw new Error("give it a title or a subtitle");
+        return <Text>{p.title ?? p.subtitle}</Text>;
+      },
+    });
+    const { builder, tools } = fakeBuilder();
+    registerTools(builder, [Headline]);
+    expect(tools[0].renderer.exporters.email({})).toBe("");
+    expect(tools[0].validator({ values: {}, defaultErrors: [] })).toEqual([expect.objectContaining({ severity: "ERROR", description: expect.stringContaining("give it a title or a subtitle") })]);
+    expect(tools[0].validator({ values: { title: "Hello" }, defaultErrors: [] })).toEqual([]);
+  });
+
   it("is hidden where the element is", () => {
     const [product] = blocks(toDesign(<Email><ProductCard name="Mug" hidden={{ mobile: true }} /></Email>, { customTools: true }).design);
     expect(product.values._override).toEqual({ mobile: { hideMobile: true } });
@@ -280,16 +371,21 @@ describe("fromDesign with elements", () => {
     expect((await render(back.element)).text).toContain("Probe: pack of 24, size large");
   });
 
-  it("leaves out a value its prop doesn't take, and says so, keeping the block", () => {
+  it("leaves out a block with a value its prop doesn't take, and says which: the builder draws and exports nothing for it", () => {
     const { design } = toDesign(email, { customTools: true });
     Object.assign(blocks(design)[1].values, { buttonColor: "greenish", quantity: 500, href: { name: "web", values: { href: "javascript:alert(1)" } }, extra: "<script>" });
     const { code, report } = fromDesign(design, { elements: [ProductCard, Footer] });
-    expect(report.join("\n")).toContain('its buttonColor "greenish"');
-    expect(report.join("\n")).toContain("its quantity 500");
+    const said = report.filter((line) => line.startsWith("rows[0].columns[0].contents[1]: "));
+    expect(said).toHaveLength(1);
+    expect(said[0]).toContain('its buttonColor "greenish"');
+    expect(said[0]).toContain("its quantity 500");
+    expect(said[0]).toMatch(/, which a acme\.ProductCard doesn't take: left out$/);
     expect(code).not.toContain("greenish");
     expect(code).not.toContain("javascript:");
     expect(code).not.toContain("script");
-    expect(code).toContain('name="Morning Mug"');
+    // Not drawn with its props' defaults instead: the block is left out, and the rest is read.
+    expect(code).not.toContain("Morning Mug");
+    expect(code).toContain("<LegalFooter");
   });
 
   it("says what the builder keeps on a block that an element has no place for: a display condition, an anchor, a prop's value on phones", () => {
@@ -318,10 +414,10 @@ describe("fromDesign with elements", () => {
     // As dragged in from the panel and not filled yet, with its counter emptied, and with a number its prop doesn't take.
     design.body.rows[0].columns[0].contents.push({ type: "custom", slug: "acme_photo", values: {} }, { type: "custom", slug: "acme_count", values: { n: "" } }, { type: "custom", slug: "acme_count", values: { n: 0 } });
     const back = fromDesign(design, { elements: [Photo, Count] });
-    expect(back.report).toHaveLength(4);
+    expect(back.report).toHaveLength(3);
     expect(back.report).toContain('rows[0].columns[0].contents[1]: the custom tool "acme_photo" has no photo, which a acme.Photo needs: left out');
     expect(back.report).toContain('rows[0].columns[0].contents[2]: the custom tool "acme_count" has no n, which a acme.Count needs: left out');
-    expect(back.report.filter((line) => line.startsWith("rows[0].columns[0].contents[3]: ")).join("\n")).toMatch(/its n 0 .*left out\n.*has no n, which a acme\.Count needs: left out/);
+    expect(back.report.filter((line) => line.startsWith("rows[0].columns[0].contents[3]: "))).toEqual([expect.stringMatching(/the custom tool "acme_count" has its n 0 \(.+\), which a acme\.Count doesn't take: left out$/)]);
     expect(back.code).not.toContain("acme.");
     expect((await render(back.element)).html).toContain(">Hello</h");
   });
@@ -717,12 +813,52 @@ describe("registerTools", () => {
     expect(tools.map((tool) => tool.name)).toEqual(["acme_legal_footer"]);
   });
 
-  it("leaves a value its prop doesn't take out of the drawing, which then shows the default", () => {
+  it("draws no block with a value its prop doesn't take: the canvas says which, the builder exports nothing for it, and its audit has the error", async () => {
     const { builder, tools } = fakeBuilder();
     registerTools(builder, [ProductCard]);
-    const html = tools[0].renderer.Viewer.render({ name: "Mug", buttonColor: "greenish", quantity: "lots" });
-    expect(html).toContain("#007bff");
-    expect(html).toContain("1 × $7.99");
+    const [tool] = tools;
+    // A price below its min, in the text field a number that isn't whole has; a color that isn't one.
+    const values = { name: "Mug", price: "-5", buttonColor: "greenish" };
+    const canvas = tool.renderer.Viewer.render(values);
+    expect(canvas).toContain("Product: its price &#34;-5&#34; isn't one it takes (");
+    expect(canvas).toContain("its buttonColor &#34;greenish&#34; isn't one it takes (");
+    // Not drawn with the props' defaults instead.
+    expect(canvas).not.toContain("#007bff");
+    expect(canvas).not.toContain("$7.99");
+    expect(tool.renderer.exporters.email(values)).toBe("");
+    expect(tool.renderer.exporters.web(values)).toBe("");
+    const builtIn = { id: "BUILT_IN", severity: "WARNING" };
+    expect(await tool.validator({ values, defaultErrors: [builtIn] })).toEqual([
+      { id: "HYPER_ELEMENTS_TOOL_VALUES", icon: "fa-exclamation-triangle", severity: "ERROR", title: "Product can't be drawn", description: expect.stringContaining('its price "-5" isn\'t one it takes (') },
+      builtIn,
+    ]);
+    // A value it takes is drawn, and has no error.
+    expect(tool.renderer.Viewer.render({ ...values, price: "129.50", buttonColor: "#16a34a" })).toContain("$129.5");
+    expect(await tool.validator({ values: { ...values, price: "129.50", buttonColor: "#16a34a" }, defaultErrors: [builtIn] })).toEqual([builtIn]);
+  });
+
+  it("reads a text the builder gives as HTML (safeHtml) as it was typed where its prop takes it only so", () => {
+    const { builder, tools } = fakeBuilder();
+    const Short = defineElement({ type: "acme.Short", label: "Short", props: { text: prop.text({ label: "Text", maxLength: 3, default: "ABC" }) }, render: (p) => <Text>{p.text}</Text> });
+    registerTools(builder, [Short]);
+    const [tool] = tools;
+    // "A<B", as the builder gives a tool its text field's value with safeHtml on.
+    expect(tool.renderer.Viewer.render({ text: "A&lt;B" })).toContain(">A&lt;B</");
+    expect(tool.renderer.exporters.email({ text: "A&lt;B" })).toContain(">A&lt;B</");
+    // The design keeps it as typed, which the audit reads: "A&lt;B" there is seven characters, as fromDesign() reads it.
+    expect(tool.validator({ values: { text: "A<B" }, defaultErrors: [] })).toEqual([]);
+    expect(tool.validator({ values: { text: "A&lt;B" }, defaultErrors: [] })).toEqual([expect.objectContaining({ severity: "ERROR", description: expect.stringContaining("longer than 3") })]);
+    // One its prop doesn't take, read either way, is said.
+    expect(tool.renderer.Viewer.render({ text: "AB&amp;C" })).toContain("Short: its text &#34;AB&#38;amp;C&#34; isn't one it takes (");
+    expect(tool.renderer.exporters.email({ text: "AB&amp;C" })).toBe("");
+  });
+
+  it("runs a validator given in tools after its own, its errors following", async () => {
+    const { builder, tools } = fakeBuilder();
+    const mine = { id: "MINE", icon: "fa-tag", severity: "WARNING", title: "Check the price", description: "Is it on sale?" };
+    registerTools(builder, [ProductCard], { tools: { "acme.ProductCard": { validator: async ({ defaultErrors }: { defaultErrors: unknown[] }) => [...defaultErrors, mine] } } });
+    const errors = await tools[0].validator({ values: { quantity: 500 }, defaultErrors: [{ id: "BUILT_IN" }] });
+    expect(errors.map((error: Values) => error.id)).toEqual(["HYPER_ELEMENTS_TOOL_VALUES", "BUILT_IN", "MINE"]);
   });
 
   it("says in the canvas what stops a block from being drawn, and exports nothing for it", () => {
@@ -735,16 +871,22 @@ describe("registerTools", () => {
     expect(canvas).toContain("name");
     expect(exporters.email({})).toBe("");
     expect(exporters.web({})).toBe("");
+    expect(tools[0].validator({ values: {} })).toEqual([expect.objectContaining({ severity: "ERROR", title: "Named can't be drawn", description: expect.stringContaining("name") })]);
   });
 
   it("writes a value as text, never as markup", () => {
     const { builder, tools } = fakeBuilder();
     registerTools(builder, [ProductCard]);
-    const html = tools[0].renderer.Viewer.render({ name: '<img src=x onerror="alert(1)">', href: { url: "javascript:alert(1)" }, buttonColor: 'red" onmouseover="alert(1)' });
+    const html = tools[0].renderer.Viewer.render({ name: '<img src=x onerror="alert(1)">' });
     expect(html).not.toContain("<img src=x");
-    expect(html).not.toContain("javascript:");
-    expect(html).not.toContain("onmouseover");
     expect(html).toContain("&lt;img");
+    // A value its prop doesn't take is said in the canvas, as text too: a script's link is no link.
+    const said = tools[0].renderer.Viewer.render({ href: { url: "javascript:alert(1)" }, buttonColor: 'red" onmouseover="alert(1)', name: "<b>Mug</b>" });
+    expect(said).toContain("its href {&#34;url&#34;:&#34;javascript:alert(1)&#34;} isn't one it takes");
+    expect(said).toContain("its buttonColor &#34;red");
+    expect(said).not.toMatch(/<a\b|href=/);
+    expect(said).not.toMatch(/<[^>]*onmouseover/);
+    expect(said).not.toContain("<b>");
   });
 
   it("takes the builder's own settings for a tool: properties that aren't props, above its own, and what registerTool() takes", () => {

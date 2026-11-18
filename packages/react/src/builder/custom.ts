@@ -5,7 +5,7 @@
  * tool's block, its props the block's values (`customTools`); fromDesign() reads the block back as the element
  * (`elements`); registerTools() gives a builder the tools, each drawn by Elements itself.
  */
-import { ElementsError, propertyOf, renderTemplate, type CustomDefinition, type Json, type LinkValue, type Node } from "@hyper-elements/core";
+import { checkDocument, ElementsError, expandDocument, propertyOf, registryOf, renderTemplate, type CustomDefinition, type Json, type LinkValue, type Node } from "@hyper-elements/core";
 import type { PropertyDefinition } from "../primitives/properties";
 import { link } from "./blocks";
 import { block, type Block, type Hiding } from "./design";
@@ -125,8 +125,18 @@ export function toolValues(definition: CustomDefinition<any>, props: Record<stri
   return values;
 }
 
-/** A tool's values as its element's props: each read back and checked by its kind; one it doesn't take is left out, and said. */
-export function toolProps(definition: CustomDefinition<any>, values: Values, say: (message: string) => void = () => {}): Record<string, Json> {
+/** A value of a tool's that its prop doesn't take: the prop, the value as the block keeps it, and why. */
+export interface Refused {
+  key: string;
+  kept: unknown;
+  reason: string;
+}
+
+/**
+ * A tool's values as its element's props: each read back and checked by its kind. One it doesn't take is left out,
+ * and given to `refuse`.
+ */
+export function toolProps(definition: CustomDefinition<any>, values: Values, say: (message: string) => void = () => {}, refuse: (refused: Refused) => void = () => {}): Record<string, Json> {
   const props: Record<string, Json> = {};
   for (const [key, spec] of Object.entries(definition.props) as Array<[string, Spec]>) {
     const kept = values[key];
@@ -142,7 +152,7 @@ export function toolProps(definition: CustomDefinition<any>, values: Values, say
     if (parsed.ok && !spec.required && JSON.stringify(parsed.value) === JSON.stringify(spec.default)) continue;
     if (parsed.ok) props[key] = parsed.value;
     // A field its user emptied is the prop not given.
-    else if (given !== "") say(`its ${key} ${JSON.stringify(kept)} (${parsed.message}) isn't one a ${definition.type} takes: left out`);
+    else if (given !== "") refuse({ key, kept, reason: parsed.message });
   }
   return props;
 }
@@ -173,9 +183,16 @@ export function readCustom(slug: unknown, values: Values, context: Context, tool
     context.say(`${tool} is a ${definition.type}'s, whose prop ${taken} is the builder's own in a block: left out`);
     return [];
   }
-  const props = toolProps(definition, values, context.say);
-  // A block dragged in and not filled yet (or filled with what its prop doesn't take), which the builder leaves out of
-  // what it exports too: with it, the template wouldn't render.
+  const refused: Refused[] = [];
+  const props = toolProps(definition, values, context.say, (one) => refused.push(one));
+  // A block with a value its prop doesn't take, which the builder draws and exports nothing for (registerTools()):
+  // drawn with the prop's default instead, it would be another block than the one its user set.
+  if (refused.length) {
+    context.say(`${tool} has ${refused.map((one) => `its ${one.key} ${JSON.stringify(one.kept)} (${one.reason})`).join(" and ")}, which a ${definition.type} doesn't take: left out`);
+    return [];
+  }
+  // A block dragged in and not filled yet, which the builder leaves out of what it exports too: with it, the template
+  // wouldn't render.
   const missing = Object.keys(definition.props).filter((key) => definition.props[key].required && !Object.hasOwn(props, key));
   if (missing.length) {
     context.say(`${tool} has no ${missing.join(" or ")}, which a ${definition.type} needs: left out`);
@@ -247,8 +264,9 @@ export interface ToolSettings {
   properties?: Record<string, Record<string, unknown>>;
   /**
    * Any other setting the builder's `registerTool()` takes (`transformer`, `position`, `usageLimit`…), passed as it
-   * is. What the element gives its tool is none of them, and is refused: its name, label, fields and drawing, its
-   * icon (`icons`), and what a block starts with (each prop's `default`).
+   * is. A `validator` runs after the tool's own, which says what stops a block from being drawn, and its errors
+   * follow. What the element gives its tool is none of them, and is refused: its name, label, fields and drawing,
+   * its icon (`icons`), and what a block starts with (each prop's `default`).
    */
   [setting: string]: unknown;
 }
@@ -273,6 +291,30 @@ function roomOf(values: Values, content: number, cells: number[] | undefined, in
   return Math.max(1, Math.floor(content * share - taken));
 }
 
+/** Text as HTML writes it, read back: its entities as the characters they are. */
+const unescapeHtml = (html: string): string =>
+  html.replace(/&(?:#(\d+)|#x([0-9a-f]+)|(amp|lt|gt|quot|apos|nbsp));/gi, (whole, dec: string | undefined, hex: string | undefined, name: string | undefined) => {
+    if (name) return { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00a0" }[name.toLowerCase()] ?? whole;
+    const code = dec !== undefined ? Number(dec) : parseInt(hex!, 16);
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
+  });
+
+/**
+ * A tool's values as the builder gives them to draw. With its `safeHtml` on, a text field's value reaches a tool as
+ * HTML ("A&lt;B" for "A<B"), while the design keeps it as typed: one its prop refuses as HTML, and takes as the text
+ * it reads as, is that text. One it takes as it's given is drawn as it is.
+ */
+function asTyped(definition: CustomDefinition<any>, values: Values): Values {
+  const typed: Values = { ...values };
+  for (const [key, spec] of Object.entries(definition.props) as Array<[string, Spec]>) {
+    const kept = values[key];
+    if (typeof kept !== "string" || !kept.includes("&") || spec.kind.parse(kept).ok) continue;
+    const text = unescapeHtml(kept);
+    if (text !== kept && spec.kind.parse(text).ok) typed[key] = text;
+  }
+  return typed;
+}
+
 /**
  * An element drawn on its own from its tool's values, as an Email's markup or a Page's, with its stylesheet: at the
  * room its block has, which is its column's share (`cells`, `index`) of the builder's content width (`body`), less
@@ -286,7 +328,12 @@ function draw(definition: CustomDefinition<any>, tools: readonly CustomDefinitio
   // With the id its block keeps, as fromDesign() reads it: the ids inside it are that id's (a link to one finds it). One
   // a template doesn't take is left out, as fromDesign() leaves it out, and the element is drawn without it.
   const given = givenId(values);
-  const own: Node = make(definition.type, { id: given && TEMPLATE_ID.test(given) ? given : undefined, props: toolProps(definition, values) });
+  // A value its prop doesn't take stops it, as a required prop with none does: drawn with the prop's default, the
+  // block would show and export another value than its field holds.
+  const refused: Refused[] = [];
+  const props = toolProps(definition, asTyped(definition, values), undefined, (one) => refused.push(one));
+  if (refused.length) throw new Error(refused.map((one) => `its ${one.key} ${JSON.stringify(one.kept)} isn't one it takes (${one.reason})`).join("; "));
+  const own: Node = make(definition.type, { id: given && TEMPLATE_ID.test(given) ? given : undefined, props });
   const node: Node = room < width ? { type: "Column", style: { width: room }, children: [own] } : own;
   const written = renderTemplate({ root: { type: root, props: { width }, children: [node] } }, { components: tools });
   const style = /<style>[\s\S]*?<\/style>/.exec(written.head)?.[0] ?? "";
@@ -295,6 +342,52 @@ function draw(definition: CustomDefinition<any>, tools: readonly CustomDefinitio
   const queries = root === "Email" ? style.replace(/(@media \(m(?:ax|in)-width: )(\d+)(?=px\))/g, (_, query: string, at: string) => `${query}${Number(at) - width + content}`) : style;
   // A page's <main> is centered by its margins, which shrink it to its words in a flex box: it fills its block.
   return queries + written.body.replace(/^<main style="/, '<main style="width:100%;');
+}
+
+/** What stopped a drawing, in words: the first of an error's problems. */
+const problemOf = (error: unknown): string => (error instanceof ElementsError ? error.diagnostics[0]?.message : undefined) ?? String((error as Error)?.message ?? error);
+
+/**
+ * What stops an element's tool from drawing its block (`values`, as toDesign() writes them) as the builder exports it:
+ * on its own, at the room its column leaves it (`body`'s content width, the row's `cells`, the column's `index` and
+ * values), with no template around it, so with no theme (a theme's token in its render is none there). None where it
+ * draws.
+ */
+export function toolProblem(definition: CustomDefinition<any>, tools: readonly CustomDefinition<any>[], root: "Email" | "Page", values: Values, body: Values, cells: number[], index: number, column: Values): string | undefined {
+  try {
+    draw(definition, tools, root, values, body, cells, index, column);
+    return undefined;
+  } catch (error) {
+    return problemOf(error);
+  }
+}
+
+/**
+ * What stops a block (its values as the design keeps them, as typed) from being drawn at any room: a value its prop
+ * doesn't take, none for a prop its element needs, or what its element's render does with them (an error it throws,
+ * a theme's token, which the builder has no theme for). Checked and expanded, not laid out: what depends on the room
+ * a block has (an image wider than it) isn't said, as the builder gives a validator no place to draw the block at.
+ */
+function auditProblem(definition: CustomDefinition<any>, tools: readonly CustomDefinition<any>[], root: "Email" | "Page", values: Values): string | undefined {
+  const refused: Refused[] = [];
+  const props = toolProps(definition, values, undefined, (one) => refused.push(one));
+  if (refused.length) return refused.map((one) => `its ${one.key} ${JSON.stringify(one.kept)} isn't one it takes (${one.reason})`).join("; ");
+  const missing = Object.keys(definition.props).filter((key) => definition.props[key].required && !Object.hasOwn(props, key));
+  if (missing.length) return `it has no ${missing.join(" or ")}, which it needs`;
+  const registry = registryOf({ components: [...tools] });
+  const checked = checkDocument({ root: { type: root, props: { width: 600 }, children: [make(definition.type, { props })] } }, registry);
+  const found = [...checked.diagnostics];
+  if (checked.document && !found.some((d) => d.severity === "error")) found.push(...expandDocument(checked.document, registry, root === "Email" ? "email" : "web").diagnostics);
+  return found.find((d) => d.severity === "error")?.message;
+}
+
+/** An error of the builder's audit, as a tool's validator gives one. */
+interface AuditError {
+  id: string;
+  icon: string;
+  severity: "ERROR" | "WARNING";
+  title: string;
+  description: string;
 }
 
 /**
@@ -387,13 +480,23 @@ export function registerTools(builder: Builder, elements: readonly WithDefinitio
             try {
               return draw(definition, all, canvas, values, body, place?.rowCells, place?.columnIndex, obj(place?.columnValues));
             } catch (error) {
-              const problems = error instanceof ElementsError ? error.diagnostics.map((d) => d.message) : [String((error as Error)?.message ?? error)];
-              return `<div style="padding:12px;border:1px dashed #b91c1c;color:#b91c1c;font:13px/1.4 sans-serif">${escape(`${definition.label}: ${problems[0]}`)}</div>`;
+              return `<div style="padding:12px;border:1px dashed #b91c1c;color:#b91c1c;font:13px/1.4 sans-serif">${escape(`${definition.label}: ${problemOf(error)}`)}</div>`;
             }
           },
         }),
         exporters: { email: written("Email"), web: written("Page") },
         head: { css: () => "", js: () => "" },
+      },
+      // The builder's audit (its Audit tab, unlayer.audit()): a block that can't be drawn at any room, which the
+      // canvas shows and the builder exports nothing for, is an error at the block's place (auditProblem()). A
+      // validator given in `tools` runs too, and its errors follow.
+      validator(data: { values?: Values; defaultErrors?: unknown[] } = {}) {
+        const problem = auditProblem(definition, all, canvas, obj(data.values));
+        const ours: AuditError[] = problem ? [{ id: "HYPER_ELEMENTS_TOOL_VALUES", icon: "fa-exclamation-triangle", severity: "ERROR", title: `${definition.label} can't be drawn`, description: problem }] : [];
+        const theirs = typeof settings.validator === "function" ? (settings.validator as (data: unknown) => unknown)(data) : (data.defaultErrors ?? []);
+        const after = (errors: unknown) => [...ours, ...(Array.isArray(errors) ? errors : [])];
+        const pending = theirs as PromiseLike<unknown> | undefined;
+        return typeof pending?.then === "function" ? pending.then(after) : after(theirs);
       },
     });
   }
