@@ -1,15 +1,15 @@
-import { Column, Heading, Text, prop, token } from "@hyper-elements/react";
+import { Column, Divider, Heading, Text, prop, token } from "@hyper-elements/react";
 import { template } from "@hyper-elements/react/template";
 import type { Brand } from "../../_brand";
 import { signInCode } from "../../_categories/sign-in-code";
-import { minimalEmail, minimalRules } from "../parts";
+import { MinimalKicker, minimalEmail, minimalRules } from "../parts";
 
 export default function minimalSignInCode(brand: Brand) {
   return template({
     id: "templates.MinimalSignInCodeEmail",
     version: "1.0.0",
     label: "Sign-in code",
-    description: "A one-time code, large and easy to copy, with when it expires",
+    description: "A one-time code, large and centered in a box of its own, with when it expires and what to do if it wasn't you",
     guidance: "Say what the code is for in the purpose field. The code is the only thing to act on: add no button.",
     root: "Email",
     fields: {
@@ -23,18 +23,32 @@ export default function minimalSignInCode(brand: Brand) {
         title: `Your ${brand.name} code`,
         preview: `Your code is ${v.code}. It expires in ${v.expires}.`,
         children: (
-          <>
-            <Heading level={1}>Your code to {v.purpose}</Heading>
-            <Text>Enter this code in the window where you asked for it.</Text>
-            <Column style={{ backgroundColor: token("colors.surface"), borderRadius: token("radii.sm"), padding: [token("spacing.md"), token("spacing.lg")] }}>
-              <Text field="code" style={{ fontSize: 32, fontWeight: 700, letterSpacing: 4, textAlign: "center" }}>
+          <Column style={{ gap: token("spacing.md"), alignItems: "center", textAlign: "center" }}>
+            <MinimalKicker color="primary">Your {brand.name} code</MinimalKicker>
+            <Heading level={1}>Here's your code to {v.purpose}</Heading>
+            <Text>Enter it in the window where you asked for it.</Text>
+            <Column
+              style={{
+                width: "100%",
+                backgroundColor: token("colors.surface"),
+                border: { width: 2, style: "dashed", color: token("colors.border") },
+                borderRadius: token("radii.md"),
+                padding: [token("spacing.lg"), token("spacing.md")],
+                gap: token("spacing.xs"),
+              }}
+            >
+              <Text field="code" style={{ fontSize: 36, fontWeight: 700, letterSpacing: 6, lineHeight: 1.2, textAlign: "center" }}>
                 {v.code}
               </Text>
+              <Text field="expires" style={{ fontSize: token("fontSizes.small"), color: token("colors.muted"), textAlign: "center" }}>
+                Expires in {v.expires}
+              </Text>
             </Column>
-            <Text field="expires" style={{ color: token("colors.muted") }}>
-              It expires in {v.expires}. If you didn't ask for it, you can ignore this email.
+            <Divider />
+            <Text style={{ fontSize: token("fontSizes.small"), color: token("colors.muted") }}>
+              Didn't ask for a code? Someone may have typed your email address by mistake. You can ignore this email: nobody can {v.purpose} without the code.
             </Text>
-          </>
+          </Column>
         ),
       });
     },

@@ -1,4 +1,4 @@
-import { Button, Column, Email, Heading, Link, Row, Text, token } from "@hyper-elements/react";
+import { Button, Column, Divider, Email, Heading, Link, Row, Text, token } from "@hyper-elements/react";
 import { formatDate, template } from "@hyper-elements/react/template";
 import type { Brand } from "../../_brand";
 import { invoice } from "../../_categories/invoice";
@@ -39,10 +39,14 @@ export default function ledgerInvoiceEmail(brand: Brand) {
               </Text>
             </Column>
             <Column style={{ backgroundColor: token("colors.surface"), padding: token("spacing.lg"), gap: token("spacing.md"), borderRadius: token("radii.sm") }}>
-              <Row stackOnMobile={false} style={{ gap: token("spacing.md") }}>
-                <LedgerFact label="Amount due" value={money.format(total)} />
+              <Row stackOnMobile={false} style={{ gap: token("spacing.md"), alignItems: "end" }}>
+                <Column style={{ gap: 2 }}>
+                  <Text style={{ fontSize: token("fontSizes.small"), color: token("colors.muted") }}>Amount due</Text>
+                  <Text style={{ fontSize: 28, fontWeight: 700, lineHeight: 1.2, color: token("colors.primary") }}>{money.format(total)}</Text>
+                </Column>
                 <LedgerFact label="Due" value={due} field="due" align="right" />
               </Row>
+              <Divider />
               {v.lines.map((line, i) => (
                 <Row key={i} stackOnMobile={false} style={{ gap: token("spacing.md") }}>
                   <Column>

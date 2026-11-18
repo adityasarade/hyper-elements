@@ -1,4 +1,4 @@
-import { Column, Document, Heading, PageFooter, PageNumber, Row, Table, TableCell, TableRow, Text, token } from "@hyper-elements/react";
+import { Column, Document, Heading, Link, PageFooter, PageNumber, Row, Table, TableCell, TableRow, Text, token } from "@hyper-elements/react";
 import { formatDate, template } from "@hyper-elements/react/template";
 import type { Brand } from "../../_brand";
 import { invoice } from "../../_categories/invoice";
@@ -35,8 +35,10 @@ export default function ledgerInvoiceDocument(brand: Brand) {
           style={{ fontSize: 12, lineHeight: token("lineHeights.body") }}
         >
           <Document.Page style={{ gap: token("spacing.xl") }}>
+            {/* A bar of the brand's color across the top of the page. */}
+            <Column style={{ height: 6, backgroundColor: token("colors.primary"), borderRadius: 3 }} />
             <LedgerLetterhead brand={brand} />
-            <Heading level={1}>Invoice</Heading>
+            <Heading field="number" level={1}>Invoice {v.number}</Heading>
             <Row style={{ alignItems: "start", gap: token("spacing.lg") }}>
               <Column field="customer" style={{ gap: 2 }}>
                 <Text style={quiet}>Billed to</Text>
@@ -46,7 +48,6 @@ export default function ledgerInvoiceDocument(brand: Brand) {
                 ))}
               </Column>
               <Row style={{ gap: token("spacing.lg") }}>
-                <LedgerFact label="Number" value={v.number} field="number" />
                 <LedgerFact label="Issued" value={date(v.issued)} field="issued" />
                 <LedgerFact label="Due" value={date(v.due)} field="due" />
               </Row>
@@ -67,15 +68,19 @@ export default function ledgerInvoiceDocument(brand: Brand) {
                 </TableRow>
               ))}
             </Table>
-            <Column style={{ alignItems: "end" }}>
-              <Column style={{ width: 220, gap: 2 }}>
-                <Text style={{ ...quiet, textAlign: "right" }}>Total due</Text>
-                <Text style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.2, textAlign: "right", color: token("colors.primary") }}>{money.format(total)}</Text>
+            <Row style={{ gap: token("spacing.lg"), alignItems: "start" }}>
+              <Column style={{ gap: token("spacing.xs") }}>
+                <Text style={{ fontWeight: 700 }}>How to pay</Text>
+                <Text field="pay" style={quiet}>
+                  Pay online at <Link href={ledgerHref(brand, v.pay)}>{ledgerHref(brand, v.pay).replace(/^https:\/\//, "")}</Link>, or by bank transfer quoting {v.number}.
+                </Text>
               </Column>
-            </Column>
-            <Text field="pay" style={quiet}>
-              Pay online at {ledgerHref(brand, v.pay)}, quoting the invoice number.
-            </Text>
+              <Column style={{ width: 240, backgroundColor: token("colors.surface"), borderRadius: token("radii.sm"), padding: token("spacing.lg"), gap: 2 }}>
+                <Text style={quiet}>Amount due</Text>
+                <Text style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.2, color: token("colors.primary") }}>{money.format(total)}</Text>
+                <Text style={{ fontWeight: 700 }}>by {date(v.due)}</Text>
+              </Column>
+            </Row>
           </Document.Page>
           <PageFooter>
             <Text style={{ ...quiet, padding: [token("spacing.sm"), 0, 0], border: { top: { width: 1, style: "solid", color: token("colors.border") } } }}>

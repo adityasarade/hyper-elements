@@ -42,7 +42,7 @@ This file is written by `pnpm --filter ./templates readme`. Don't edit it by han
 
 | Kit | What it is | Templates | By |
 |---|---|---|---|
-| [Editorial](./editorial) | A newsletter with a masthead and room to read: the writer fills one slot with headings, text and up to two buttons | `emails/newsletter` | Hyper Elements |
+| [Editorial](./editorial) | A newsletter with room to read: a masthead, a lead story with its picture, more stories with thumbnails, and a closing note | `emails/newsletter` | Hyper Elements |
 | [Ledger](./ledger) | Quiet, tabular billing: an invoice as the email that sends it and as the PDF itself, from one set of values | `emails/invoice`, `documents/invoice` | Hyper Elements |
 | [Minimal](./minimal) | Quiet transactional email: one card on a tinted page, the logo above it and the address below | `emails/receipt`, `emails/sign-in-code`, `emails/welcome` | Hyper Elements |
 | [Signal](./signal) | A launch graphic for social posts: a fitted headline, three features and the product in a window, square or landscape | `images/announcement` | Hyper Elements |
