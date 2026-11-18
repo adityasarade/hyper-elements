@@ -94,13 +94,15 @@ so the two can't differ, and rejects a template as they do (with errors, or anot
   field keeps only a value its prop takes: one it doesn't (a price below its `min`) stays in the field with why under
   it, and the block keeps the value it had. A text, and a number or a length the builder keeps as text, is edited in a
   text field of `registerTools()`'s own, which gives a tool the text as it's typed whether the builder's `safeHtml` is
-  on or off. A block saved with a value its prop doesn't take, or with none for a prop its element needs, says what's
+  on or off, and keeps what an input method composes once its user is done. A color that can't be see-through gives
+  the builder's picker `allowTransparent: false`. A block saved with a value its prop doesn't take, or with none for a prop its element needs, says what's
   wrong in the canvas and is an error in the builder's audit; its export fails, naming the block and why, as does an
-  export while a field holds a value that isn't kept. `fromDesign()` leaves such a block out and says so. An element
+  export while a field holds a value that isn't kept. What a failed export says is plain text, with `<`, `>` and `&`
+  written as JSON escapes them (`\u003c`), as the builder writes it in place of the HTML. `fromDesign()` leaves such a block out and says so. An element
   its tool can't draw on its own, at the room the builder gives its block (one with a theme's token in its `render`),
   stays an HTML block, and `toDesign()`'s report says why.
 - **`checkValue()`: a field checked as its prop checks it.** `checkValue(spec, held)` checks what a field holds against
-  the prop it edits (an element's `props.price`): `{ ok: true, value }`, or `{ ok: false, message }` with why
+  the prop it edits (an element's `definition.props.price`): `{ ok: true, value }`, or `{ ok: false, message }` with why
   (`"expected a number from 0, not -5"`). An empty field is the prop not given, and a number's field holds its digits
   as text. It imports no React, so any editing app checks a field the same way, with the same words.
 - **A property of your own, for an editor of your own.** `defineProperty()` defines a property once, as data: a name,

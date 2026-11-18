@@ -170,7 +170,7 @@ A prop's kind says what its value is. The builder edits it with its own property
 |------|----------------------|
 | `prop.text()` | `registerTools()`'s text field |
 | `prop.text()` with an `enum` | `dropdown`, with its texts |
-| `prop.color()` | `color_picker` |
+| `prop.color()` | `color_picker`, told it takes no see-through color where `transparency` is `false` |
 | `prop.number()` with `integer: true` | `counter`, between the prop's `min` and `max` |
 | `prop.number()` | `registerTools()`'s text field: a number that isn't whole is kept as text (`"7.99"`) |
 | `prop.length()` | `counter` for px, from the prop's `min`; `registerTools()`'s text field where it takes another unit (`"50%"`) |
@@ -190,7 +190,7 @@ background: prop.color({ label: "Background", transparency: true }),
 price: currency({ label: "Price", symbol: "€", min: 0 }),
 ```
 
-A color may be see-through unless its `transparency` is `false`, which takes an opaque color alone. The builder's color picker gives see-through colors in a page, not in an email.
+A color may be see-through unless its `transparency` is `false`, which takes an opaque color alone. The builder's color picker gives see-through colors in a page, not in an email. For a color that can't be see-through, `registerTools()` gives the picker `allowTransparent: false`, so it has no opacity to set there and no "transparent" to pick. A builder whose picker doesn't take that still gives one in a page: the block then says it can't be drawn, as a block saved with one does.
 
 For an editor of your own, a prop is a property you define once (`currency` here), and then give the builder a control for. Its value stays its kind's: a price is still a number, checked as one.
 
@@ -229,11 +229,13 @@ Then give the builder the property's control, in `registerTools()`'s `editors`, 
 import { registerTools, type EditorWidget } from "@hyper-elements/react/builder";
 
 const currencyField: EditorWidget<typeof currency> = {
-  // Its markup. The builder draws nothing around an editor of your own: its label is here too.
-  render: (value, update, { label, symbol }) => `<label>${label}</label> ${symbol} <input type="number" value="${value ?? ""}" />`,
-  // Once that's in the page: call update() with the new value.
+  // Its markup. The builder draws nothing around an editor of your own: its label is here too. A text input, so
+  // what's typed reaches the check as it is: unfinished input ("1e") isn't a number, where a number input gives "".
+  render: (value, update, { label, symbol }) => `<label>${label}</label> ${symbol} <input type="text" inputmode="decimal" value="${value ?? ""}" />`,
+  // Once that's in the page: call update() with the new value. An empty field is no price, not zero.
   mount: (node, value, update) => {
-    node.querySelector("input").onchange = (event) => update(Number(event.target.value));
+    const input = node.querySelector("input");
+    input.onchange = () => update(input.value.trim() === "" ? undefined : Number(input.value.trim()));
   },
 };
 
@@ -242,7 +244,7 @@ registerTools(unlayer, [PriceBand], { editors: { [currency.name]: currencyField 
 
 `EditorWidget<typeof currency>` types the control from the property: its value is a number, and its options are the prop's label and the property's own, each as the prop has it. It's given the prop's value as the prop has it (a price as a number) and gives back the same. What it gives back is kept only where the prop takes it: a price below the prop's `min` isn't, and `registerTools()` says why under the control while the block keeps the price it had. A block saved with a value its prop doesn't take gives the control none (`undefined`), and why is said under it.
 
-Any editing app checks a field the same way, with the same words: `checkValue(spec, held)` (from `@hyper-elements/react`) checks what a field holds against the prop it edits, an element's `props.price`. `checkValue(Product.props.price, "-5")` is `{ ok: false, message: "expected a number from 0, not -5" }`, and `checkValue(Product.props.price, "129.50")` is `{ ok: true, value: 129.5 }`. An empty field is the prop not given, which a required prop refuses. One you registered yourself with `unlayer.registerPropertyEditor` under that name is `true` there (`editors: { [currency.name]: true }`): it's given the value as the builder keeps it.
+Any editing app checks a field the same way, with the same words: `checkValue(spec, held)` (from `@hyper-elements/react`) checks what a field holds against the prop it edits, an element's `definition.props.price`. `checkValue(Product.definition.props.price, "-5")` is `{ ok: false, message: "expected a number from 0, not -5" }`, and `checkValue(Product.definition.props.price, "129.50")` is `{ ok: true, value: 129.5 }`. An empty field is the prop not given, which a required prop refuses. One you registered yourself with `unlayer.registerPropertyEditor` under that name is `true` there (`editors: { [currency.name]: true }`): it's given the value as the builder keeps it.
 
 A property with no control in `editors` is edited with its base's editor, so an element still works in a builder that doesn't have yours. A name in `editors` that no prop of the elements is edited with is refused, so a mistyped one doesn't go unnoticed.
 
@@ -270,8 +272,8 @@ registerTools(unlayer, [ProductCard], {
 - **The element's code has to be loaded in the builder.** A design with a custom tool's block opened where the tool isn't registered shows the builder's "Missing" block there, and exports it.
 - **A project's plan sets how many custom tools it has.** The builder leaves a tool past that number out of its panel and doesn't export its blocks, so register no more elements than the plan has tools.
 - **An element is drawn on its own in the builder**, at its column's width, with no template around it and no theme. Give it its own font and colors instead of taking the root's. A theme's token in a prop is written as the value it has there. `toDesign()` draws each element as its tool will, at the room the builder gives its block: one its tool can't draw so (one with a theme's token in its `render`, `token("colors.primary")`, or an image wider than that room) stays an HTML block of its markup, drawn as the template draws it, and its report says why.
-- **A field keeps only a value its prop takes.** Each field checks what's typed in it as its prop does (`checkValue()`). One the prop doesn't take (a price below its `min`, a text past its `maxLength`) stays in the field, with why under it, and the block keeps the value it had, so the canvas draws what the design holds. Corrected, it's kept and drawn. A text, and a number or a length the builder keeps as text, is edited in a text field of `registerTools()`'s own, and a property editor of your own is checked the same way.
-- **What can't be drawn isn't exported.** A block saved with a value its prop doesn't take, or with none for a prop its element needs, says what's wrong in the canvas in its place, and the builder's audit (its Audit tab, `unlayer.audit()`) lists it as an error at the block. So does the audit for a block its element's `render` can't draw at any room with its values (it throws, or takes a theme's token). Its export fails, naming the block and why, and so does an export while a field holds a value that isn't kept, as the block would go out with the value it had. The builder gives a failed export to your app as text in place of the HTML (`Failed to export html. …`): run its audit before you export, and check that the HTML's body doesn't start so, as the [example](https://github.com/hyper-elements/hyper-elements/tree/main/examples/custom-elements-in-editor)'s download does. A block is never drawn with a default in place of its value.
+- **A field keeps only a value its prop takes.** Each field checks what's typed in it as its prop does (`checkValue()`). One the prop doesn't take (a price below its `min`, a text past its `maxLength`) stays in the field, with why under it, and the block keeps the value it had, so the canvas draws what the design holds. Corrected, it's kept and drawn. A text, and a number or a length the builder keeps as text, is edited in a text field of `registerTools()`'s own, and a property editor of your own is checked the same way. What an input method is composing is kept once its user is done.
+- **What can't be drawn isn't exported.** A block saved with a value its prop doesn't take, or with none for a prop its element needs, says what's wrong in the canvas in its place, and the builder's audit (its Audit tab, `unlayer.audit()`) lists it as an error at the block. So does the audit for a block its element's `render` can't draw at any room with its values (it throws, or takes a theme's token). Its export fails, naming the block and why, and so does an export while a field holds a value that isn't kept, as the block would go out with the value it had. The builder gives a failed export to your app as text in place of the HTML (`Failed to export html. …`). That text is plain: a value in it has its `<`, `>` and `&` written as JSON escapes them (`\u003c`), so what a field holds is never markup there. Run its audit before you export, and check that the HTML's body doesn't start so, as the [example](https://github.com/hyper-elements/hyper-elements/tree/main/examples/custom-elements-in-editor)'s download does. A block is never drawn with a default in place of its value.
 - **An element placed where a Section goes** (`placement: "section"`) stays an HTML block: a tool is a block in a column. `registerTools()` registers no tool for it.
 - **A prop can't have the name of one of the builder's own values for a block**: `containerPadding`, `anchor`, `displayCondition`, `hideDesktop`, `hideMobile`, `selectable`, `draggable`, `duplicatable`, `deletable`, `hideable`, `locked`, or one that starts with `_`. `registerTools()` refuses the element, and `toDesign()` keeps it an HTML block.
 - **A block is drawn at the room its column leaves it**: the column's share of the content width, less the column's padding and border and the block's own padding. In a row of several columns it keeps that width on phones, where the builder stacks the columns. Its phone styles start where the email's do.
