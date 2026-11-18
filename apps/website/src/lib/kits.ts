@@ -73,6 +73,20 @@ export const recreationLabel = (t: TemplateInfo) => (t.recreates ? `Recreation o
 /** An original's screenshot is under the kit assets' address; on the site it loads from its own copy. */
 export const sitePath = (url: string) => url.replace("https://hyperelements.dev/generated/kits/assets/", "/generated/kits/assets/");
 export const kitUrl = (kit: string) => `/templates/${kit}`;
+// Page sizes at 96px to the inch, portrait: [width, height].
+const PAGE_SIZES: Record<string, [number, number]> = { A3: [1123, 1587], A4: [794, 1123], A5: [559, 794], LETTER: [816, 1056], LEGAL: [816, 1344] };
+/** How wide a template's preview is drawn before it's scaled to fit: a Document at its own page's width (from the
+ * `@page` rule its print HTML writes, landscape or portrait), with room for the preview's margin around it. */
+export const previewWidth = (t: TemplateInfo, brand?: string): number => {
+  if (t.root === "Page") return 1200;
+  if (t.root === "Canvas") return 1200;
+  if (t.root === "Email") return 680;
+  const html = firstView(t, brand ?? Object.keys(t.byBrand)[0]!)?.html ?? "";
+  const page = /@page\s*\{[^}]*size:\s*([A-Za-z0-9]+)\s*(landscape|portrait)?/i.exec(html);
+  const size = page ? PAGE_SIZES[page[1]!.toUpperCase()] : undefined;
+  if (!size) return 820;
+  return (page![2]?.toLowerCase() === "landscape" ? size[1] : size[0]) + 26;
+};
 /** The first view of a template in a brand: its first format. */
 export const firstView = (t: TemplateInfo, brand: string): Example => {
   const views = t.byBrand[brand]?.views ?? {};

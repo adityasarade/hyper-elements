@@ -1,11 +1,11 @@
 ---
 // A template's thumbnail in one brand: its email, page or print HTML drawn live, or an image's PNG.
 import { previewHtml } from "../lib/examples";
-import { brandsFor, firstView, type TemplateInfo } from "../lib/kits";
+import { brandsFor, firstView, previewWidth, type TemplateInfo } from "../lib/kits";
 interface Props { t: TemplateInfo; brand?: string; height?: number }
 const { t, height = 300 } = Astro.props;
 const brand = brandsFor(t).find((b) => b.id === Astro.props.brand) ?? brandsFor(t)[0];
-const width = t.root === "Page" ? 1100 : t.root === "Document" ? 820 : t.root === "Canvas" ? 1200 : 640;
+const width = t.root === "Page" ? 1100 : t.root === "Email" ? 640 : previewWidth(t, brand.id);
 const view = firstView(t, brand.id);
 const bg = brand.colors.background;
 ---

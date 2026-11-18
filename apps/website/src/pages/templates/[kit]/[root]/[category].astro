@@ -3,7 +3,7 @@ import Base from "../../../../layouts/Base.astro";
 import BrandGallery from "../../../../components/BrandGallery.astro";
 import CodeBlock from "../../../../components/CodeBlock.astro";
 import Preview from "../../../../components/Preview.astro";
-import { brandsFor, kitCategories, kitList, kitTemplates, kitUrl, recreationLabel, sitePath, templateUrl, type TemplateInfo } from "../../../../lib/kits";
+import { brandsFor, kitCategories, previewWidth, kitList, kitTemplates, kitUrl, recreationLabel, sitePath, templateUrl, type TemplateInfo } from "../../../../lib/kits";
 
 export function getStaticPaths() {
   return kitTemplates.map((t) => ({ params: { kit: t.kit, root: t.folder, category: t.category }, props: { t } }));
@@ -15,7 +15,7 @@ const list = brandsFor(t);
 const siblings = kitTemplates.filter((o) => o.kit === t.kit && o.key !== t.key);
 const others = kitTemplates.filter((o) => o.category === t.category && o.kit !== t.kit);
 const views = t.root === "Document" ? (["desktop", "pdf", "text", "diagnostics"] as const) : t.root === "Canvas" ? (["image", "outline", "diagnostics"] as const) : (["desktop", "phone", "text", "diagnostics", "html"] as const);
-const width = t.root === "Page" ? 1200 : t.root === "Document" ? 820 : 680;
+const width = previewWidth(t);
 const file = `${t.category}.tsx`;
 const fn = t.label.replace(/[^A-Za-z]/g, "");
 const usage =
