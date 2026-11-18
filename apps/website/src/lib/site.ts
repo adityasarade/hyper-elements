@@ -81,6 +81,7 @@ export const docsNav: DocGroup[] = [
       { slug: "templates/slots", label: "Content: slots and blocks" },
       { slug: "templates/rules", label: "Rules and checks" },
       { slug: "templates/cli", label: "In the command line" },
+      { slug: "templates/contributing", label: "Contributing templates" },
     ],
   },
   {

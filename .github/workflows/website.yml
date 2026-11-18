@@ -65,8 +65,8 @@ jobs:
       - name: Templates pages' data is up to date
         run: |
           pnpm --filter @hyper-elements/website generate:kits
-          git add -N apps/website/public/generated/kits apps/website/src/generated/kits.json
-          git diff --exit-code --stat -- apps/website/public/generated/kits apps/website/src/generated/kits.json || { echo "::error::the templates pages' data is out of date: run pnpm --filter @hyper-elements/website generate:kits and commit it"; exit 1; }
+          git add -N apps/website/public/generated/kits apps/website/src/generated/kits.json apps/website/src/content/docs/templates/contributing.md
+          git diff --exit-code --stat -- apps/website/public/generated/kits apps/website/src/generated/kits.json apps/website/src/content/docs/templates/contributing.md || { echo "::error::the templates pages' data is out of date: run pnpm --filter @hyper-elements/website generate:kits and commit it"; exit 1; }
 
       - name: Build the website
         run: pnpm --filter @hyper-elements/website build
@@ -84,3 +84,20 @@ jobs:
       - name: Templates in the playground
         run: pnpm --filter @hyper-elements/website check:playground-templates
 
+      # For review: every kit drawn in every sample brand, side by side, so a pull request's look can be compared
+      # with the other kits' versions of the same categories without checking it out.
+      - name: Draw every kit for review
+        if: github.event_name == 'pull_request'
+        run: |
+          for kit in $(ls templates); do
+            case "$kit" in _*|.*|node_modules) continue ;; esac
+            if [ -f "templates/$kit/kit.ts" ]; then pnpm --filter ./templates preview "$kit"; fi
+          done
+
+      - name: Upload the kits' pictures
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: templates-preview
+          path: templates/.preview
+          retention-days: 14
