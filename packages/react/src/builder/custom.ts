@@ -89,7 +89,10 @@ function editorOf(spec: Spec): PropertyEditor | undefined {
     case "text":
       return { widget: "text", field: true };
     case "color":
-      return { widget: "color_picker" };
+      // A color that can't be see-through (`transparency: false`): the builder's picker is told so, and has no
+      // opacity to set and no "transparent" to pick, where it takes that (`allowTransparent`). One that doesn't keeps
+      // what's picked, and the block says why it can't be drawn, as a value saved so would.
+      return spec.kind.parse("transparent").ok ? { widget: "color_picker" } : { widget: "color_picker", data: { allowTransparent: false } };
     case "toggle":
       return { widget: "toggle" };
     case "number":
