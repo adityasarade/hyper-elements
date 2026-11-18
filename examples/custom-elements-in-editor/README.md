@@ -25,6 +25,7 @@ Things to try in the shop's set:
 - Click the product, then pick another one under **From the store**: its photo, name, text, price and link fill in together, and each stays editable.
 - Click the order tracker and change **Where it is**: the line, the words and what's still to come redraw.
 - Click the ticket and type another **Code**: its barcode is drawn again from it.
+- Click the product and type `-5` as its **Price**: it stays in the field, which says why it isn't a price, and the card keeps the one it had. Download now, and the design is saved but the HTML isn't: the bar at the top says why. Type `129.50` and the card is drawn with it.
 
 `build` writes to `output/<set>/`:
 
