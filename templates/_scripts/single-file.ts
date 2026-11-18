@@ -91,8 +91,9 @@ function brandTypes(into: Imports): string {
     .join("\n\n");
 }
 
-/** The copyable file for a template (`<kit>/<root folder>/<category>.tsx`) in a brand (a brand file). */
-export function singleFile(templateFile: string, brandFile: string): string {
+/** What a template's file holds apart from a brand: its imports, the category's and the kit's parts' declarations,
+ * and its own body. */
+function templatePieces(templateFile: string): { imports: Imports; inlined: string[]; body: string; defaultName: string } {
   const imports: Imports = { values: new Map(), types: new Map() };
   const template = parse(templateFile);
   const locals = importsOf(template, imports);
@@ -106,10 +107,13 @@ export function singleFile(templateFile: string, brandFile: string): string {
     if (nested.length) throw new Error(`${file}: a category or a kit's parts import only packages and _brand.ts`);
     inlined.push(`// From ${relative(ROOT, file)}\n${bodyOf(source).text.trim()}`);
   }
-  const types = brandTypes(imports);
-  const block = brandBlock(brandFile, imports);
   const { text: body, defaultName } = bodyOf(template);
   if (!defaultName) throw new Error(`${templateFile}: no default export`);
+  return { imports, inlined, body: body.trim(), defaultName };
+}
+
+/** The import lines for what `imports` holds: React's first, then by module. */
+function importLines(imports: Imports): string {
   const lines: string[] = [];
   const modules = [...new Set([...imports.values.keys(), ...imports.types.keys()])].sort((a, b) => (a === "react" ? -1 : b === "react" ? 1 : a.localeCompare(b)));
   for (const from of modules) {
@@ -118,8 +122,32 @@ export function singleFile(templateFile: string, brandFile: string): string {
     if (values.length) lines.push(`import { ${values.join(", ")} } from "${from}";`);
     if (typeNames.length) lines.push(`import type { ${typeNames.join(", ")} } from "${from}";`);
   }
+  return lines.join("\n");
+}
+
+/** The copyable file for a template (`<kit>/<root folder>/<category>.tsx`) in a brand (a brand file). */
+export function singleFile(templateFile: string, brandFile: string): string {
+  const { imports, inlined, body, defaultName } = templatePieces(templateFile);
+  const types = brandTypes(imports);
+  const block = brandBlock(brandFile, imports);
   const header = `// ${relative(ROOT, templateFile)}, from hyperelements.dev/templates. Replace the brand block with your own brand.`;
-  return [header, lines.join("\n"), types, block, ...inlined, `// The template\n${body.trim()}`, `export default ${defaultName}(brand);`].join("\n\n") + "\n";
+  return [header, importLines(imports), types, block, ...inlined, `// The template\n${body}`, `export default ${defaultName}(brand);`].join("\n\n") + "\n";
+}
+
+/** The same template as two files: its code, which imports the brand from `./brand`, and that `brand.ts`. Together
+ * they're the single file, with the brand kept apart (what a template's page shows first). */
+export function splitFiles(templateFile: string, brandFile: string): { code: string; brand: string } {
+  const { imports, inlined, body, defaultName } = templatePieces(templateFile);
+  const header = `// ${relative(ROOT, templateFile)}, from hyperelements.dev/templates. Your brand is in ./brand.ts.`;
+  const code = [header, `${importLines(imports)}\nimport { brand, type Brand } from "./brand";`, ...inlined, `// The template\n${body}`, `export default ${defaultName}(brand);`].join("\n\n") + "\n";
+  const brandImports: Imports = { values: new Map(), types: new Map() };
+  const types = brandTypes(brandImports).replace(/^((?:\/\*\*[\s\S]*?\*\/\s*)?)type /gm, "$1export type ");
+  const block = brandBlock(brandFile, brandImports)
+    .replace("const brand: Brand", "export const brand: Brand")
+    .replace(/^\/\/ brand: (start|end).*\n?/gm, "")
+    .trim();
+  const brand = [`// brand.ts: your brand, which the template draws in. Every value below is used.`, importLines(brandImports), types, block].join("\n\n") + "\n";
+  return { code, brand };
 }
 
 function safeRead(file: string): boolean {

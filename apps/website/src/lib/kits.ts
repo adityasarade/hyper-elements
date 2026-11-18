@@ -44,7 +44,9 @@ export interface TemplateInfo {
   fields: FieldInfo[];
   rules: { lint: Array<{ id: string; summary: string }>; core: Array<{ code: string }>; links?: { domains?: string[] } };
   file: string;
-  byBrand: Record<string, { views: Record<string, Example>; single: string }>;
+  /** The template's code, which imports its brand from ./brand: the same in every brand. */
+  code: string;
+  byBrand: Record<string, { views: Record<string, Example>; single: string; brandFile: string }>;
 }
 export interface CategoryInfo {
   label: string;

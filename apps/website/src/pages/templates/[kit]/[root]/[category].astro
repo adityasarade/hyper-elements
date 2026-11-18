@@ -75,12 +75,16 @@ const starter = `kit-${t.kit}-${t.folder}-${t.category}`;
       <div class="actions">
         <a class="btn" href={`/playground#starter=${starter}`}>Open in the playground</a>
       </div>
+      <CodeBlock code={t.code} file={file} />
       {list.map((b, i) => (
         <div data-brand={b.id} hidden={i !== 0}>
-          <CodeBlock code={t.byBrand[b.id]?.single ?? ""} file={file} />
+          <details class="brand-file">
+            <summary><code>brand.ts</code>: the brand it's drawn in, here {b.name}</summary>
+            <CodeBlock code={t.byBrand[b.id]?.brandFile ?? ""} file="brand.ts" lang="ts" />
+          </details>
+          <p class="note">The template imports your brand from <code>./brand.ts</code>: its colors, fonts, logo and links. It imports nothing else but Elements' own packages. <button class="btn-link" type="button" data-copy={t.byBrand[b.id]?.single ?? ""}>Copy both as one file</button></p>
         </div>
       ))}
-      <p class="note">One file, which imports only Elements' own packages. Replace the block between <code>// brand: start</code> and <code>// brand: end</code> with your own brand: its colors, fonts, logo and links.</p>
       <CodeBlock code={usage} file="render.ts" />
     </div>
   </div>
@@ -137,6 +141,13 @@ const starter = `kit-${t.kit}-${t.folder}-${t.category}`;
   .original img { max-width: 100%; max-height: 420px; border: 1px solid var(--line); }
   .original figcaption { font-size: 12px; color: var(--text-3); margin-top: 4px; }
   .t-body { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .brand-file { margin: 12px 0 0; border: 1px solid var(--line); border-radius: var(--radius); }
+  .brand-file summary { cursor: pointer; padding: 10px 14px; font-size: 13.5px; color: var(--text-2); display: flex; align-items: center; gap: 6px; list-style-position: inside; }
+  .brand-file summary code { color: var(--text); }
+  .brand-file[open] summary { border-bottom: 1px solid var(--line); }
+  .brand-file :global(.code-block) { margin: 0; border: 0; border-radius: 0 0 var(--radius) var(--radius); }
+  .btn-link { background: none; border: 0; padding: 0; color: var(--text-2); font: 13px var(--sans); text-decoration: underline; cursor: pointer; }
+  .btn-link[data-copied]::after { content: " ✓"; }
   .t-preview { overflow: hidden; background: #0e0e0e; position: sticky; top: calc(var(--header) + 16px); }
   .format + .format { border-top: 1px solid var(--line); }
   .format-name { font: 12px var(--mono); color: var(--text-3); margin: 10px 14px 0; text-transform: uppercase; letter-spacing: 0.08em; }

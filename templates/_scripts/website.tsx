@@ -14,7 +14,7 @@ import { renderPdf, templateAssets as pdfAssets } from "@hyper-elements/react/pd
 import { ASSETS, type Brand } from "../_brand";
 import { brands, categories, kits, templates, type RootFolder } from "../_test/discover";
 import { ASSET_DIR, ROOT, fontFiles, imageFiles } from "./assets";
-import { brandBlock, singleFile } from "./single-file";
+import { brandBlock, singleFile, splitFiles } from "./single-file";
 
 const SITE = join(ROOT, "..", "apps", "website");
 const PUBLIC = join(SITE, "public", "generated", "kits");
@@ -83,7 +83,7 @@ for (const t of all) {
     try {
       const views: Record<string, unknown> = {};
       for (const format of formats.length ? formats : [undefined]) views[format ?? "default"] = await example(t, id, brand, format);
-      byBrand[id] = { views, single: singleFile(t.file, file) };
+      byBrand[id] = { views, single: singleFile(t.file, file), brandFile: splitFiles(t.file, file).brand };
     } catch (error) {
       failures.push(String((error as Error).message ?? error));
     }
@@ -105,6 +105,8 @@ for (const t of all) {
     fields: description.fields.map((f) => ({ path: f.path, kind: f.kind, label: f.label, required: f.required, fromCategory: required.includes(f.path.split(/[.[]/)[0]) })),
     rules: description.rules,
     file: relative(join(ROOT, ".."), t.file),
+    // The template's code apart from any brand: the same in every brand, importing it from ./brand.
+    code: splitFiles(t.file, drawIn[0].file).code,
     byBrand,
   });
 }

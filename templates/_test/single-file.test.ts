@@ -1,6 +1,7 @@
 /**
  * Every template's copyable file, in every brand: swapping its brand block for another brand's gives that brand's file,
- * each typechecks under `strict` against the packages on its own, and each checks and renders as the matrix does.
+ * each typechecks under `strict` against the packages on its own, and each checks and renders as the matrix does. The
+ * same template as two files (its code and `brand.ts`, what a template's page shows) typechecks and renders the same.
  */
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -8,12 +9,13 @@ import ts from "typescript";
 import { render } from "@hyper-elements/react";
 import type { Template } from "@hyper-elements/react/template";
 import { ROOT } from "../_scripts/assets";
-import { brandBlock, singleFile, swapBrand } from "../_scripts/single-file";
+import { brandBlock, singleFile, splitFiles, swapBrand } from "../_scripts/single-file";
 import { brands, templates } from "./discover";
 
 const OUT = join(ROOT, ".single");
 const [all, sampleBrands] = [await templates(), await brands()];
 const files: Array<{ id: string; brand: string; file: string }> = [];
+const splits: Array<{ id: string; brand: string; code: string; single: string }> = [];
 
 beforeAll(() => {
   rmSync(OUT, { recursive: true, force: true });
@@ -23,6 +25,12 @@ beforeAll(() => {
       mkdirSync(join(file, ".."), { recursive: true });
       writeFileSync(file, singleFile(t.file, join(ROOT, "_brands", `${brand}.ts`)));
       files.push({ id: t.id, brand, file });
+      const split = splitFiles(t.file, join(ROOT, "_brands", `${brand}.ts`));
+      const dir = join(OUT, "split", t.kit, brand, `${t.folder}.${t.category}`);
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, `${t.category}.tsx`), split.code);
+      writeFileSync(join(dir, "brand.ts"), split.brand);
+      splits.push({ id: t.id, brand, code: join(dir, `${t.category}.tsx`), single: file });
     }
   }
 });
@@ -37,9 +45,9 @@ it("gives a brand's file when another brand's block is swapped in, as the Brand 
   }
 });
 
-it("typechecks every file on its own, under strict", () => {
+it("typechecks every file on its own, and every template's two files together, under strict", () => {
   const program = ts.createProgram(
-    files.map((f) => f.file),
+    [...files.map((f) => f.file), ...splits.map((s) => s.code)],
     {
       strict: true,
       noEmit: true,
@@ -67,5 +75,18 @@ it("checks and renders every file as the template does", async () => {
     const checked = tpl.check(tpl.example, format ? { format } : {});
     expect(checked.valid, `${id} in ${brand}`).toBe(true);
     if (tpl.root === "Email" || tpl.root === "Page" || tpl.root === "Document") await render(checked.snapshots[(format ?? "default") as never]!);
+  }
+});
+
+it("renders a template's two files as its single file does", async () => {
+  for (const { id, brand, code, single } of splits.filter((s) => s.brand === sampleBrands[0].id || s.brand === sampleBrands.at(-1)!.id)) {
+    const [a, b] = await Promise.all([code, single].map(async (file) => ((await import(file)) as { default: Template }).default));
+    expect(a.id, code).toBe(id);
+    const format = a.formats ? Object.keys(a.formats)[0] : undefined;
+    const [ca, cb] = [a, b].map((tpl) => tpl.check(tpl.example, format ? { format } : {}));
+    expect(ca.valid, `${id} in ${brand}`).toBe(true);
+    if (a.root === "Canvas") continue;
+    const key = (format ?? "default") as never;
+    expect((await render(ca.snapshots[key]!)).html, `${id} in ${brand}`).toBe((await render(cb.snapshots[key]!)).html);
   }
 });
