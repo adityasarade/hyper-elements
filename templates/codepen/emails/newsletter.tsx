@@ -1,5 +1,3 @@
-// Ported from React Email's community templates (https://github.com/resend/react-email), MIT License, Copyright 2024
-// Plus Five Five, Inc: see _licenses/react-email.txt.
 import { Button, Column, Email, Heading, Image, LineBreak, Link, Row, Section, Span, Text, token } from "@hyper-elements/react";
 import type { Brand } from "../../_brand";
 
@@ -8,7 +6,7 @@ export const meta = {
   description: "A weekly challenge: header art on a dark band, a yellow heading, the brief and a boxed challenge, a picture, a PRO panel, how to take part, ideas and resources side by side, and a button to the challenge",
   recreates: {
     what: "Challenges newsletter",
-    original: "https://github.com/resend/react-email/blob/canary/apps/demo/emails/Community/newsletters/codepen-challengers.tsx",
+    original: "https://reallygoodemails.com/search/emails/CodePen",
   },
 };
 

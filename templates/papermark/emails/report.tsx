@@ -1,12 +1,10 @@
-// Ported from React Email's community templates (https://github.com/resend/react-email), MIT License, Copyright 2024
-// Plus Five Five, Inc: see _licenses/react-email.txt.
 import { Button, Column, Divider, Email, Heading, Image, LineBreak, Link, Row, Section, Text, token } from "@hyper-elements/react";
 import type { Brand } from "../../_brand";
 
 export const meta = {
   label: "Year in review",
   description: "A year's numbers told as a story: big figures in rounded panels, the reader's activity side by side, where readers were, and a button to share it",
-  recreates: { what: "Year in review email", original: "https://github.com/resend/react-email/blob/canary/apps/demo/emails/Community/notifications/papermark-year-in-review.tsx" },
+  recreates: { what: "Year in review email", original: "https://www.papermark.com" },
 };
 
 const locations = ["United States", "United Kingdom", "Germany", "Japan"];

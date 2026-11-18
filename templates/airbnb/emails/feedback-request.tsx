@@ -1,12 +1,10 @@
-// Ported from React Email's community templates (https://github.com/resend/react-email), MIT License, Copyright 2024
-// Plus Five Five, Inc: see _licenses/react-email.txt.
 import { Button, Column, Divider, Email, Heading, Image, Link, Section, Text, token } from "@hyper-elements/react";
 import type { Brand } from "../../_brand";
 
 export const meta = {
   label: "Review received",
   description: "A guest's review, shown to the host once the review period ends: the logo, the reviewer's photo, their words in a shaded box, a button to reply, and common questions",
-  recreates: { what: "Review email", original: "https://github.com/resend/react-email/blob/canary/apps/demo/emails/Community/reviews/airbnb-review.tsx" },
+  recreates: { what: "Review email", original: "https://reallygoodemails.com/search/emails/Airbnb" },
 };
 
 const REVIEWER = "https://hyperelements.dev/generated/kits/assets/recreations/airbnb/reviewer.jpg";

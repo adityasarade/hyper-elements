@@ -1,12 +1,10 @@
-// Ported from React Email's community templates (https://github.com/resend/react-email), MIT License, Copyright 2024
-// Plus Five Five, Inc: see _licenses/react-email.txt.
 import { Button, Column, Divider, Email, Image, Link, Section, Text, token } from "@hyper-elements/react";
 import type { Brand } from "../../_brand";
 
 export const meta = {
   label: "Welcome",
   description: "The email once an account can take live payments: the logo, short paragraphs with links into the docs, one button, and the address",
-  recreates: { what: "Welcome email", original: "https://github.com/resend/react-email/blob/canary/apps/demo/emails/Community/welcome/stripe-welcome.tsx" },
+  recreates: { what: "Welcome email", original: "https://reallygoodemails.com/search/emails/Stripe" },
 };
 
 export default function StripeWelcome({ brand }: { brand: Brand }) {

@@ -1,5 +1,3 @@
-// Ported from React Email's community templates (https://github.com/resend/react-email), MIT License, Copyright 2024
-// Plus Five Five, Inc: see _licenses/react-email.txt.
 import { Button, Column, Divider, Email, Heading, Image, Link, List, ListItem, Row, Span, Text, token } from "@hyper-elements/react";
 import type { Brand } from "../../_brand";
 
@@ -8,7 +6,7 @@ export const meta = {
   description: "A tips issue: the logo on the page, a banner with the headline beside its art, ruled sections with a list of tips, one button, and a footer with the email's settings and the address",
   recreates: {
     what: "Search tips newsletter",
-    original: "https://github.com/resend/react-email/blob/canary/apps/demo/emails/Community/newsletters/stack-overflow-tips.tsx",
+    original: "https://reallygoodemails.com/search/emails/Stack%20Overflow",
   },
 };
 
