@@ -2,6 +2,7 @@ import { defineConfig } from "astro/config";
 import sitemap from "@astrojs/sitemap";
 import { hyperTheme } from "./src/lib/shiki-theme.mjs";
 import playground from "./scripts/playground-integration.mjs";
+import ogImage from "./scripts/og-image-integration.mjs";
 
 export default defineConfig({
   site: "https://www.hyperelements.dev",
@@ -26,8 +27,9 @@ export default defineConfig({
     "/docs/guides/templates-checks": "/docs/templates/rules",
     "/docs/guides/templates-cli": "/docs/templates/cli",
   },
-  // The playground's sandbox runtime, served beside its page (scripts/playground-integration.mjs).
-  integrations: [sitemap(), playground()],
+  // The playground's sandbox runtime, served beside its page (scripts/playground-integration.mjs), and the Open Graph
+  // image generator's worker (scripts/og-image-integration.mjs).
+  integrations: [sitemap(), playground(), ogImage()],
   markdown: {
     shikiConfig: { theme: hyperTheme, wrap: false },
   },

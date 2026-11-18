@@ -76,6 +76,23 @@ the size it was drawn at. Run it after `pnpm build`:
 `pnpm --filter @hyper-elements/website generate:core-concepts` (a folder's name after it draws only that page's
 pictures, without the docs check). Both scripts' drawing helpers are `scripts/pictures.mjs`.
 
+## The Open Graph image generator
+
+`/tools/open-graph-image-generator` makes a 1200 × 630 share image in the visitor's browser. Its six designs are
+templates in `examples/og-image/`, each one self-contained so the page can show it as code to copy. A worker draws them
+(`src/og-image/worker.ts`, with `engine.ts`): `scripts/og-image-runtime.mjs` bundles it from the packages' sources with
+the playground's shims, and `scripts/og-image-integration.mjs` serves it at `/tools/og-image/runtime.js`. The worker
+returns an SVG, which the page shows and turns into a PNG or a JPEG on a canvas (`src/og-image/main.ts`), so resvg's
+WebAssembly loads only in a browser that won't do that. The visitor's photo and logo are read on the page and sent only
+to the worker.
+
+The designs name their fonts and the sample photo at `https://hyperelements.dev/tools/og-image/…`, so a copied design
+works anywhere: the worker reads them from this site, and the files are `public/tools/og-image/`, written once by
+`node scripts/og-image-assets.mjs` (Google Fonts' TTFs with only Latin, Greek and Cyrillic, and the sample photo drawn
+from SVG) and committed. After changing a design, draw each one's picture for the page and its fields again
+(`public/generated/og-image/`, `src/generated/og-image.json`): `pnpm --filter @hyper-elements/website generate:og-image`.
+After `build`, `pnpm --filter @hyper-elements/website check:og-image` holds the page to what it says in Chromium.
+
 Images the examples use live in `public/img/` and are referenced as `https://hyperelements.dev/img/…`, so a copied example works anywhere. Previews load them from the site itself.
 
 ## Pages

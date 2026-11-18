@@ -17,9 +17,11 @@
     "generate:compare": "node scripts/compare-previews.mjs",
     "generate:templates-guide": "node scripts/templates-guide.mjs",
     "generate:core-concepts": "node scripts/core-concepts.mjs",
+    "generate:og-image": "node scripts/og-image.mjs",
     "check:blog": "node scripts/check-blog.mjs",
     "check:playground": "node scripts/check-playground.mjs",
-    "check:email-testing": "node scripts/check-email-testing.mjs"
+    "check:email-testing": "node scripts/check-email-testing.mjs",
+    "check:og-image": "node scripts/check-og-image.mjs"
   },
   "devDependencies": {
     "@astrojs/sitemap": "^3.7.4",
