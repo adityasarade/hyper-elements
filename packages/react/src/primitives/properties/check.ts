@@ -1,0 +1,25 @@
+/**
+ * `checkValue()`: whether what a field holds is a value its prop takes, as an editing app checks what its user typed
+ * before it keeps it. Data, as the helpers are: it imports only the engine, so every editing app checks a field the
+ * same way, with the same words.
+ */
+import type { Json, PropSpec } from "@hyper-elements/core";
+
+/** What a field holds, checked: the prop's value (none, where the field is empty), or why the prop doesn't take it. */
+export type CheckedValue = { readonly ok: true; readonly value: Json | undefined } | { readonly ok: false; readonly message: string };
+
+/**
+ * Checks what a field holds (`held`, as its user left it) against the prop it edits (`spec`, an element's
+ * `props.price`): `{ ok: true, value }` with the prop's value to keep, or `{ ok: false, message }` with why it isn't
+ * one (`"expected a number from 0, not -5"`), to show at the field while its user is still at it, keeping the value
+ * the field had. An empty field is the prop not given, which one its element needs isn't. A number's field holds
+ * its digits as text, which are the number.
+ *
+ *     checkValue(Product.props.price, "-5") // { ok: false, message: "expected a number from 0, not -5" }
+ */
+export function checkValue(spec: PropSpec, held: unknown): CheckedValue {
+  if (held === undefined || held === null || held === "") return spec.required ? { ok: false, message: "is needed" } : { ok: true, value: undefined };
+  const given = spec.kind.editor === "number" && typeof held === "string" && held.trim() !== "" && Number.isFinite(Number(held)) ? Number(held) : held;
+  const parsed = spec.kind.parse(given);
+  return parsed.ok ? { ok: true, value: parsed.value as Json } : { ok: false, message: parsed.message };
+}

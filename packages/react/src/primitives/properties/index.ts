@@ -6,3 +6,4 @@
  */
 export { prop, type BlocksSpec, type FieldInput, type FieldInputs, type FieldValue, type FieldValues, type ListSpec, type ObjectSpec } from "./prop";
 export { defineProperty, type PropertyDefinition } from "./define";
+export { checkValue, type CheckedValue } from "./check";

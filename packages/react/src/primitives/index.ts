@@ -88,8 +88,10 @@ export type {
 export { defineElement, type CustomElement, type CustomProps, type ElementSpec, type RenderContext, type ThemeValues } from "./custom";
 // What props are made with: framework-neutral, apart from the elements.
 export {
+  checkValue,
   defineProperty,
   prop,
+  type CheckedValue,
   type PropertyDefinition,
   type FieldInput,
   type FieldInputs,

@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 /**
- * Properties are data: `prop`'s helpers and `defineProperty()` import only each other and the engine, never React or
+ * Properties are data: `prop`'s helpers, `defineProperty()` and `checkValue()` import only each other and the engine, never React or
  * the render that collects a design, so the same limits can check a value where nothing renders. Each file they
  * import, and each file those import (type imports too), is in this folder, and their one package is the engine. Used
  * where React can't load, they make and check props as they do anywhere.
@@ -10,7 +10,7 @@ import { existsSync, readFileSync, statSync } from "fs";
 import { dirname, relative, resolve, sep } from "path";
 import ts from "typescript";
 import { describe, expect, it, vi } from "vitest";
-import { defineProperty, prop } from ".";
+import { checkValue, defineProperty, prop } from ".";
 
 // Loading React, or the render that collects a design, fails this file.
 vi.mock("react", () => {
@@ -55,7 +55,7 @@ describe("properties' imports", () => {
   it("are this folder's files", () => {
     const outside = [...files].filter(([file]) => name(file).startsWith(".."));
     expect(outside.map(([file, from]) => `${name(from!)} → ${name(file)}`)).toEqual([]);
-    expect([...files.keys()].map(name)).toEqual(expect.arrayContaining(["index.ts", "prop.ts", "define.ts"]));
+    expect([...files.keys()].map(name)).toEqual(expect.arrayContaining(["index.ts", "prop.ts", "define.ts", "check.ts"]));
   });
 
   it("import the engine and no other package", () => {
@@ -84,5 +84,24 @@ describe("properties where React can't load", () => {
     expect(items.kind.parse(["abc", "de"])).toMatchObject({ ok: true });
     expect(items.kind.parse(["abcd"]).ok).toBe(false);
     expect(items.kind.parse(["a", "b", "c"]).ok).toBe(false);
+  });
+
+  it("check what a field holds as its prop does, the same in any editing app: its value, or why it isn't one", () => {
+    const price = prop.number({ label: "Price", min: 0 });
+    expect(checkValue(price, "-5")).toEqual({ ok: false, message: "expected a number from 0, not -5" });
+    // A number's field holds its digits as text.
+    expect(checkValue(price, "129.50")).toEqual({ ok: true, value: 129.5 });
+    expect(checkValue(price, 12)).toEqual({ ok: true, value: 12 });
+    expect(checkValue(price, "12p")).toEqual({ ok: false, message: 'expected a number from 0, not "12p"' });
+    // An empty field is the prop not given, which one its element needs isn't.
+    expect(checkValue(price, "")).toEqual({ ok: true, value: undefined });
+    expect(checkValue(prop.number({ label: "Price", required: true }), "")).toEqual({ ok: false, message: "is needed" });
+    // Text is what's typed: "A&lt;B" is six characters, never "A<B".
+    const code = prop.text({ label: "Code", maxLength: 3 });
+    expect(checkValue(code, "A<B")).toEqual({ ok: true, value: "A<B" });
+    expect(checkValue(code, "A&lt;B")).toEqual({ ok: false, message: "is longer than 3 characters" });
+    // A property of a team's own is checked by its base's limits.
+    const currency = defineProperty({ name: "acme.currency", base: prop.number });
+    expect(checkValue(currency({ label: "Price", min: 1 }), 0)).toEqual({ ok: false, message: "expected a number from 1, not 0" });
   });
 });
