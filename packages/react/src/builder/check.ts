@@ -28,7 +28,9 @@ function itemLinks(value: Json, key: string, path: string, report: string[]): Js
 
 /** The node with only values its component takes, its children checked; null where it can't be kept, its children where only it can't. */
 function checkNode(node: Node, path: string, report: string[], inText = false, custom?: ReadonlyMap<string, CustomDefinition<any>>): Node | Child[] | null {
-  const definition = definitionOf(node.type) ?? custom?.get(node.type);
+  const builtIn = definitionOf(node.type);
+  const definition = builtIn ?? custom?.get(node.type);
+  const own = !builtIn && definition !== undefined;
   if (!definition) {
     report.push(`${path}: ${JSON.stringify(node.type)} isn't an element: left out`);
     return null;
@@ -45,7 +47,8 @@ function checkNode(node: Node, path: string, report: string[], inText = false, c
     const specs = (part === "props" ? definition.props : definition.style) as Record<string, { kind: Kind } | undefined>;
     const kept: Record<string, Json> = {};
     for (const [key, given] of Object.entries(values)) {
-      const value = part === "props" ? itemLinks(given, key, path, report) : given;
+      // A template's own element's props are its own data, checked by its props' kinds: no link of theirs is repaired.
+      const value = part === "props" && !own ? itemLinks(given, key, path, report) : given;
       const spec = Object.hasOwn(specs, key) ? specs[key] : undefined;
       const parsed = spec ? spec.kind.parse(value) : undefined;
       if (parsed?.ok) {
@@ -53,7 +56,7 @@ function checkNode(node: Node, path: string, report: string[], inText = false, c
         continue;
       }
       // A link Elements won't write: a Link's words without it, a Button's "#"; an image or video it can't show, none.
-      if (part === "props" && (key === "href" || key === "src")) {
+      if (part === "props" && !own && (key === "href" || key === "src")) {
         if (node.type === "Button") {
           report.push(`${path}: its link ${JSON.stringify(value)} isn't one Elements writes: it's "#"`);
           kept.href = "#";

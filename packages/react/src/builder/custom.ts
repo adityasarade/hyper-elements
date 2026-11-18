@@ -136,6 +136,10 @@ export interface Refused {
   reason: string;
 }
 
+/** Whether a field's value is what the builder keeps for one its user emptied: nothing for its prop. */
+const emptied = (spec: Spec, kept: unknown): boolean =>
+  kept === "" || (spec.kind.editor === "link" && webLink(kept) === null) || (spec.kind.editor === "image" && !obj(kept).url) || (spec.kind.editor === "fontFamily" && font(kept) === undefined && (typeof kept !== "object" || obj(kept).value === ""));
+
 /**
  * A tool's values as its element's props: each read back and checked by its kind. One it doesn't take is left out,
  * and given to `refuse`.
@@ -146,10 +150,21 @@ export function toolProps(definition: CustomDefinition<any>, values: Values, say
     const kept = values[key];
     if (!Object.hasOwn(values, key) || kept === undefined || kept === null) continue;
     const editor = editorOf(spec);
-    let given = editor?.read ? editor.read(kept, say) : kept;
+    // What reading it says is said once it's taken: of one refused, the refusal says it all.
+    const heard: string[] = [];
+    let given = editor?.read ? editor.read(kept, (message) => heard.push(message)) : kept;
     // A link its user emptied, where the prop has one by default, is a link to nothing: not its default again.
     if (given === undefined && spec.kind.editor === "link" && spec.default !== undefined && webLink(kept) === null) given = { href: "" };
-    if (given === undefined) continue;
+    if (given === undefined) {
+      // One that holds something its field can't read as its kind (a link with a target or a class of its own) isn't
+      // taken: read as nothing, the block would be drawn with the prop's default instead.
+      if (!emptied(spec, kept)) refuse({ key, kept, reason: spec.kind.editor === "link" ? "a link Elements draws is a URL, opened in the same tab or a new one, with no class, attributes or click handler of its own" : `it isn't a ${spec.kind.editor} Elements reads` });
+      else heard.forEach(say);
+      continue;
+    }
+    heard.forEach(say);
+    // A text its element needs, left empty (as a block dragged in starts), is none: its field says it's needed.
+    if (given === "" && spec.required) continue;
     const parsed = spec.kind.parse(given);
     // Its default is what the element takes anyway: not written, as a template wouldn't. One it needs is given
     // either way (a template has to give it), its default too.
@@ -195,7 +210,7 @@ export function readCustom(slug: unknown, values: Values, context: Context, tool
     context.say(`${tool} has ${refused.map((one) => `its ${one.key} ${JSON.stringify(one.kept)} (${one.reason})`).join(" and ")}, which a ${definition.type} doesn't take: left out`);
     return [];
   }
-  // A block dragged in and not filled yet, which the builder leaves out of what it exports too: with it, the template
+  // A block dragged in and not filled yet, whose export fails in the builder too: with it, the template
   // wouldn't render.
   const missing = Object.keys(definition.props).filter((key) => definition.props[key].required && !Object.hasOwn(props, key));
   if (missing.length) {

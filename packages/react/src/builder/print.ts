@@ -99,21 +99,22 @@ function compact(value: object): unknown {
   return value;
 }
 
-function js(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(js).join(", ")}]`;
+/** A value as JSX writes it. `plain`: as it is, for a template's own element, whose props are its own data and take no shorthand. */
+function js(value: unknown, plain = false): string {
+  if (Array.isArray(value)) return `[${value.map((item) => js(item, plain)).join(", ")}]`;
   if (value && typeof value === "object") {
-    const short = compact(value);
+    const short = plain ? value : compact(value);
     if (short !== value) return js(short);
     const entries = Object.entries(value).filter(([, v]) => v !== undefined);
-    return entries.length ? `{ ${entries.map(([k, v]) => `${IDENTIFIER.test(k) ? k : JSON.stringify(k)}: ${js(v)}`).join(", ")} }` : "{}";
+    return entries.length ? `{ ${entries.map(([k, v]) => `${IDENTIFIER.test(k) ? k : JSON.stringify(k)}: ${js(v, plain)}`).join(", ")} }` : "{}";
   }
   return JSON.stringify(value);
 }
 
-function attribute(name: string, value: unknown): string {
+function attribute(name: string, value: unknown, plain = false): string {
   if (value === true) return name;
   if (typeof value === "string" && /^[^"&\n\\{}]*$/.test(value)) return `${name}="${value}"`;
-  return `${name}={${js(value)}}`;
+  return `${name}={${js(value, plain)}}`;
 }
 
 /**
@@ -140,7 +141,7 @@ function element(node: Node, indent: string, flat: boolean, path: string, report
   const name = own.get(node.type) ?? tagName(node.type);
   const attributes = Object.entries(propsOf(node))
     .filter(([key]) => PROP_NAME.test(key) || (report.push(`${path}: a prop named ${JSON.stringify(key)} isn't one JSX can write: it's left out of the code`), false))
-    .map(([key, value]) => ` ${attribute(key, value)}`)
+    .map(([key, value]) => ` ${attribute(key, value, own.has(node.type))}`)
     .join("");
   const children: Child[] = node.children ?? [];
   const child = (c: Child, i: number, inner: string, oneLine: boolean) => (typeof c === "string" ? text(c, oneLine) : element(c, inner, oneLine, `${path}.children[${i}]`, report, own));

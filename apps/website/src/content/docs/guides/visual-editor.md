@@ -164,16 +164,16 @@ Three calls connect it, all from `@hyper-elements/react/builder`:
 
 ### Which editor a prop gets
 
-A prop's kind says what its value is. The builder edits it with its own property editor for that kind:
+A prop's kind says what its value is. The builder edits it with its own property editor for that kind, or with a text field of `registerTools()`'s own, which keeps only a value the prop takes (below):
 
-| Prop | The builder's editor |
+| Prop | Its field |
 |------|----------------------|
-| `prop.text()` | `text` |
+| `prop.text()` | `registerTools()`'s text field |
 | `prop.text()` with an `enum` | `dropdown`, with its texts |
 | `prop.color()` | `color_picker` |
 | `prop.number()` with `integer: true` | `counter`, between the prop's `min` and `max` |
-| `prop.number()` | `text`: a number that isn't whole is kept as text (`"7.99"`) |
-| `prop.length()` | `counter` for px, from the prop's `min`; `text` where it takes another unit (`"50%"`) |
+| `prop.number()` | `registerTools()`'s text field: a number that isn't whole is kept as text (`"7.99"`) |
+| `prop.length()` | `counter` for px, from the prop's `min`; `registerTools()`'s text field where it takes another unit (`"50%"`) |
 | `prop.boolean()` | `toggle` |
 | `prop.choice()` | `dropdown`, with its values |
 | `prop.fontWeight()` | `dropdown`, 100 to 900 |

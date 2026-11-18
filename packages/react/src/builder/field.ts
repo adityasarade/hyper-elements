@@ -60,7 +60,7 @@ export function unkeptValues(): string[] {
   const said: string[] = [];
   for (const [field, one] of unkept) {
     if (!one.node?.isConnected) unkept.delete(field);
-    else said.push(`${one.where} holds ${JSON.stringify(one.held)}, which isn't kept (${one.message})`);
+    else said.push(`${one.where} holds ${typeof one.held === "number" ? String(one.held) : JSON.stringify(one.held)}, which isn't kept (${one.message})`);
   }
   return said;
 }
@@ -68,6 +68,8 @@ export function unkeptValues(): string[] {
 /** How long a field waits, once its user stops typing, to keep a value its prop takes, and to say why it isn't one. */
 const KEEP_AFTER = 250;
 const SAY_AFTER = 700;
+/** How soon after a value is kept from what its user typed the builder draws its field again, at most. */
+const RESTORE_WITHIN = 1000;
 
 /** What a text field knows of the input it's mounted on: the builder's latest `update`, and what's waiting to happen. */
 interface Typing {
@@ -76,8 +78,9 @@ interface Typing {
   timer?: ReturnType<typeof setTimeout>;
 }
 
-/** Where its user was in a field as what they typed was kept: the text, and the caret (or what's selected). */
+/** Where its user was in a field as what they typed was kept: the text, and the caret (or what's selected), and when. */
 interface Typed {
+  at: number;
   kept: string;
   text: string;
   start: number | null;
@@ -112,7 +115,7 @@ export function textField(spec: PropSpec, label: string, owner: string, store: (
     unkept.delete(input);
     if (kept === state.kept) return;
     state.kept = kept;
-    typed = input.ownerDocument.activeElement === input ? { kept, text: input.value, start: input.selectionStart, end: input.selectionEnd } : undefined;
+    typed = input.ownerDocument.activeElement === input ? { at: Date.now(), kept, text: input.value, start: input.selectionStart, end: input.selectionEnd } : undefined;
     state.update(kept);
   };
   return {
@@ -161,7 +164,9 @@ export function textField(spec: PropSpec, label: string, owner: string, store: (
       // Drawn again in a new input with the value just kept from what its user typed: back where they were.
       const back = typed;
       typed = undefined;
-      if (back && back.kept === shown && input.isConnected) {
+      // As the builder draws it again right after the value is kept: a field mounted later, for another block with the
+      // same value maybe, isn't where they were.
+      if (back && back.kept === shown && Date.now() - back.at < RESTORE_WITHIN && input.isConnected) {
         input.value = back.text;
         input.focus();
         input.setSelectionRange(back.start ?? back.text.length, back.end ?? back.text.length);

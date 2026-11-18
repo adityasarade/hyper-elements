@@ -407,6 +407,57 @@ describe("fromDesign with elements", () => {
     expect(code).toContain("mobile: { padding: 4 }");
   });
 
+  it("reads a required text left empty, as a block dragged in starts, as none: not drawn, exported or read back blank", async () => {
+    const Named = defineElement({ type: "acme.Named", label: "Named", props: { name: prop.text({ label: "Name", required: true }) }, render: (p) => <Text>{p.name}</Text> });
+    const { builder, tools } = fakeBuilder();
+    registerTools(builder, [Named]);
+    // What a block dragged in from the panel starts with.
+    expect(tools[0].options.acme_named.options.name.defaultValue).toBe("");
+    const dropped = { name: "" };
+    expect(tools[0].renderer.Viewer.render(dropped)).toContain("Named:");
+    expect(() => tools[0].renderer.exporters.email(dropped)).toThrow("[Elements] Named (acme.Named) can't be drawn");
+    expect(tools[0].validator({ values: dropped, defaultErrors: [] })).toEqual([expect.objectContaining({ severity: "ERROR", description: "it has no name, which it needs" })]);
+    const read = fromDesign({ body: { rows: [{ cells: [1], columns: [{ contents: [{ type: "custom", slug: "acme_named", values: dropped }] }] }] } }, { elements: [Named] });
+    expect(read.report).toEqual(['rows[0].columns[0].contents[0]: the custom tool "acme_named" has no name, which a acme.Named needs: left out']);
+    // Filled, it's drawn.
+    expect(tools[0].renderer.exporters.email({ name: "Ada" })).toContain("Ada");
+  });
+
+  it("refuses a link its field holds that Elements can't draw, rather than draw the prop's default in its place", async () => {
+    const Cta = defineElement({ type: "acme.Cta", label: "Call to action", props: { href: prop.link({ label: "Link", default: "https://example.com/original" }) }, render: (p) => <Button href={p.href}>Go</Button> });
+    const { builder, tools } = fakeBuilder();
+    registerTools(builder, [Cta]);
+    const values = { href: { name: "web", values: { href: "https://example.com/changed", target: "popup" } } };
+    const canvas = tools[0].renderer.Viewer.render(values);
+    expect(canvas).toContain("Call to action: its href");
+    expect(canvas).not.toContain("example.com/original");
+    expect(() => tools[0].renderer.exporters.email(values)).toThrow("a link Elements draws is a URL, opened in the same tab or a new one");
+    expect(tools[0].validator({ values, defaultErrors: [] })).toEqual([expect.objectContaining({ severity: "ERROR" })]);
+    const read = fromDesign({ body: { rows: [{ cells: [1], columns: [{ contents: [{ type: "custom", slug: "acme_cta", values }] }] }] } }, { elements: [Cta] });
+    expect(read.code).not.toContain("example.com/original");
+    expect(read.report).toEqual([expect.stringContaining("which a acme.Cta doesn't take: left out")]);
+    // An emptied link is still a link to nothing, and one it draws is drawn.
+    expect(tools[0].renderer.exporters.email({ href: { name: "web", values: { href: "https://example.com/changed", target: "_blank" } } })).toContain("example.com/changed");
+  });
+
+  it("writes a template's own element's props as they are: its data, with none of a style's shorthand or a link's repair", async () => {
+    const Panel = defineElement({
+      type: "acme.Panel",
+      label: "Panel",
+      props: {
+        insets: prop.object({ top: prop.number({ label: "Top" }), right: prop.number({ label: "Right" }), bottom: prop.number({ label: "Bottom" }), left: prop.number({ label: "Left" }) }, { label: "Insets" }),
+        offers: prop.list(prop.object({ title: prop.text({ label: "Title" }), href: prop.text({ label: "Link", enum: ["", "/offers"] }) }, { label: "Offer" }), { label: "Offers", required: true }),
+      },
+      render: (p) => <Text>{`${p.insets?.top ?? 0} ${p.offers.map((offer) => `${offer.title}:${offer.href}`).join(",")}`}</Text>,
+    });
+    const values = { insets: { top: 10, right: 10, bottom: 10, left: 10 }, offers: [{ title: "No current offer", href: "" }] };
+    const read = fromDesign({ body: { rows: [{ cells: [1], columns: [{ contents: [{ type: "custom", slug: "acme_panel", values }] }] }] } }, { elements: [Panel] });
+    expect(read.report).toEqual([]);
+    expect(read.code).toContain("insets={{ top: 10, right: 10, bottom: 10, left: 10 }}");
+    expect(read.code).toContain('offers={[{ title: "No current offer", href: "" }]}');
+    expect((await render(read.element)).html).toContain("10 No current offer:</p>");
+  });
+
   it("leaves out a block with no value for a prop its element needs, and says so: the rest still renders", async () => {
     const Photo = defineElement({ type: "acme.Photo", label: "Photo", props: { photo: prop.image({ label: "Photo", required: true }) }, render: (p) => <Image src={p.photo} alt="" /> });
     const Count = defineElement({ type: "acme.Count", label: "Count", props: { n: prop.number({ label: "Count", required: true, min: 1 }) }, render: (p) => <Text>{p.n}</Text> });
@@ -1101,6 +1152,15 @@ describe("a tool's fields", () => {
     const other = draw("XY");
     expect(document.activeElement).not.toBe(other.input);
     expect(other.input.value).toBe("XY");
+    // Kept, and not drawn again at once: a field mounted later with that value (another block's) isn't where they were.
+    other.input.focus();
+    type(other.input, "XYZ");
+    vi.advanceTimersByTime(300);
+    expect(kept).toEqual(["ABC", "XYZ"]);
+    vi.advanceTimersByTime(2000);
+    other.input.blur();
+    const later = draw("XYZ");
+    expect(document.activeElement).not.toBe(later.input);
   });
 
   it("checks a team's own control: given its prop's value only where the prop takes it, and keeping only one it takes", () => {
@@ -1122,6 +1182,10 @@ describe("a tool's fields", () => {
     expect(error.textContent).toBe("Price: expected a number from 0, not -5");
     // Its export fails meanwhile: the block still has 7.5.
     expect(() => tools[0].renderer.exporters.email({ price: "7.5" })).toThrow(`[Elements] Price's Price holds -5, which isn't kept (expected a number from 0, not -5)`);
+    // What isn't a number yet ("1e" in a text input gives NaN) is said as that.
+    give(Number.NaN);
+    expect(error.textContent).toBe("Price: isn't a number");
+    expect(() => tools[0].renderer.exporters.email({ price: "7.5" })).toThrow("Price's Price holds NaN, which isn't kept (isn't a number)");
     give(9.25);
     expect(kept).toEqual(["9.25"]);
     expect(error.style.display).toBe("none");
