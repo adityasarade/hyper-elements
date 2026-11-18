@@ -135,14 +135,15 @@ jobs:
       # prop's helpers and the list, blocks and object refusing an option they don't take (an editor named by its name
       # among them), and a color's transparency (355,065 bytes measured); 355,200 bytes for prop's helpers and
       # defineProperty() in modules of their own, apart from defineElement()'s React and render (78 bytes more, each
-      # module's path comment; 355,143 measured).
+      # module's path comment; 355,143 measured); 355,600 bytes with main's #266 merged in (a Document's page writer, the
+      # collecting render and render(); 399 bytes more, 355,542 measured).
       - name: Check main entry bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
           test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=355200
+          MAX_SIZE=355600
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::Main entry bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -184,13 +185,14 @@ jobs:
       # its prop doesn't take said in the canvas, its tool's validator checking a block's values and expanding its
       # element with them (an error in the builder's audit), a text the builder gives as HTML (safeHtml) read as typed
       # where its prop takes it only so, and an element its tool can't draw at the room its column leaves it (a theme's
-      # token in its render) kept an HTML block by toDesign() (4,310 bytes more; 542,081 measured).
+      # token in its render) kept an HTML block by toDesign() (4,310 bytes more; 542,081 measured); 542,200 with main's
+      # #266 merged in (66 bytes more, 542,147 measured).
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=542100
+          MAX_SIZE=542200
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
