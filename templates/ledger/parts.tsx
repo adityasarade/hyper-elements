@@ -1,4 +1,4 @@
-import { Column, Image, Row, Text, token } from "@hyper-elements/react";
+import { Column, Image, PageFooter, PageNumber, Row, Table, TableCell, TableRow, Text, token } from "@hyper-elements/react";
 import { lint } from "@hyper-elements/lint";
 import type { Brand } from "../_brand";
 
@@ -53,5 +53,43 @@ export function LedgerLetterhead({ brand }: { brand: Brand }) {
         </Text>
       </Column>
     </Row>
+  );
+}
+
+/** Lines of a bill as a table: description, quantity, unit price and amount, with a rule under each. */
+export function LedgerLines({ brand, currency, lines, field }: { brand: Brand; currency: string; lines: ReadonlyArray<{ description: string; quantity: number; price: number }>; field: string }) {
+  const money = ledgerMoney(brand, currency);
+  const cell = { padding: [token("spacing.sm"), 0], border: { bottom: { width: 1, style: "solid", color: token("colors.border") } } } as const;
+  const right = { ...cell, textAlign: "right" } as const;
+  const quiet = { fontSize: token("fontSizes.small"), color: token("colors.muted") } as const;
+  return (
+    <Table field={field}>
+      <TableRow header>
+        <TableCell style={{ ...cell, ...quiet }}>Description</TableCell>
+        <TableCell style={{ ...right, ...quiet, width: 60 }}>Qty</TableCell>
+        <TableCell style={{ ...right, ...quiet, width: 100 }}>Unit price</TableCell>
+        <TableCell style={{ ...right, ...quiet, width: 110 }}>Amount</TableCell>
+      </TableRow>
+      {lines.map((line, i) => (
+        <TableRow key={i}>
+          <TableCell style={cell}>{line.description}</TableCell>
+          <TableCell style={right}>{String(line.quantity)}</TableCell>
+          <TableCell style={right}>{money.format(line.price)}</TableCell>
+          <TableCell style={right}>{money.format(line.quantity * line.price)}</TableCell>
+        </TableRow>
+      ))}
+    </Table>
+  );
+}
+
+/** A Ledger document's footer, on every page: the brand, and the page number. */
+export function LedgerFooter({ brand }: { brand: Brand }) {
+  return (
+    <PageFooter>
+      <Text style={{ fontSize: token("fontSizes.small"), color: token("colors.muted"), padding: [token("spacing.sm"), 0, 0], border: { top: { width: 1, style: "solid", color: token("colors.border") } } }}>
+        {brand.name}
+        {brand.address ? `, ${brand.address}` : ""}. Page <PageNumber /> of <PageNumber total />
+      </Text>
+    </PageFooter>
   );
 }

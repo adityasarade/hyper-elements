@@ -1,0 +1,308 @@
+{
+  "casa-albero, landscape": {
+    "size": [
+      1200,
+      630
+    ],
+    "fits": [
+      [
+        "name",
+        60
+      ],
+      [
+        "talk",
+        32
+      ]
+    ],
+    "diagnostics": []
+  },
+  "casa-albero, square": {
+    "size": [
+      1080,
+      1080
+    ],
+    "fits": [
+      [
+        "name",
+        72
+      ],
+      [
+        "talk",
+        40
+      ]
+    ],
+    "diagnostics": []
+  },
+  "ember, landscape": {
+    "size": [
+      1200,
+      630
+    ],
+    "fits": [
+      [
+        "name",
+        60
+      ],
+      [
+        "talk",
+        32
+      ]
+    ],
+    "diagnostics": []
+  },
+  "ember, square": {
+    "size": [
+      1080,
+      1080
+    ],
+    "fits": [
+      [
+        "name",
+        72
+      ],
+      [
+        "talk",
+        40
+      ]
+    ],
+    "diagnostics": []
+  },
+  "keel, landscape": {
+    "size": [
+      1200,
+      630
+    ],
+    "fits": [
+      [
+        "name",
+        60
+      ],
+      [
+        "talk",
+        32
+      ]
+    ],
+    "diagnostics": []
+  },
+  "keel, square": {
+    "size": [
+      1080,
+      1080
+    ],
+    "fits": [
+      [
+        "name",
+        72
+      ],
+      [
+        "talk",
+        40
+      ]
+    ],
+    "diagnostics": []
+  },
+  "orbit, landscape": {
+    "size": [
+      1200,
+      630
+    ],
+    "fits": [
+      [
+        "name",
+        60
+      ],
+      [
+        "talk",
+        32
+      ]
+    ],
+    "diagnostics": []
+  },
+  "orbit, square": {
+    "size": [
+      1080,
+      1080
+    ],
+    "fits": [
+      [
+        "name",
+        72
+      ],
+      [
+        "talk",
+        40
+      ]
+    ],
+    "diagnostics": []
+  },
+  "oyen, landscape": {
+    "size": [
+      1200,
+      630
+    ],
+    "fits": [
+      [
+        "name",
+        60
+      ],
+      [
+        "talk",
+        32
+      ]
+    ],
+    "diagnostics": []
+  },
+  "oyen, square": {
+    "size": [
+      1080,
+      1080
+    ],
+    "fits": [
+      [
+        "name",
+        72
+      ],
+      [
+        "talk",
+        40
+      ]
+    ],
+    "diagnostics": []
+  },
+  "pell-ashby, landscape": {
+    "size": [
+      1200,
+      630
+    ],
+    "fits": [
+      [
+        "name",
+        60
+      ],
+      [
+        "talk",
+        32
+      ]
+    ],
+    "diagnostics": []
+  },
+  "pell-ashby, square": {
+    "size": [
+      1080,
+      1080
+    ],
+    "fits": [
+      [
+        "name",
+        72
+      ],
+      [
+        "talk",
+        40
+      ]
+    ],
+    "diagnostics": []
+  },
+  "pith, landscape": {
+    "size": [
+      1200,
+      630
+    ],
+    "fits": [
+      [
+        "name",
+        60
+      ],
+      [
+        "talk",
+        32
+      ]
+    ],
+    "diagnostics": []
+  },
+  "pith, square": {
+    "size": [
+      1080,
+      1080
+    ],
+    "fits": [
+      [
+        "name",
+        72
+      ],
+      [
+        "talk",
+        40
+      ]
+    ],
+    "diagnostics": []
+  },
+  "quarry, landscape": {
+    "size": [
+      1200,
+      630
+    ],
+    "fits": [
+      [
+        "name",
+        60
+      ],
+      [
+        "talk",
+        32
+      ]
+    ],
+    "diagnostics": []
+  },
+  "quarry, square": {
+    "size": [
+      1080,
+      1080
+    ],
+    "fits": [
+      [
+        "name",
+        72
+      ],
+      [
+        "talk",
+        40
+      ]
+    ],
+    "diagnostics": []
+  },
+  "slow-signals, landscape": {
+    "size": [
+      1200,
+      630
+    ],
+    "fits": [
+      [
+        "name",
+        60
+      ],
+      [
+        "talk",
+        32
+      ]
+    ],
+    "diagnostics": []
+  },
+  "slow-signals, square": {
+    "size": [
+      1080,
+      1080
+    ],
+    "fits": [
+      [
+        "name",
+        72
+      ],
+      [
+        "talk",
+        40
+      ]
+    ],
+    "diagnostics": []
+  }
+}

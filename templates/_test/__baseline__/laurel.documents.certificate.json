@@ -1,0 +1,92 @@
+{
+  "casa-albero, a4": {
+    "html": "defabe20d83179f7",
+    "text": "c03543c1ff52a075",
+    "diagnostics": []
+  },
+  "casa-albero, letter": {
+    "html": "754eb3a31a537d4d",
+    "text": "c03543c1ff52a075",
+    "diagnostics": []
+  },
+  "ember, a4": {
+    "html": "5ea3ec781d3837b4",
+    "text": "7458ad0e44dee531",
+    "diagnostics": []
+  },
+  "ember, letter": {
+    "html": "3d0f5c410c63d692",
+    "text": "7458ad0e44dee531",
+    "diagnostics": []
+  },
+  "keel, a4": {
+    "html": "e875fc9a7e08a44e",
+    "text": "ed98ad90d04bd8a7",
+    "diagnostics": []
+  },
+  "keel, letter": {
+    "html": "8d6f41cb0b7e92cf",
+    "text": "ed98ad90d04bd8a7",
+    "diagnostics": []
+  },
+  "orbit, a4": {
+    "html": "9f2b3f974793a6ad",
+    "text": "0449da755bb32b34",
+    "diagnostics": []
+  },
+  "orbit, letter": {
+    "html": "549a46b4a0dd2503",
+    "text": "0449da755bb32b34",
+    "diagnostics": []
+  },
+  "oyen, a4": {
+    "html": "cddafd2a243a6062",
+    "text": "afc554e29fbdd683",
+    "diagnostics": []
+  },
+  "oyen, letter": {
+    "html": "6df2a815097bd737",
+    "text": "afc554e29fbdd683",
+    "diagnostics": []
+  },
+  "pell-ashby, a4": {
+    "html": "9a5b522dcc460e06",
+    "text": "138bf1b391cc7d1f",
+    "diagnostics": []
+  },
+  "pell-ashby, letter": {
+    "html": "8cd926deb581c2d0",
+    "text": "138bf1b391cc7d1f",
+    "diagnostics": []
+  },
+  "pith, a4": {
+    "html": "98e1500bdf9ed726",
+    "text": "5c5d0cf65f619c0d",
+    "diagnostics": []
+  },
+  "pith, letter": {
+    "html": "38a9851aed79f3e0",
+    "text": "5c5d0cf65f619c0d",
+    "diagnostics": []
+  },
+  "quarry, a4": {
+    "html": "27d5ed01945874d4",
+    "text": "022596227449848d",
+    "diagnostics": []
+  },
+  "quarry, letter": {
+    "html": "c95256d8c9ed80c1",
+    "text": "022596227449848d",
+    "diagnostics": []
+  },
+  "slow-signals, a4": {
+    "html": "d972bea15b2c9fa0",
+    "text": "121e61609f9b54c0",
+    "diagnostics": []
+  },
+  "slow-signals, letter": {
+    "html": "d51d8c95d821e0a8",
+    "text": "121e61609f9b54c0",
+    "diagnostics": []
+  }
+}
