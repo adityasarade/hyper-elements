@@ -191,13 +191,15 @@ jobs:
       # takes (field.ts: registerTools()'s own text field, giving a tool the text as it's typed, and a team's control
       # checked; what isn't kept said under the field, and an export failing while a field holds it, or naming the block
       # it can't draw) in place of reading a text the builder gives as HTML, and a value its field can't read refused (7,401 bytes
-      # more, 549,548 measured).
+      # more, 549,548 measured); 550,400 for an input method's composition kept once it's done, what a failed export says
+      # written as plain text, and a color that can't be see-through telling the builder's picker so (775 bytes more,
+      # 550,323 measured).
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=549600
+          MAX_SIZE=550400
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
