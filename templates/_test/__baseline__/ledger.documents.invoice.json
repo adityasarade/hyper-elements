@@ -1,0 +1,92 @@
+{
+  "casa-albero, a4": {
+    "html": "2adea983871eb68b",
+    "text": "0c2eb1ee1a4a00fe",
+    "diagnostics": []
+  },
+  "casa-albero, letter": {
+    "html": "5d25ca0c18b7da5f",
+    "text": "0c2eb1ee1a4a00fe",
+    "diagnostics": []
+  },
+  "ember, a4": {
+    "html": "915a4f621fd6b698",
+    "text": "2c2726fe158bde61",
+    "diagnostics": []
+  },
+  "ember, letter": {
+    "html": "ea0c225ef7d8970f",
+    "text": "2c2726fe158bde61",
+    "diagnostics": []
+  },
+  "keel, a4": {
+    "html": "7cde3b95b9bba9e0",
+    "text": "acedc7370022af34",
+    "diagnostics": []
+  },
+  "keel, letter": {
+    "html": "7751c71b555bcc9a",
+    "text": "acedc7370022af34",
+    "diagnostics": []
+  },
+  "orbit, a4": {
+    "html": "3faec0838160ab6e",
+    "text": "b25a75028faca66a",
+    "diagnostics": []
+  },
+  "orbit, letter": {
+    "html": "ac7498558114bb98",
+    "text": "b25a75028faca66a",
+    "diagnostics": []
+  },
+  "oyen, a4": {
+    "html": "cc2d76bfbe549e07",
+    "text": "5e2106e813ef70de",
+    "diagnostics": []
+  },
+  "oyen, letter": {
+    "html": "df058b5644a89a41",
+    "text": "5e2106e813ef70de",
+    "diagnostics": []
+  },
+  "pell-ashby, a4": {
+    "html": "8e01070c8b9a962c",
+    "text": "59b9e8695607af9e",
+    "diagnostics": []
+  },
+  "pell-ashby, letter": {
+    "html": "a8fce47230ff9d36",
+    "text": "59b9e8695607af9e",
+    "diagnostics": []
+  },
+  "pith, a4": {
+    "html": "cfa91b5dc4d2611d",
+    "text": "e67660c2003ccad0",
+    "diagnostics": []
+  },
+  "pith, letter": {
+    "html": "b55b1f286bd7e72d",
+    "text": "e67660c2003ccad0",
+    "diagnostics": []
+  },
+  "quarry, a4": {
+    "html": "46948099f49740d5",
+    "text": "f6430162953e4ae0",
+    "diagnostics": []
+  },
+  "quarry, letter": {
+    "html": "9ddb7dbb80098646",
+    "text": "f6430162953e4ae0",
+    "diagnostics": []
+  },
+  "slow-signals, a4": {
+    "html": "0a01dfe9424c98ed",
+    "text": "451e5e531aa53a80",
+    "diagnostics": []
+  },
+  "slow-signals, letter": {
+    "html": "d3a0403666095322",
+    "text": "451e5e531aa53a80",
+    "diagnostics": []
+  }
+}

@@ -1,0 +1,236 @@
+{
+  "casa-albero, landscape": {
+    "size": [
+      1200,
+      630
+    ],
+    "fits": [
+      [
+        "headline",
+        52
+      ]
+    ],
+    "diagnostics": []
+  },
+  "casa-albero, square": {
+    "size": [
+      1080,
+      1080
+    ],
+    "fits": [
+      [
+        "headline",
+        72
+      ]
+    ],
+    "diagnostics": []
+  },
+  "ember, landscape": {
+    "size": [
+      1200,
+      630
+    ],
+    "fits": [
+      [
+        "headline",
+        52
+      ]
+    ],
+    "diagnostics": []
+  },
+  "ember, square": {
+    "size": [
+      1080,
+      1080
+    ],
+    "fits": [
+      [
+        "headline",
+        72
+      ]
+    ],
+    "diagnostics": []
+  },
+  "keel, landscape": {
+    "size": [
+      1200,
+      630
+    ],
+    "fits": [
+      [
+        "headline",
+        52
+      ]
+    ],
+    "diagnostics": []
+  },
+  "keel, square": {
+    "size": [
+      1080,
+      1080
+    ],
+    "fits": [
+      [
+        "headline",
+        72
+      ]
+    ],
+    "diagnostics": []
+  },
+  "orbit, landscape": {
+    "size": [
+      1200,
+      630
+    ],
+    "fits": [
+      [
+        "headline",
+        52
+      ]
+    ],
+    "diagnostics": []
+  },
+  "orbit, square": {
+    "size": [
+      1080,
+      1080
+    ],
+    "fits": [
+      [
+        "headline",
+        72
+      ]
+    ],
+    "diagnostics": []
+  },
+  "oyen, landscape": {
+    "size": [
+      1200,
+      630
+    ],
+    "fits": [
+      [
+        "headline",
+        52
+      ]
+    ],
+    "diagnostics": []
+  },
+  "oyen, square": {
+    "size": [
+      1080,
+      1080
+    ],
+    "fits": [
+      [
+        "headline",
+        72
+      ]
+    ],
+    "diagnostics": []
+  },
+  "pell-ashby, landscape": {
+    "size": [
+      1200,
+      630
+    ],
+    "fits": [
+      [
+        "headline",
+        52
+      ]
+    ],
+    "diagnostics": []
+  },
+  "pell-ashby, square": {
+    "size": [
+      1080,
+      1080
+    ],
+    "fits": [
+      [
+        "headline",
+        72
+      ]
+    ],
+    "diagnostics": []
+  },
+  "pith, landscape": {
+    "size": [
+      1200,
+      630
+    ],
+    "fits": [
+      [
+        "headline",
+        52
+      ]
+    ],
+    "diagnostics": []
+  },
+  "pith, square": {
+    "size": [
+      1080,
+      1080
+    ],
+    "fits": [
+      [
+        "headline",
+        72
+      ]
+    ],
+    "diagnostics": []
+  },
+  "quarry, landscape": {
+    "size": [
+      1200,
+      630
+    ],
+    "fits": [
+      [
+        "headline",
+        52
+      ]
+    ],
+    "diagnostics": []
+  },
+  "quarry, square": {
+    "size": [
+      1080,
+      1080
+    ],
+    "fits": [
+      [
+        "headline",
+        72
+      ]
+    ],
+    "diagnostics": []
+  },
+  "slow-signals, landscape": {
+    "size": [
+      1200,
+      630
+    ],
+    "fits": [
+      [
+        "headline",
+        52
+      ]
+    ],
+    "diagnostics": []
+  },
+  "slow-signals, square": {
+    "size": [
+      1080,
+      1080
+    ],
+    "fits": [
+      [
+        "headline",
+        72
+      ]
+    ],
+    "diagnostics": []
+  }
+}
