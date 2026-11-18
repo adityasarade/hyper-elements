@@ -1,7 +1,8 @@
 /**
  * A template's own elements in the builder. Each is a custom tool of the builder's, named by its type
  * (`acme.ProductCard`: `acme_product_card`), with a property for each prop: edited with the builder's editor for its
- * kind, or with the control of the property of the team's own it is. toDesign() writes one as that
+ * kind, registerTools()'s own text field, or the control of the property of the team's own it is, each keeping only
+ * a value its prop takes (`field.ts`). toDesign() writes one as that
  * tool's block, its props the block's values (`customTools`); fromDesign() reads the block back as the element
  * (`elements`); registerTools() gives a builder the tools, each drawn by Elements itself.
  */
@@ -9,6 +10,7 @@ import { checkDocument, ElementsError, expandDocument, propertyOf, registryOf, r
 import type { PropertyDefinition } from "../primitives/properties";
 import { link } from "./blocks";
 import { block, type Block, type Hiding } from "./design";
+import { checkedControl, textField, unkeptValues } from "./field";
 import { font, fontWeight, givenId, hidden as hiddenOn, px, sides, TEMPLATE_ID, webLink, type Sides, type Values } from "./read-values";
 import { make, obj, placed, type Context } from "./reading";
 import { sayUnread } from "./unread";
@@ -59,6 +61,8 @@ type Schema = { type?: string; minimum?: number; maximum?: number; enum?: Json[]
 /** One of the builder's property editors for a prop: its name there, what it takes besides the value, and the value as it keeps one and as that's read back. */
 interface PropertyEditor {
   widget: string;
+  /** Edited with registerTools()'s own text field (`field.ts`) in its place, which keeps only a value the prop takes. */
+  field?: true;
   data?: Values;
   store?(value: Json): unknown;
   read?(value: unknown, say: (message: string) => void): unknown;
@@ -69,8 +73,8 @@ const numeric = (value: unknown): unknown => (typeof value === "string" && value
 const options = (values: readonly Json[]): Values => ({ options: values.map((value) => ({ label: String(value), value: String(value) })) });
 /** The builder's counter, which keeps whole numbers: from `min` (where there's none, below zero too, where its own floor is). */
 const counter = (min?: number, max?: number): PropertyEditor => ({ widget: "counter", data: { minValue: min ?? -1e9, ...(max === undefined ? {} : { maxValue: max }) }, read: numeric });
-/** The builder's text field, for a number that isn't whole and a length with a unit: it keeps text (and gives a tool nothing for a number, so one is written as text). */
-const typed: PropertyEditor = { widget: "text", store: String, read: numeric };
+/** A text field, for a number that isn't whole and a length with a unit: it keeps text (and the builder gives a tool nothing for a number, so one is written as text). */
+const typed: PropertyEditor = { widget: "text", field: true, store: String, read: numeric };
 const WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900];
 
 /**
@@ -82,7 +86,7 @@ function editorOf(spec: Spec): PropertyEditor | undefined {
   const schema = spec.kind.jsonSchema() as Schema;
   switch (spec.kind.editor) {
     case "text":
-      return { widget: "text" };
+      return { widget: "text", field: true };
     case "color":
       return { widget: "color_picker" };
     case "toggle":
@@ -216,9 +220,9 @@ export interface Builder {
   registerTool(tool: Record<string, unknown>): void;
   /** `place` is where the block is: its row's cells and its column's index. The builder gives a canvas no values of its column (it gives them to what it exports): where one does, `columnValues`, they're read. */
   createViewer(viewer: { render(values: Values, body?: Values, place?: { columnIndex?: number; rowCells?: number[]; columnValues?: Values }): string }): unknown;
-  /** For the editors given as they're written (`editors`). */
-  registerPropertyEditor?(editor: { name: string; Widget: unknown }): void;
-  createWidget?(widget: { render(value: unknown, update: (value: unknown) => void): string; mount(node: HTMLElement, value: unknown, update: (value: unknown) => void): void }): unknown;
+  /** For registerTools()'s own text fields, and the editors given as they're written (`editors`). */
+  registerPropertyEditor(editor: { name: string; Widget: unknown }): void;
+  createWidget(widget: { render(value: unknown, update: (value: unknown) => void, data?: unknown): string; mount(node: HTMLElement, value: unknown, update: (value: unknown) => void, data?: unknown): void; schema?: unknown }): unknown;
 }
 
 /** What an editor of a team's own is given besides the value: its prop's label, and its options as the prop has them. */
@@ -228,7 +232,10 @@ type Edited<D> = D extends PropertyDefinition<infer V, any> ? V : Json;
 /**
  * A property editor of a team's own, as the builder takes one: the control of a property a template defines
  * (`EditorWidget<typeof currency>` types its value and options as the property's). It's given its prop's value as
- * the prop has it (a price as a number), and gives back the same.
+ * the prop has it (a price as a number), none where the block has one the prop doesn't take, and gives back the same.
+ * What it gives back is kept only where the prop takes it (checkValue()): where it doesn't, the block keeps the value
+ * it had, and the builder says why under the control. So a control that shows what its user typed may show a value
+ * that isn't kept yet, with why.
  */
 export interface EditorWidget<D = unknown> {
   /** Its markup. The builder draws nothing around an editor that isn't its own: its label is here too. */
@@ -291,30 +298,6 @@ function roomOf(values: Values, content: number, cells: number[] | undefined, in
   return Math.max(1, Math.floor(content * share - taken));
 }
 
-/** Text as HTML writes it, read back: its entities as the characters they are. */
-const unescapeHtml = (html: string): string =>
-  html.replace(/&(?:#(\d+)|#x([0-9a-f]+)|(amp|lt|gt|quot|apos|nbsp));/gi, (whole, dec: string | undefined, hex: string | undefined, name: string | undefined) => {
-    if (name) return { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: "\u00a0" }[name.toLowerCase()] ?? whole;
-    const code = dec !== undefined ? Number(dec) : parseInt(hex!, 16);
-    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : whole;
-  });
-
-/**
- * A tool's values as the builder gives them to draw. With its `safeHtml` on, a text field's value reaches a tool as
- * HTML ("A&lt;B" for "A<B"), while the design keeps it as typed: one its prop refuses as HTML, and takes as the text
- * it reads as, is that text. One it takes as it's given is drawn as it is.
- */
-function asTyped(definition: CustomDefinition<any>, values: Values): Values {
-  const typed: Values = { ...values };
-  for (const [key, spec] of Object.entries(definition.props) as Array<[string, Spec]>) {
-    const kept = values[key];
-    if (typeof kept !== "string" || !kept.includes("&") || spec.kind.parse(kept).ok) continue;
-    const text = unescapeHtml(kept);
-    if (text !== kept && spec.kind.parse(text).ok) typed[key] = text;
-  }
-  return typed;
-}
-
 /**
  * An element drawn on its own from its tool's values, as an Email's markup or a Page's, with its stylesheet: at the
  * room its block has, which is its column's share (`cells`, `index`) of the builder's content width (`body`), less
@@ -331,7 +314,7 @@ function draw(definition: CustomDefinition<any>, tools: readonly CustomDefinitio
   // A value its prop doesn't take stops it, as a required prop with none does: drawn with the prop's default, the
   // block would show and export another value than its field holds.
   const refused: Refused[] = [];
-  const props = toolProps(definition, asTyped(definition, values), undefined, (one) => refused.push(one));
+  const props = toolProps(definition, values, undefined, (one) => refused.push(one));
   if (refused.length) throw new Error(refused.map((one) => `its ${one.key} ${JSON.stringify(one.kept)} isn't one it takes (${one.reason})`).join("; "));
   const own: Node = make(definition.type, { id: given && TEMPLATE_ID.test(given) ? given : undefined, props });
   const node: Node = room < width ? { type: "Column", style: { width: room }, children: [own] } : own;
@@ -431,20 +414,20 @@ export function registerTools(builder: Builder, elements: readonly WithDefinitio
       let widget = theirs ? named?.name : editor?.widget;
       if (!widget || spec.editable === false) continue;
       const theirOptions: EditorOptions = { label: spec.label, ...named?.options };
+      // The value as the builder keeps it, as the prop has it (a price as a number, where the builder keeps one that
+      // isn't whole as text), and the other way.
+      const read = (kept: unknown) => (editor?.read ? editor.read(kept, () => {}) : kept);
+      const store = (value: Json) => editor?.store?.(value) ?? value;
       if (theirs && theirs !== true) {
-        // Given as it's written: registered for this prop, which it's given as the prop's own value (a price as a
-        // number, where the builder keeps one that isn't whole as text), and gives back the same.
-        if (!builder.registerPropertyEditor || !builder.createWidget) throw new Error(`[Elements] registerTools: editors gives ${widget} as it's written, which takes a builder with registerPropertyEditor() and createWidget()`);
-        const value = (kept: unknown) => (kept === undefined || kept === null ? undefined : ((editor?.read ? editor.read(kept, () => {}) : kept) as Json | undefined));
-        const update = (keep: (value: unknown) => void) => (next: Json | undefined) => keep(next === undefined || next === null ? next : (editor?.store?.(next) ?? next));
+        // Given as it's written: registered for this prop, checked (field.ts).
+        if (typeof builder.registerPropertyEditor !== "function" || typeof builder.createWidget !== "function") throw new Error(`[Elements] registerTools: editors gives ${widget} as it's written, which takes a builder with registerPropertyEditor() and createWidget()`);
         widget = `${widget.replace(".", "_")}__${name}__${key}`;
-        builder.registerPropertyEditor({
-          name: widget,
-          Widget: builder.createWidget({
-            render: (kept, keep) => theirs.render(value(kept), update(keep), theirOptions),
-            mount: (node, kept, keep) => theirs.mount?.(node, value(kept), update(keep), theirOptions),
-          }),
-        });
+        builder.registerPropertyEditor({ name: widget, Widget: builder.createWidget(checkedControl(spec, spec.label, definition.label, theirs, theirOptions, read, store)) });
+      } else if (!theirs && editor?.field) {
+        // A text, and a number or a length the builder keeps as text: registerTools()'s own field (field.ts).
+        if (typeof builder.registerPropertyEditor !== "function" || typeof builder.createWidget !== "function") throw new Error(`[Elements] registerTools: ${definition.type}'s ${key} is edited with a text field of its own, which takes a builder with registerPropertyEditor() and createWidget()`);
+        widget = `elements_text__${name}__${key}`;
+        builder.registerPropertyEditor({ name: widget, Widget: builder.createWidget(textField(spec, spec.label, definition.label, (value) => String(store(value)))) });
       }
       // The builder's own editor takes what the prop's kind gives it (a number's limits); the options of a team's own
       // editor that isn't given here are that editor's alone.
@@ -454,15 +437,20 @@ export function registerTools(builder: Builder, elements: readonly WithDefinitio
       const initial = spec.default !== undefined ? (editor?.store?.(spec.default as Json) ?? spec.default) : spec.kind.editor === "text" ? "" : spec.kind.editor === "toggle" ? false : undefined;
       properties[key] = { label: spec.label, ...(initial !== undefined ? { defaultValue: initial } : {}), widget, ...(Object.keys(data).length ? { data } : {}) };
     }
-    // What the builder exports: the element as that output's markup; nothing where its values can't be drawn.
+    // What the builder exports: the element as that output's markup. Where its values can't be drawn, the export
+    // fails, saying which block and why (the builder writes that in place of the HTML): left out, the block would be
+    // missing from an export that looks whole. It fails too while a field holds a value that isn't kept: the block
+    // has the value it had, not the one its user sees.
     const written = (root: "Email" | "Page") => (values: Values, ...rest: unknown[]) => {
+      const held = unkeptValues();
+      if (held.length) throw new Error(`[Elements] ${held.join("; ")}: correct it to export`);
       const meta = obj(rest[rest.length - 1]);
       const cells = (Array.isArray(rest[2]) ? rest[2] : meta.rowCells) as number[] | undefined;
       const index = (typeof rest[1] === "number" ? rest[1] : meta.columnIndex) as number | undefined;
       try {
         return draw(definition, all, root, values, obj(rest[3] ?? meta.bodyValues), cells, index, obj(meta.columnValues));
-      } catch {
-        return "";
+      } catch (error) {
+        throw new Error(`[Elements] ${definition.label} (${definition.type}) can't be drawn: ${problemOf(error)}`);
       }
     };
     builder.registerTool({
@@ -474,7 +462,8 @@ export function registerTools(builder: Builder, elements: readonly WithDefinitio
       options: Object.keys(properties).length ? { [name]: { title: definition.label, position: 1, options: properties } } : {},
       values: {},
       renderer: {
-        // The canvas: the element as drawn, or what stops it from being (a required prop with no value yet).
+        // The canvas: the element as drawn, or what stops it from being: a value a design was saved with that its prop
+        // doesn't take (its field says which, to be corrected), a required prop with no value yet.
         Viewer: builder.createViewer({
           render(values, body, place) {
             try {

@@ -1,7 +1,7 @@
 /** A template's own elements in the builder: as custom tools' blocks in a design, read back, and registered in a builder. */
 import * as jsxRuntime from "react/jsx-runtime";
 import ts from "typescript";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import * as primitives from "../primitives";
 import { Button, Column, defineElement, defineProperty, defineTheme, Document, Email, Heading, Image, Layer, Page, prop, render, Row, Section, Text, token } from "../primitives/index";
 import { fromDesign, registerTools, toDesign, toolName, type Builder, type EditorWidget } from "./index";
@@ -192,11 +192,11 @@ describe("toDesign with customTools", () => {
     // One its tool draws is still its tool's block.
     expect(product.type).toBe("custom");
     expect(report).toContainEqual(expect.stringMatching(/^root\.children\[0\]: its custom tool draws a acme\.Note on its own, at the room its column leaves it and without the template's theme, and can't draw it so \(There's no token "colors\.primary".*\): it's an HTML block of its own markup in the builder/));
-    // Dragged in from the panel, its tool says the same in the canvas and the builder's audit, and exports nothing.
+    // Dragged in from the panel, its tool says the same in the canvas and the builder's audit, and its export fails.
     const { builder, tools } = fakeBuilder();
     registerTools(builder, [Note]);
     expect(tools[0].renderer.Viewer.render({ text: "Hello" })).toContain("Note: There's no token &#34;colors.primary&#34;");
-    expect(tools[0].renderer.exporters.email({ text: "Hello" })).toBe("");
+    expect(() => tools[0].renderer.exporters.email({ text: "Hello" })).toThrow(`[Elements] Note (acme.Note) can't be drawn: There's no token "colors.primary"`);
     expect(tools[0].validator({ values: { text: "Hello" } })).toEqual([expect.objectContaining({ severity: "ERROR", description: expect.stringContaining('no token "colors.primary"') })]);
   });
 
@@ -261,7 +261,7 @@ describe("toDesign with customTools", () => {
     });
     const { builder, tools } = fakeBuilder();
     registerTools(builder, [Headline]);
-    expect(tools[0].renderer.exporters.email({})).toBe("");
+    expect(() => tools[0].renderer.exporters.email({})).toThrow("give it a title or a subtitle");
     expect(tools[0].validator({ values: {}, defaultErrors: [] })).toEqual([expect.objectContaining({ severity: "ERROR", description: expect.stringContaining("give it a title or a subtitle") })]);
     expect(tools[0].validator({ values: { title: "Hello" }, defaultErrors: [] })).toEqual([]);
   });
@@ -371,7 +371,7 @@ describe("fromDesign with elements", () => {
     expect((await render(back.element)).text).toContain("Probe: pack of 24, size large");
   });
 
-  it("leaves out a block with a value its prop doesn't take, and says which: the builder draws and exports nothing for it", () => {
+  it("leaves out a block with a value its prop doesn't take, and says where and which: the builder's export of it fails too", () => {
     const { design } = toDesign(email, { customTools: true });
     Object.assign(blocks(design)[1].values, { buttonColor: "greenish", quantity: 500, href: { name: "web", values: { href: "javascript:alert(1)" } }, extra: "<script>" });
     const { code, report } = fromDesign(design, { elements: [ProductCard, Footer] });
@@ -488,9 +488,10 @@ describe("registerTools", () => {
     const properties = product.options.acme_product_card.options;
     expect(product.options.acme_product_card.title).toBe("Product");
     expect(properties).toEqual({
-      name: { label: "Product title", defaultValue: "Product title", widget: "text" },
-      // A number that isn't whole: the text field, keeping text.
-      price: { label: "Price", defaultValue: "7.99", widget: "text" },
+      // A text: registerTools()'s own text field, registered for it.
+      name: { label: "Product title", defaultValue: "Product title", widget: "elements_text__acme_product_card__name" },
+      // A number that isn't whole: that text field too, keeping text.
+      price: { label: "Price", defaultValue: "7.99", widget: "elements_text__acme_product_card__price" },
       // A whole number is the counter's, between the prop's own limits.
       quantity: { label: "Quantity", defaultValue: 1, widget: "counter", data: { minValue: 1, maxValue: 99 } },
       href: { label: "Button link", defaultValue: { name: "web", values: { href: "https://example.com", target: "_self" } }, widget: "link" },
@@ -509,10 +510,10 @@ describe("registerTools", () => {
     const { builder, tools } = fakeBuilder();
     registerTools(builder, [Kinds]);
     expect(tools[0].options.acme_kinds.options).toEqual({
-      ratio: { label: "Ratio", defaultValue: "0.5", widget: "text" },
+      ratio: { label: "Ratio", defaultValue: "0.5", widget: "elements_text__acme_kinds__ratio" },
       // No floor of its own: the counter's is zero, so it's given one far below.
       offset: { label: "Offset", defaultValue: 0, widget: "counter", data: { minValue: -1e9 } },
-      width: { label: "Width", defaultValue: "50%", widget: "text" },
+      width: { label: "Width", defaultValue: "50%", widget: "elements_text__acme_kinds__width" },
       gap: { label: "Gap", defaultValue: 8, widget: "counter", data: { minValue: 4 } },
       weight: { label: "Weight", defaultValue: "400", widget: "dropdown", data: { options: [100, 200, 300, 400, 500, 600, 700, 800, 900].map((weight) => ({ label: String(weight), value: String(weight) })) } },
     });
@@ -534,9 +535,9 @@ describe("registerTools", () => {
     const properties = tools[0].options.acme_order.options;
     // The counter's limits are the prop's, and nothing widens them.
     expect(properties.steps).toEqual({ label: "Steps", defaultValue: 10, widget: "counter", data: { minValue: 0, maxValue: 100 } });
-    // A choice is the builder's dropdown, with its values, and a text its text field.
+    // A choice is the builder's dropdown, with its values, and a text registerTools()'s own text field.
     expect(properties.side).toEqual({ label: "Side", defaultValue: "left", widget: "dropdown", data: { options: ["left", "center", "right"].map((value) => ({ label: value, value })) } });
-    expect(properties.due).toEqual({ label: "Due", defaultValue: "", widget: "text" });
+    expect(properties.due).toEqual({ label: "Due", defaultValue: "", widget: "elements_text__acme_order__due" });
     // The builder's own controls are its kinds': none is given in editors, which are for properties of your own.
     expect(() => registerTools(builder, [Order], { editors: { counter: { render: () => "" } } })).toThrow(
       "[Elements] registerTools: editors has counter, which is the property of no prop of the elements given (none of their props is a property of your own)"
@@ -560,7 +561,7 @@ describe("registerTools", () => {
     expect(editors.map((editor) => editor.name)).toEqual(["acme_currency__acme_price__price"]);
     // The builder keeps a number that isn't whole as text: the editor is given the number, and what it gives back is kept as text again.
     const kept: unknown[] = [];
-    expect(editors[0].Widget.render("7.5", (value: unknown) => kept.push(value))).toBe('<label>Price</label><input value="7.5">');
+    expect(editors[0].Widget.render("7.5", (value: unknown) => kept.push(value))).toMatch(/^<label>Price<\/label><input value="7\.5"><div data-elements-field-error /);
     expect(given).toEqual([[7.5, { label: "Price", symbol: "€" }]]);
     editors[0].Widget.mount(null, "7.5", (value: unknown) => kept.push(value));
     expect(kept).toEqual(["9.25"]);
@@ -602,7 +603,7 @@ describe("registerTools", () => {
     expect(properties.price).toEqual({ label: "Price", defaultValue: "7.5", widget: "acme_currency__acme_price__price", data: { label: "Price", symbol: "$", decimals: 2 } });
     expect(properties.was).toEqual({ label: "Was", defaultValue: "9", widget: "acme_currency__acme_price__was", data: { label: "Was", symbol: "€", decimals: 2 } });
     const kept: unknown[] = [];
-    expect(editors[0].Widget.render("7.5", (value: unknown) => kept.push(value))).toBe('<label>Price</label>$<input value="7.50">');
+    expect(editors[0].Widget.render("7.5", (value: unknown) => kept.push(value))).toMatch(/^<label>Price<\/label>\$<input value="7\.50"><div data-elements-field-error /);
     expect(given).toEqual([[7.5, "$", 2]]);
     editors[0].Widget.mount(null, "7.5", (value: unknown) => kept.push(value));
     expect(kept).toEqual(["9.25"]);
@@ -627,9 +628,11 @@ describe("registerTools", () => {
   it("refuses an editor given as it's written in a builder that can't register one", () => {
     const currency = defineProperty({ name: "acme.currency", base: prop.number });
     const Price = defineElement({ type: "acme.Price", label: "Price", props: { price: currency({ label: "Price", default: 1 }) }, render: (p) => <Text>{p.price}</Text> });
-    const bare: Builder = { registerTool: () => {}, createViewer: (viewer) => viewer };
+    const bare = { registerTool: () => {}, createViewer: (viewer: unknown) => viewer } as unknown as Builder;
     expect(() => registerTools(bare, [Price], { editors: { "acme.currency": { render: () => "" } } })).toThrow("editors gives acme.currency as it's written, which takes a builder with registerPropertyEditor() and createWidget()");
     expect(() => registerTools(bare, [Price], { editors: { "acme.currency": true } })).not.toThrow();
+    // A text is edited with a field of registerTools()' own, which such a builder can't register either.
+    expect(() => registerTools(bare, [Banner])).toThrow("[Elements] registerTools: acme.Banner's title is edited with a text field of its own, which takes a builder with registerPropertyEditor() and createWidget()");
   });
 
   it("refuses an editor given for no prop of the elements given: a name mistyped would leave its prop with its kind's editor, without a word", () => {
@@ -813,7 +816,7 @@ describe("registerTools", () => {
     expect(tools.map((tool) => tool.name)).toEqual(["acme_legal_footer"]);
   });
 
-  it("draws no block with a value its prop doesn't take: the canvas says which, the builder exports nothing for it, and its audit has the error", async () => {
+  it("draws no block saved with a value its prop doesn't take: the canvas says which, its export fails saying which, and its audit has the error", async () => {
     const { builder, tools } = fakeBuilder();
     registerTools(builder, [ProductCard]);
     const [tool] = tools;
@@ -825,8 +828,9 @@ describe("registerTools", () => {
     // Not drawn with the props' defaults instead.
     expect(canvas).not.toContain("#007bff");
     expect(canvas).not.toContain("$7.99");
-    expect(tool.renderer.exporters.email(values)).toBe("");
-    expect(tool.renderer.exporters.web(values)).toBe("");
+    // Its export fails, saying which block and which value: not an export that looks whole without the block.
+    expect(() => tool.renderer.exporters.email(values)).toThrow(`[Elements] Product (acme.ProductCard) can't be drawn: its price "-5" isn't one it takes (`);
+    expect(() => tool.renderer.exporters.web(values)).toThrow(`its buttonColor "greenish" isn't one it takes (`);
     const builtIn = { id: "BUILT_IN", severity: "WARNING" };
     expect(await tool.validator({ values, defaultErrors: [builtIn] })).toEqual([
       { id: "HYPER_ELEMENTS_TOOL_VALUES", icon: "fa-exclamation-triangle", severity: "ERROR", title: "Product can't be drawn", description: expect.stringContaining('its price "-5" isn\'t one it takes (') },
@@ -837,20 +841,34 @@ describe("registerTools", () => {
     expect(await tool.validator({ values: { ...values, price: "129.50", buttonColor: "#16a34a" }, defaultErrors: [builtIn] })).toEqual([builtIn]);
   });
 
-  it("reads a text the builder gives as HTML (safeHtml) as it was typed where its prop takes it only so", () => {
-    const { builder, tools } = fakeBuilder();
-    const Short = defineElement({ type: "acme.Short", label: "Short", props: { text: prop.text({ label: "Text", maxLength: 3, default: "ABC" }) }, render: (p) => <Text>{p.text}</Text> });
+  it("gives a tool a text as it's typed, whatever the builder's safeHtml: \"A<B\" is drawn, exported and read back as A<B, and \"A&lt;B\" typed so is the six characters it is", async () => {
+    const { builder, tools, editors } = fakeBuilder();
+    const Short = defineElement({ type: "acme.Short", label: "Short", props: { text: prop.text({ label: "Text", maxLength: 3, default: "ABC" }), note: prop.text({ label: "Note" }) }, render: (p) => <Text>{`${p.text}|${p.note ?? ""}`}</Text> });
     registerTools(builder, [Short]);
     const [tool] = tools;
-    // "A<B", as the builder gives a tool its text field's value with safeHtml on.
-    expect(tool.renderer.Viewer.render({ text: "A&lt;B" })).toContain(">A&lt;B</");
-    expect(tool.renderer.exporters.email({ text: "A&lt;B" })).toContain(">A&lt;B</");
-    // The design keeps it as typed, which the audit reads: "A&lt;B" there is seven characters, as fromDesign() reads it.
-    expect(tool.validator({ values: { text: "A<B" }, defaultErrors: [] })).toEqual([]);
-    expect(tool.validator({ values: { text: "A&lt;B" }, defaultErrors: [] })).toEqual([expect.objectContaining({ severity: "ERROR", description: expect.stringContaining("longer than 3") })]);
-    // One its prop doesn't take, read either way, is said.
-    expect(tool.renderer.Viewer.render({ text: "AB&amp;C" })).toContain("Short: its text &#34;AB&#38;amp;C&#34; isn't one it takes (");
-    expect(tool.renderer.exporters.email({ text: "AB&amp;C" })).toBe("");
+    // Each text is edited with registerTools()'s own field, which the builder gives no renderValue: what a tool is
+    // given is what the design keeps, with safeHtml on or off (the builder's own text field gives it as HTML when on).
+    expect(tool.options.acme_short.options.text.widget).toBe("elements_text__acme_short__text");
+    expect(editors.map((editor) => editor.name)).toEqual(["elements_text__acme_short__text", "elements_text__acme_short__note"]);
+    expect(editors.every((editor) => !("renderValue" in editor))).toBe(true);
+    const design = (values: Values) => ({ body: { rows: [{ cells: [1], columns: [{ contents: [{ type: "custom", slug: "acme_short", values }] }] }] } });
+    // "A<B": three characters, drawn and exported as text (escaped once), checked as three, read back as typed.
+    const typed = { text: "A<B", note: "Tom & Jerry" };
+    expect(tool.renderer.Viewer.render(typed)).toContain(">A&lt;B|Tom &amp; Jerry</");
+    expect(tool.renderer.exporters.email(typed)).toContain(">A&lt;B|Tom &amp; Jerry</");
+    expect(tool.validator({ values: typed, defaultErrors: [] })).toEqual([]);
+    const read = fromDesign(design(typed), { elements: [Short] });
+    expect(read.report).toEqual([]);
+    expect((await render(read.element)).html).toContain("A&lt;B|Tom &amp; Jerry");
+    // "A&lt;B" typed so: six characters, which a text of three doesn't take. It isn't read as "A<B": the canvas
+    // says so, its export fails, its audit has the error, and fromDesign() leaves the block out, saying which.
+    const literal = { text: "A&lt;B" };
+    expect(tool.renderer.Viewer.render(literal)).toContain("Short: its text &#34;A&#38;lt;B&#34; isn't one it takes (is longer than 3 characters)");
+    expect(() => tool.renderer.exporters.email(literal)).toThrow(`its text "A&lt;B" isn't one it takes (is longer than 3 characters)`);
+    expect(tool.validator({ values: literal, defaultErrors: [] })).toEqual([expect.objectContaining({ severity: "ERROR", description: expect.stringContaining("longer than 3") })]);
+    expect(fromDesign(design(literal), { elements: [Short] }).report).toEqual([`rows[0].columns[0].contents[0]: the custom tool "acme_short" has its text "A&lt;B" (is longer than 3 characters), which a acme.Short doesn't take: left out`]);
+    // Where a text takes it, "A&lt;B" is drawn as the six characters typed, not as "A<B".
+    expect(tool.renderer.Viewer.render({ note: "A&lt;B" })).toContain("|A&amp;lt;B</");
   });
 
   it("runs a validator given in tools after its own, its errors following", async () => {
@@ -861,7 +879,7 @@ describe("registerTools", () => {
     expect(errors.map((error: Values) => error.id)).toEqual(["HYPER_ELEMENTS_TOOL_VALUES", "BUILT_IN", "MINE"]);
   });
 
-  it("says in the canvas what stops a block from being drawn, and exports nothing for it", () => {
+  it("says in the canvas what stops a block from being drawn, and its export fails", () => {
     const { builder, tools } = fakeBuilder();
     const Named = defineElement({ type: "acme.Named", label: "Named", props: { name: prop.text({ label: "Name", required: true }) }, render: (p) => <Text>{p.name}</Text> });
     registerTools(builder, [Named]);
@@ -869,8 +887,8 @@ describe("registerTools", () => {
     const canvas = Viewer.render({});
     expect(canvas).toContain("Named:");
     expect(canvas).toContain("name");
-    expect(exporters.email({})).toBe("");
-    expect(exporters.web({})).toBe("");
+    expect(() => exporters.email({})).toThrow(/^\[Elements\] Named \(acme\.Named\) can't be drawn: .*name/);
+    expect(() => exporters.web({})).toThrow(/^\[Elements\] Named \(acme\.Named\) can't be drawn/);
     expect(tools[0].validator({ values: {} })).toEqual([expect.objectContaining({ severity: "ERROR", title: "Named can't be drawn", description: expect.stringContaining("name") })]);
   });
 
@@ -941,6 +959,167 @@ describe("registerTools", () => {
   it("refuses what isn't a template's own element", () => {
     const { builder } = fakeBuilder();
     expect(() => registerTools(builder, [Text as never])).toThrow("made with defineElement()");
+  });
+});
+
+describe("a tool's fields", () => {
+  // A field as the builder draws one: its markup in the panel, then mounted there with the block's value.
+  const Code = defineElement({ type: "acme.Code", label: "Code", props: { code: prop.text({ label: "Code", maxLength: 3, default: "ABC" }), price: prop.number({ label: "Price", min: 0, default: 7.5 }) }, render: (p) => <Text>{`${p.code} ${p.price}`}</Text> });
+  function field(key: string, value: unknown) {
+    const { builder, editors, tools } = fakeBuilder();
+    registerTools(builder, [Code]);
+    const widget = editors.find((editor) => editor.name === `elements_text__acme_code__${key}`)!.Widget;
+    const kept: unknown[] = [];
+    const update = (next: unknown) => void kept.push(next);
+    const draw = (shown: unknown) => {
+      const node = document.createElement("div");
+      document.body.append(node);
+      node.innerHTML = widget.render(shown, update);
+      widget.mount(node, shown, update);
+      return { node, input: node.querySelector("input")!, error: node.querySelector<HTMLElement>("[data-elements-field-error]")! };
+    };
+    return { widget, kept, update, draw, tool: tools[0], ...draw(value) };
+  }
+  const type = (input: HTMLInputElement, text: string) => {
+    input.value = text;
+    input.dispatchEvent(new Event("input"));
+  };
+  afterEach(() => {
+    vi.useRealTimers();
+    document.body.innerHTML = "";
+  });
+
+  it("keeps what its user types once its prop takes it, and says why it doesn't under the field, keeping the block's value", () => {
+    vi.useFakeTimers();
+    const { input, error, kept } = field("code", "ABC");
+    expect(input.value).toBe("ABC");
+    input.focus();
+    type(input, "ABCD");
+    vi.advanceTimersByTime(300);
+    // Not kept, and not said yet: its user may be on the way to a value it takes.
+    expect(kept).toEqual([]);
+    expect(error.style.display).toBe("none");
+    vi.advanceTimersByTime(500);
+    expect(error.textContent).toBe("Code: is longer than 3 characters");
+    expect(error.style.display).toBe("block");
+    expect(input.getAttribute("aria-invalid")).toBe("true");
+    expect(kept).toEqual([]);
+    // Corrected: the message goes at once, and the value is kept once they pause.
+    type(input, "AB");
+    expect(error.style.display).toBe("none");
+    expect(input.hasAttribute("aria-invalid")).toBe(false);
+    vi.advanceTimersByTime(300);
+    expect(kept).toEqual(["AB"]);
+    // Left with a value it doesn't take: said at once, and not kept.
+    type(input, "ABCDE");
+    input.dispatchEvent(new Event("change"));
+    expect(error.textContent).toBe("Code: is longer than 3 characters");
+    vi.advanceTimersByTime(1000);
+    expect(kept).toEqual(["AB"]);
+  });
+
+  it("keeps a number the builder keeps as text as its digits, and refuses one below its min", () => {
+    const { input, error, kept } = field("price", "7.5");
+    type(input, "-5");
+    input.dispatchEvent(new Event("change"));
+    expect(error.textContent).toBe("Price: expected a number from 0, not -5");
+    type(input, "129.50");
+    input.dispatchEvent(new Event("change"));
+    expect(error.style.display).toBe("none");
+    expect(kept).toEqual(["129.5"]);
+  });
+
+  it("gives the text as it's typed: \"A&lt;B\" is the six characters it is, never \"A<B\"", () => {
+    const { input, error, kept } = field("code", "ABC");
+    type(input, "A<B");
+    input.dispatchEvent(new Event("change"));
+    expect(kept).toEqual(["A<B"]);
+    type(input, "A&lt;B");
+    input.dispatchEvent(new Event("change"));
+    expect(error.textContent).toBe("Code: is longer than 3 characters");
+    expect(kept).toEqual(["A<B"]);
+  });
+
+  it("fails an export while a field holds a value that isn't kept: the block has the value it had, not the one its user sees", () => {
+    const { input, tool, node } = field("price", "7.5");
+    const block = { code: "ABC", price: "7.5" };
+    expect(tool.renderer.exporters.email(block)).toContain("ABC 7.5");
+    type(input, "-5");
+    input.dispatchEvent(new Event("change"));
+    expect(() => tool.renderer.exporters.email(block)).toThrow(`[Elements] Code's Price holds "-5", which isn't kept (expected a number from 0, not -5): correct it to export`);
+    expect(() => tool.renderer.exporters.web(block)).toThrow("which isn't kept");
+    // Corrected, it's kept, and the export is of it.
+    type(input, "9");
+    input.dispatchEvent(new Event("change"));
+    expect(tool.renderer.exporters.email({ ...block, price: "9" })).toContain("ABC 9");
+    // A field closed while holding one holds nothing: the block's value is what its user sees again.
+    type(input, "-5");
+    input.dispatchEvent(new Event("change"));
+    expect(() => tool.renderer.exporters.email(block)).toThrow("which isn't kept");
+    node.remove();
+    expect(tool.renderer.exporters.email(block)).toContain("ABC 7.5");
+  });
+
+  it("shows a value a design was saved with that its prop doesn't take, with why, to be corrected", () => {
+    const { input, error } = field("price", "-5");
+    expect(input.value).toBe("-5");
+    expect(error.textContent).toBe("Price: expected a number from 0, not -5");
+  });
+
+  it("has the same markup whatever the value, so the builder keeps the input its user is in", () => {
+    const { widget } = field("code", "ABC");
+    expect(widget.render("ABC", () => {})).toBe(widget.render("XYZ", () => {}));
+  });
+
+  it("puts its user back where they were, the caret too, when the builder draws the field again in a new input with the value they typed", () => {
+    vi.useFakeTimers();
+    const { input, kept, draw } = field("code", "AB");
+    input.focus();
+    type(input, "ABC");
+    input.setSelectionRange(1, 1);
+    vi.advanceTimersByTime(300);
+    expect(kept).toEqual(["ABC"]);
+    // Drawn again, as the builder does once a value changes: the old input is gone.
+    input.parentElement!.parentElement!.parentElement!.remove();
+    const again = draw("ABC");
+    expect(document.activeElement).toBe(again.input);
+    expect(again.input.value).toBe("ABC");
+    expect([again.input.selectionStart, again.input.selectionEnd]).toEqual([1, 1]);
+    // Drawn again for another value (another block): not focused, and showing that value.
+    again.input.blur();
+    const other = draw("XY");
+    expect(document.activeElement).not.toBe(other.input);
+    expect(other.input.value).toBe("XY");
+  });
+
+  it("checks a team's own control: given its prop's value only where the prop takes it, and keeping only one it takes", () => {
+    const currency = defineProperty({ name: "acme.currency", base: prop.number });
+    const Price = defineElement({ type: "acme.Price", label: "Price", props: { price: currency({ label: "Price", min: 0, default: 7.5 }) }, render: (p) => <Text>{p.price}</Text> });
+    const { builder, editors, tools } = fakeBuilder();
+    const given: unknown[] = [];
+    let give: (value: number | undefined) => void = () => {};
+    registerTools(builder, [Price], { editors: { [currency.name]: { render: (value) => `<input value="${given.push(value) && (value ?? "")}">`, mount: (_node, _value, update) => void (give = update) } } });
+    const widget = editors[0].Widget;
+    const kept: unknown[] = [];
+    const node = document.createElement("div");
+    document.body.append(node);
+    node.innerHTML = widget.render("7.5", (value: unknown) => kept.push(value));
+    widget.mount(node, "7.5", (value: unknown) => kept.push(value));
+    const error = node.querySelector<HTMLElement>("[data-elements-field-error]")!;
+    give(-5);
+    expect(kept).toEqual([]);
+    expect(error.textContent).toBe("Price: expected a number from 0, not -5");
+    // Its export fails meanwhile: the block still has 7.5.
+    expect(() => tools[0].renderer.exporters.email({ price: "7.5" })).toThrow(`[Elements] Price's Price holds -5, which isn't kept (expected a number from 0, not -5)`);
+    give(9.25);
+    expect(kept).toEqual(["9.25"]);
+    expect(error.style.display).toBe("none");
+    expect(tools[0].renderer.exporters.email({ price: "9.25" })).toContain("9.25");
+    // A block saved with a value its prop doesn't take: the control is given none, and why is said.
+    node.innerHTML = widget.render("-5", (value: unknown) => kept.push(value));
+    widget.mount(node, "-5", (value: unknown) => kept.push(value));
+    expect(given).toEqual([7.5, undefined]);
+    expect(node.querySelector<HTMLElement>("[data-elements-field-error]")!.textContent).toBe("Price: expected a number from 0, not -5");
   });
 });
 

@@ -83,7 +83,9 @@ targets, support per output, editors), and `packages/react/src/primitives/compon
 each, so its prop types come from the same definition that validates them. `defineElement()`
 (`packages/react/src/primitives/custom.tsx`) makes a custom element from them. Its props are made with `prop`'s helpers
 and `defineProperty()` (`packages/react/src/primitives/properties/`): data that imports only core, never React or the
-collecting render (`properties.test.ts`), so the same limits can check a value where nothing renders.
+collecting render (`properties.test.ts`), so the same limits can check a value where nothing renders. `checkValue()`
+there is how an editing app checks what a field holds against its prop (Unlayer's builder's fields in
+`packages/react/src/builder/field.ts` use it).
 
 ## Rendering pipeline
 
