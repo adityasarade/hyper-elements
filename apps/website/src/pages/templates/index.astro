@@ -1,7 +1,7 @@
 ---
 import Base from "../../layouts/Base.astro";
 import KitThumb from "../../components/KitThumb.astro";
-import { GROUPS, brands, brandsFor, kitCategories, kitList, kitTemplates, kitUrl, recreationLabel, templateUrl } from "../../lib/kits";
+import { GROUPS, brands, brandsFor, kitCategories, kitList, kitTemplates, kitUrl, templateUrl, type TemplateInfo } from "../../lib/kits";
 
 const outputs = [
   { id: "all", label: "Everything" },
@@ -11,67 +11,79 @@ const outputs = [
   { id: "images", label: "Images" },
   ...(kitTemplates.some((t) => t.recreates) ? [{ id: "recreations", label: "Recreations" }] : []),
 ];
-const groups = GROUPS.map((group) => ({
-  group,
-  categories: Object.entries(kitCategories)
-    .filter(([, c]) => c.group === group)
-    .map(([id, c]) => ({ id, ...c, templates: kitTemplates.filter((t) => t.category === id) }))
-    .filter((c) => c.templates.length),
-})).filter((g) => g.categories.length);
+const groups = GROUPS.filter((g) => kitTemplates.some((t) => kitCategories[t.category]?.group === g));
+
+// One gallery, its outputs mixed so no one kind leads: the next template of each output in turn, each output's own in
+// the order of its jobs.
+const byGroup = (t: TemplateInfo) => GROUPS.indexOf(kitCategories[t.category]?.group ?? "");
+const queues = (["emails", "images", "documents", "pages"] as const).map((folder) => kitTemplates.filter((t) => t.folder === folder).sort((a, b) => byGroup(a) - byGroup(b)));
+const gallery: TemplateInfo[] = [];
+while (queues.some((q) => q.length)) for (const q of queues) if (q.length) gallery.push(q.shift()!);
+
+// Each card in the next sample brand, dark and light in turn, so the gallery shows the range of looks.
+const luminance = (hex: string) => {
+  const n = parseInt(hex.replace("#", "").padEnd(6, "0").slice(0, 6), 16);
+  return 0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255);
+};
+const dark = brands.filter((b) => luminance(b.colors.background ?? "#fff") < 128);
+const light = brands.filter((b) => !dark.includes(b));
+let next = 0;
+const brandOf = () => {
+  const i = next++;
+  const from = dark.length && i % 2 ? dark : light;
+  return from[Math.floor(i / 2) % from.length];
+};
 const kitName = (id: string) => kitList.find((k) => k.id === id)?.name ?? id;
 const several = kitList.filter((k) => kitTemplates.filter((t) => t.kit === k.id).length > 1);
-// Each card is drawn in the next sample brand, so the page shows the whole range of looks, and every brand appears.
-let next = 0;
-const brandOf = () => brands[next++ % brands.length];
 ---
 <Base title="Templates" description="Ready-made templates for emails, web pages, PDFs and images, with their guardrails set. Each takes your brand: see it in the sample brands, and copy one file.">
-  <section class="page-hero">
-    <div class="wrap">
-      <p class="eyebrow">Templates</p>
-      <h1 class="h-page"><span class="grad">Your brand, the guardrails set.</span></h1>
-      <p class="lede">Emails, pages, PDFs and images with the hard part done: phone layouts, plain text, accessible contrast, links that stay on your domains, and text that fits. None of them carries a brand: each one here is drawn in a different sample brand. Open one to see it in all nine, then copy one file and put your own brand at its top.</p>
-      <p class="hero-links"><a href="https://github.com/hyper-elements/hyper-elements/tree/main/templates">Browse the folder on GitHub</a> · <a href="https://github.com/hyper-elements/hyper-elements/blob/main/templates/CONTRIBUTING.md">Contribute a template</a></p>
+  <section class="t-hero">
+    <div class="gwrap">
+      <h1>Templates</h1>
+      <p>Emails, pages, PDFs and images with the guardrails set. Copy one file, put your brand at its top. <a href="https://github.com/hyper-elements/hyper-elements/blob/main/templates/CONTRIBUTING.md">Contribute one</a></p>
     </div>
   </section>
-  <div class="wrap">
-    <div class="controls panel">
-      <div class="outputs" role="radiogroup" aria-label="Output" data-outputs>
+
+  <div class="t-filters">
+    <div class="gwrap">
+      <div class="chips" role="radiogroup" aria-label="Output">
         {outputs.map((o, i) => <button type="button" role="radio" aria-checked={i === 0 ? "true" : "false"} data-output-pick={o.id}>{o.label}</button>)}
       </div>
+      <span class="sep" aria-hidden="true"></span>
+      <div class="chips" role="radiogroup" aria-label="Job">
+        <button type="button" role="radio" aria-checked="true" data-group-pick="all">All jobs</button>
+        {groups.map((g) => <button type="button" role="radio" aria-checked="false" data-group-pick={g}>{g}</button>)}
+      </div>
     </div>
+  </div>
 
-    {groups.map(({ group, categories }) => (
-      <section class="group" data-group>
-        <h2 class="cg-title">{group}</h2>
-        <div class="grid grid-3">
-          {categories.flatMap((c) =>
-            c.templates.map((t) => {
-              // A recreation is shown in its company's own brand.
-              const brand = t.recreates ? brandsFor(t)[0] : brandOf();
-              return (
-                <a class="card tcard" href={templateUrl(t)} data-output={t.folder} data-recreation={t.recreates ? "" : undefined} title={`${c.label}: ${c.useWhen}`}>
-                  <KitThumb t={t} brand={brand.id} height={260} />
-                  <div class="tcard-body">
-                    <div class="tcard-top"><h3>{c.label}</h3><span class="chip">{t.output}</span></div>
-                    <p class="in-brand">{kitName(t.kit)} kit · in {brand.name}</p>
-                    <p>{recreationLabel(t) ?? t.description}</p>
-                  </div>
-                </a>
-              );
-            }),
-          )}
-        </div>
-      </section>
-    ))}
+  <div class="gwrap">
+    <div class="gallery" data-gallery>
+      {gallery.map((t) => {
+        // A recreation is shown in its company's own brand.
+        const brand = t.recreates ? brandsFor(t)[0] : brandOf();
+        const c = kitCategories[t.category];
+        return (
+          <a class="gcard" href={templateUrl(t)} data-output={t.folder} data-group={c?.group} data-recreation={t.recreates ? "" : undefined} title={`${t.label}: ${t.description}`}>
+            <span class="gshot" style={`background:${brand.colors.background}`}><KitThumb t={t} brand={brand.id} full /></span>
+            <span class="gcap">
+              <span class="gname">{t.label}</span>
+              <span class="gmeta">{t.output} · {kitName(t.kit)} in {brand.name}</span>
+            </span>
+          </a>
+        );
+      })}
+    </div>
+    <p class="empty" data-empty hidden>Nothing here yet. <a href="https://github.com/hyper-elements/hyper-elements/blob/main/templates/CONTRIBUTING.md">Contribute the first one</a>.</p>
 
     {several.length > 0 && (
-      <section class="group">
-        <h2 class="cg-title">Kits</h2>
-        <p class="kits-lede">A kit is a set of templates with one look, from one author. Some cover more than one output.</p>
+      <section class="kits">
+        <h2>Kits</h2>
+        <p class="kits-lede">A kit is a set of templates with one look, from one author.</p>
         <div class="kit-list">
           {several.map((k) => (
             <a class="card kit-card" href={kitUrl(k.id)}>
-              <h4>{k.name}</h4>
+              <h3>{k.name}</h3>
               <p>{k.description}</p>
               <span class="kit-count">{kitTemplates.filter((t) => t.kit === k.id).length} templates · by {k.author}</span>
             </a>
@@ -83,37 +95,84 @@ const brandOf = () => brands[next++ % brands.length];
 </Base>
 
 <script>
-  const buttons = [...document.querySelectorAll<HTMLElement>("[data-output-pick]")];
-  buttons.forEach((b) => b.addEventListener("click", () => {
-    const pick = b.dataset.outputPick!;
-    buttons.forEach((x) => x.setAttribute("aria-checked", String(x === b)));
-    document.querySelectorAll<HTMLElement>("[data-output]").forEach((card) => (card.hidden = pick === "recreations" ? !("recreation" in card.dataset) : pick !== "all" && card.dataset.output !== pick));
-    document.querySelectorAll<HTMLElement>("[data-group]").forEach((g) => (g.hidden = !g.querySelector("[data-output]:not([hidden])")));
+  let output = "all";
+  let group = "all";
+  const cards = [...document.querySelectorAll<HTMLElement>("[data-gallery] [data-output]")];
+  const apply = () => {
+    for (const card of cards) {
+      const byOutput = output === "all" || (output === "recreations" ? "recreation" in card.dataset : card.dataset.output === output);
+      card.hidden = !(byOutput && (group === "all" || card.dataset.group === group));
+    }
+    document.querySelector<HTMLElement>("[data-empty]")!.hidden = cards.some((c) => !c.hidden);
     window.dispatchEvent(new Event("resize"));
-  }));
+  };
+  const picks = (attr: string, set: (value: string) => void) => {
+    const buttons = [...document.querySelectorAll<HTMLElement>(`[${attr}]`)];
+    buttons.forEach((b) => b.addEventListener("click", () => {
+      buttons.forEach((x) => x.setAttribute("aria-checked", String(x === b)));
+      set(b.getAttribute(attr)!);
+      apply();
+    }));
+  };
+  picks("data-output-pick", (v) => (output = v));
+  picks("data-group-pick", (v) => (group = v));
+
+  // Masonry in reading order: the gallery is a grid of short rows, and each card spans as many as it's tall. Its
+  // previews are measured as they load (site.ts fits them first), so it's laid out again after each one.
+  const gallery = document.querySelector<HTMLElement>("[data-gallery]")!;
+  const ROW = 4;
+  const GAP = parseFloat(getComputedStyle(gallery).getPropertyValue("--gap")) || 16;
+  const lay = () =>
+    requestAnimationFrame(() => {
+      gallery.classList.add("masonry");
+      for (const card of cards) {
+        if (card.hidden) continue;
+        const height = [...card.children].reduce((sum, child) => sum + (child as HTMLElement).offsetHeight, 0);
+        card.style.gridRowEnd = `span ${Math.ceil((height + GAP) / ROW)}`;
+      }
+    });
+  window.addEventListener("resize", lay);
+  gallery.addEventListener("load", lay, true);
+  lay();
 </script>
 
 <style>
-  .page-hero { padding: 80px 0 32px; position: relative; }
-  .hero-links { margin-top: 18px; font-size: 14px; color: var(--text-3); }
-  .hero-links a { color: var(--text-2); }
-  .controls { display: grid; gap: 14px; padding: 16px 18px; margin-bottom: 40px; background: var(--bg); }
-  @media (min-width: 1100px) { .controls { position: sticky; top: calc(var(--header) + 8px); z-index: 5; } }
-  .outputs { display: flex; flex-wrap: wrap; gap: 6px; }
-  .outputs button { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line-2); background: transparent; color: var(--text-2); font: 13px var(--sans); cursor: pointer; }
-  .outputs button[aria-checked="true"] { color: var(--text); border-color: var(--text-3); background: var(--bg-2); }
-  .group { margin-bottom: 56px; }
-  .cg-title { font: 500 12.5px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin: 0 0 16px; }
-  .tcard { padding: 0; overflow: hidden; text-decoration: none; }
-  .tcard-body { padding: 16px 18px 20px; }
-  .tcard-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 6px; }
-  .tcard-top h3 { margin: 0; font-size: 16px; }
-  .tcard p { margin: 0; color: var(--text-3); font-size: 14px; }
-  .tcard .in-brand { font: 12px var(--mono); margin: -2px 0 6px; }
-  .kits-lede { color: var(--text-3); margin: -6px 0 16px; }
+  .gwrap { width: 100%; max-width: 1480px; margin: 0 auto; padding: 0 24px; }
+  .t-hero { padding: 28px 0 14px; }
+  .t-hero .gwrap { display: flex; align-items: baseline; gap: 20px; flex-wrap: wrap; }
+  .t-hero h1 { margin: 0; font-size: 32px; letter-spacing: -0.02em; }
+  .t-hero p { margin: 0; color: var(--text-3); font-size: 15px; }
+  .t-hero p a { color: var(--text-2); margin-left: 6px; }
+  .t-filters { position: sticky; top: var(--header); z-index: 5; background: var(--bg); padding: 10px 0; margin-bottom: 18px; border-bottom: 1px solid var(--line); }
+  .t-filters .gwrap { display: flex; align-items: center; gap: 12px; overflow-x: auto; scrollbar-width: none; }
+  .chips { display: flex; gap: 6px; flex: none; }
+  .sep { width: 1px; height: 20px; background: var(--line-2); flex: none; }
+  .chips button { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line-2); background: transparent; color: var(--text-2); font: 13px var(--sans); cursor: pointer; white-space: nowrap; }
+  .chips button[aria-checked="true"] { color: var(--bg); border-color: var(--text); background: var(--text); }
+  .gallery { --gap: 16px; columns: 5 230px; column-gap: var(--gap); }
+  .gallery.masonry { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); grid-auto-rows: 4px; column-gap: var(--gap); columns: auto; align-items: start; }
+  .gcard { display: block; break-inside: avoid; margin-bottom: var(--gap); text-decoration: none; color: inherit; }
+  .gallery.masonry .gcard { margin-bottom: 0; }
+  .gcard[hidden] { display: none; }
+  .gshot { display: block; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); transition: transform 0.15s ease, box-shadow 0.15s ease; }
+  .gcard:hover .gshot, .gcard:focus-visible .gshot { transform: translateY(-3px); box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.45); }
+  .gcap { display: flex; flex-direction: column; gap: 1px; padding: 8px 2px 0; }
+  .gname { font-size: 14px; font-weight: 600; color: var(--text); }
+  .gmeta { font: 11.5px var(--mono); color: var(--text-3); }
+  .empty { color: var(--text-3); padding: 40px 0; }
+  .kits { margin: 48px 0 64px; }
+  .kits h2 { font: 500 12.5px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin: 0 0 8px; }
+  .kits-lede { color: var(--text-3); margin: 0 0 16px; }
   .kit-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
   .kit-card { padding: 16px 18px; text-decoration: none; }
-  .kit-card h4 { margin: 0 0 6px; }
+  .kit-card h3 { margin: 0 0 6px; font-size: 16px; }
   .kit-card p { margin: 0 0 10px; color: var(--text-3); font-size: 14px; }
   .kit-count { font: 12px var(--mono); color: var(--text-3); }
+  @media (max-width: 640px) {
+    .gwrap { padding: 0 16px; }
+    .t-hero h1 { font-size: 26px; }
+    .gallery { --gap: 12px; columns: 2; }
+    .gallery.masonry { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .gmeta { display: none; }
+  }
 </style>

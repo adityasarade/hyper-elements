@@ -67,7 +67,22 @@ function fit(view: HTMLElement) {
   const scale = Math.min(1, view.clientWidth / width);
   scaler.style.transform = `scale(${scale})`;
   frame.width = String(width);
+  if (view.dataset.fitFull !== undefined) return fitFull(view, frame, width, scale);
   frame.height = String(Math.ceil(view.clientHeight / scale));
+}
+// A full thumbnail is as tall as what it shows (measured once its frame has loaded), up to three times its width.
+const FULL_MAX = 3;
+function fitFull(view: HTMLElement, frame: HTMLIFrameElement, width: number, scale: number) {
+  const doc = frame.contentDocument;
+  if (!doc?.body || doc.readyState !== "complete") return;
+  // Measured in a frame too short for it, so the frame's own height doesn't count as the content's.
+  frame.height = "1";
+  const natural = Math.max(doc.documentElement.scrollHeight, doc.body.scrollHeight);
+  const shown = Math.min(natural, width * FULL_MAX);
+  frame.height = String(shown);
+  view.style.aspectRatio = "auto";
+  view.style.height = `${Math.ceil(shown * scale)}px`;
+  view.toggleAttribute("data-capped", natural > shown);
 }
 const fitAll = () => document.querySelectorAll<HTMLElement>("[data-fit]").forEach(fit);
 window.addEventListener("resize", fitAll);
