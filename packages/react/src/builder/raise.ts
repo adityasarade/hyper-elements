@@ -334,7 +334,7 @@ export function raise(element: React.ReactElement, options: { customTools?: bool
     return { body: { root: root.type, fields: { ...common, ...paper }, values: bodyHidden, rows: body, headers, footers }, report };
   }
   // Each element's tool's block, drawn as the builder exports it: on its own, at the room its column leaves it, with
-  // no theme. One its tool can't draw so (a theme's token in its render) would be exported as nothing: it's an HTML
+  // no theme. One its tool can't draw so (a theme's token in its render) would fail the export: it's an HTML
   // block of its markup instead, drawn as the template draws it, and said.
   for (const row of body) {
     row.columns.forEach((column, index) => {

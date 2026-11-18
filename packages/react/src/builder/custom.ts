@@ -189,8 +189,8 @@ export function readCustom(slug: unknown, values: Values, context: Context, tool
   }
   const refused: Refused[] = [];
   const props = toolProps(definition, values, context.say, (one) => refused.push(one));
-  // A block with a value its prop doesn't take, which the builder draws and exports nothing for (registerTools()):
-  // drawn with the prop's default instead, it would be another block than the one its user set.
+  // A block with a value its prop doesn't take, which the builder can't draw or export (registerTools()): drawn with
+  // the prop's default instead, it would be another block than the one its user set.
   if (refused.length) {
     context.say(`${tool} has ${refused.map((one) => `its ${one.key} ${JSON.stringify(one.kept)} (${one.reason})`).join(" and ")}, which a ${definition.type} doesn't take: left out`);
     return [];
@@ -477,7 +477,7 @@ export function registerTools(builder: Builder, elements: readonly WithDefinitio
         head: { css: () => "", js: () => "" },
       },
       // The builder's audit (its Audit tab, unlayer.audit()): a block that can't be drawn at any room, which the
-      // canvas shows and the builder exports nothing for, is an error at the block's place (auditProblem()). A
+      // canvas says and whose export fails, is an error at the block's place (auditProblem()). A
       // validator given in `tools` runs too, and its errors follow.
       validator(data: { values?: Values; defaultErrors?: unknown[] } = {}) {
         const problem = auditProblem(definition, all, canvas, obj(data.values));

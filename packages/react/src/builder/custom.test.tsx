@@ -1041,7 +1041,7 @@ describe("a tool's fields", () => {
   });
 
   it("fails an export while a field holds a value that isn't kept: the block has the value it had, not the one its user sees", () => {
-    const { input, tool, node } = field("price", "7.5");
+    const { input, tool, node, kept } = field("price", "7.5");
     const block = { code: "ABC", price: "7.5" };
     expect(tool.renderer.exporters.email(block)).toContain("ABC 7.5");
     type(input, "-5");
@@ -1052,6 +1052,17 @@ describe("a tool's fields", () => {
     type(input, "9");
     input.dispatchEvent(new Event("change"));
     expect(tool.renderer.exporters.email({ ...block, price: "9" })).toContain("ABC 9");
+    // Corrected while its user is still in the field, it's kept once they pause: until then, the export fails as well,
+    // rather than go out with the value the block had.
+    vi.useFakeTimers();
+    type(input, "-5");
+    type(input, "129.50");
+    expect(kept).toEqual(["9"]);
+    expect(() => tool.renderer.exporters.email({ ...block, price: "9" })).toThrow(`Code's Price holds "129.50", which isn't kept (it's being typed)`);
+    vi.advanceTimersByTime(300);
+    expect(kept).toEqual(["9", "129.5"]);
+    expect(tool.renderer.exporters.email({ ...block, price: "129.5" })).toContain("ABC 129.5");
+    vi.useRealTimers();
     // A field closed while holding one holds nothing: the block's value is what its user sees again.
     type(input, "-5");
     input.dispatchEvent(new Event("change"));

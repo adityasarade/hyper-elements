@@ -94,11 +94,13 @@ export function textField(spec: PropSpec, label: string, owner: string, store: (
   const typing = new WeakMap<HTMLInputElement, Typing>();
   const check = (held: string): CheckedValue => checkValue(spec, held);
   const where = `${owner}'s ${label}`;
-  // What the field holds, checked, and so whether it holds a value that isn't kept (unkeptValues()).
-  const holding = (input: HTMLInputElement): CheckedValue => {
+  // What the field holds, checked, and so whether it holds a value that isn't kept (unkeptValues()): one its prop
+  // doesn't take, or one it does that's waiting to be kept, as its user may still be typing.
+  const holding = (input: HTMLInputElement, state: Typing): CheckedValue => {
     const checked = check(input.value);
-    if (checked.ok) unkept.delete(input);
-    else unkept.set(input, { where, held: input.value, message: checked.message, node: input });
+    if (!checked.ok) unkept.set(input, { where, held: input.value, message: checked.message, node: input });
+    else if ((checked.value === undefined ? "" : store(checked.value)) !== state.kept) unkept.set(input, { where, held: input.value, message: "it's being typed", node: input });
+    else unkept.delete(input);
     return checked;
   };
   // One block's fields are open at a time: what its user had where a value was last kept from what they typed.
@@ -107,6 +109,7 @@ export function textField(spec: PropSpec, label: string, owner: string, store: (
     const checked = check(input.value);
     if (!checked.ok) return;
     const kept = checked.value === undefined ? "" : store(checked.value);
+    unkept.delete(input);
     if (kept === state.kept) return;
     state.kept = kept;
     typed = input.ownerDocument.activeElement === input ? { kept, text: input.value, start: input.selectionStart, end: input.selectionEnd } : undefined;
@@ -131,7 +134,7 @@ export function textField(spec: PropSpec, label: string, owner: string, store: (
         typing.set(input, fresh);
         input.addEventListener("input", () => {
           clearTimeout(fresh.timer);
-          const checked = holding(input);
+          const checked = holding(input, fresh);
           // Said only once its user pauses: on the way to "12px", "12p" isn't wrong yet.
           if (checked.ok) {
             say(node, label, undefined);
@@ -141,7 +144,7 @@ export function textField(spec: PropSpec, label: string, owner: string, store: (
         // Left, or Enter: kept now, or said now.
         input.addEventListener("change", () => {
           clearTimeout(fresh.timer);
-          const checked = holding(input);
+          const checked = holding(input, fresh);
           say(node, label, checked.ok ? undefined : checked.message);
           keep(input, fresh);
         });
