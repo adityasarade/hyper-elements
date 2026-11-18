@@ -23,6 +23,15 @@ export type Brand = {
   fonts: BrandFont[];
 };
 
+/** A recreation kit's `kit.ts` names the company whose work it rebuilds; its `brand.ts` is that company's brand. */
+export type Recreates = { company: string };
+
+/**
+ * A recreation's template's `meta.recreates`: what it rebuilds ("Login code email"), and where the original can be
+ * seen: a public archive of it, or a screenshot under `_assets/recreations/<kit>/`.
+ */
+export type RecreationMeta = { what: string; original: string };
+
 /** Where every image and font a brand or a kit names lives once the website is built. */
 export const ASSETS = "https://hyperelements.dev/generated/kits/assets/";
 

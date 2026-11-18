@@ -3,7 +3,7 @@ import Base from "../../../../layouts/Base.astro";
 import BrandSwitch from "../../../../components/BrandSwitch.astro";
 import CodeBlock from "../../../../components/CodeBlock.astro";
 import Preview from "../../../../components/Preview.astro";
-import { brandsFor, kitCategories, kitList, kitTemplates, kitUrl, templateUrl, type TemplateInfo } from "../../../../lib/kits";
+import { brandsFor, kitCategories, kitList, kitTemplates, kitUrl, recreationLabel, sitePath, templateUrl, type TemplateInfo } from "../../../../lib/kits";
 
 export function getStaticPaths() {
   return kitTemplates.map((t) => ({ params: { kit: t.kit, root: t.folder, category: t.category }, props: { t } }));
@@ -36,6 +36,16 @@ const starter = `kit-${t.kit}-${t.folder}-${t.category}`;
           <h1 class="h-page" style="margin:0 0 10px">{t.label}</h1>
           <p class="lede">{t.description}.</p>
           <p class="meta">In the <a href={kitUrl(t.kit)}>{kit.name}</a> kit · by {t.author} · <a href={`https://github.com/hyper-elements/hyper-elements/blob/main/${t.file}`}>source on GitHub</a></p>
+          {t.recreates && (
+            <div class="recreation">
+              <p class="rec-label">{recreationLabel(t)}</p>
+              <p class="rec-note">
+                {t.recreates.company}'s name and logo belong to {t.recreates.company}. This rebuild shows how Hyper Elements draws a real email; the project isn't affiliated with {t.recreates.company}, and the rebuild will be removed on request (<a href="https://github.com/hyper-elements/hyper-elements/issues/new?template=recreation-removal.yml">ask here</a>).
+                {t.recreates.original.startsWith("https://hyperelements.dev/") ? null : <> See <a href={t.recreates.original}>the original</a>.</>}
+              </p>
+              {t.recreates.original.startsWith("https://hyperelements.dev/") && <figure class="original"><img src={sitePath(t.recreates.original)} alt={`The original: ${t.recreates.what}`} loading="lazy" /><figcaption>The original</figcaption></figure>}
+            </div>
+          )}
         </div>
         <span class="chip">{t.output}</span>
       </div>
@@ -115,6 +125,13 @@ const starter = `kit-${t.kit}-${t.folder}-${t.category}`;
   .meta { color: var(--text-3); font-size: 14px; margin: 8px 0 0; }
   .meta a { color: var(--text-2); }
   .t-switch { margin-top: 24px; }
+  .recreation { margin-top: 16px; padding: 14px 16px; border: 1px solid var(--line-2); border-radius: var(--radius); max-width: 760px; }
+  .rec-label { font: 500 13px var(--mono); margin: 0 0 6px; color: var(--text); }
+  .rec-note { font-size: 13.5px; color: var(--text-3); margin: 0; }
+  .rec-note a { color: var(--text-2); }
+  .original { margin: 12px 0 0; }
+  .original img { max-width: 100%; max-height: 420px; border: 1px solid var(--line); }
+  .original figcaption { font-size: 12px; color: var(--text-3); margin-top: 4px; }
   .t-body { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 20px; align-items: start; }
   .t-preview { overflow: hidden; background: #0e0e0e; position: sticky; top: calc(var(--header) + 16px); }
   .format + .format { border-top: 1px solid var(--line); }

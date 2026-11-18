@@ -2,7 +2,7 @@
 import Base from "../../layouts/Base.astro";
 import BrandSwitch from "../../components/BrandSwitch.astro";
 import KitThumb from "../../components/KitThumb.astro";
-import { GROUPS, brands, kitCategories, kitList, kitTemplates, kitUrl, templateUrl } from "../../lib/kits";
+import { GROUPS, brands, kitCategories, kitList, kitTemplates, kitUrl, recreationLabel, templateUrl } from "../../lib/kits";
 
 const outputs = [
   { id: "all", label: "Everything" },
@@ -10,6 +10,7 @@ const outputs = [
   { id: "pages", label: "Pages" },
   { id: "documents", label: "PDFs" },
   { id: "images", label: "Images" },
+  ...(kitTemplates.some((t) => t.recreates) ? [{ id: "recreations", label: "Recreations" }] : []),
 ];
 const groups = GROUPS.map((group) => ({
   group,
@@ -49,11 +50,11 @@ const several = kitList.filter((k) => kitTemplates.filter((t) => t.kit === k.id)
             </div>
             <div class="grid grid-3">
               {c.templates.map((t) => (
-                <a class="card tcard" href={templateUrl(t)} data-output={t.folder}>
+                <a class="card tcard" href={templateUrl(t)} data-output={t.folder} data-recreation={t.recreates ? "" : undefined}>
                   <KitThumb t={t} height={260} />
                   <div class="tcard-body">
                     <div class="tcard-top"><h4>{kitName(t.kit)}</h4><span class="chip">{t.output}</span></div>
-                    <p>{t.description}</p>
+                    <p>{recreationLabel(t) ?? t.description}</p>
                   </div>
                 </a>
               ))}
@@ -86,7 +87,7 @@ const several = kitList.filter((k) => kitTemplates.filter((t) => t.kit === k.id)
   buttons.forEach((b) => b.addEventListener("click", () => {
     const pick = b.dataset.outputPick!;
     buttons.forEach((x) => x.setAttribute("aria-checked", String(x === b)));
-    document.querySelectorAll<HTMLElement>("[data-output]").forEach((card) => (card.hidden = pick !== "all" && card.dataset.output !== pick));
+    document.querySelectorAll<HTMLElement>("[data-output]").forEach((card) => (card.hidden = pick === "recreations" ? !("recreation" in card.dataset) : pick !== "all" && card.dataset.output !== pick));
     document.querySelectorAll<HTMLElement>("[data-category]").forEach((c) => (c.hidden = !c.querySelector("[data-output]:not([hidden])")));
     document.querySelectorAll<HTMLElement>("[data-group]").forEach((g) => (g.hidden = !g.querySelector("[data-category]:not([hidden])")));
     window.dispatchEvent(new Event("resize"));

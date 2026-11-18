@@ -38,6 +38,8 @@ export interface TemplateInfo {
   description: string;
   guidance: string;
   author: string;
+  /** A recreation: the company, what it rebuilds, and where the original can be seen. */
+  recreates?: { company: string; what: string; original: string };
   formats: string[];
   fields: FieldInfo[];
   rules: { lint: Array<{ id: string; summary: string }>; core: Array<{ code: string }>; links?: { domains?: string[] } };
@@ -66,6 +68,10 @@ export const brandsFor = (t: TemplateInfo): BrandInfo[] => {
   return own ? [own, ...brands] : brands;
 };
 export const templateUrl = (t: TemplateInfo) => `/templates/${t.kit}/${t.folder}/${t.category}`;
+/** "Recreation of Acme's login code email". */
+export const recreationLabel = (t: TemplateInfo) => (t.recreates ? `Recreation of ${t.recreates.company}'s ${t.recreates.what.charAt(0).toLowerCase()}${t.recreates.what.slice(1)}` : undefined);
+/** An original's screenshot is under the kit assets' address; on the site it loads from its own copy. */
+export const sitePath = (url: string) => url.replace("https://hyperelements.dev/generated/kits/assets/", "/generated/kits/assets/");
 export const kitUrl = (kit: string) => `/templates/${kit}`;
 /** The first view of a template in a brand: its first format. */
 export const firstView = (t: TemplateInfo, brand: string): Example => {
