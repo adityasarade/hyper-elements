@@ -133,14 +133,16 @@ jobs:
       # 355,100 bytes for those with defineProperty(): a team's own property as data (one of prop's
       # helpers, its editor's name and its options, each checked by its kind), a text's enum, what's refused of one,
       # prop's helpers and the list, blocks and object refusing an option they don't take (an editor named by its name
-      # among them), and a color's transparency (355,065 bytes measured).
+      # among them), and a color's transparency (355,065 bytes measured); 355,200 bytes for prop's helpers and
+      # defineProperty() in modules of their own, apart from defineElement()'s React and render (78 bytes more, each
+      # module's path comment; 355,143 measured).
       - name: Check main entry bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
           test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=355100
+          MAX_SIZE=355200
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::Main entry bundle size $SIZE exceeds budget of $MAX_SIZE bytes"

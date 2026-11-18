@@ -81,7 +81,9 @@ renders against the environment where it is.
 Elements aren't hand-written. Each is a definition in `packages/internal/core/src/components.ts` (props, styles, children,
 targets, support per output, editors), and `packages/react/src/primitives/components.tsx` makes a React component of
 each, so its prop types come from the same definition that validates them. `defineElement()`
-(`packages/react/src/primitives/custom.tsx`) makes a custom element from them.
+(`packages/react/src/primitives/custom.tsx`) makes a custom element from them. Its props are made with `prop`'s helpers
+and `defineProperty()` (`packages/react/src/primitives/properties/`): data that imports only core, never React or the
+collecting render (`properties.test.ts`), so the same limits can check a value where nothing renders.
 
 ## Rendering pipeline
 
@@ -244,7 +246,7 @@ skip it):
 
 - **Tests** (Node 20 and Bun 1.3): `pnpm build`; typechecks of react, core, migrate, email-clients, cli, lint and the
   template loader; the release script's tests
-  (`node --test scripts/release.test.mjs`); bundle budgets (`dist/primitives.js` 355,100 bytes, `dist/builder.js`
+  (`node --test scripts/release.test.mjs`); bundle budgets (`dist/primitives.js` 355,200 bytes, `dist/builder.js`
   537,800 bytes, `dist/template.js` 94,800 bytes, email-clients' `dist/index.js` 62,800 bytes, lint's `dist/index.js` 41,500 bytes and `dist/html.js` 22,700 bytes, unminified ESM; raise one on purpose and say what grew);
   no bundle imports `@unlayer/exporters`; unit tests with coverage; the CSP gates (react and email-clients);
   email-clients packed and installed beside the packed core and the models package from npm (`test:pack`); the CLI's

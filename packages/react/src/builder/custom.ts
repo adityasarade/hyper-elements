@@ -6,7 +6,7 @@
  * (`elements`); registerTools() gives a builder the tools, each drawn by Elements itself.
  */
 import { ElementsError, propertyOf, renderTemplate, type CustomDefinition, type Json, type LinkValue, type Node } from "@hyper-elements/core";
-import type { PropertyDefinition } from "../primitives/custom";
+import type { PropertyDefinition } from "../primitives/properties";
 import { link } from "./blocks";
 import { block, type Block, type Hiding } from "./design";
 import { font, fontWeight, givenId, hidden as hiddenOn, px, sides, TEMPLATE_ID, webLink, type Sides, type Values } from "./read-values";
