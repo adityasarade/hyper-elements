@@ -1,6 +1,5 @@
 ---
 import Base from "../../layouts/Base.astro";
-import BrandSwitch from "../../components/BrandSwitch.astro";
 import KitThumb from "../../components/KitThumb.astro";
 import { brands, kitCategories, kitList, kitTemplates, templateUrl, type KitInfo } from "../../lib/kits";
 
@@ -12,6 +11,7 @@ const members = kitTemplates.filter((t) => t.kit === kit.id);
 // A kit of one template is shown as that template.
 if (members.length === 1) return Astro.redirect(templateUrl(members[0]));
 const list = kit.brand ? [kit.brand, ...brands] : brands;
+// Each template in the next brand: the kit's look across the range of brands.
 ---
 <Base title={`${kit.name} kit`} description={`${kit.description}. ${members.length} templates with one look, previewed in each sample brand.`}>
   <section class="page-hero">
@@ -21,16 +21,16 @@ const list = kit.brand ? [kit.brand, ...brands] : brands;
       <h1 class="h-page">{kit.name}</h1>
       <p class="lede">{kit.description}.</p>
       <p class="meta">{members.length} templates · by {kit.author}{kit.tags?.length ? ` · ${kit.tags.join(", ")}` : ""}</p>
-      <div class="k-switch"><BrandSwitch brands={list} /></div>
     </div>
   </section>
   <div class="wrap">
     <div class="grid grid-2">
-      {members.map((t) => (
+      {members.map((t, i) => (
         <a class="card tcard" href={templateUrl(t)}>
-          <KitThumb t={t} height={420} />
+          <KitThumb t={t} brand={list[i % list.length].id} height={420} />
           <div class="tcard-body">
             <div class="tcard-top"><h2>{t.label}</h2><span class="chip">{t.output}</span></div>
+            <p class="in-brand">In {list[i % list.length].name}</p>
             <p>{kitCategories[t.category]?.label}: {t.description}.</p>
           </div>
         </a>
@@ -43,10 +43,10 @@ const list = kit.brand ? [kit.brand, ...brands] : brands;
   .page-hero { padding: 48px 0 24px; }
   .back { color: var(--text-3); text-decoration: none; font-size: 14px; display: inline-block; margin-bottom: 20px; }
   .meta { color: var(--text-3); font-size: 14px; }
-  .k-switch { margin-top: 20px; }
   .tcard { padding: 0; overflow: hidden; }
   .tcard-body { padding: 16px 18px 20px; }
   .tcard-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 6px; }
   .tcard-top h2 { margin: 0; font-size: 18px; }
   .tcard p { margin: 0; color: var(--text-3); font-size: 14px; }
+  .tcard .in-brand { font: 12px var(--mono); margin: -2px 0 6px; }
 </style>

@@ -1,8 +1,7 @@
 ---
 import Base from "../../layouts/Base.astro";
-import BrandSwitch from "../../components/BrandSwitch.astro";
 import KitThumb from "../../components/KitThumb.astro";
-import { GROUPS, brands, kitCategories, kitList, kitTemplates, kitUrl, recreationLabel, templateUrl } from "../../lib/kits";
+import { GROUPS, brands, brandsFor, kitCategories, kitList, kitTemplates, kitUrl, recreationLabel, templateUrl } from "../../lib/kits";
 
 const outputs = [
   { id: "all", label: "Everything" },
@@ -21,19 +20,21 @@ const groups = GROUPS.map((group) => ({
 })).filter((g) => g.categories.length);
 const kitName = (id: string) => kitList.find((k) => k.id === id)?.name ?? id;
 const several = kitList.filter((k) => kitTemplates.filter((t) => t.kit === k.id).length > 1);
+// Each card is drawn in the next sample brand, so the page shows the whole range of looks, and every brand appears.
+let next = 0;
+const brandOf = () => brands[next++ % brands.length];
 ---
-<Base title="Templates" description="Ready-made templates for emails, web pages, PDFs and images, with their guardrails set. Each takes your brand: pick a sample brand, preview it, and copy one file.">
+<Base title="Templates" description="Ready-made templates for emails, web pages, PDFs and images, with their guardrails set. Each takes your brand: see it in the sample brands, and copy one file.">
   <section class="page-hero">
     <div class="wrap">
       <p class="eyebrow">Templates</p>
       <h1 class="h-page"><span class="grad">Your brand, the guardrails set.</span></h1>
-      <p class="lede">Emails, pages, PDFs and images with the hard part done: phone layouts, plain text, accessible contrast, links that stay on your domains, and text that fits. None of them carries a brand. Pick a sample brand to preview them in, then copy one file and put your own brand at its top.</p>
+      <p class="lede">Emails, pages, PDFs and images with the hard part done: phone layouts, plain text, accessible contrast, links that stay on your domains, and text that fits. None of them carries a brand: each one here is drawn in a different sample brand. Open one to see it in all nine, then copy one file and put your own brand at its top.</p>
       <p class="hero-links"><a href="https://github.com/hyper-elements/hyper-elements/tree/main/templates">Browse the folder on GitHub</a> · <a href="https://github.com/hyper-elements/hyper-elements/blob/main/templates/CONTRIBUTING.md">Contribute a template</a></p>
     </div>
   </section>
   <div class="wrap">
     <div class="controls panel">
-      <BrandSwitch brands={brands} />
       <div class="outputs" role="radiogroup" aria-label="Output" data-outputs>
         {outputs.map((o, i) => <button type="button" role="radio" aria-checked={i === 0 ? "true" : "false"} data-output-pick={o.id}>{o.label}</button>)}
       </div>
@@ -42,25 +43,24 @@ const several = kitList.filter((k) => kitTemplates.filter((t) => t.kit === k.id)
     {groups.map(({ group, categories }) => (
       <section class="group" data-group>
         <h2 class="cg-title">{group}</h2>
-        {categories.map((c) => (
-          <div class="category" data-category>
-            <div class="cat-head">
-              <h3>{c.label}</h3>
-              <p>{c.useWhen}.</p>
-            </div>
-            <div class="grid grid-3">
-              {c.templates.map((t) => (
-                <a class="card tcard" href={templateUrl(t)} data-output={t.folder} data-recreation={t.recreates ? "" : undefined}>
-                  <KitThumb t={t} height={260} />
+        <div class="grid grid-3">
+          {categories.flatMap((c) =>
+            c.templates.map((t) => {
+              // A recreation is shown in its company's own brand.
+              const brand = t.recreates ? brandsFor(t)[0] : brandOf();
+              return (
+                <a class="card tcard" href={templateUrl(t)} data-output={t.folder} data-recreation={t.recreates ? "" : undefined} title={`${c.label}: ${c.useWhen}`}>
+                  <KitThumb t={t} brand={brand.id} height={260} />
                   <div class="tcard-body">
-                    <div class="tcard-top"><h4>{kitName(t.kit)}</h4><span class="chip">{t.output}</span></div>
+                    <div class="tcard-top"><h3>{c.label}</h3><span class="chip">{t.output}</span></div>
+                    <p class="in-brand">{kitName(t.kit)} kit · in {brand.name}</p>
                     <p>{recreationLabel(t) ?? t.description}</p>
                   </div>
                 </a>
-              ))}
-            </div>
-          </div>
-        ))}
+              );
+            }),
+          )}
+        </div>
       </section>
     ))}
 
@@ -88,8 +88,7 @@ const several = kitList.filter((k) => kitTemplates.filter((t) => t.kit === k.id)
     const pick = b.dataset.outputPick!;
     buttons.forEach((x) => x.setAttribute("aria-checked", String(x === b)));
     document.querySelectorAll<HTMLElement>("[data-output]").forEach((card) => (card.hidden = pick === "recreations" ? !("recreation" in card.dataset) : pick !== "all" && card.dataset.output !== pick));
-    document.querySelectorAll<HTMLElement>("[data-category]").forEach((c) => (c.hidden = !c.querySelector("[data-output]:not([hidden])")));
-    document.querySelectorAll<HTMLElement>("[data-group]").forEach((g) => (g.hidden = !g.querySelector("[data-category]:not([hidden])")));
+    document.querySelectorAll<HTMLElement>("[data-group]").forEach((g) => (g.hidden = !g.querySelector("[data-output]:not([hidden])")));
     window.dispatchEvent(new Event("resize"));
   }));
 </script>
@@ -105,15 +104,12 @@ const several = kitList.filter((k) => kitTemplates.filter((t) => t.kit === k.id)
   .outputs button[aria-checked="true"] { color: var(--text); border-color: var(--text-3); background: var(--bg-2); }
   .group { margin-bottom: 56px; }
   .cg-title { font: 500 12.5px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin: 0 0 16px; }
-  .category { margin-bottom: 32px; }
-  .cat-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
-  .cat-head h3 { margin: 0; font-size: 20px; }
-  .cat-head p { margin: 0; color: var(--text-3); font-size: 14px; }
   .tcard { padding: 0; overflow: hidden; text-decoration: none; }
   .tcard-body { padding: 16px 18px 20px; }
   .tcard-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 6px; }
-  .tcard-top h4 { margin: 0; font-size: 16px; }
+  .tcard-top h3 { margin: 0; font-size: 16px; }
   .tcard p { margin: 0; color: var(--text-3); font-size: 14px; }
+  .tcard .in-brand { font: 12px var(--mono); margin: -2px 0 6px; }
   .kits-lede { color: var(--text-3); margin: -6px 0 16px; }
   .kit-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
   .kit-card { padding: 16px 18px; text-decoration: none; }
