@@ -7,15 +7,16 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import ts from "typescript";
 import { render } from "@hyper-elements/react";
-import type { Template } from "@hyper-elements/react/template";
+import { check, type Template } from "@hyper-elements/react/template";
 import { ROOT } from "../_scripts/assets";
-import { brandBlock, singleFile, splitFiles, swapBrand } from "../_scripts/single-file";
+import { createElement } from "react";
+import { brandBlock, designFile, singleFile, splitFiles, swapBrand } from "../_scripts/single-file";
 import { brands, templates } from "./discover";
 
 const OUT = join(ROOT, ".single");
 const [all, sampleBrands] = [await templates(), await brands()];
 const files: Array<{ id: string; brand: string; file: string }> = [];
-const splits: Array<{ id: string; brand: string; code: string; single: string }> = [];
+const splits: Array<{ id: string; brand: string; code: string; single: string; design: string }> = [];
 
 beforeAll(() => {
   rmSync(OUT, { recursive: true, force: true });
@@ -30,7 +31,9 @@ beforeAll(() => {
       mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, `${t.category}.tsx`), split.code);
       writeFileSync(join(dir, "brand.ts"), split.brand);
-      splits.push({ id: t.id, brand, code: join(dir, `${t.category}.tsx`), single: file });
+      const example = t.make(sampleBrands.find((b) => b.id === brand)!.brand).example as Record<string, unknown>;
+      writeFileSync(join(dir, "design.tsx"), designFile(t.category, example));
+      splits.push({ id: t.id, brand, code: join(dir, `${t.category}.tsx`), single: file, design: join(dir, "design.tsx") });
     }
   }
 });
@@ -47,7 +50,7 @@ it("gives a brand's file when another brand's block is swapped in, as the Brand 
 
 it("typechecks every file on its own, and every template's two files together, under strict", () => {
   const program = ts.createProgram(
-    [...files.map((f) => f.file), ...splits.map((s) => s.code)],
+    [...files.map((f) => f.file), ...splits.flatMap((s) => [s.code, s.design])],
     {
       strict: true,
       noEmit: true,
@@ -78,8 +81,8 @@ it("checks and renders every file as the template does", async () => {
   }
 });
 
-it("renders a template's two files as its single file does", async () => {
-  for (const { id, brand, code, single } of splits.filter((s) => s.brand === sampleBrands[0].id || s.brand === sampleBrands.at(-1)!.id)) {
+it("renders a template's two files as its single file does, and its design as its example", async () => {
+  for (const { id, brand, code, single, design } of splits.filter((s) => s.brand === sampleBrands[0].id || s.brand === sampleBrands.at(-1)!.id)) {
     const [a, b] = await Promise.all([code, single].map(async (file) => ((await import(file)) as { default: Template }).default));
     expect(a.id, code).toBe(id);
     const format = a.formats ? Object.keys(a.formats)[0] : undefined;
@@ -87,6 +90,11 @@ it("renders a template's two files as its single file does", async () => {
     expect(ca.valid, `${id} in ${brand}`).toBe(true);
     if (a.root === "Canvas") continue;
     const key = (format ?? "default") as never;
-    expect((await render(ca.snapshots[key]!)).html, `${id} in ${brand}`).toBe((await render(cb.snapshots[key]!)).html);
+    const html = (await render(cb.snapshots[key]!)).html;
+    expect((await render(ca.snapshots[key]!)).html, `${id} in ${brand}`).toBe(html);
+    const Design = ((await import(design)) as { default: () => React.ReactElement }).default;
+    const checked = check(createElement(Design));
+    expect(checked.valid, `${id}'s design in ${brand}`).toBe(true);
+    expect((await render(checked.snapshots[key]!)).html, `${id}'s design in ${brand}`).toBe(html);
   }
 });

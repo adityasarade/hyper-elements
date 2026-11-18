@@ -46,7 +46,7 @@ export interface TemplateInfo {
   file: string;
   /** The template's code, which imports its brand from ./brand: the same in every brand. */
   code: string;
-  byBrand: Record<string, { views: Record<string, Example>; single: string; brandFile: string }>;
+  byBrand: Record<string, { views: Record<string, Example>; single: string; brandFile: string; design: string }>;
 }
 export interface CategoryInfo {
   label: string;

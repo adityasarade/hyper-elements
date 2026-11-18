@@ -14,7 +14,7 @@ import { renderPdf, templateAssets as pdfAssets } from "@hyper-elements/react/pd
 import { ASSETS, type Brand } from "../_brand";
 import { brands, categories, kits, templates, type RootFolder } from "../_test/discover";
 import { ASSET_DIR, ROOT, fontFiles, imageFiles } from "./assets";
-import { brandBlock, singleFile, splitFiles } from "./single-file";
+import { brandBlock, designFile, singleFile, splitFiles } from "./single-file";
 
 const SITE = join(ROOT, "..", "apps", "website");
 const PUBLIC = join(SITE, "public", "generated", "kits");
@@ -83,7 +83,8 @@ for (const t of all) {
     try {
       const views: Record<string, unknown> = {};
       for (const format of formats.length ? formats : [undefined]) views[format ?? "default"] = await example(t, id, brand, format);
-      byBrand[id] = { views, single: singleFile(t.file, file), brandFile: splitFiles(t.file, file).brand };
+      const design = designFile(t.category, t.make(brand).example as Record<string, unknown>);
+      byBrand[id] = { views, single: singleFile(t.file, file), brandFile: splitFiles(t.file, file).brand, design };
     } catch (error) {
       failures.push(String((error as Error).message ?? error));
     }

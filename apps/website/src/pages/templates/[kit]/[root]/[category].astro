@@ -14,16 +14,23 @@ const category = kitCategories[t.category];
 const list = brandsFor(t);
 const siblings = kitTemplates.filter((o) => o.kit === t.kit && o.key !== t.key);
 const others = kitTemplates.filter((o) => o.category === t.category && o.kit !== t.kit);
-const views = t.root === "Document" ? (["desktop", "pdf", "text", "diagnostics"] as const) : t.root === "Canvas" ? (["image", "outline", "diagnostics"] as const) : (["desktop", "phone", "text", "diagnostics", "html"] as const);
+const views = t.root === "Document" ? (["desktop", "pdf"] as const) : t.root === "Canvas" ? (["image"] as const) : t.root === "Email" ? (["desktop", "phone", "text"] as const) : (["desktop", "phone"] as const);
 const width = previewWidth(t);
 const file = `${t.category}.tsx`;
-const fn = t.label.replace(/[^A-Za-z]/g, "");
-const usage =
-  t.root === "Document"
-    ? `// npm i @hyper-elements/react @hyper-elements/lint @react-pdf/renderer\nimport { renderPdf, templateAssets } from "@hyper-elements/react/pdf";\nimport ${fn} from "./${t.category}";\n\nconst checked = ${fn}.check(values, { format: "${t.formats[0] ?? ""}" });\nconst snapshot = checked.snapshots.${t.formats[0] ?? "default"};\n// The engine fetches nothing: load the bytes of each font in the brand block, and of each image it lists.\nconst images = await load(templateAssets(snapshot).images);\nconst { pdf } = await renderPdf(snapshot, { fonts: brandFonts, images });`
-    : t.root === "Canvas"
-      ? `// npm i @hyper-elements/react satori @resvg/resvg-js\nimport { renderImage, templateAssets } from "@hyper-elements/react/image";\nimport ${fn} from "./${t.category}";\n\nconst checked = ${fn}.check(values, { format: "${t.formats[0] ?? ""}" });\nconst snapshot = checked.snapshots.${t.formats[0] ?? "default"};\n// The engine fetches nothing: load the bytes of each font in the brand block, and of each image it lists.\nconst images = await load(templateAssets(snapshot).images);\nconst { image } = await renderImage(snapshot, { fonts: brandFonts, images });`
-      : `// npm i @hyper-elements/react @hyper-elements/lint\nimport { render } from "@hyper-elements/react";\nimport ${fn} from "./${t.category}";\n\nconst checked = ${fn}.check(values);\nif (!checked.valid) throw new Error(checked.diagnostics.map((d) => d.message).join("\\n"));\nconst { html, text } = await render(checked.snapshots.default);`;
+// The views above the preview: an email or page at desktop width and on a phone (an email's plain text too), a
+// document as its page and as its PDF, an image in each of its formats.
+const modes =
+  t.root === "Canvas"
+    ? t.formats.map((f) => ({ id: f, label: f.charAt(0).toUpperCase() + f.slice(1) }))
+    : t.root === "Document"
+      ? [{ id: "desktop", label: "Page" }, { id: "pdf", label: "PDF" }]
+      : [{ id: "desktop", label: "Desktop" }, { id: "phone", label: "Phone" }, ...(t.root === "Email" ? [{ id: "text", label: "Plain text" }] : [])];
+const shownFormats = t.formats.length ? (t.root === "Canvas" ? t.formats : [t.formats[0]]) : ["default"];
+const codeTabs = [
+  { id: "design", label: "Design", file: "design.tsx" },
+  { id: "template", label: "Template", file },
+  { id: "brand", label: "Brand", file: "brand.ts" },
+];
 const starter = `kit-${t.kit}-${t.folder}-${t.category}`;
 ---
 <Base title={`${t.label}: ${kit.name}`} description={`${t.description}. A ${t.output.toLowerCase()} template in the ${kit.name} kit, previewed in each sample brand, with one file to copy.`}>
@@ -55,37 +62,51 @@ const starter = `kit-${t.kit}-${t.folder}-${t.category}`;
       </div>
     </div>
   </section>
-  <div class="wrap t-body">
-    <div class="t-preview panel">
-      {list.map((b, i) => (
-        <div data-brand={b.id} hidden={i !== 0}>
-          {(t.formats.length ? (t.root === "Canvas" ? t.formats : [t.formats[0]]) : ["default"]).map((format) => {
-            const ex = t.byBrand[b.id]?.views[format];
-            return ex && (
-              <div class="format">
-                {t.formats.length > 1 && <p class="format-name">{format}</p>}
-                <Preview example={ex} views={[...views]} width={width} height={t.root === "Canvas" ? 560 : 760} />
-              </div>
-            );
-          })}
+  <div class="wrap">
+    <div class="stage panel" data-stage data-show="preview">
+      <div class="stage-bar">
+        <div class="seg" role="tablist" aria-label="View">
+          {modes.map((m, i) => <button type="button" role="tab" aria-selected={i === 0 ? "true" : "false"} data-mode-pick={m.id}>{m.label}</button>)}
         </div>
-      ))}
-    </div>
-    <div class="t-code">
-      <div class="actions">
-        <a class="btn" href={`/playground#starter=${starter}`}>Open in the playground</a>
+        <button type="button" class="code-toggle" aria-pressed="false" data-code-toggle><span aria-hidden="true">&lt;/&gt;</span> Code</button>
       </div>
-      <CodeBlock code={t.code} file={file} />
-      {list.map((b, i) => (
-        <div data-brand={b.id} hidden={i !== 0}>
-          <details class="brand-file">
-            <summary><code>brand.ts</code>: the brand it's drawn in, here {b.name}</summary>
-            <CodeBlock code={t.byBrand[b.id]?.brandFile ?? ""} file="brand.ts" lang="ts" />
-          </details>
-          <p class="note">The template imports your brand from <code>./brand.ts</code>: its colors, fonts, logo and links. It imports nothing else but Elements' own packages. <button class="btn-link" type="button" data-copy={t.byBrand[b.id]?.single ?? ""}>Copy both as one file</button></p>
+      <div class="stage-preview">
+        {list.map((b, i) => (
+          <div data-brand={b.id} hidden={i !== 0}>
+            {shownFormats.map((format, j) => {
+              const ex = t.byBrand[b.id]?.views[format];
+              return ex && (
+                <div data-format={format} hidden={t.root === "Canvas" && j !== 0}>
+                  <Preview example={ex} views={[...views]} width={width} height={t.root === "Canvas" ? 640 : 820} />
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </div>
+      <div class="stage-code" hidden>
+        <div class="code-bar">
+          <div class="seg" role="tablist" aria-label="Code">
+            {codeTabs.map((c, i) => <button type="button" role="tab" aria-selected={i === 0 ? "true" : "false"} data-code-pick={c.id}>{c.label} <span class="file">{c.file}</span></button>)}
+          </div>
+          <div class="code-actions">
+            <a class="btn-link" href={`/playground#starter=${starter}`}>Open in the playground</a>
+            {list.map((b, i) => <button class="btn-link" type="button" data-brand={b.id} hidden={i !== 0} data-copy={t.byBrand[b.id]?.single ?? ""}>Copy all as one file</button>)}
+          </div>
         </div>
-      ))}
-      <CodeBlock code={usage} file="render.ts" />
+        <div data-code-pane="design">
+          {list.map((b, i) => <div data-brand={b.id} hidden={i !== 0}><CodeBlock code={t.byBrand[b.id]?.design ?? ""} /></div>)}
+          <p class="note">A design is the template with its fields filled in: the example's values here. Put it beside <code>{file}</code> and <code>brand.ts</code>.</p>
+        </div>
+        <div data-code-pane="template" hidden>
+          <CodeBlock code={t.code} />
+          <p class="note">The template: its fields, its rules and how it draws them. It imports your brand from <code>./brand.ts</code>, and nothing but Elements' own packages.</p>
+        </div>
+        <div data-code-pane="brand" hidden>
+          {list.map((b, i) => <div data-brand={b.id} hidden={i !== 0}><CodeBlock code={t.byBrand[b.id]?.brandFile ?? ""} lang="ts" /></div>)}
+          <p class="note">The brand it's drawn in: its colors, fonts, logo and links. Replace it with your own.</p>
+        </div>
+      </div>
     </div>
   </div>
   <section class="wrap facts">
@@ -124,6 +145,44 @@ const starter = `kit-${t.kit}-${t.folder}-${t.category}`;
   )}
 </Base>
 
+<script>
+  // The stage shows one thing: the preview in the view picked, or the code. The views drive each brand's preview
+  // (its own tabs are hidden); an image's are its formats instead.
+  const stage = document.querySelector<HTMLElement>("[data-stage]");
+  if (stage) {
+    const preview = stage.querySelector<HTMLElement>(".stage-preview")!;
+    const code = stage.querySelector<HTMLElement>(".stage-code")!;
+    const toggle = stage.querySelector<HTMLButtonElement>("[data-code-toggle]")!;
+    const modes = [...stage.querySelectorAll<HTMLButtonElement>("[data-mode-pick]")];
+    const formats = [...stage.querySelectorAll<HTMLElement>("[data-format]")];
+    const byFormat = formats.some((f) => modes.some((m) => m.dataset.modePick === f.dataset.format));
+    const show = (what: "preview" | "code") => {
+      stage.dataset.show = what;
+      preview.hidden = what !== "preview";
+      code.hidden = what !== "code";
+      toggle.setAttribute("aria-pressed", String(what === "code"));
+      window.dispatchEvent(new Event("resize"));
+    };
+    modes.forEach((m) =>
+      m.addEventListener("click", () => {
+        const id = m.dataset.modePick!;
+        modes.forEach((x) => x.setAttribute("aria-selected", String(x === m)));
+        if (byFormat) formats.forEach((f) => (f.hidden = f.dataset.format !== id));
+        else stage.querySelectorAll<HTMLButtonElement>(`.preview [role="tab"][data-view="${id}"]`).forEach((tab) => tab.click());
+        show("preview");
+      }),
+    );
+    toggle.addEventListener("click", () => show(stage.dataset.show === "code" ? "preview" : "code"));
+    const tabs = [...stage.querySelectorAll<HTMLButtonElement>("[data-code-pick]")];
+    tabs.forEach((tab) =>
+      tab.addEventListener("click", () => {
+        tabs.forEach((x) => x.setAttribute("aria-selected", String(x === tab)));
+        stage.querySelectorAll<HTMLElement>("[data-code-pane]").forEach((pane) => (pane.hidden = pane.dataset.codePane !== tab.dataset.codePick));
+      }),
+    );
+  }
+</script>
+
 <style>
   .t-hero { padding: 48px 0 24px; }
   .back { color: var(--text-3); text-decoration: none; font-size: 14px; display: inline-block; margin-bottom: 20px; }
@@ -140,20 +199,25 @@ const starter = `kit-${t.kit}-${t.folder}-${t.category}`;
   .original { margin: 12px 0 0; }
   .original img { max-width: 100%; max-height: 420px; border: 1px solid var(--line); }
   .original figcaption { font-size: 12px; color: var(--text-3); margin-top: 4px; }
-  .t-body { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 20px; align-items: start; }
-  .brand-file { margin: 12px 0 0; border: 1px solid var(--line); border-radius: var(--radius); }
-  .brand-file summary { cursor: pointer; padding: 10px 14px; font-size: 13.5px; color: var(--text-2); display: flex; align-items: center; gap: 6px; list-style-position: inside; }
-  .brand-file summary code { color: var(--text); }
-  .brand-file[open] summary { border-bottom: 1px solid var(--line); }
-  .brand-file :global(.code-block) { margin: 0; border: 0; border-radius: 0 0 var(--radius) var(--radius); }
   .btn-link { background: none; border: 0; padding: 0; color: var(--text-2); font: 13px var(--sans); text-decoration: underline; cursor: pointer; }
   .btn-link[data-copied]::after { content: " ✓"; }
-  .t-preview { overflow: hidden; background: #0e0e0e; position: sticky; top: calc(var(--header) + 16px); }
-  .format + .format { border-top: 1px solid var(--line); }
-  .format-name { font: 12px var(--mono); color: var(--text-3); margin: 10px 14px 0; text-transform: uppercase; letter-spacing: 0.08em; }
-  .t-code { display: grid; gap: 16px; min-width: 0; }
-  .actions { display: flex; gap: 10px; }
-  .note { color: var(--text-3); font-size: 14px; margin: 0; }
+  .note { color: var(--text-3); font-size: 13.5px; margin: 10px 2px 0; }
+  .stage { padding: 0; overflow: hidden; background: var(--bg-2, #0e0e0e); }
+  .stage-bar, .code-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .seg { display: inline-flex; gap: 2px; padding: 3px; border: 1px solid var(--line-2); border-radius: 999px; }
+  .seg button { padding: 5px 14px; border: 0; border-radius: 999px; background: transparent; color: var(--text-2); font: 13px var(--sans); cursor: pointer; white-space: nowrap; }
+  .seg button[aria-selected="true"] { background: var(--text); color: var(--bg); }
+  .seg .file { font: 11.5px var(--mono); opacity: 0.7; margin-left: 4px; }
+  .code-toggle { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line-2); background: transparent; color: var(--text); font: 500 13px var(--sans); cursor: pointer; }
+  .code-toggle[aria-pressed="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+  .stage[data-show="code"] .stage-bar .seg button[aria-selected="true"] { background: transparent; color: var(--text-2); }
+  .stage :global(.preview .tabs) { display: none; }
+  .stage :global(.preview .view-frame .scaler) { margin: 0 auto; }
+  .stage-code { padding: 0 0 14px; }
+  .code-bar { border-bottom: 0; padding-bottom: 0; }
+  .code-actions { display: flex; gap: 16px; align-items: center; }
+  [data-code-pane] { padding: 10px 12px 0; }
+  [data-code-pane] :global(.code-block) { max-height: 760px; overflow: auto; margin: 0; }
   .facts { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 32px; margin-top: 56px; }
   .cg-title { font: 500 12.5px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin: 0 0 14px; }
   .fields { width: 100%; border-collapse: collapse; font-size: 14px; }
@@ -166,12 +230,12 @@ const starter = `kit-${t.kit}-${t.folder}-${t.category}`;
   .more { margin-top: 56px; display: grid; gap: 12px; }
   .more-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
   .more-list a { text-decoration: none; }
-  .t-body:has([data-preview][data-active="pdf"]) { grid-template-columns: minmax(0, 1fr); }
-  .t-body:has([data-preview][data-active="pdf"]) .t-code { display: none; }
-  .t-body:has([data-preview][data-active="pdf"]) .t-preview { position: static; }
+  @media (max-width: 640px) {
+    .seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+    .seg .file { display: none; }
+  }
   @media (max-width: 1000px) {
-    .t-body, .facts { grid-template-columns: minmax(0, 1fr); }
-    .t-preview { position: static; }
+    .facts { grid-template-columns: minmax(0, 1fr); }
     .t-head { flex-direction: column; align-items: flex-start; }
   }
 </style>

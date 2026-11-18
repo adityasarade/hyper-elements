@@ -174,3 +174,49 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(ROOT, "_scripts", "s
   if (out) writeFileSync(out, file);
   else process.stdout.write(file);
 }
+
+const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
+
+/** A value as a JavaScript literal: keys unquoted where they can be, on one line where it's short. */
+function literal(value: unknown, indent: string): string {
+  if (typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "number" || typeof value === "boolean" || value === null) return String(value);
+  if (Array.isArray(value)) {
+    const items = value.map((v) => literal(v, `${indent}  `));
+    const line = `[${items.join(", ")}]`;
+    return line.length <= 72 && !line.includes("\n") ? line : `[\n${items.map((i) => `${indent}  ${i},`).join("\n")}\n${indent}]`;
+  }
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).filter(([, v]) => v !== undefined);
+    const items = entries.map(([k, v]) => `${IDENTIFIER.test(k) ? k : JSON.stringify(k)}: ${literal(v, `${indent}  `)}`);
+    const line = `{ ${items.join(", ")} }`;
+    return line.length <= 72 && !line.includes("\n") ? line : `{\n${items.map((i) => `${indent}  ${i},`).join("\n")}\n${indent}}`;
+  }
+  throw new Error(`can't write ${typeof value} as a literal`);
+}
+
+/** The component's name a design imports a template by: its category, in PascalCase ("sign-in-code" is SignInCode). */
+export const componentName = (category: string) => category.replace(/(^|-)([a-z0-9])/g, (_, __, c: string) => c.toUpperCase());
+
+/** A design made from a template: the template as its root, the values as its props, as a person or an agent writes
+ * one (the brand-templates skill's step 2). It imports the template from `./<category>`. */
+export function designFile(category: string, values: Record<string, unknown>): string {
+  const name = componentName(category);
+  const props = Object.entries(values)
+    .filter(([, v]) => v !== undefined)
+    .map(([key, v]) => (typeof v === "string" && !/["{}<>\n&]/.test(v) ? `${key}="${v}"` : `${key}={${literal(v, "    ")}}`));
+  return [
+    `// design.tsx: a design made from the template, its fields as props. Check it, then render it:`,
+    `//   npx hyper-elements check design.tsx`,
+    `//   npx hyper-elements render design.tsx`,
+    "",
+    `import ${name} from "./${category}";`,
+    "",
+    `export default () => (`,
+    `  <${name}`,
+    ...props.map((p) => `    ${p}`),
+    `  />`,
+    `);`,
+    "",
+  ].join("\n");
+}
