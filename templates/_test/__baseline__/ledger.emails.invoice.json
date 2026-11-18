@@ -1,0 +1,83 @@
+{
+  "casa-albero": {
+    "html": "62159c5b6a7f409a",
+    "text": "2080822e96bc6555",
+    "diagnostics": [
+      "info email/degraded root.props.fonts",
+      "info email/outlook-degraded root.children[0].children[2].style.borderRadius",
+      "info email/outlook-degraded root.children[0].children[3].style.borderRadius"
+    ]
+  },
+  "ember": {
+    "html": "3c479628d725147b",
+    "text": "2bfac22bac057898",
+    "diagnostics": [
+      "info email/degraded root.props.fonts",
+      "info email/outlook-degraded root.children[0].children[2].style.borderRadius",
+      "info email/outlook-degraded root.children[0].children[3].style.borderRadius"
+    ]
+  },
+  "keel": {
+    "html": "35854137bf8b370f",
+    "text": "39ecd12b2ceb259c",
+    "diagnostics": [
+      "info email/degraded root.props.fonts",
+      "info email/outlook-degraded root.children[0].children[1].children[0].style.fontWeight",
+      "info email/outlook-degraded root.children[0].children[2].style.borderRadius"
+    ]
+  },
+  "orbit": {
+    "html": "74c277da828c9202",
+    "text": "e0b135658dd04250",
+    "diagnostics": [
+      "info email/degraded root.props.fonts",
+      "info email/outlook-degraded root.children[0].children[2].style.borderRadius",
+      "info email/outlook-degraded root.children[0].children[3].style.borderRadius"
+    ]
+  },
+  "oyen": {
+    "html": "5f27d6cbe06afa90",
+    "text": "3109afc2418b82c7",
+    "diagnostics": [
+      "info email/degraded root.props.fonts",
+      "info email/outlook-degraded root.children[0].children[2].style.borderRadius",
+      "info email/outlook-degraded root.children[0].children[3].style.borderRadius"
+    ]
+  },
+  "pell-ashby": {
+    "html": "9651978f3c300144",
+    "text": "7539af4abf30b463",
+    "diagnostics": [
+      "info email/degraded root.props.fonts",
+      "info email/outlook-degraded root.children[0].children[2].style.borderRadius",
+      "info email/outlook-degraded root.children[0].children[3].style.borderRadius"
+    ]
+  },
+  "pith": {
+    "html": "6fe6001001396324",
+    "text": "2c7c35a157745623",
+    "diagnostics": [
+      "info email/degraded root.props.fonts",
+      "info email/outlook-degraded root.children[0].children[2].style.borderRadius",
+      "info email/outlook-degraded root.children[0].children[3].style.borderRadius"
+    ]
+  },
+  "quarry": {
+    "html": "c3f8aafa2a0229a1",
+    "text": "9e88fd3433487f7f",
+    "diagnostics": [
+      "info email/degraded root.props.fonts",
+      "info email/outlook-degraded root.children[0].children[1].children[0].style.fontWeight",
+      "info email/outlook-degraded root.children[0].children[2].style.borderRadius"
+    ]
+  },
+  "slow-signals": {
+    "html": "9e51b4c0d4e169cc",
+    "text": "c948a67b458f8cf6",
+    "diagnostics": [
+      "info email/degraded root.props.fonts",
+      "info email/outlook-degraded root.children[0].children[2].style.borderRadius",
+      "info email/outlook-degraded root.children[0].children[3].style.borderRadius"
+    ]
+  }
+}
