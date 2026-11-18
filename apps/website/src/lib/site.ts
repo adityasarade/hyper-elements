@@ -34,9 +34,9 @@ export const mainNav = [
 ];
 
 export const resourcesNav = [
+  { href: "/blog", label: "Blog" },
   { href: "/playground", label: "Playground" },
   { href: "/email-testing", label: "Email testing" },
-  { href: "/blog", label: "Blog" },
 ];
 
 export type DocLink = { slug: string; label: string };
