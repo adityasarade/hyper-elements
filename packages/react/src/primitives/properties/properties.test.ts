@@ -93,6 +93,10 @@ describe("properties where React can't load", () => {
     expect(checkValue(price, "129.50")).toEqual({ ok: true, value: 129.5 });
     expect(checkValue(price, 12)).toEqual({ ok: true, value: 12 });
     expect(checkValue(price, "12p")).toEqual({ ok: false, message: 'expected a number from 0, not "12p"' });
+    // As it's written in decimal: an exponent is, hex isn't; and a number that isn't one isn't a number.
+    expect(checkValue(price, "1e3")).toEqual({ ok: true, value: 1000 });
+    expect(checkValue(price, "0x10")).toEqual({ ok: false, message: 'expected a number from 0, not "0x10"' });
+    expect(checkValue(price, Number("1e"))).toEqual({ ok: false, message: "isn't a number" });
     // An empty field is the prop not given, which one its element needs isn't.
     expect(checkValue(price, "")).toEqual({ ok: true, value: undefined });
     expect(checkValue(prop.number({ label: "Price", required: true }), "")).toEqual({ ok: false, message: "is needed" });
