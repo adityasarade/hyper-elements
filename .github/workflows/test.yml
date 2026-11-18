@@ -136,14 +136,15 @@ jobs:
       # among them), and a color's transparency (355,065 bytes measured); 355,200 bytes for prop's helpers and
       # defineProperty() in modules of their own, apart from defineElement()'s React and render (78 bytes more, each
       # module's path comment; 355,143 measured); 355,600 bytes with main's #266 merged in (a Document's page writer, the
-      # collecting render and render(); 399 bytes more, 355,542 measured).
+      # collecting render and render(); 399 bytes more, 355,542 measured); 356,350 bytes for checkValue(), what a field
+      # holds checked as its prop checks it (758 bytes more, 356,300 measured).
       - name: Check main entry bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
           test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=355600
+          MAX_SIZE=356350
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::Main entry bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -186,13 +187,17 @@ jobs:
       # element with them (an error in the builder's audit), a text the builder gives as HTML (safeHtml) read as typed
       # where its prop takes it only so, and an element its tool can't draw at the room its column leaves it (a theme's
       # token in its render) kept an HTML block by toDesign() (4,310 bytes more; 542,081 measured); 542,200 with main's
-      # #266 merged in (66 bytes more, 542,147 measured).
+      # #266 merged in (66 bytes more, 542,147 measured); 548,100 for the tools' fields keeping only a value their prop
+      # takes (field.ts: registerTools()'s own text field, giving a tool the text as it's typed, and a team's control
+      # checked; what isn't kept said under the field, and an export failing while a field holds it, or naming the block
+      # it can't draw) in place of reading a text the builder gives as HTML, and a value its field can't read refused (7,401 bytes
+      # more, 549,548 measured).
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=542200
+          MAX_SIZE=549600
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
