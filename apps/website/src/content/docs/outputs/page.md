@@ -111,7 +111,7 @@ A `Document` renders to print HTML with the same page writer, plus a CSS `@page`
 
 ## Limits
 
-- The layout gives every box a width in px without measuring text. A box with less room than its words needs overflows on a page. See [Layout](/docs/layout#every-box-gets-a-px-width).
+- The layout gives every box a width in px without measuring text. A box with less room than its words needs overflows on a page. See [Layout](/docs/layout#how-widths-are-worked-out).
 - In a Box's flex rows and grids, a width that depends on its content (an `auto` track, a flex child with no basis) isn't worked out: `outline()` says it "fits its content".
 - Page styles have no phone or hover blocks yet, and a Page has one breakpoint, its phones: a grid that changes on phones uses `repeat(auto-fill, minmax(…))` or `clamp()` for now.
 - `validate()` reports what a page can't show as asked (`web/unsupported`).
