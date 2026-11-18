@@ -1,0 +1,145 @@
+---
+import Base from "../../../../layouts/Base.astro";
+import BrandSwitch from "../../../../components/BrandSwitch.astro";
+import CodeBlock from "../../../../components/CodeBlock.astro";
+import Preview from "../../../../components/Preview.astro";
+import { brandsFor, kitCategories, kitList, kitTemplates, kitUrl, templateUrl, type TemplateInfo } from "../../../../lib/kits";
+
+export function getStaticPaths() {
+  return kitTemplates.map((t) => ({ params: { kit: t.kit, root: t.folder, category: t.category }, props: { t } }));
+}
+const { t } = Astro.props as { t: TemplateInfo };
+const kit = kitList.find((k) => k.id === t.kit)!;
+const category = kitCategories[t.category];
+const list = brandsFor(t);
+const siblings = kitTemplates.filter((o) => o.kit === t.kit && o.key !== t.key);
+const others = kitTemplates.filter((o) => o.category === t.category && o.kit !== t.kit);
+const views = t.root === "Document" ? (["desktop", "pdf", "text", "diagnostics"] as const) : t.root === "Canvas" ? (["image", "outline", "diagnostics"] as const) : (["desktop", "phone", "text", "diagnostics", "html"] as const);
+const width = t.root === "Page" ? 1200 : t.root === "Document" ? 820 : 680;
+const file = `${t.category}.tsx`;
+const fn = t.label.replace(/[^A-Za-z]/g, "");
+const usage =
+  t.root === "Document"
+    ? `// npm i @hyper-elements/react @hyper-elements/lint @react-pdf/renderer\nimport { renderPdf, templateAssets } from "@hyper-elements/react/pdf";\nimport ${fn} from "./${t.category}";\n\nconst checked = ${fn}.check(values, { format: "${t.formats[0] ?? ""}" });\nconst snapshot = checked.snapshots.${t.formats[0] ?? "default"};\n// The engine fetches nothing: load the bytes of each font in the brand block, and of each image it lists.\nconst images = await load(templateAssets(snapshot).images);\nconst { pdf } = await renderPdf(snapshot, { fonts: brandFonts, images });`
+    : t.root === "Canvas"
+      ? `// npm i @hyper-elements/react satori @resvg/resvg-js\nimport { renderImage, templateAssets } from "@hyper-elements/react/image";\nimport ${fn} from "./${t.category}";\n\nconst checked = ${fn}.check(values, { format: "${t.formats[0] ?? ""}" });\nconst snapshot = checked.snapshots.${t.formats[0] ?? "default"};\n// The engine fetches nothing: load the bytes of each font in the brand block, and of each image it lists.\nconst images = await load(templateAssets(snapshot).images);\nconst { image } = await renderImage(snapshot, { fonts: brandFonts, images });`
+      : `// npm i @hyper-elements/react @hyper-elements/lint\nimport { render } from "@hyper-elements/react";\nimport ${fn} from "./${t.category}";\n\nconst checked = ${fn}.check(values);\nif (!checked.valid) throw new Error(checked.diagnostics.map((d) => d.message).join("\\n"));\nconst { html, text } = await render(checked.snapshots.default);`;
+const starter = `kit-${t.kit}-${t.folder}-${t.category}`;
+---
+<Base title={`${t.label}: ${kit.name}`} description={`${t.description}. A ${t.output.toLowerCase()} template in the ${kit.name} kit, previewed in each sample brand, with one file to copy.`}>
+  <section class="t-hero">
+    <div class="wrap">
+      <a class="back" href="/templates">← Templates</a>
+      <div class="t-head">
+        <div>
+          <p class="eyebrow">{category.group} · {category.label}</p>
+          <h1 class="h-page" style="margin:0 0 10px">{t.label}</h1>
+          <p class="lede">{t.description}.</p>
+          <p class="meta">In the <a href={kitUrl(t.kit)}>{kit.name}</a> kit · by {t.author} · <a href={`https://github.com/hyper-elements/hyper-elements/blob/main/${t.file}`}>source on GitHub</a></p>
+        </div>
+        <span class="chip">{t.output}</span>
+      </div>
+      <div class="t-switch"><BrandSwitch brands={list} /></div>
+    </div>
+  </section>
+  <div class="wrap t-body">
+    <div class="t-preview panel">
+      {list.map((b, i) => (
+        <div data-brand={b.id} hidden={i !== 0}>
+          {(t.formats.length ? (t.root === "Canvas" ? t.formats : [t.formats[0]]) : ["default"]).map((format) => {
+            const ex = t.byBrand[b.id]?.views[format];
+            return ex && (
+              <div class="format">
+                {t.formats.length > 1 && <p class="format-name">{format}</p>}
+                <Preview example={ex} views={[...views]} width={width} height={t.root === "Canvas" ? 560 : 760} />
+              </div>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+    <div class="t-code">
+      <div class="actions">
+        <a class="btn" href={`/playground#starter=${starter}`}>Open in the playground</a>
+      </div>
+      {list.map((b, i) => (
+        <div data-brand={b.id} hidden={i !== 0}>
+          <CodeBlock code={t.byBrand[b.id]?.single ?? ""} file={file} />
+        </div>
+      ))}
+      <p class="note">One file, which imports only Elements' own packages. Replace the block between <code>// brand: start</code> and <code>// brand: end</code> with your own brand: its colors, fonts, logo and links.</p>
+      <CodeBlock code={usage} file="render.ts" />
+    </div>
+  </div>
+  <section class="wrap facts">
+    <div>
+      <h2 class="cg-title">Fields</h2>
+      <table class="fields">
+        <thead><tr><th>Field</th><th>Kind</th><th></th></tr></thead>
+        <tbody>
+          {t.fields.map((f) => (
+            <tr>
+              <td><code>{f.path}</code><span class="flabel">{f.label}</span></td>
+              <td>{f.kind}</td>
+              <td>{f.required ? "required" : "optional"}{f.fromCategory ? ` · every ${category.label.toLowerCase()} takes it` : ""}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <h2 class="cg-title">Rules it holds to</h2>
+      <ul class="rules">
+        {t.rules.lint.map((r) => <li><code>{r.id}</code> {r.summary}</li>)}
+        {t.rules.core.map((r) => <li><code>{r.code}</code></li>)}
+        {t.rules.links?.domains && <li>Links go only to the brand's own domains.</li>}
+      </ul>
+      <h2 class="cg-title">When to use it</h2>
+      <p class="when">{category.useWhen}. Not for: {category.avoidWhen.charAt(0).toLowerCase() + category.avoidWhen.slice(1)}.</p>
+      {t.guidance && <p class="when">{t.guidance}</p>}
+    </div>
+  </section>
+  {(siblings.length > 0 || others.length > 0) && (
+    <section class="wrap more">
+      {siblings.length > 0 && <><h2 class="cg-title">More in {kit.name}</h2><div class="more-list">{siblings.map((o) => <a class="chip" href={templateUrl(o)}>{o.label}</a>)}</div></>}
+      {others.length > 0 && <><h2 class="cg-title">Other {category.label.toLowerCase()} templates</h2><div class="more-list">{others.map((o) => <a class="chip" href={templateUrl(o)}>{kitList.find((k) => k.id === o.kit)?.name}</a>)}</div></>}
+    </section>
+  )}
+</Base>
+
+<style>
+  .t-hero { padding: 48px 0 24px; }
+  .back { color: var(--text-3); text-decoration: none; font-size: 14px; display: inline-block; margin-bottom: 20px; }
+  .back:hover { color: var(--text); }
+  .t-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; }
+  .meta { color: var(--text-3); font-size: 14px; margin: 8px 0 0; }
+  .meta a { color: var(--text-2); }
+  .t-switch { margin-top: 24px; }
+  .t-body { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .t-preview { overflow: hidden; background: #0e0e0e; position: sticky; top: calc(var(--header) + 16px); }
+  .format + .format { border-top: 1px solid var(--line); }
+  .format-name { font: 12px var(--mono); color: var(--text-3); margin: 10px 14px 0; text-transform: uppercase; letter-spacing: 0.08em; }
+  .t-code { display: grid; gap: 16px; min-width: 0; }
+  .actions { display: flex; gap: 10px; }
+  .note { color: var(--text-3); font-size: 14px; margin: 0; }
+  .facts { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 32px; margin-top: 56px; }
+  .cg-title { font: 500 12.5px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin: 0 0 14px; }
+  .fields { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .fields th { text-align: left; color: var(--text-3); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  .fields td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--text-2); }
+  .flabel { display: block; color: var(--text-3); font-size: 13px; }
+  .rules { padding-left: 18px; color: var(--text-2); font-size: 14px; margin: 0 0 24px; }
+  .rules li { margin-bottom: 6px; }
+  .when { color: var(--text-2); font-size: 14px; }
+  .more { margin-top: 56px; display: grid; gap: 12px; }
+  .more-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .more-list a { text-decoration: none; }
+  .t-body:has([data-preview][data-active="pdf"]) { grid-template-columns: minmax(0, 1fr); }
+  .t-body:has([data-preview][data-active="pdf"]) .t-code { display: none; }
+  .t-body:has([data-preview][data-active="pdf"]) .t-preview { position: static; }
+  @media (max-width: 1000px) {
+    .t-body, .facts { grid-template-columns: minmax(0, 1fr); }
+    .t-preview { position: static; }
+    .t-head { flex-direction: column; align-items: flex-start; }
+  }
+</style>
