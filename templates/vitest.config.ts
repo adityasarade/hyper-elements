@@ -1,6 +1,6 @@
 import { defineConfig } from "vitest/config";
 
-// The templates are tested against the built packages (`pnpm build` first), as a project that copies one would use them.
+// The designs are tested against the built packages (`pnpm build` first), as a project that copies one would use them.
 export default defineConfig({
   esbuild: { jsx: "automatic" },
   test: {

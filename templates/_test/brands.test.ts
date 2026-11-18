@@ -5,7 +5,7 @@ import { brands } from "./discover";
 import { contractOnly } from "./probes";
 
 for (const { id, brand } of await brands()) {
-  it(`${id} is a brand every template can take`, () => {
+  it(`${id} is a brand every design can take`, () => {
     expect(checkBrand(brand)).toEqual([]);
     expect(checkBrand(contractOnly(brand))).toEqual([]);
     // Its logo and fonts are files in this folder.

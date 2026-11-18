@@ -36,11 +36,11 @@ const brandOf = () => {
 const kitName = (id: string) => kitList.find((k) => k.id === id)?.name ?? id;
 const several = kitList.filter((k) => kitTemplates.filter((t) => t.kit === k.id).length > 1);
 ---
-<Base title="Templates" description="Ready-made templates for emails, web pages, PDFs and images, with their guardrails set. Each takes your brand: see it in the sample brands, and copy one file.">
+<Base title="Templates" description="Ready-made designs for emails, web pages, PDFs and images, in plain JSX. Each takes your brand: see it in the sample brands, and copy it.">
   <section class="t-hero">
     <div class="gwrap">
       <h1>Templates</h1>
-      <p>Emails, pages, PDFs and images with the guardrails set. Copy one file, put your brand at its top. <a href="https://github.com/hyper-elements/hyper-elements/blob/main/templates/CONTRIBUTING.md">Contribute one</a></p>
+      <p>Emails, pages, PDFs and images in plain JSX, tested in every brand. Copy one and put your brand in it. <a href="https://github.com/hyper-elements/hyper-elements/blob/main/templates/CONTRIBUTING.md">Contribute one</a></p>
     </div>
   </section>
 

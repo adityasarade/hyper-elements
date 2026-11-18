@@ -1,26 +1,27 @@
 /**
- * Writes `templates/README.md` from the folder: every template by group and category, the kits, and the sample brands.
+ * Writes `templates/README.md` from the folder: every design by group and category, the kits, and the sample brands.
  *   pnpm --filter ./templates readme
  */
 import { writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { ROOT } from "./assets";
-import { brands, categories, kits, templates } from "../_test/discover";
+import { brands, categories, designs, kits } from "../_test/discover";
 
 const GROUPS = ["Account", "Billing", "Orders", "Launches", "Content", "Events", "Social", "People", "Records", "Marketing"];
 const OUTPUT = { emails: "email", pages: "page", documents: "PDF", images: "image" } as const;
 
 export async function readme(): Promise<string> {
-  const [all, cats, kitList, brandList] = [await templates(), await categories(), await kits(), await brands()];
+  const [all, cats, kitList, brandList] = [await designs(), await categories(), await kits(), await brands()];
   const lines = [
     "# Templates",
     "",
-    "Ready-made [Hyper Elements](https://hyperelements.dev) templates: emails, web pages, PDFs and images with their guardrails",
-    "already set (required checks, link rules, image limits, text that fits). None of them carries a brand: each takes its",
-    "colors, fonts, logo and company details from a brand it's given.",
+    "Ready-made [Hyper Elements](https://hyperelements.dev) designs: emails, web pages, PDFs and images, each one plain JSX",
+    "of Elements' own elements. None of them carries a brand: each takes its colors, fonts, logo and company details",
+    "from a brand it's given, and is tested in every sample brand for readable text and a layout that fits.",
     "",
     "**To use one,** open it on [hyperelements.dev/templates](https://hyperelements.dev/templates), pick a sample brand,",
-    "and copy its file. It imports only Elements' own packages. Replace the brand block at its top with your own brand.",
+    "and copy it with its `brand.ts` (or as one file). It imports only Elements' own packages. Put your own brand in",
+    "`brand.ts`, and change anything else you like.",
     "",
     "**To add one,** see [CONTRIBUTING.md](./CONTRIBUTING.md).",
     "",
@@ -42,12 +43,12 @@ export async function readme(): Promise<string> {
     }
     lines.push("");
   }
-  lines.push("## Kits", "", "| Kit | What it is | Templates | By |", "|---|---|---|---|");
+  lines.push("## Kits", "", "| Kit | What it is | Designs | By |", "|---|---|---|---|");
   for (const k of kitList) {
     const mine = all.filter((t) => t.kit === k.id).map((t) => `\`${t.folder}/${t.category}\``).join(", ");
     lines.push(`| [${k.kit.name}](./${k.id}) | ${k.kit.description} | ${mine} | ${k.kit.author} |`);
   }
-  lines.push("", "## Sample brands", "", "Every template is tested in each of these invented brands. None is a real company.", "");
+  lines.push("", "## Sample brands", "", "Every design is tested in each of these invented brands. None is a real company.", "");
   for (const { id, brand } of brandList) lines.push(`- **${brand.name}** ([\`_brands/${id}.ts\`](./_brands/${id}.ts))`);
   lines.push("");
   return lines.join("\n");

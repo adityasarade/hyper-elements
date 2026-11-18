@@ -1,36 +1,32 @@
 import { ASSETS } from "../_brand";
 import { brand as orbit } from "../_brands/orbit";
-import { kits, templates } from "./discover";
+import { designs, kits } from "./discover";
+import { treeFacts } from "./tree";
 import { recreationProblems } from "./recreations";
 
-/** Every image a kit's templates name in their examples, in the first sample brand, and the kit's brand's logo. */
-async function imagesOf(kit: string): Promise<string[]> {
+/** Every image a kit's designs show in the kit's own brand (the first sample's otherwise), but the brand's logo. */
+async function imagesOf(kit: string, brand = orbit): Promise<string[]> {
   const out = new Set<string>();
-  const walk = (value: unknown) => {
-    if (value && typeof value === "object") {
-      const src = (value as { src?: unknown }).src;
-      if (typeof src === "string" && src.startsWith(ASSETS)) out.add(src);
-      for (const inner of Object.values(value)) walk(inner);
-    }
-  };
-  for (const t of (await templates()).filter((x) => x.kit === kit)) walk(t.make(orbit).example);
+  for (const t of (await designs()).filter((x) => x.kit === kit)) {
+    for (const src of treeFacts(<t.Design brand={brand} />).images) if (src.startsWith(ASSETS) && src !== brand.logo.src) out.add(src);
+  }
   return [...out];
 }
 
 for (const k of await kits()) {
   it(`${k.id} holds to the recreation rules`, async () => {
-    const mine = (await templates()).filter((t) => t.kit === k.id);
-    const metas = await Promise.all(mine.map(async (t) => ({ file: `${t.kit}/${t.folder}/${t.category}.tsx`, meta: (await import(t.file)).meta })));
-    const images = await imagesOf(k.id);
+    const mine = (await designs()).filter((t) => t.kit === k.id);
+    const metas = mine.map((t) => ({ file: `${t.key}.tsx`, meta: t.meta }));
+    const images = await imagesOf(k.id, k.brand);
     if (k.brand) images.push(k.brand.logo.src);
-    expect(recreationProblems({ kit: k.id, ...(k.kit.recreates ? { recreates: k.kit.recreates } : {}), ...(k.brand ? { brand: k.brand } : {}), templates: metas, images })).toEqual([]);
+    expect(recreationProblems({ kit: k.id, ...(k.kit.recreates ? { recreates: k.kit.recreates } : {}), ...(k.brand ? { brand: k.brand } : {}), designs: metas, images })).toEqual([]);
   });
 }
 
 describe("the rules themselves", () => {
   const logo = `${ASSETS}recreations/acme/logo.png`;
   const brand = { ...orbit, name: "Acme", logo: { ...orbit.logo, src: logo } };
-  const good = { kit: "acme", recreates: { company: "Acme" }, brand, templates: [{ file: "acme/emails/welcome.tsx", meta: { recreates: { what: "Welcome email", original: "https://example.com/archive/acme-welcome" } } }], images: [logo] };
+  const good = { kit: "acme", recreates: { company: "Acme" }, brand, designs: [{ file: "acme/emails/welcome.tsx", meta: { recreates: { what: "Welcome email", original: "https://example.com/archive/acme-welcome" } } }], images: [logo] };
 
   it("pass a recreation kit with its brand, what each template rebuilds and where the original is", () => {
     expect(recreationProblems(good)).toEqual([]);
@@ -38,8 +34,8 @@ describe("the rules themselves", () => {
   it("fail a recreation without its company's brand, or without saying what it rebuilds and where the original is", () => {
     const { brand: _, ...noBrand } = good;
     expect(recreationProblems(noBrand).join("\n")).toMatch(/a recreation kit has its company's brand/);
-    expect(recreationProblems({ ...good, templates: [{ file: "acme/emails/welcome.tsx", meta: { recreates: { what: "", original: "" } } }] }).join("\n")).toMatch(/what it rebuilds[\s\S]*where the original/);
-    expect(recreationProblems({ ...good, templates: [{ file: "acme/emails/welcome.tsx", meta: { recreates: { what: "Welcome", original: "http://example.com" } } }] }).join("\n")).toMatch(/an https address/);
+    expect(recreationProblems({ ...good, designs: [{ file: "acme/emails/welcome.tsx", meta: { recreates: { what: "", original: "" } } }] }).join("\n")).toMatch(/what it rebuilds[\s\S]*where the original/);
+    expect(recreationProblems({ ...good, designs: [{ file: "acme/emails/welcome.tsx", meta: { recreates: { what: "Welcome", original: "http://example.com" } } }] }).join("\n")).toMatch(/an https address/);
   });
   it("fail a recreation's image outside its own folder", () => {
     expect(recreationProblems({ ...good, images: [logo, `${ASSETS}kits/signal/artwork.png`] }).join("\n")).toMatch(/outside .*recreations\/acme\//);

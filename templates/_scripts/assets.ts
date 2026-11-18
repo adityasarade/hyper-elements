@@ -31,7 +31,7 @@ export function fontFiles(brand: Brand): Array<{ family: string; src: Uint8Array
   return brand.fonts.map((face) => ({ family: face.family, src: assetBytes(face.src), weight: face.weight, style: face.style }));
 }
 
-/** The bytes of every image a template names, by address, for `renderPdf()` and `renderImage()`. */
+/** The bytes of every image a design shows, by address, for `renderPdf()` and `renderImage()`. */
 export function imageFiles(urls: readonly string[]): Record<string, Uint8Array> {
   return Object.fromEntries(urls.map((url) => [url, assetBytes(url)]));
 }

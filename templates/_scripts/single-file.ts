@@ -1,10 +1,10 @@
 /**
- * One self-contained file per template and brand, for anyone to copy: the `Brand` type written locally, the brand's
- * block between `// brand: start` and `// brand: end`, the category's and the kit's parts' declarations inlined, the
- * imports merged (React's and Elements' only), and `export default <factory>(brand);` at the end.
+ * A design as the site gives it to copy: one self-contained file per design and brand (the `Brand` type written
+ * locally, the brand's block between `// brand: start` and `// brand: end`, the design, the imports merged, and
+ * `export default` drawing the design in the brand), or as two files, the design and its `brand.ts`.
  *
- * It relies on the folder's grammar (templates/CONTRIBUTING.md): named declarations only in categories and parts, no
- * renamed imports, no colliding names, and a brand file of one `export const brand: Brand = { … }`.
+ * It relies on the folder's grammar (templates/CONTRIBUTING.md): a design imports only packages and `_brand.ts`'s
+ * types, with no renamed imports, and a brand file is one `export const brand: Brand = { … }`.
  *
  *   pnpm --filter ./templates single-file <kit>/<root folder>/<category> <brand> [out-file]
  */
@@ -91,25 +91,24 @@ function brandTypes(into: Imports): string {
     .join("\n\n");
 }
 
-/** What a template's file holds apart from a brand: its imports, the category's and the kit's parts' declarations,
- * and its own body. */
-function templatePieces(templateFile: string): { imports: Imports; inlined: string[]; body: string; defaultName: string } {
+/** A design's component as the site gives it: taking no props, its brand from the module's scope (`./brand`, or the
+ * single file's own block), as `template extract` takes one. */
+const PROPS = /\(\{ brand \}: \{ brand: Brand \}\)/;
+function withoutProps(text: string, file: string): string {
+  if (!PROPS.test(text)) throw new Error(`${file}: the design's component takes ({ brand }: { brand: Brand })`);
+  return text.replace(PROPS, "()");
+}
+
+/** A design file's imports, its statements but its imports (its default export a plain function), and the name of
+ * the component it exports. */
+function designPieces(designFile: string): { imports: Imports; body: string; name: string } {
   const imports: Imports = { values: new Map(), types: new Map() };
-  const template = parse(templateFile);
-  const locals = importsOf(template, imports);
-  const inlined: string[] = [];
-  for (const local of locals) {
-    const file = [local, `${local}.ts`, `${local}.tsx`].find((f) => /\.(tsx?)$/.test(f) && safeRead(f));
-    if (!file) throw new Error(`${templateFile}: can't find ${local}`);
-    if (resolve(file) === resolve(ROOT, "_brand.ts")) continue;
-    const source = parse(file);
-    const nested = importsOf(source, imports).filter((path) => resolve(`${path}.ts`) !== resolve(ROOT, "_brand.ts"));
-    if (nested.length) throw new Error(`${file}: a category or a kit's parts import only packages and _brand.ts`);
-    inlined.push(`// From ${relative(ROOT, file)}\n${bodyOf(source).text.trim()}`);
-  }
-  const { text: body, defaultName } = bodyOf(template);
-  if (!defaultName) throw new Error(`${templateFile}: no default export`);
-  return { imports, inlined, body: body.trim(), defaultName };
+  const source = parse(designFile);
+  const locals = importsOf(source, imports);
+  for (const local of locals) if (resolve(local) !== resolve(ROOT, "_brand")) throw new Error(`${designFile}: a design imports only packages and _brand.ts's types`);
+  const { text: body, defaultName } = bodyOf(source);
+  if (!defaultName) throw new Error(`${designFile}: no default export`);
+  return { imports, body: body.trim(), name: defaultName };
 }
 
 /** The import lines for what `imports` holds: React's first, then by module. */
@@ -125,28 +124,29 @@ function importLines(imports: Imports): string {
   return lines.join("\n");
 }
 
-/** The copyable file for a template (`<kit>/<root folder>/<category>.tsx`) in a brand (a brand file). */
-export function singleFile(templateFile: string, brandFile: string): string {
-  const { imports, inlined, body, defaultName } = templatePieces(templateFile);
+/** The copyable file for a design (`<kit>/<root folder>/<category>.tsx`) in a brand (a brand file). */
+export function singleFile(designFile: string, brandFile: string): string {
+  const { imports, body, name } = designPieces(designFile);
   const types = brandTypes(imports);
   const block = brandBlock(brandFile, imports);
-  const header = `// ${relative(ROOT, templateFile)}, from hyperelements.dev/templates. Replace the brand block with your own brand.`;
-  return [header, importLines(imports), types, block, ...inlined, `// The template\n${body}`, `export default ${defaultName}(brand);`].join("\n\n") + "\n";
+  const header = `// ${relative(ROOT, designFile)}, from hyperelements.dev/templates. Replace the brand block with your own brand.`;
+  return [header, importLines(imports), types, block, `// The design\n${withoutProps(body, designFile)}`, `export default ${name};`].join("\n\n") + "\n";
 }
 
-/** The same template as two files: its code, which imports the brand from `./brand`, and that `brand.ts`. Together
- * they're the single file, with the brand kept apart (what a template's page shows first). */
-export function splitFiles(templateFile: string, brandFile: string): { code: string; brand: string } {
-  const { imports, inlined, body, defaultName } = templatePieces(templateFile);
-  const header = `// ${relative(ROOT, templateFile)}, from hyperelements.dev/templates. Your brand is in ./brand.ts.`;
-  const code = [header, `${importLines(imports)}\nimport { brand, type Brand } from "./brand";`, ...inlined, `// The template\n${body}`, `export default ${defaultName}(brand);`].join("\n\n") + "\n";
+/** The same design as two files: the design, which takes its brand from `./brand`, and that `brand.ts`. Together
+ * they're the single file, with the brand kept apart (what a design's page shows). */
+export function splitFiles(designFile: string, brandFile: string): { code: string; brand: string } {
+  const { name } = designPieces(designFile);
+  const text = withoutProps(readFileSync(designFile, "utf8").replace('import type { Brand } from "../../_brand";', 'import { brand } from "./brand";'), designFile);
+  const header = `// ${relative(ROOT, designFile)}, from hyperelements.dev/templates. Render it with render(<${name} />) from\n// "@hyper-elements/react"; your brand goes in ./brand.ts.`;
+  const code = `${header}\n\n${text}`;
   const brandImports: Imports = { values: new Map(), types: new Map() };
   const types = brandTypes(brandImports).replace(/^((?:\/\*\*[\s\S]*?\*\/\s*)?)type /gm, "$1export type ");
   const block = brandBlock(brandFile, brandImports)
     .replace("const brand: Brand", "export const brand: Brand")
     .replace(/^\/\/ brand: (start|end).*\n?/gm, "")
     .trim();
-  const brand = [`// brand.ts: your brand, which the template draws in. Every value below is used.`, importLines(brandImports), types, block].join("\n\n") + "\n";
+  const brand = [`// brand.ts: your brand, which the design draws in. Every value below is used.`, importLines(brandImports), types, block].join("\n\n") + "\n";
   return { code, brand };
 }
 
@@ -175,48 +175,3 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(ROOT, "_scripts", "s
   else process.stdout.write(file);
 }
 
-const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
-
-/** A value as a JavaScript literal: keys unquoted where they can be, on one line where it's short. */
-function literal(value: unknown, indent: string): string {
-  if (typeof value === "string") return JSON.stringify(value);
-  if (typeof value === "number" || typeof value === "boolean" || value === null) return String(value);
-  if (Array.isArray(value)) {
-    const items = value.map((v) => literal(v, `${indent}  `));
-    const line = `[${items.join(", ")}]`;
-    return line.length <= 72 && !line.includes("\n") ? line : `[\n${items.map((i) => `${indent}  ${i},`).join("\n")}\n${indent}]`;
-  }
-  if (typeof value === "object") {
-    const entries = Object.entries(value as Record<string, unknown>).filter(([, v]) => v !== undefined);
-    const items = entries.map(([k, v]) => `${IDENTIFIER.test(k) ? k : JSON.stringify(k)}: ${literal(v, `${indent}  `)}`);
-    const line = `{ ${items.join(", ")} }`;
-    return line.length <= 72 && !line.includes("\n") ? line : `{\n${items.map((i) => `${indent}  ${i},`).join("\n")}\n${indent}}`;
-  }
-  throw new Error(`can't write ${typeof value} as a literal`);
-}
-
-/** The component's name a design imports a template by: its category, in PascalCase ("sign-in-code" is SignInCode). */
-export const componentName = (category: string) => category.replace(/(^|-)([a-z0-9])/g, (_, __, c: string) => c.toUpperCase());
-
-/** A design made from a template: the template as its root, the values as its props, as a person or an agent writes
- * one (the brand-templates skill's step 2). It imports the template from `./<category>`. */
-export function designFile(category: string, values: Record<string, unknown>): string {
-  const name = componentName(category);
-  const props = Object.entries(values)
-    .filter(([, v]) => v !== undefined)
-    .map(([key, v]) => (typeof v === "string" && !/["{}<>\n&]/.test(v) ? `${key}="${v}"` : `${key}={${literal(v, "    ")}}`));
-  return [
-    `// design.tsx: a design made from the template, its fields as props. Check it, then render it:`,
-    `//   npx hyper-elements check design.tsx`,
-    `//   npx hyper-elements render design.tsx`,
-    "",
-    `import ${name} from "./${category}";`,
-    "",
-    `export default () => (`,
-    `  <${name}`,
-    ...props.map((p) => `    ${p}`),
-    `  />`,
-    `);`,
-    "",
-  ].join("\n");
-}

@@ -1,27 +1,27 @@
 /**
- * Every template, in every sample brand (and a recreation kit's own), in every format, by its root's path:
+ * Every design, in every sample brand (and a recreation kit's own), by its root's path:
  *
- * - Email, Page: check(), then render() of the snapshot. An Email renders with the email client checks.
- * - Document: check(), render() for print HTML, then renderPdf() with the brand's fonts and the images it names.
- * - Canvas: check(), renderImage() with the fonts and images, then layoutImage(), sniffImage() and checkLayout() on the
- *   real files, as the CLI does.
+ * - Email, Page: render(). An Email renders with the email client checks, and both with the lint rules.
+ * - Document: render() for print HTML, then renderPdf() with the brand's fonts and the images it names.
+ * - Canvas: renderImage() with the fonts and images, and layoutImage(), strict, for what doesn't fit.
  *
  * And for each: the neutral and pair checks with the probe brands, the contrast check with the real brand, a brand of the
- * contract's tokens only, the category's fields, and a baseline of what was written.
+ * contract's tokens only, no other brand's name or site in it, and a baseline of what was written.
  */
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { render, validate, type Diagnostic } from "@hyper-elements/react";
-import { checkLayout, sniffImage, type SniffedImage, type Template } from "@hyper-elements/react/template";
 import { layoutImage, renderImage, templateAssets as imageAssets } from "@hyper-elements/react/image";
 import { renderPdf, templateAssets as pdfAssets } from "@hyper-elements/react/pdf";
 import { emailClients } from "@hyper-elements/email-clients";
+import { lint } from "@hyper-elements/lint";
 import type { Brand } from "../_brand";
-import { ROOT, assetBytes, fontFiles, imageFiles } from "../_scripts/assets";
+import { ROOT, fontFiles, imageFiles } from "../_scripts/assets";
 import { checker, type Finding } from "./checks";
-import { brands, categories, kits, templates } from "./discover";
+import { brands, categories, designs, kits } from "./discover";
 import { PROBES, contractOnly, tokenNames } from "./probes";
+import { treeFacts } from "./tree";
 
 const UPDATE = process.env.UPDATE_TEMPLATES === "1";
 const BASELINE = join(ROOT, "_test", "__baseline__");
@@ -29,123 +29,98 @@ const BASELINE = join(ROOT, "_test", "__baseline__");
 const EMAIL_LOSS = ["email/image-format", "email/size", "email/style-size"];
 /** A PDF that couldn't draw a font or an image falls back, and says so: here, that fails. */
 const PDF_LOSS = ["pdf/font", "pdf/image"];
+/** What the layout can't hold: content past its box, past the canvas, a character no font has, text that doesn't fit. */
+const DOESNT_FIT = ["layout/overflow", "document/overflow", "canvas/overflow", "image/overflow", "image/glyph", "image/fit"];
+/** The lint rules every design holds to. */
+const READABLE = ["contrast", "text-size", "link-text", "alt-text"].flatMap((rule) => [`email/lint-${rule}`, `page/lint-${rule}`]);
 
-const [all, sampleBrands, cats, kitList] = [await templates(), await brands(), await categories(), await kits()];
+const [all, sampleBrands, cats, kitList] = [await designs(), await brands(), await categories(), await kits()];
 const clients = await emailClients();
 const sha = (text: string | Uint8Array) => createHash("sha256").update(text).digest("hex").slice(0, 16);
 const codes = (ds: readonly Diagnostic[]) => ds.map((d) => `${d.severity} ${d.code} ${d.path}`).sort();
-const formatsOf = (tpl: Template) => (tpl.formats ? Object.keys(tpl.formats) : [undefined]);
-const at = (format: string | undefined) => (format === undefined ? {} : { format });
+const failing = (ds: readonly Diagnostic[], list: string[]) => codes(ds.filter((d) => list.includes(d.code)));
 
-/** The brands a template is drawn in: the samples, and its kit's company brand where it's a recreation. */
+/** The brands a design is drawn in: the samples, and its kit's company brand where it's a recreation. */
 function brandsFor(kit: string): Array<{ id: string; brand: Brand }> {
   const own = kitList.find((k) => k.id === kit)?.brand;
   return own ? [{ id: `${kit} (original)`, brand: own }, ...sampleBrands] : sampleBrands;
 }
 
-/** Each image field's file, sniffed, by its field path. */
-function sniffed(tpl: Template, values: Record<string, unknown>): Record<string, SniffedImage> {
-  const files: Record<string, SniffedImage> = {};
-  for (const field of tpl.describe().fields) {
-    if (field.kind !== "image" || field.path.includes("[")) continue;
-    const value = values[field.path] as { src?: string } | string | undefined;
-    const src = typeof value === "string" ? value : value?.src;
-    const file = src && sniffImage(assetBytes(src));
-    if (file) files[field.path] = file;
-  }
-  return files;
-}
-
 const baseline: Record<string, Record<string, unknown>> = {};
 
 for (const t of all) {
-  describe(t.id, () => {
+  const { Design } = t;
+  describe(t.key, () => {
     const file = join(BASELINE, `${t.kit}.${t.folder}.${t.category}.json`);
     const recorded: Record<string, unknown> = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
     baseline[file] = {};
 
-    it("has the id its path gives, and its category's fields", () => {
-      const tpl = t.make(sampleBrands[0].brand);
-      expect(tpl.id).toBe(t.id);
-      expect(tpl.root).toBe(t.root);
+    it("says what it is, has its folder's root, and is in a category that takes it", () => {
+      expect(typeof t.meta?.label, "meta.label").toBe("string");
+      expect(typeof t.meta?.description, "meta.description").toBe("string");
+      expect(treeFacts(<Design brand={sampleBrands[0].brand} />).root).toBe(t.root);
       const category = cats.find((c) => c.id === t.category);
       expect(category, `templates/_categories/${t.category}.ts`).toBeDefined();
       expect(category!.category.roots as string[]).toContain(t.root);
-      const required = category!.category.required as Record<string, { kind: { name: string } }>;
-      for (const [key, spec] of Object.entries(required)) {
-        const own = (tpl.fields as Record<string, { kind?: { name: string } }>)[key];
-        expect(own, `${t.id} takes ${key}`).toBeDefined();
-        expect(own.kind?.name, `${t.id}'s ${key}`).toBe(spec.kind.name);
-      }
     });
 
-    for (const { id: brandId, brand } of brandsFor(t.kit)) {
-      for (const format of formatsOf(t.make(brand))) {
-        const name = format ? `${brandId}, ${format}` : brandId;
+    for (const { id: name, brand } of brandsFor(t.kit)) {
+      it(`renders in ${name}`, async () => {
+        const design = <Design brand={brand} />;
+        let entry: Record<string, unknown>;
+        if (t.root === "Email" || t.root === "Page") {
+          const out = await render(design, { plugins: t.root === "Email" ? [clients, lint()] : [lint()] });
+          expect(failing(out.diagnostics, EMAIL_LOSS), "content email clients lose").toEqual([]);
+          expect(failing(out.diagnostics, [...DOESNT_FIT, ...READABLE]), "what doesn't fit or read").toEqual([]);
+          entry = { html: sha(out.html), text: sha(out.text ?? ""), diagnostics: codes(out.diagnostics) };
+        } else if (t.root === "Document") {
+          const out = await render(design);
+          const pdf = await renderPdf(design, { fonts: fontFiles(brand), images: imageFiles(pdfAssets(design).images) });
+          expect(failing(pdf.diagnostics, PDF_LOSS), "what the PDF couldn't draw").toEqual([]);
+          expect(failing([...out.diagnostics, ...pdf.diagnostics], DOESNT_FIT), "what doesn't fit").toEqual([]);
+          entry = { html: sha(out.html), text: sha(out.text ?? ""), diagnostics: codes([...out.diagnostics, ...pdf.diagnostics]) };
+        } else {
+          const fonts = fontFiles(brand);
+          const images = imageFiles(imageAssets(design).images);
+          const image = await renderImage(design, { fonts, images });
+          const layout = await layoutImage(design, { fonts, images, strict: true });
+          expect(codes(layout.diagnostics.filter((d) => d.severity === "error")), "layoutImage()").toEqual([]);
+          expect(failing([...image.diagnostics, ...layout.diagnostics], DOESNT_FIT), "what doesn't fit").toEqual([]);
+          entry = { size: [image.width, image.height], image: sha(image.image), diagnostics: codes([...image.diagnostics, ...layout.diagnostics]) };
+        }
+        baseline[file][name] = entry;
+        if (!UPDATE) expect(entry, `the baseline in ${file} (UPDATE_TEMPLATES=1 rewrites it)`).toEqual(recorded[name]);
+      });
 
-        it(`renders in ${name}`, async () => {
-          const tpl = t.make(brand);
-          const checked = tpl.check(tpl.example, at(format));
-          expect(codes(checked.diagnostics.filter((d) => d.severity === "error")), "check()").toEqual([]);
-          expect(checked.valid).toBe(true);
-          const snapshot = checked.snapshots[(format ?? "default") as never]!;
-          let entry: Record<string, unknown>;
-          if (t.root === "Email" || t.root === "Page") {
-            const out = await render(snapshot, t.root === "Email" ? { plugins: [clients] } : {});
-            const lost = out.diagnostics.filter((d) => EMAIL_LOSS.includes(d.code));
-            expect(codes(lost), "content email clients lose").toEqual([]);
-            entry = { html: sha(out.html), text: sha(out.text ?? ""), diagnostics: codes(out.diagnostics) };
-          } else if (t.root === "Document") {
-            const out = await render(snapshot);
-            const images = imageFiles(pdfAssets(snapshot).images);
-            const pdf = await renderPdf(snapshot, { fonts: fontFiles(brand), images });
-            expect(codes(pdf.diagnostics.filter((d) => PDF_LOSS.includes(d.code))), "what the PDF couldn't draw").toEqual([]);
-            entry = { html: sha(out.html), text: sha(out.text ?? ""), diagnostics: codes([...out.diagnostics, ...pdf.diagnostics]) };
-          } else {
-            const fonts = fontFiles(brand);
-            const images = imageFiles(imageAssets(snapshot).images);
-            const image = await renderImage(snapshot, { fonts, images });
-            const layout = await layoutImage(snapshot, { fonts, images, strict: true });
-            const scale = (format ? tpl.formats?.[format]?.scale : undefined) ?? 1;
-            const report = checkLayout(tpl, checked.values, { ...at(format), scale, layout, files: sniffed(tpl, checked.values as Record<string, unknown>), checked });
-            expect(codes(report.diagnostics.filter((d) => d.severity === "error")), "checkLayout()").toEqual([]);
-            const unpassed = report.rules.filter((r) => r.status !== "passed").map((r) => `${r.rule} ${r.status}`);
-            expect(unpassed, "required rules").toEqual([]);
-            entry = { size: [image.width, image.height], fits: report.fits.map((f) => [f.field ?? f.path, f.chosen]), diagnostics: codes([...image.diagnostics, ...report.diagnostics]) };
-          }
-          const unpassed = checked.rules.filter((r) => r.status === "failed").map((r) => r.rule);
-          expect(unpassed, "required rules").toEqual([]);
-          baseline[file][name] = entry;
-          if (!UPDATE) expect(entry, `the baseline in ${file} (UPDATE_TEMPLATES=1 rewrites it)`).toEqual(recorded[name]);
-        });
+      it(`has readable text in ${name}`, () => {
+        const { plugin, findings } = checker({ contrast: true });
+        validate(<Design brand={brand} />, { plugins: [plugin] });
+        expect(findings.map((f: Finding) => `${f.check} ${f.path}: ${f.message}`)).toEqual([]);
+      });
 
-        it(`has readable text in ${name}`, () => {
-          const tpl = t.make(brand);
-          const { plugin, findings } = checker({ contrast: true });
-          validate(tpl.design(tpl.example as never, at(format) as never), { plugins: [plugin] });
-          expect(findings.map((f: Finding) => `${f.check} ${f.path}: ${f.message}`)).toEqual([]);
-        });
-      }
-    }
-
-    for (const [i, probe] of PROBES.entries()) {
-      it(`takes every color and font from the brand, and draws text in its pairs (probe ${i + 1})`, () => {
-        const tpl = t.make(probe);
-        const fonts = probe.theme.fonts as Record<string, string>;
-        for (const format of formatsOf(tpl)) {
-          const { plugin, findings } = checker({ probe: { names: tokenNames(probe), fonts: new Set([fonts.body, fonts.heading]) } });
-          validate(tpl.design(tpl.example as never, at(format) as never), { plugins: [plugin] });
-          expect(findings.map((f: Finding) => `${f.check} ${f.path}: ${f.message}`), format ?? "").toEqual([]);
+      it(`shows no other brand's name or site in ${name}`, () => {
+        const { text, images } = treeFacts(<Design brand={brand} />);
+        for (const { brand: other } of sampleBrands) {
+          if (other.name === brand.name) continue;
+          expect(text, `${other.name}'s name`).not.toContain(other.name);
+          expect(text, `${other.name}'s site`).not.toContain(new URL(other.links.site).host);
+          expect(images, `${other.name}'s logo`).not.toContain(other.logo.src);
         }
       });
     }
 
+    for (const [i, probe] of PROBES.entries()) {
+      it(`takes every color and font from the brand, and draws text in its pairs (probe ${i + 1})`, () => {
+        const fonts = probe.theme.fonts as Record<string, string>;
+        const { plugin, findings } = checker({ probe: { names: tokenNames(probe), fonts: new Set([fonts.body, fonts.heading]) } });
+        validate(<Design brand={probe} />, { plugins: [plugin] });
+        expect(findings.map((f: Finding) => `${f.check} ${f.path}: ${f.message}`)).toEqual([]);
+      });
+    }
+
     it("needs only the contract's tokens", () => {
-      const tpl = t.make(contractOnly(sampleBrands[0].brand));
-      for (const format of formatsOf(tpl)) {
-        const checked = tpl.check(tpl.example, at(format));
-        expect(checked.diagnostics.filter((d) => d.code === "theme/missing-token").map((d) => d.message)).toEqual([]);
-      }
+      const { diagnostics } = treeFacts(<Design brand={contractOnly(sampleBrands[0].brand)} />);
+      expect(diagnostics.filter((d) => d.code === "theme/missing-token").map((d) => d.message)).toEqual([]);
     });
   });
 }

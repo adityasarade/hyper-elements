@@ -1,8 +1,8 @@
-/** Every kit, template, category and sample brand in the folder, found from the files, as the matrix tests them. */
+/** Every kit, design, category and sample brand in the folder, found from the files, as the matrix tests them. */
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
-import type { Template } from "@hyper-elements/react/template";
-import type { Brand } from "../_brand";
+import type { ReactElement } from "react";
+import type { Brand, RecreationMeta } from "../_brand";
 import { ROOT } from "../_scripts/assets";
 
 export const ROOT_FOLDERS = { emails: "Email", pages: "Page", documents: "Document", images: "Canvas" } as const;
@@ -19,15 +19,26 @@ export interface KitInfo {
   brand?: Brand;
 }
 
-export interface TemplateInfo {
+/** What a design file says about itself, in its `meta` export. */
+export interface DesignMeta {
+  label: string;
+  description: string;
+  author?: string;
+  /** A recreation's: what it rebuilds, and where the original can be seen. */
+  recreates?: RecreationMeta;
+}
+
+export interface DesignInfo {
   kit: string;
   folder: RootFolder;
   root: (typeof ROOT_FOLDERS)[RootFolder];
   category: string;
   file: string;
-  /** `templates.<Kit><Category><Root>`. */
-  id: string;
-  make: (brand: Brand) => Template;
+  /** `<kit>/<root folder>/<category>`. */
+  key: string;
+  meta: DesignMeta;
+  /** The design, drawn in a brand. */
+  Design: (props: { brand: Brand }) => ReactElement;
 }
 
 export const pascal = (name: string) => name.split("-").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join("");
@@ -49,8 +60,8 @@ export async function kits(): Promise<KitInfo[]> {
   return out;
 }
 
-export async function templates(): Promise<TemplateInfo[]> {
-  const out: TemplateInfo[] = [];
+export async function designs(): Promise<DesignInfo[]> {
+  const out: DesignInfo[] = [];
   for (const kit of kitNames()) {
     for (const folder of Object.keys(ROOT_FOLDERS) as RootFolder[]) {
       const dir = join(ROOT, kit, folder);
@@ -58,8 +69,8 @@ export async function templates(): Promise<TemplateInfo[]> {
       for (const name of readdirSync(dir).filter((f) => f.endsWith(".tsx")).sort()) {
         const file = join(dir, name);
         const category = basename(name, ".tsx");
-        const module = (await import(file)) as { default: (brand: Brand) => Template };
-        out.push({ kit, folder, root: ROOT_FOLDERS[folder], category, file, id: `templates.${pascal(kit)}${pascal(category)}${ROOT_FOLDERS[folder]}`, make: module.default });
+        const module = (await import(file)) as { default: DesignInfo["Design"]; meta: DesignMeta };
+        out.push({ kit, folder, root: ROOT_FOLDERS[folder], category, file, key: `${kit}/${folder}/${category}`, meta: module.meta, Design: module.default });
       }
     }
   }

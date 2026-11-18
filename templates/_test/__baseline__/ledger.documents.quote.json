@@ -1,91 +1,46 @@
 {
-  "casa-albero, a4": {
+  "casa-albero": {
     "html": "97d28331eba2c7cd",
     "text": "c3aebfae63c88ebc",
     "diagnostics": []
   },
-  "casa-albero, letter": {
-    "html": "f5519f3a8508200f",
-    "text": "c3aebfae63c88ebc",
-    "diagnostics": []
-  },
-  "ember, a4": {
+  "ember": {
     "html": "33a451726ac89c0c",
     "text": "c4f8b56e6ab76316",
     "diagnostics": []
   },
-  "ember, letter": {
-    "html": "dcb15de8de6ae4dd",
-    "text": "c4f8b56e6ab76316",
-    "diagnostics": []
-  },
-  "keel, a4": {
+  "keel": {
     "html": "56951ea3fe23e183",
     "text": "c3ad5eef61d5c8f0",
     "diagnostics": []
   },
-  "keel, letter": {
-    "html": "23ccd577d8251de8",
-    "text": "c3ad5eef61d5c8f0",
-    "diagnostics": []
-  },
-  "orbit, a4": {
+  "orbit": {
     "html": "a678bef90d721a68",
     "text": "c6b99a0f6d650c6f",
     "diagnostics": []
   },
-  "orbit, letter": {
-    "html": "cec2e090b85a284d",
-    "text": "c6b99a0f6d650c6f",
-    "diagnostics": []
-  },
-  "oyen, a4": {
+  "oyen": {
     "html": "4405b3016fe0d09e",
     "text": "f9e6a4131bedb432",
     "diagnostics": []
   },
-  "oyen, letter": {
-    "html": "cb068deb503de400",
-    "text": "f9e6a4131bedb432",
-    "diagnostics": []
-  },
-  "pell-ashby, a4": {
+  "pell-ashby": {
     "html": "cf8c778922cbbfcf",
     "text": "c2baa086e63526de",
     "diagnostics": []
   },
-  "pell-ashby, letter": {
-    "html": "554bea017b1cad39",
-    "text": "c2baa086e63526de",
-    "diagnostics": []
-  },
-  "pith, a4": {
+  "pith": {
     "html": "f84ec0fdca1530f6",
     "text": "b66141c29738158f",
     "diagnostics": []
   },
-  "pith, letter": {
-    "html": "a0be719dbb2710f6",
-    "text": "b66141c29738158f",
-    "diagnostics": []
-  },
-  "quarry, a4": {
+  "quarry": {
     "html": "4fe0028e9362fc4d",
     "text": "1ca80a21690f030c",
     "diagnostics": []
   },
-  "quarry, letter": {
-    "html": "969190d350d22861",
-    "text": "1ca80a21690f030c",
-    "diagnostics": []
-  },
-  "slow-signals, a4": {
+  "slow-signals": {
     "html": "13b8aeadcefb16fd",
-    "text": "4172ec3f2365feae",
-    "diagnostics": []
-  },
-  "slow-signals, letter": {
-    "html": "cb71f3c2652dbb21",
     "text": "4172ec3f2365feae",
     "diagnostics": []
   }

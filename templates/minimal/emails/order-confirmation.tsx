@@ -1,80 +1,178 @@
-import { Column, Heading, LineBreak, Link, Row, Span, Table, TableCell, TableRow, Text, token } from "@hyper-elements/react";
-import { formatDate, template } from "@hyper-elements/react/template";
+import { Column, Email, Heading, Image, LineBreak, Link, Row, Span, Table, TableCell, TableRow, Text, token } from "@hyper-elements/react";
 import type { Brand } from "../../_brand";
-import { orderConfirmation } from "../../_categories/order-confirmation";
-import { MinimalKicker, minimalEmail, minimalHref, minimalRules } from "../parts";
 
-export default function minimalOrderConfirmation(brand: Brand) {
-  return template({
-    id: "templates.MinimalOrderConfirmationEmail",
-    version: "1.0.0",
-    label: "Order confirmation",
-    description: "An order confirmed: its number and date, the items with the total, and where it's going",
-    guidance: "Describe each item as the store names it. The total is added up for you.",
-    root: "Email",
-    fields: { ...orderConfirmation.required },
-    rules: minimalRules(brand),
-    example: { ...orderConfirmation.example },
-    render(v) {
-      const money = new Intl.NumberFormat(brand.lang ?? "en", { style: "currency", currency: v.currency });
-      const total = v.items.reduce((sum, item) => sum + item.quantity * item.price, 0);
-      const placed = formatDate(v.placed, brand.lang ?? "en", { month: "long", day: "numeric", year: "numeric" });
-      const line = { padding: [token("spacing.sm"), 0], border: { bottom: { width: 1, style: "solid", color: token("colors.border") } } } as const;
-      const quiet = { fontSize: token("fontSizes.small"), color: token("colors.muted") } as const;
-      const first = v.shipTo.name.split(" ")[0];
-      return minimalEmail(brand, {
-        title: `Your ${brand.name} order ${v.number}`,
-        preview: `Order ${v.number} is confirmed: ${money.format(total)}. We'll email you when it ships.`,
-        band: (
-          <>
-            <MinimalKicker color="primaryForeground">Order confirmed</MinimalKicker>
-            <Heading level={1} style={{ color: token("colors.primaryForeground") }}>
-              Thanks for your order, {first}
-            </Heading>
-          </>
-        ),
-        children: (
-          <>
+export const meta = {
+  label: "Order confirmation",
+  description: "An order confirmed: its number and date, the items with the total, and where it's going",
+};
+
+export default function MinimalOrderConfirmation({ brand }: { brand: Brand }) {
+  return (
+    <Email
+      width={560}
+      title={`Your ${brand.name} order 10482`}
+      previewText="Order 10482 is confirmed: $66.00. We'll email you when it ships."
+      lang={brand.lang ?? "en"}
+      dir={brand.dir}
+      theme={brand.theme}
+      fonts={brand.fonts}
+      style={{
+        backgroundColor: token("colors.surface"),
+        fontSize: token("fontSizes.body"),
+        lineHeight: token("lineHeights.body"),
+      }}
+    >
+      <Column
+        style={{
+          padding: [token("spacing.xl"), token("spacing.md"), token("spacing.lg")],
+          gap: token("spacing.lg"),
+        }}
+      >
+        <Column style={{ alignItems: "center" }}>
+          <Image
+            src={{ src: brand.logo.src, width: brand.logo.width, height: brand.logo.height }}
+            alt={brand.logo.alt}
+            style={{ width: 150 }}
+          />
+        </Column>
+        <Column
+          style={{
+            backgroundColor: token("colors.background"),
+            borderRadius: token("radii.md"),
+            border: { width: 1, style: "solid", color: token("colors.border") },
+          }}
+        >
+          <Column
+            style={{
+              backgroundColor: token("colors.primary"),
+              color: token("colors.primaryForeground"),
+              padding: [token("spacing.xl"), token("spacing.xl"), token("spacing.lg")],
+              gap: token("spacing.sm"),
+              borderRadius: { topLeft: token("radii.md"), topRight: token("radii.md") },
+            }}
+          >
+            <Text
+              style={{
+                fontSize: token("fontSizes.small"),
+                fontWeight: 700,
+                letterSpacing: 1.5,
+                textTransform: "uppercase",
+                color: token("colors.primaryForeground"),
+              }}
+            >
+              Order confirmed
+            </Text>
+            <Heading level={1} style={{ color: token("colors.primaryForeground") }}>Thanks for your order, Ada</Heading>
+          </Column>
+          <Column style={{ padding: token("spacing.xl"), gap: token("spacing.md") }}>
             <Text>We've got it, and we'll email you again when it ships.</Text>
             <Row stackOnMobile={false} style={{ gap: token("spacing.md") }}>
               <Column>
-                <Text style={quiet}>Order</Text>
-                <Text field="number" style={{ fontWeight: 700 }}>{v.number}</Text>
+                <Text style={{ fontSize: token("fontSizes.small"), color: token("colors.muted") }}>Order</Text>
+                <Text style={{ fontWeight: 700 }}>10482</Text>
               </Column>
               <Column>
-                <Text style={{ ...quiet, textAlign: "right" }}>Placed on</Text>
-                <Text field="placed" style={{ fontWeight: 700, textAlign: "right" }}>{placed}</Text>
+                <Text
+                  style={{
+                    fontSize: token("fontSizes.small"),
+                    color: token("colors.muted"),
+                    textAlign: "right",
+                  }}
+                >
+                  Placed on
+                </Text>
+                <Text style={{ fontWeight: 700, textAlign: "right" }}>March 9, 2026</Text>
               </Column>
             </Row>
-            <Table field="items">
-              {v.items.map((item, i) => (
-                <TableRow key={i}>
-                  <TableCell style={line}>
-                    {item.description}
-                    <LineBreak />
-                    <Span style={quiet}>Quantity {String(item.quantity)}</Span>
-                  </TableCell>
-                  <TableCell style={{ ...line, textAlign: "right", width: 110 }}>{money.format(item.quantity * item.price)}</TableCell>
-                </TableRow>
-              ))}
+            <Table>
+              <TableRow>
+                <TableCell
+                  style={{
+                    padding: [token("spacing.sm"), 0],
+                    border: { bottom: { width: 1, style: "solid", color: token("colors.border") } },
+                  }}
+                >
+                  Field notebook, dot grid
+                  <LineBreak />
+                  <Span style={{ fontSize: token("fontSizes.small"), color: token("colors.muted") }}>Quantity 2</Span>
+                </TableCell>
+                <TableCell
+                  style={{
+                    padding: [token("spacing.sm"), 0],
+                    border: { bottom: { width: 1, style: "solid", color: token("colors.border") } },
+                    textAlign: "right",
+                    width: 110,
+                  }}
+                >
+                  $28.00
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell
+                  style={{
+                    padding: [token("spacing.sm"), 0],
+                    border: { bottom: { width: 1, style: "solid", color: token("colors.border") } },
+                  }}
+                >
+                  Brass pen
+                  <LineBreak />
+                  <Span style={{ fontSize: token("fontSizes.small"), color: token("colors.muted") }}>Quantity 1</Span>
+                </TableCell>
+                <TableCell
+                  style={{
+                    padding: [token("spacing.sm"), 0],
+                    border: { bottom: { width: 1, style: "solid", color: token("colors.border") } },
+                    textAlign: "right",
+                    width: 110,
+                  }}
+                >
+                  $38.00
+                </TableCell>
+              </TableRow>
               <TableRow>
                 <TableCell style={{ padding: [token("spacing.sm"), 0], fontWeight: 700 }}>Total</TableCell>
-                <TableCell style={{ padding: [token("spacing.sm"), 0], fontWeight: 700, textAlign: "right", width: 110 }}>{money.format(total)}</TableCell>
+                <TableCell
+                  style={{ padding: [token("spacing.sm"), 0], fontWeight: 700, textAlign: "right", width: 110 }}
+                >
+                  $66.00
+                </TableCell>
               </TableRow>
             </Table>
-            <Column field="shipTo" style={{ backgroundColor: token("colors.surface"), borderRadius: token("radii.sm"), padding: token("spacing.md"), gap: 2 }}>
-              <Text style={quiet}>Shipping to</Text>
-              <Text style={{ fontWeight: 700 }}>{v.shipTo.name}</Text>
-              {v.shipTo.address.map((part, i) => (
-                <Text key={i}>{part}</Text>
-              ))}
+            <Column
+              style={{
+                backgroundColor: token("colors.surface"),
+                borderRadius: token("radii.sm"),
+                padding: token("spacing.md"),
+                gap: 2,
+              }}
+            >
+              <Text style={{ fontSize: token("fontSizes.small"), color: token("colors.muted") }}>Shipping to</Text>
+              <Text style={{ fontWeight: 700 }}>Ada Park</Text>
+              <Text>48 Harbor Road</Text>
+              <Text>Portland, OR 97209</Text>
             </Column>
             <Text style={{ color: token("colors.muted") }}>
-              Need to change something? Reply within the hour, or see <Link href={minimalHref(brand, `/orders/${v.number}`)}>order {v.number}</Link>.
+              {"Need to change something? Reply within the hour, or see "}
+              <Link href={`${brand.links.site}/orders/10482`}>order 10482</Link>
+              .
             </Text>
-          </>
-        ),
-      });
-    },
-  });
+          </Column>
+        </Column>
+        <Column style={{ gap: token("spacing.xs") }}>
+          <Text
+            style={{ fontSize: token("fontSizes.small"), color: token("colors.muted"), textAlign: "center" }}
+          >
+            {brand.name} · {brand.address}
+          </Text>
+          <Text
+            style={{ fontSize: token("fontSizes.small"), color: token("colors.muted"), textAlign: "center" }}
+          >
+            <Link href={`${brand.links.site}/`}>Visit {brand.name}</Link>
+            {" · "}
+            <Link href={`${brand.links.site}/help`}>Get help from {brand.name}</Link>
+          </Text>
+        </Column>
+      </Column>
+    </Email>
+  );
 }

@@ -17,7 +17,7 @@ export const GET: APIRoute = async () => {
   lines.push("## Elements\n", `- [Elements](${abs("elements")}): how every element takes its props and its style, and the full list`);
   for (const r of reference) lines.push(`- [${r.data.title}](${abs(`elements/${r.id}`)}): ${r.data.summary}`);
   // Each template's page has its output in each sample brand and the one file to copy, which takes your brand.
-  lines.push("", "## Templates\n", `- [Templates](${site.url}/templates): ready-made emails, pages, PDFs and images with their guardrails set, each taking a brand; copy one file and replace its brand block`);
+  lines.push("", "## Templates\n", `- [Templates](${site.url}/templates): ready-made emails, pages, PDFs and images as plain Elements JSX, each drawn in a brand; copy one and its brand.ts`);
   for (const group of GROUPS) {
     for (const [id, category] of Object.entries(kitCategories).filter(([, c]) => c.group === group)) {
       for (const t of kitTemplates.filter((x) => x.category === id)) {

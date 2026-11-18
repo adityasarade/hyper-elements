@@ -1,8 +1,8 @@
 /**
- * The website's templates pages' data: every template in every sample brand (and a recreation kit's own), each format,
- * as the site's examples are (HTML, plain text, outline, diagnostics, and a Document's PDF or a Canvas's PNG), with its
- * copyable single file. Writes `apps/website/src/generated/kits.json` and `apps/website/public/generated/kits/`, the
- * folder's assets copied under it, and deletes only those. Fails if any template fails, so stale pictures can't ship.
+ * The website's templates pages' data: every design in every sample brand (and a recreation kit's own), as the site's
+ * examples are (HTML, plain text, outline, diagnostics, and a Document's PDF or a Canvas's PNG), with its code, its
+ * brand.ts and its copyable single file. Writes `apps/website/src/generated/kits.json` and `apps/website/public/generated/kits/`, the
+ * folder's assets copied under it, and deletes only those. Fails if any design fails, so stale pictures can't ship.
  *
  *   pnpm --filter @hyper-elements/website generate:kits
  */
@@ -12,9 +12,9 @@ import { outline, render } from "@hyper-elements/react";
 import { renderImage, templateAssets as imageAssets } from "@hyper-elements/react/image";
 import { renderPdf, templateAssets as pdfAssets } from "@hyper-elements/react/pdf";
 import { ASSETS, type Brand } from "../_brand";
-import { brands, categories, kits, templates, type RootFolder } from "../_test/discover";
+import { brands, categories, designs, kits, type RootFolder } from "../_test/discover";
 import { ASSET_DIR, ROOT, fontFiles, imageFiles } from "./assets";
-import { brandBlock, designFile, singleFile, splitFiles } from "./single-file";
+import { brandBlock, singleFile, splitFiles } from "./single-file";
 
 const SITE = join(ROOT, "..", "apps", "website");
 const PUBLIC = join(SITE, "public", "generated", "kits");
@@ -28,35 +28,32 @@ rmSync(PUBLIC, { recursive: true, force: true });
 mkdirSync(PUBLIC, { recursive: true });
 cpSync(ASSET_DIR, join(PUBLIC, "assets"), { recursive: true });
 
-const [all, cats, kitList] = [await templates(), await categories(), await kits()];
+const [all, cats, kitList] = [await designs(), await categories(), await kits()];
 // Orbit, the docs' brand, first: what a page shows before a visitor picks one.
 const sampleBrands = (await brands()).sort((a, b) => (a.id === "orbit" ? -1 : b.id === "orbit" ? 1 : 0));
 const failures: string[] = [];
 
-/** One render of a template, in the shape the site's examples have. */
-async function example(t: (typeof all)[number], brandId: string, brand: Brand, format: string | undefined) {
-  const tpl = t.make(brand);
-  const checked = tpl.check(tpl.example, format ? { format } : {});
-  if (!checked.valid) throw new Error(`${t.id} in ${brandId}${format ? ` (${format})` : ""}: ${checked.diagnostics.map((d) => `${d.code} ${d.message}`).join("; ")}`);
-  const snapshot = checked.snapshots[(format ?? "default") as never]!;
-  const name = `${t.kit}.${t.folder}.${t.category}.${brandId}${format ? `.${format}` : ""}`;
-  const base = { slug: `${t.kit}/${t.folder}/${t.category}`, title: `${tpl.label}, ${brand.name}`, description: tpl.description ?? "", root: t.root, source: "", html: "", text: "", outline: "", diagnostics: [] as ReturnType<typeof lines> };
+/** One render of a design, in the shape the site's examples have. */
+async function example(t: (typeof all)[number], brandId: string, brand: Brand) {
+  const design = <t.Design brand={brand} />;
+  const name = `${t.kit}.${t.folder}.${t.category}.${brandId}`;
+  const base = { slug: t.key, title: `${t.meta.label}, ${brand.name}`, description: t.meta.description, root: t.root, source: "", html: "", text: "", outline: "", diagnostics: [] as ReturnType<typeof lines> };
   if (t.root === "Canvas") {
-    const { image, diagnostics } = await renderImage(snapshot, { fonts: fontFiles(brand), images: imageFiles(imageAssets(snapshot).images) });
+    const { image, diagnostics } = await renderImage(design, { fonts: fontFiles(brand), images: imageFiles(imageAssets(design).images) });
     writeFileSync(join(PUBLIC, `${name}.png`), image);
-    return { ...base, outline: safeOutline(snapshot), diagnostics: lines(diagnostics), file: `${URL_BASE}/${name}.png` };
+    return { ...base, outline: safeOutline(design), diagnostics: lines(diagnostics), file: `${URL_BASE}/${name}.png` };
   }
-  const out = await render(snapshot);
-  const result = { ...base, html: out.html, text: out.text ?? "", outline: safeOutline(snapshot), diagnostics: lines(out.diagnostics) };
+  const out = await render(design);
+  const result = { ...base, html: out.html, text: out.text ?? "", outline: safeOutline(design), diagnostics: lines(out.diagnostics) };
   if (t.root !== "Document") return result;
-  const pdf = await renderPdf(snapshot, { fonts: fontFiles(brand), images: imageFiles(pdfAssets(snapshot).images) });
+  const pdf = await renderPdf(design, { fonts: fontFiles(brand), images: imageFiles(pdfAssets(design).images) });
   writeFileSync(join(PUBLIC, `${name}.pdf`), pdf.pdf);
   return { ...result, diagnostics: lines([...out.diagnostics, ...pdf.diagnostics]), file: `${URL_BASE}/${name}.pdf` };
 }
 
-function safeOutline(snapshot: unknown): string {
+function safeOutline(design: unknown): string {
   try {
-    return outline(snapshot as never);
+    return outline(design as never);
   } catch {
     return "";
   }
@@ -74,39 +71,29 @@ const data = {
 for (const t of all) {
   const own = kitList.find((k) => k.id === t.kit)?.brand;
   const drawIn = own ? [{ id: `${t.kit}-original`, brand: own, file: join(ROOT, t.kit, "brand.ts") }, ...sampleBrands.map((b) => ({ ...b, file: join(ROOT, "_brands", `${b.id}.ts`) }))] : sampleBrands.map((b) => ({ ...b, file: join(ROOT, "_brands", `${b.id}.ts`) }));
-  const tpl = t.make(drawIn[0].brand);
-  const formats = tpl.formats ? Object.keys(tpl.formats) : [];
-  const description = tpl.describe();
-  const required = Object.keys((cats.find((c) => c.id === t.category)!.category.required ?? {}) as object);
   const byBrand: Record<string, unknown> = {};
   for (const { id, brand, file } of drawIn) {
     try {
-      const views: Record<string, unknown> = {};
-      for (const format of formats.length ? formats : [undefined]) views[format ?? "default"] = await example(t, id, brand, format);
-      const design = designFile(t.category, t.make(brand).example as Record<string, unknown>);
-      byBrand[id] = { views, single: singleFile(t.file, file), brandFile: splitFiles(t.file, file).brand, design };
+      byBrand[id] = { views: { default: await example(t, id, brand) }, single: singleFile(t.file, file), brandFile: splitFiles(t.file, file).brand };
     } catch (error) {
-      failures.push(String((error as Error).message ?? error));
+      failures.push(`${t.key} in ${id}: ${String((error as Error).message ?? error)}`);
     }
   }
   data.templates.push({
-    key: `${t.kit}/${t.folder}/${t.category}`,
-    id: t.id,
+    key: t.key,
+    id: t.key,
     kit: t.kit,
     folder: t.folder,
     output: OUTPUT[t.folder],
     root: t.root,
     category: t.category,
-    label: tpl.label,
-    description: tpl.description ?? "",
-    guidance: tpl.guidance ?? "",
-    author: (await import(t.file)).meta?.author ?? kitList.find((k) => k.id === t.kit)!.kit.author,
-    ...((await import(t.file)).meta?.recreates ? { recreates: { company: kitList.find((k) => k.id === t.kit)!.kit.recreates?.company ?? "", ...(await import(t.file)).meta.recreates } } : {}),
-    formats,
-    fields: description.fields.map((f) => ({ path: f.path, kind: f.kind, label: f.label, required: f.required, fromCategory: required.includes(f.path.split(/[.[]/)[0]) })),
-    rules: description.rules,
+    label: t.meta.label,
+    description: t.meta.description,
+    author: t.meta.author ?? kitList.find((k) => k.id === t.kit)!.kit.author,
+    ...(t.meta.recreates ? { recreates: { company: kitList.find((k) => k.id === t.kit)!.kit.recreates?.company ?? "", ...t.meta.recreates } } : {}),
+    formats: [],
     file: relative(join(ROOT, ".."), t.file),
-    // The template's code apart from any brand: the same in every brand, importing it from ./brand.
+    // The design as it's written: the same in every brand, taking its brand's type from ./brand.
     code: splitFiles(t.file, drawIn[0].file).code,
     byBrand,
   });
@@ -126,6 +113,6 @@ const guide = readFileSync(join(ROOT, "CONTRIBUTING.md"), "utf8")
   .replace(/\]\(https:\/\/hyperelements\.dev(\/[^)]*)\)/g, "]($1)");
 writeFileSync(
   GUIDE,
-  `---\ntitle: "Contributing templates"\ndescription: "Add a template or a kit to the templates folder: how the folder works, the rules every template follows, categories, sample brands, and the checks before a pull request."\n---\n\n<!-- Written from templates/CONTRIBUTING.md by pnpm --filter @hyper-elements/website generate:kits. Edit that file, not this one. -->\n\n${guide}`,
+  `---\ntitle: "Contributing templates"\ndescription: "Add a design or a kit to the templates folder: how the folder works, the rules every design follows, categories, sample brands, and the checks before a pull request."\n---\n\n<!-- Written from templates/CONTRIBUTING.md by pnpm --filter @hyper-elements/website generate:kits. Edit that file, not this one. -->\n\n${guide}`,
 );
-console.log(`${relative(process.cwd(), DATA)}: ${data.templates.length} templates in ${data.brands.length} brands`);
+console.log(`${relative(process.cwd(), DATA)}: ${data.templates.length} designs in ${data.brands.length} brands`);

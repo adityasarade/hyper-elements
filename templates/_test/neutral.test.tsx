@@ -1,6 +1,6 @@
 /**
  * Negative controls: designs each check must fail, so a check that passes everything can't pass unnoticed. Each is a
- * small design written as a template would be, with a probe brand or a real one.
+ * small design written as the folder's designs are, with a probe brand or a real one.
  */
 import type { ReactElement } from "react";
 import { Button, Canvas, Column, Document, Email, Heading, Html, Image, Layer, Link, Menu, PageHeader, Text, defineTheme, render, token, validate } from "@hyper-elements/react";

@@ -1,5 +1,5 @@
 /**
- * What a brand is, the tokens a template may read, and the checks every brand passes. A template in this folder takes
+ * What a brand is, the tokens a design may read, and the checks every brand passes. A design in this folder takes
  * its colors, fonts, spacing, logo and company details from a `Brand` it's given, and sets none of its own.
  */
 import type { Theme } from "@hyper-elements/react";
@@ -27,7 +27,7 @@ export type Brand = {
 export type Recreates = { company: string };
 
 /**
- * A recreation's template's `meta.recreates`: what it rebuilds ("Login code email"), and where the original can be
+ * A recreation design's `meta.recreates`: what it rebuilds ("Login code email"), and where the original can be
  * seen: a public archive of it, or a screenshot under `_assets/recreations/<kit>/`.
  */
 export type RecreationMeta = { what: string; original: string };
@@ -35,7 +35,7 @@ export type RecreationMeta = { what: string; original: string };
 /** Where every image and font a brand or a kit names lives once the website is built. */
 export const ASSETS = "https://hyperelements.dev/generated/kits/assets/";
 
-/** The tokens a template may read, by group. A brand holds every one. */
+/** The tokens a design may read, by group. A brand holds every one. */
 export const CONTRACT = {
   colors: ["background", "foreground", "primary", "primaryForeground", "border", "muted", "surface", "accent"],
   fonts: ["body", "heading"],
@@ -103,7 +103,7 @@ function colorStyles(value: unknown, path: string, out: string[]): void {
 }
 
 /**
- * A brand's problems, by path; none for a brand every template can take. It holds every contract token, sizes its
+ * A brand's problems, by path; none for a brand every design can take. It holds every contract token, sizes its
  * headings, draws text only in pairs that pass 4.5:1, names TTF or OTF faces at one weight each (its body at 400 and
  * 700, and its headings at the weight it sets), uses PNG or JPEG images from the assets folder, and changes no color
  * outside its tokens.

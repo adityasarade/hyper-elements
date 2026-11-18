@@ -19,13 +19,6 @@ export interface KitInfo {
   recreates?: { company: string };
   brand?: BrandInfo;
 }
-export interface FieldInfo {
-  path: string;
-  kind: string;
-  label: string;
-  required: boolean;
-  fromCategory: boolean;
-}
 export interface TemplateInfo {
   key: string;
   id: string;
@@ -36,17 +29,15 @@ export interface TemplateInfo {
   category: string;
   label: string;
   description: string;
-  guidance: string;
   author: string;
   /** A recreation: the company, what it rebuilds, and where the original can be seen. */
   recreates?: { company: string; what: string; original: string };
+  /** A design has one size: none. */
   formats: string[];
-  fields: FieldInfo[];
-  rules: { lint: Array<{ id: string; summary: string }>; core: Array<{ code: string }>; links?: { domains?: string[] } };
   file: string;
-  /** The template's code, which imports its brand from ./brand: the same in every brand. */
+  /** The design as it's written, which takes its brand's type from ./brand: the same in every brand. */
   code: string;
-  byBrand: Record<string, { views: Record<string, Example>; single: string; brandFile: string; design: string }>;
+  byBrand: Record<string, { views: Record<string, Example>; single: string; brandFile: string }>;
 }
 export interface CategoryInfo {
   label: string;

@@ -1,17 +1,18 @@
-// The playground's gate for the community templates (templates/). Run after `pnpm --filter @hyper-elements/website build`:
+// The playground's gate for the community templates (templates/, plain designs) and for template() code. Run after
+// `pnpm --filter @hyper-elements/website build`:
 //
 //   node scripts/check-playground-templates.mjs
 //
 // It serves dist/ and opens /playground in Chromium, offline: every request to another host is refused, and one to
 // hyperelements.dev (the live site) fails the run, so what's shown is this build's own files.
 //
-//   1. Every template's single file renders through the sandbox (a Canvas template's PNG drawn from its assets).
-//   2. A template with two formats shows a format switch; switching square → landscape → square without editing the
-//      code draws each format's own PNG, at its own size.
+//   1. Every design's single file renders through the sandbox (an image's PNG drawn from its assets, a PDF written).
+//   2. A template() with two formats (a fixture) shows a format switch; switching square → landscape → square without
+//      editing the code draws each format's own PNG, at its own size.
 //   3. The Brand menu shows on a single file, and picking a brand changes only the text between the brand markers.
 //   4. A slot's allow list knows the playground's elements: a slot that allows them renders, one that doesn't refuses.
-//   5. A Canvas template whose image's bytes disagree with its declared size isn't drawn: no PNG, and the reason.
-//   6. A template's logo and font load from this site in the HTML preview, and its blocks are still marked.
+//   5. A Canvas template() whose image's bytes disagree with its declared size isn't drawn: no PNG, and the reason.
+//   6. A design's logo and font load from this site in the HTML preview, and its blocks are still marked.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -90,12 +91,33 @@ try {
     if (t.root === "Canvas") assert(result.png && !result.error, `${t.key} draws its PNG: ${JSON.stringify(result.error)} ${JSON.stringify(result.diagnostics.map((d) => `${d.code}: ${d.message}`))}`);
     if (t.root === "Document") assert(result.pdf, `${t.key} writes its PDF`);
   }
-  step(`every template's single file renders through the sandbox (${kits.templates.length}, a Canvas template's PNG and a Document's PDF drawn)`);
+  step(`every design's single file renders through the sandbox (${kits.templates.length}, an image's PNG and a PDF drawn)`);
 
   // ─── 2. A template's formats ─────────────────────────────────────────────
-  const signal = kits.templates.find((t) => t.root === "Canvas" && t.formats.length > 1);
-  assert(signal, "a Canvas template with formats");
-  const formats = await open(`#starter=${idOf(signal)}`);
+  // A Canvas template() of two formats, with an image field: the gallery holds designs, so the fixture is here.
+  const ASSET = "https://hyperelements.dev/generated/kits/assets/";
+  const canvasTemplate = (width, height) => `import { Canvas, Heading, Image } from "@hyper-elements/react";
+import { field, template } from "@hyper-elements/react/template";
+const fonts = [
+  { family: "Inter", src: "${ASSET}fonts/Inter-400.ttf", weight: 400, style: "normal" },
+  { family: "Inter", src: "${ASSET}fonts/Inter-700.ttf", weight: 700, style: "normal" },
+] as const;
+export default template({
+  id: "acme.Launch", version: "1.0.0", label: "Launch", root: "Canvas",
+  formats: { square: { width: 1080, height: 1080 }, landscape: { width: 1200, height: 630 } },
+  fields: { screenshot: field.image({ label: "Screenshot", required: true, accepts: ["png"] }) },
+  example: { screenshot: { src: "${ASSET}kits/signal/screenshot.png", width: ${width}, height: ${height} } },
+  render: (v, { format }) => (
+    <Canvas width={format === "square" ? 1080 : 1200} height={format === "square" ? 1080 : 630} fonts={[...fonts]} style={{ fontFamily: "Inter", padding: 48, gap: 24 }}>
+      <Heading level={1} style={{ fontSize: 56 }}>Launch day</Heading>
+      <Image field="screenshot" src={v.screenshot} alt="The product" style={{ width: 480 }} />
+    </Canvas>
+  ),
+});`;
+  const signal = { formats: ["square", "landscape"] };
+  const formats = await open();
+  await api(formats, "setCode", canvasTemplate(1600, 1000));
+  await rendered(formats);
   const pngSize = () =>
     formats.waitForFunction(() => {
       const image = document.querySelector('[data-file="png"] img');
@@ -168,9 +190,7 @@ export default template({
   step("a slot's allow and deny lists know the playground's elements, built-in and custom");
 
   // ─── 5. A Canvas template's image files are checked before drawing ──────
-  const wrong = brandOf(signal).single.replace(/(screenshot: \{ src: `\$\{\w+\}screenshot\.png`, )width: 1600, height: 1000/, "$1width: 2400, height: 1500");
-  assert.notEqual(wrong, brandOf(signal).single, "the fixture declares the screenshot at another size");
-  const lied = await api(page, "render", wrong, { include: ["png"] });
+  const lied = await api(page, "render", canvasTemplate(2400, 1500), { include: ["png"] });
   assert.equal(lied.png, undefined, "an image whose file disagrees with its declared size isn't drawn");
   assert(lied.diagnostics.some((d) => d.code === "template/asset-size"), `it says why: ${JSON.stringify(lied.diagnostics.map((d) => d.code))}`);
   step("a Canvas template whose image's bytes disagree with its declared size gives no PNG, and says template/asset-size");

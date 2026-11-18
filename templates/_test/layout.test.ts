@@ -1,12 +1,12 @@
-/** The folder's rules: what a kit is, where a template lives, what it imports, and what its assets are. */
+/** The folder's rules: what a kit is, where a design lives, what it imports, and what its assets are. */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { extname, join, relative } from "node:path";
 import ts from "typescript";
 import { ASSETS } from "../_brand";
 import { ASSET_DIR, ROOT } from "../_scripts/assets";
-import { NOT_KITS, ROOT_FOLDERS, categories, kitNames, templates } from "./discover";
+import { NOT_KITS, ROOT_FOLDERS, categories, designs, kitNames } from "./discover";
 
-const PACKAGE = /^(react|@hyper-elements\/(react|lint)(\/(template|image|pdf))?)$/;
+const PACKAGE = /^(react|@hyper-elements\/react)$/;
 const KIT_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 // The website's old gallery pages redirect from these, so no kit may take one.
 const GALLERY_SLUGS = ["oyen-launch", "tarn-shipped", "quarry-welcome", "pith-weekly", "saltworks-invitation", "keel-sign-in-code", "casa-albero-page", "pell-ashby-invoice", "shipwright-ticket", "slow-signals-card", "fernway-spring-sale", "gridline-workshop-banner", "crumb-club-thumbnail", "morning-pages-quote"];
@@ -40,7 +40,7 @@ it("has only kits and the shared folders at the top", () => {
   }
 });
 
-it("keeps every kit's templates under a root folder, named for a category that takes that root", async () => {
+it("keeps every kit's designs under a root folder, named for a category that takes that root", async () => {
   const cats = await categories();
   for (const kit of kitNames()) {
     for (const name of readdirSync(join(ROOT, kit))) {
@@ -53,38 +53,24 @@ it("keeps every kit's templates under a root folder, named for a category that t
           expect(category, `${kit}/${name}/${file}: no _categories/${file.replace(".tsx", ".ts")}`).toBeDefined();
           expect(category!.category.roots as string[], `${file} as ${ROOT_FOLDERS[name as keyof typeof ROOT_FOLDERS]}`).toContain(ROOT_FOLDERS[name as keyof typeof ROOT_FOLDERS]);
         }
-      } else expect(["kit.ts", "parts.tsx", "brand.ts"], `${kit}/${name}`).toContain(name);
+      } else expect(["kit.ts", "brand.ts"], `${kit}/${name}`).toContain(name);
     }
   }
 });
 
-it("imports only packages, _brand.ts's types, its category and its own kit's parts", async () => {
-  for (const t of await templates()) {
-    const names = new Set<string>();
-    const sources = [t.file];
+it("imports only React, Elements and _brand.ts's types, so each design is one file to copy", async () => {
+  for (const t of await designs()) {
     for (const { from, statement } of imports(t.file)) {
       if (PACKAGE.test(from)) {
         const bindings = statement.importClause?.namedBindings;
         if (bindings && ts.isNamedImports(bindings)) for (const e of bindings.elements) expect(e.propertyName, `${t.file}: no renamed imports`).toBeUndefined();
         continue;
       }
-      const target = relative(ROOT, join(t.file, "..", from));
-      if (target === "_brand") {
-        expect(statement.importClause?.isTypeOnly, `${t.file} imports _brand.ts for its types only`).toBe(true);
-        continue;
-      }
-      expect([`_categories/${t.category}`, `${t.kit}/parts`], `${relative(ROOT, t.file)} imports ${from}`).toContain(target);
-      sources.push(join(ROOT, `${target}${target.endsWith("parts") ? ".tsx" : ".ts"}`));
+      expect(relative(ROOT, join(t.file, "..", from)), `${relative(ROOT, t.file)} imports ${from}`).toBe("_brand");
+      expect(statement.importClause?.isTypeOnly, `${t.file} imports _brand.ts for its types only`).toBe(true);
     }
-    for (const file of sources.slice(1)) {
-      for (const { from } of imports(file)) if (!PACKAGE.test(from)) expect(relative(ROOT, join(file, "..", from)), `${file} imports ${from}`).toBe("_brand");
-    }
-    for (const file of sources) {
-      for (const name of topNames(file)) {
-        expect(names.has(name), `${name} is declared twice across ${sources.map((s) => relative(ROOT, s)).join(", ")}`).toBe(false);
-        names.add(name);
-      }
-    }
+    const names = topNames(t.file);
+    expect(names, `${relative(ROOT, t.file)} exports meta`).toContain("meta");
   }
 });
 

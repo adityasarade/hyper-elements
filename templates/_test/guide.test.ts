@@ -1,5 +1,5 @@
 /**
- * The contribution guide stays true: its template example typechecks where it says it lives, every category in the
+ * The contribution guide stays true: its design example typechecks where it says it lives, every category in the
  * folder is on its list of agreed names, and every folder it names exists.
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -11,7 +11,7 @@ import { categories } from "./discover";
 const guide = readFileSync(join(ROOT, "CONTRIBUTING.md"), "utf8");
 const blocks = [...guide.matchAll(/```(\w+)\n([\s\S]*?)```/g)].map(([, lang, code]) => ({ lang, code }));
 
-it("has a template example that typechecks as ledger/documents/invoice.tsx", () => {
+it("has a design example that typechecks as ledger/documents/invoice.tsx", () => {
   const example = blocks.find((b) => b.lang === "tsx" && b.code.includes("export default function"));
   expect(example, "a tsx example").toBeDefined();
   const file = join(ROOT, "ledger", "documents", "guide-example.tsx");
@@ -32,7 +32,7 @@ it("lists every category in the folder among its agreed names", async () => {
 });
 
 it("names folders and files that exist", () => {
-  for (const path of ["_brand.ts", "_brands", "_categories", "_assets", "_assets/fonts", "ledger/kit.ts", "ledger/parts.tsx", "ledger/documents/invoice.tsx", "_test/range.test.ts", "README.md"]) {
+  for (const path of ["_brand.ts", "_brands", "_categories", "_assets", "_assets/fonts", "ledger/kit.ts", "ledger/documents/invoice.tsx", "_test/range.test.ts", "README.md"]) {
     expect(existsSync(join(ROOT, path)), relative(ROOT, join(ROOT, path))).toBe(true);
     expect(guide.includes(path.split("/").pop()!), `the guide mentions ${path}`).toBe(true);
   }

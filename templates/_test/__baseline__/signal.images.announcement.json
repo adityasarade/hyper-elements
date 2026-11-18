@@ -1,236 +1,74 @@
 {
-  "casa-albero, landscape": {
-    "size": [
-      1200,
-      630
-    ],
-    "fits": [
-      [
-        "headline",
-        52
-      ]
-    ],
-    "diagnostics": []
-  },
-  "casa-albero, square": {
+  "casa-albero": {
     "size": [
       1080,
       1080
     ],
-    "fits": [
-      [
-        "headline",
-        72
-      ]
-    ],
+    "image": "a81c90731b02f2fd",
     "diagnostics": []
   },
-  "ember, landscape": {
-    "size": [
-      1200,
-      630
-    ],
-    "fits": [
-      [
-        "headline",
-        52
-      ]
-    ],
-    "diagnostics": []
-  },
-  "ember, square": {
+  "ember": {
     "size": [
       1080,
       1080
     ],
-    "fits": [
-      [
-        "headline",
-        72
-      ]
-    ],
+    "image": "9152c7d569abc660",
     "diagnostics": []
   },
-  "keel, landscape": {
-    "size": [
-      1200,
-      630
-    ],
-    "fits": [
-      [
-        "headline",
-        52
-      ]
-    ],
-    "diagnostics": []
-  },
-  "keel, square": {
+  "keel": {
     "size": [
       1080,
       1080
     ],
-    "fits": [
-      [
-        "headline",
-        72
-      ]
-    ],
+    "image": "693223dee66f131a",
     "diagnostics": []
   },
-  "orbit, landscape": {
-    "size": [
-      1200,
-      630
-    ],
-    "fits": [
-      [
-        "headline",
-        52
-      ]
-    ],
-    "diagnostics": []
-  },
-  "orbit, square": {
+  "orbit": {
     "size": [
       1080,
       1080
     ],
-    "fits": [
-      [
-        "headline",
-        72
-      ]
-    ],
+    "image": "43a6b21391d3ae80",
     "diagnostics": []
   },
-  "oyen, landscape": {
-    "size": [
-      1200,
-      630
-    ],
-    "fits": [
-      [
-        "headline",
-        52
-      ]
-    ],
-    "diagnostics": []
-  },
-  "oyen, square": {
+  "oyen": {
     "size": [
       1080,
       1080
     ],
-    "fits": [
-      [
-        "headline",
-        72
-      ]
-    ],
+    "image": "6674ca7458d51f5b",
     "diagnostics": []
   },
-  "pell-ashby, landscape": {
-    "size": [
-      1200,
-      630
-    ],
-    "fits": [
-      [
-        "headline",
-        52
-      ]
-    ],
-    "diagnostics": []
-  },
-  "pell-ashby, square": {
+  "pell-ashby": {
     "size": [
       1080,
       1080
     ],
-    "fits": [
-      [
-        "headline",
-        72
-      ]
-    ],
+    "image": "ac9138b484c64185",
     "diagnostics": []
   },
-  "pith, landscape": {
-    "size": [
-      1200,
-      630
-    ],
-    "fits": [
-      [
-        "headline",
-        52
-      ]
-    ],
-    "diagnostics": []
-  },
-  "pith, square": {
+  "pith": {
     "size": [
       1080,
       1080
     ],
-    "fits": [
-      [
-        "headline",
-        72
-      ]
-    ],
+    "image": "49c409b565392e74",
     "diagnostics": []
   },
-  "quarry, landscape": {
-    "size": [
-      1200,
-      630
-    ],
-    "fits": [
-      [
-        "headline",
-        52
-      ]
-    ],
-    "diagnostics": []
-  },
-  "quarry, square": {
+  "quarry": {
     "size": [
       1080,
       1080
     ],
-    "fits": [
-      [
-        "headline",
-        72
-      ]
-    ],
+    "image": "2fb62c617314f710",
     "diagnostics": []
   },
-  "slow-signals, landscape": {
-    "size": [
-      1200,
-      630
-    ],
-    "fits": [
-      [
-        "headline",
-        52
-      ]
-    ],
-    "diagnostics": []
-  },
-  "slow-signals, square": {
+  "slow-signals": {
     "size": [
       1080,
       1080
     ],
-    "fits": [
-      [
-        "headline",
-        72
-      ]
-    ],
+    "image": "2a3f80563a68088b",
     "diagnostics": []
   }
 }

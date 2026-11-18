@@ -1,75 +1,190 @@
-import { Column, Heading, Row, Table, TableCell, TableRow, Text, prop, token } from "@hyper-elements/react";
-import { formatDate, template } from "@hyper-elements/react/template";
+import { Column, Email, Heading, Image, Link, Row, Table, TableCell, TableRow, Text, token } from "@hyper-elements/react";
 import type { Brand } from "../../_brand";
-import { receipt } from "../../_categories/receipt";
-import { MinimalKicker, minimalEmail, minimalRules } from "../parts";
 
-export default function minimalReceipt(brand: Brand) {
-  return template({
-    id: "templates.MinimalReceiptEmail",
-    version: "1.0.0",
-    label: "Receipt",
-    description: "A payment receipt that leads with the amount paid, then the items, the total, and how it was paid",
-    guidance: "Describe each item as the customer's order names it. The total is added up for you.",
-    root: "Email",
-    fields: {
-      ...receipt.required,
-      method: prop.text({ label: "Paid with", maxLength: 40 }),
-    },
-    rules: minimalRules(brand),
-    example: { ...receipt.example, method: "Visa ending 4242" },
-    render(v) {
-      const money = new Intl.NumberFormat(brand.lang ?? "en", { style: "currency", currency: v.currency });
-      const total = v.items.reduce((sum, item) => sum + item.quantity * item.price, 0);
-      const paid = formatDate(v.paid, brand.lang ?? "en", { month: "long", day: "numeric", year: "numeric" });
-      const line = { padding: [token("spacing.sm"), 0], border: { bottom: { width: 1, style: "solid", color: token("colors.border") } } } as const;
-      const quiet = { fontSize: token("fontSizes.small"), color: token("colors.muted") } as const;
-      return minimalEmail(brand, {
-        title: `Your ${brand.name} receipt`,
-        preview: `${money.format(total)} paid on ${formatDate(v.paid, brand.lang ?? "en", { month: "long", day: "numeric" })}. Thanks.`,
-        children: (
-          <>
-            <Column style={{ gap: token("spacing.xs"), alignItems: "center", textAlign: "center", padding: [0, 0, token("spacing.sm")] }}>
-              <MinimalKicker color="primary">Payment received</MinimalKicker>
-              <Heading level={1}>{money.format(total)}</Heading>
-              <Text field="paid" style={{ color: token("colors.muted") }}>
-                Paid on {paid}
-                {v.method ? ` with ${v.method}` : ""}
+export const meta = {
+  label: "Receipt",
+  description: "A payment receipt that leads with the amount paid, then the items, the total, and how it was paid",
+};
+
+export default function MinimalReceipt({ brand }: { brand: Brand }) {
+  return (
+    <Email
+      width={560}
+      title={`Your ${brand.name} receipt`}
+      previewText="$48.00 paid on March 4. Thanks."
+      lang={brand.lang ?? "en"}
+      dir={brand.dir}
+      theme={brand.theme}
+      fonts={brand.fonts}
+      style={{
+        backgroundColor: token("colors.surface"),
+        fontSize: token("fontSizes.body"),
+        lineHeight: token("lineHeights.body"),
+      }}
+    >
+      <Column
+        style={{
+          padding: [token("spacing.xl"), token("spacing.md"), token("spacing.lg")],
+          gap: token("spacing.lg"),
+        }}
+      >
+        <Column style={{ alignItems: "center" }}>
+          <Image
+            src={{ src: brand.logo.src, width: brand.logo.width, height: brand.logo.height }}
+            alt={brand.logo.alt}
+            style={{ width: 150 }}
+          />
+        </Column>
+        <Column
+          style={{
+            backgroundColor: token("colors.background"),
+            borderRadius: token("radii.md"),
+            border: { width: 1, style: "solid", color: token("colors.border") },
+          }}
+        >
+          <Column style={{ padding: token("spacing.xl"), gap: token("spacing.md") }}>
+            <Column
+              style={{
+                gap: token("spacing.xs"),
+                alignItems: "center",
+                textAlign: "center",
+                padding: [0, 0, token("spacing.sm")],
+              }}
+            >
+              <Text
+                style={{
+                  fontSize: token("fontSizes.small"),
+                  fontWeight: 700,
+                  letterSpacing: 1.5,
+                  textTransform: "uppercase",
+                  color: token("colors.primary"),
+                }}
+              >
+                Payment received
               </Text>
+              <Heading level={1}>$48.00</Heading>
+              <Text style={{ color: token("colors.muted") }}>Paid on March 4, 2026 with Visa ending 4242</Text>
             </Column>
-            <Table field="items">
-              <TableRow header>
-                <TableCell style={{ ...line, ...quiet }}>Item</TableCell>
-                <TableCell style={{ ...line, ...quiet, textAlign: "right", width: 110 }}>Amount</TableCell>
+            <Table>
+              <TableRow header={true}>
+                <TableCell
+                  style={{
+                    padding: [token("spacing.sm"), 0],
+                    border: { bottom: { width: 1, style: "solid", color: token("colors.border") } },
+                    fontSize: token("fontSizes.small"),
+                    color: token("colors.muted"),
+                  }}
+                >
+                  Item
+                </TableCell>
+                <TableCell
+                  style={{
+                    padding: [token("spacing.sm"), 0],
+                    border: { bottom: { width: 1, style: "solid", color: token("colors.border") } },
+                    fontSize: token("fontSizes.small"),
+                    color: token("colors.muted"),
+                    textAlign: "right",
+                    width: 110,
+                  }}
+                >
+                  Amount
+                </TableCell>
               </TableRow>
-              {v.items.map((item, i) => (
-                <TableRow key={i}>
-                  <TableCell style={line}>
-                    {item.description}
-                    {item.quantity > 1 ? ` × ${item.quantity}` : ""}
-                  </TableCell>
-                  <TableCell style={{ ...line, textAlign: "right", width: 110 }}>{money.format(item.quantity * item.price)}</TableCell>
-                </TableRow>
-              ))}
+              <TableRow>
+                <TableCell
+                  style={{
+                    padding: [token("spacing.sm"), 0],
+                    border: { bottom: { width: 1, style: "solid", color: token("colors.border") } },
+                  }}
+                >
+                  Pro plan, monthly
+                </TableCell>
+                <TableCell
+                  style={{
+                    padding: [token("spacing.sm"), 0],
+                    border: { bottom: { width: 1, style: "solid", color: token("colors.border") } },
+                    textAlign: "right",
+                    width: 110,
+                  }}
+                >
+                  $24.00
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell
+                  style={{
+                    padding: [token("spacing.sm"), 0],
+                    border: { bottom: { width: 1, style: "solid", color: token("colors.border") } },
+                  }}
+                >
+                  Extra seats × 3
+                </TableCell>
+                <TableCell
+                  style={{
+                    padding: [token("spacing.sm"), 0],
+                    border: { bottom: { width: 1, style: "solid", color: token("colors.border") } },
+                    textAlign: "right",
+                    width: 110,
+                  }}
+                >
+                  $24.00
+                </TableCell>
+              </TableRow>
               <TableRow>
                 <TableCell style={{ padding: [token("spacing.sm"), 0], fontWeight: 700 }}>Total paid</TableCell>
-                <TableCell style={{ padding: [token("spacing.sm"), 0], fontWeight: 700, textAlign: "right", width: 110 }}>{money.format(total)}</TableCell>
+                <TableCell
+                  style={{ padding: [token("spacing.sm"), 0], fontWeight: 700, textAlign: "right", width: 110 }}
+                >
+                  $48.00
+                </TableCell>
               </TableRow>
             </Table>
-            <Row stackOnMobile={false} style={{ backgroundColor: token("colors.surface"), borderRadius: token("radii.sm"), padding: token("spacing.md"), gap: token("spacing.md") }}>
+            <Row
+              stackOnMobile={false}
+              style={{
+                backgroundColor: token("colors.surface"),
+                borderRadius: token("radii.sm"),
+                padding: token("spacing.md"),
+                gap: token("spacing.md"),
+              }}
+            >
               <Column>
-                <Text style={quiet}>Receipt number</Text>
-                <Text field="number" style={{ fontWeight: 700 }}>{v.number}</Text>
+                <Text style={{ fontSize: token("fontSizes.small"), color: token("colors.muted") }}>Receipt number</Text>
+                <Text style={{ fontWeight: 700 }}>R-20418</Text>
               </Column>
               <Column>
-                <Text style={{ ...quiet, textAlign: "right" }}>Date paid</Text>
-                <Text style={{ fontWeight: 700, textAlign: "right" }}>{paid}</Text>
+                <Text
+                  style={{
+                    fontSize: token("fontSizes.small"),
+                    color: token("colors.muted"),
+                    textAlign: "right",
+                  }}
+                >
+                  Date paid
+                </Text>
+                <Text style={{ fontWeight: 700, textAlign: "right" }}>March 4, 2026</Text>
               </Column>
             </Row>
-            <Text style={{ color: token("colors.muted") }}>Keep this email for your records. To ask about a charge, reply to it.</Text>
-          </>
-        ),
-      });
-    },
-  });
+            <Text style={{ color: token("colors.muted") }}>
+              Keep this email for your records. To ask about a charge, reply to it.
+            </Text>
+          </Column>
+        </Column>
+        <Column style={{ gap: token("spacing.xs") }}>
+          <Text
+            style={{ fontSize: token("fontSizes.small"), color: token("colors.muted"), textAlign: "center" }}
+          >
+            {brand.name} · {brand.address}
+          </Text>
+          <Text
+            style={{ fontSize: token("fontSizes.small"), color: token("colors.muted"), textAlign: "center" }}
+          >
+            <Link href={`${brand.links.site}/`}>Visit {brand.name}</Link>
+            {" · "}
+            <Link href={`${brand.links.site}/help`}>Get help from {brand.name}</Link>
+          </Text>
+        </Column>
+      </Column>
+    </Email>
+  );
 }

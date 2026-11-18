@@ -1,11 +1,12 @@
 # Templates
 
-Ready-made [Hyper Elements](https://hyperelements.dev) templates: emails, web pages, PDFs and images with their guardrails
-already set (required checks, link rules, image limits, text that fits). None of them carries a brand: each takes its
-colors, fonts, logo and company details from a brand it's given.
+Ready-made [Hyper Elements](https://hyperelements.dev) designs: emails, web pages, PDFs and images, each one plain JSX
+of Elements' own elements. None of them carries a brand: each takes its colors, fonts, logo and company details
+from a brand it's given, and is tested in every sample brand for readable text and a layout that fits.
 
 **To use one,** open it on [hyperelements.dev/templates](https://hyperelements.dev/templates), pick a sample brand,
-and copy its file. It imports only Elements' own packages. Replace the brand block at its top with your own brand.
+and copy it with its `brand.ts` (or as one file). It imports only Elements' own packages. Put your own brand in
+`brand.ts`, and change anything else you like.
 
 **To add one,** see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
@@ -73,7 +74,7 @@ This file is written by `pnpm --filter ./templates readme`. Don't edit it by han
 
 ## Kits
 
-| Kit | What it is | Templates | By |
+| Kit | What it is | Designs | By |
 |---|---|---|---|
 | [Editorial](./editorial) | A newsletter with room to read: a masthead, a lead story, more stories with thumbnails, and a closing note | `emails/newsletter` | Hyper Elements |
 | [Laurel](./laurel) | A formal certificate on a landscape page: a framed border, the recipient's name large, and lines for who signs it | `documents/certificate` | Hyper Elements |
@@ -84,7 +85,7 @@ This file is written by `pnpm --filter ./templates readme`. Don't edit it by han
 
 ## Sample brands
 
-Every template is tested in each of these invented brands. None is a real company.
+Every design is tested in each of these invented brands. None is a real company.
 
 - **Casa Albero** ([`_brands/casa-albero.ts`](./_brands/casa-albero.ts))
 - **Ember** ([`_brands/ember.ts`](./_brands/ember.ts))

@@ -27,8 +27,7 @@ const modes =
       : [{ id: "desktop", label: "Desktop" }, { id: "phone", label: "Phone" }, ...(t.root === "Email" ? [{ id: "text", label: "Plain text" }] : [])];
 const shownFormats = t.formats.length ? (t.root === "Canvas" ? t.formats : [t.formats[0]]) : ["default"];
 const codeTabs = [
-  { id: "design", label: "Design", file: "design.tsx" },
-  { id: "template", label: "Template", file },
+  { id: "design", label: "Design", file },
   { id: "brand", label: "Brand", file: "brand.ts" },
 ];
 const starter = `kit-${t.kit}-${t.folder}-${t.category}`;
@@ -95,12 +94,8 @@ const starter = `kit-${t.kit}-${t.folder}-${t.category}`;
           </div>
         </div>
         <div data-code-pane="design">
-          {list.map((b, i) => <div data-brand={b.id} hidden={i !== 0}><CodeBlock code={t.byBrand[b.id]?.design ?? ""} /></div>)}
-          <p class="note">A design is the template with its fields filled in: the example's values here. Put it beside <code>{file}</code> and <code>brand.ts</code>.</p>
-        </div>
-        <div data-code-pane="template" hidden>
           <CodeBlock code={t.code} />
-          <p class="note">The template: its fields, its rules and how it draws them. It imports your brand from <code>./brand.ts</code>, and nothing but Elements' own packages.</p>
+          <p class="note">The design: plain JSX of Elements' own elements, with real words in it. Every color, font and size comes from your brand, in <code>brand.ts</code>.</p>
         </div>
         <div data-code-pane="brand" hidden>
           {list.map((b, i) => <div data-brand={b.id} hidden={i !== 0}><CodeBlock code={t.byBrand[b.id]?.brandFile ?? ""} lang="ts" /></div>)}
@@ -111,30 +106,21 @@ const starter = `kit-${t.kit}-${t.folder}-${t.category}`;
   </div>
   <section class="wrap facts">
     <div>
-      <h2 class="cg-title">Fields</h2>
-      <table class="fields">
-        <thead><tr><th>Field</th><th>Kind</th><th></th></tr></thead>
-        <tbody>
-          {t.fields.map((f) => (
-            <tr>
-              <td><code>{f.path}</code><span class="flabel">{f.label}</span></td>
-              <td>{f.kind}</td>
-              <td>{f.required ? "required" : "optional"}{f.fromCategory ? ` · every ${category.label.toLowerCase()} takes it` : ""}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-    <div>
-      <h2 class="cg-title">Rules it holds to</h2>
-      <ul class="rules">
-        {t.rules.lint.map((r) => <li><code>{r.id}</code> {r.summary}</li>)}
-        {t.rules.core.map((r) => <li><code>{r.code}</code></li>)}
-        {t.rules.links?.domains && <li>Links go only to the brand's own domains.</li>}
-      </ul>
       <h2 class="cg-title">When to use it</h2>
       <p class="when">{category.useWhen}. Not for: {category.avoidWhen.charAt(0).toLowerCase() + category.avoidWhen.slice(1)}.</p>
-      {t.guidance && <p class="when">{t.guidance}</p>}
+      <h2 class="cg-title">What it's checked for</h2>
+      <ul class="rules">
+        <li>Readable text in every sample brand: 4.5:1 contrast, and large enough to read.</li>
+        <li>Every color and font from the brand's theme, so your brand.ts restyles all of it.</li>
+        <li>Nothing wider than its {t.root === "Canvas" ? "canvas" : t.root === "Document" ? "page" : "layout"}{t.root === "Canvas" ? ", and every line of text fitting its box" : ""}.</li>
+        {t.root === "Email" && <li>Nothing the major email clients drop, and links and images that say what they are.</li>}
+        {t.root === "Document" && <li>Every font and image drawn in the PDF.</li>}
+      </ul>
+    </div>
+    <div>
+      <h2 class="cg-title">Fill it in again and again</h2>
+      <p class="when">To fill this design with new content each time (a CMS, a batch, an agent writing only the words), turn it into a template with typed fields. Give each part that changes an <code>id</code> (<code>&lt;Heading id="headline"&gt;</code>), then:</p>
+      <CodeBlock code={`npx hyper-elements template extract ${t.category}.tsx --id acme.${t.category.replace(/(^|-)([a-z0-9])/g, (_, __, c) => c.toUpperCase())} --field headline -o templates/${t.category}.tsx`} lang="bash" />
     </div>
   </section>
   {(siblings.length > 0 || others.length > 0) && (
@@ -220,13 +206,10 @@ const starter = `kit-${t.kit}-${t.folder}-${t.category}`;
   [data-code-pane] :global(.code-block) { max-height: 760px; overflow: auto; margin: 0; }
   .facts { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 32px; margin-top: 56px; }
   .cg-title { font: 500 12.5px var(--mono); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-3); margin: 0 0 14px; }
-  .fields { width: 100%; border-collapse: collapse; font-size: 14px; }
-  .fields th { text-align: left; color: var(--text-3); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--line); }
-  .fields td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--text-2); }
-  .flabel { display: block; color: var(--text-3); font-size: 13px; }
-  .rules { padding-left: 18px; color: var(--text-2); font-size: 14px; margin: 0 0 24px; }
+    .rules { padding-left: 18px; color: var(--text-2); font-size: 14px; margin: 0 0 24px; }
   .rules li { margin-bottom: 6px; }
-  .when { color: var(--text-2); font-size: 14px; }
+  .when { color: var(--text-2); font-size: 14px; margin: 0 0 24px; }
+  .facts :global(.code-block) { margin: 0; }
   .more { margin-top: 56px; display: grid; gap: 12px; }
   .more-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
   .more-list a { text-decoration: none; }

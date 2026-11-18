@@ -1,6 +1,6 @@
 /**
  * What a recreation kit must hold to, as problems by path: a kit that rebuilds what a real company sent. Its `kit.ts`
- * names the company (`recreates`), its `brand.ts` is the company's brand, each of its templates says what it rebuilds
+ * names the company (`recreates`), its `brand.ts` is the company's brand, each of its designs says what it rebuilds
  * and where the original can be seen, and every image it names is under its own folder of the assets. A kit that
  * isn't a recreation has neither a brand nor a `recreates`.
  */
@@ -13,8 +13,8 @@ export interface RecreationInput {
   recreates?: { company?: string };
   brand?: Brand;
   /** Each template's file and its `meta`. */
-  templates: Array<{ file: string; meta?: { recreates?: Partial<RecreationMeta> } }>;
-  /** Every image the kit's templates name in their examples, and its brand's logo. */
+  designs: Array<{ file: string; meta?: { recreates?: Partial<RecreationMeta> } }>;
+  /** Every image the kit's designs show, and its brand's logo. */
   images: string[];
 }
 
@@ -23,14 +23,14 @@ export function recreationProblems(input: RecreationInput): string[] {
   const recreation = input.recreates !== undefined;
   if (!recreation) {
     if (input.brand) problems.push(`${input.kit}/brand.ts: only a recreation kit has a brand of its own (add recreates to kit.ts, or remove it)`);
-    for (const t of input.templates) if (t.meta?.recreates) problems.push(`${t.file}: meta.recreates in a kit that isn't a recreation`);
+    for (const t of input.designs) if (t.meta?.recreates) problems.push(`${t.file}: meta.recreates in a kit that isn't a recreation`);
     return problems;
   }
   if (!input.recreates?.company?.trim()) problems.push(`${input.kit}/kit.ts: recreates.company is empty`);
   if (!input.brand) problems.push(`${input.kit}/brand.ts: a recreation kit has its company's brand`);
   else problems.push(...checkBrand(input.brand).map((p) => `${input.kit}/brand.ts: ${p}`));
   const own = `${ASSETS}recreations/${input.kit}/`;
-  for (const t of input.templates) {
+  for (const t of input.designs) {
     const meta = t.meta?.recreates;
     if (!meta?.what?.trim()) problems.push(`${t.file}: meta.recreates.what says what it rebuilds ("Login code email")`);
     if (!meta?.original?.trim()) problems.push(`${t.file}: meta.recreates.original says where the original can be seen`);

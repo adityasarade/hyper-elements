@@ -1,5 +1,5 @@
 /**
- * The checks the matrix runs on a template's laid-out tree, as a plugin passed to `validate()`, whose `check` sees the
+ * The checks the matrix runs on a design's laid-out tree, as a plugin passed to `validate()`, whose `check` sees the
  * tree for every root. A plugin's diagnostics are warnings at most, so this one records what it finds in its own list.
  *
  * - neutral: with a probe brand, every color and font in the tree is one of the probe's tokens
@@ -59,7 +59,7 @@ export function checker(options: CheckOptions): { plugin: ElementsPlugin; findin
       const pages = root.type === "Document" ? root.children.filter((c): c is PluginNode => typeof c !== "string" && c.type === "Document.Page") : [];
       const walk = (node: PluginNode, chain: PluginNode[]) => {
         const ancestors = [...chain, node];
-        if (node.type === "Html") add("html", node.path, "An Html block: raw markup is outside every check, so templates hold none");
+        if (node.type === "Html") add("html", node.path, "An Html block: raw markup is outside every check, so designs hold none");
         const src = node.type === "Image" ? (typeof node.props.src === "string" ? node.props.src : (node.props.src as { src?: string } | undefined)?.src) : undefined;
         if (src !== undefined && !src.startsWith(ASSETS)) add("image", node.path, `${src} isn't under ${ASSETS}`);
         if (options.probe) {

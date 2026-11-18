@@ -1,6 +1,6 @@
 /**
  * Two probe brands whose every color and font is a sentinel used nowhere else. With a probe, every color in a
- * template's laid-out tree names the token it came from, so a literal (even one equal to a real brand's color) has no
+ * design's laid-out tree names the token it came from, so a literal (even one equal to a real brand's color) has no
  * name and fails. Two probes, because a literal that happens to equal one probe's sentinel isn't the other's.
  */
 import { defineTheme } from "@hyper-elements/react";
@@ -34,7 +34,7 @@ export function tokenNames(brand: Brand): Map<string, string> {
   return new Map(Object.entries(brand.theme.colors as Record<string, string>).map(([name, value]) => [value.toLowerCase(), name]));
 }
 
-/** A brand holding only the contract's tokens, and the heading sizes: no extra token a template could lean on. */
+/** A brand holding only the contract's tokens, and the heading sizes: no extra token a design could lean on. */
 export function contractOnly(brand: Brand): Brand {
   const theme = brand.theme as unknown as Record<string, Record<string, unknown>>;
   const pick = (group: keyof typeof CONTRACT) => Object.fromEntries(CONTRACT[group].map((name) => [name, theme[group][name]]));
