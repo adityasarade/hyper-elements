@@ -155,19 +155,23 @@ jobs:
       # and React (src/builder/imports.test.ts). Raise it on purpose, with what
       # grew: 485.5KB for the same scan and encoding, in the writers it shares;
       # 479,000 bytes for a Table's free column written for classic Outlook apart;
-      # 494,500 bytes for a template's own elements as the builder's custom tools
-      # (custom.ts: their blocks in a design both ways, and registerTools(), with a field
-      # for every kind of prop and a team's own editors; and what the builder keeps on
-      # such a block that isn't read, said as a built-in block's is); 495,500 bytes for
-      # fromDesign()'s code writing each such element by the name its type ends with,
-      # with its namespace where that's another's too;
-      # 496,500 bytes for a theme's `elements` beside `components` (984 bytes measured).
+      # 480,000 bytes for a theme's `elements` beside `components` (984 bytes measured);
+      # 506,000 for a Document's Table as the builder's table and back (about 11KB
+      # to write it, 9.5KB to read it, 2.5KB of the table's defaults, 2KB beside them);
+      # 509,500 for an Email's and a Page's Table as the builder's table where it draws
+      # it as it is, an HTML block with the reason said where it doesn't (3,431 bytes measured);
+      # 511,000 for its columns' percentages as given, a header's or a footer's background shared only where all its rows
+      # have it, its words read at the page's line height, and a row below a footer row said (1,927 bytes measured);
+      # 527,500 for a template's own elements as the builder's custom tools (custom.ts: their blocks in a design both
+      # ways, and registerTools(), with a field for every kind of prop and a team's own editors; and what the builder
+      # keeps on such a block that isn't read, said as a built-in block's is), and fromDesign()'s code writing each such
+      # element by the name its type ends with, with its namespace where that's another's too (527,331 bytes measured).
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=496500
+          MAX_SIZE=527500
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"

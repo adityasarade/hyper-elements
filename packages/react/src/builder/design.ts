@@ -18,13 +18,14 @@ import {
   RowDefaults,
   schemaVersion,
   SocialDefaults,
+  TableDefaults,
   VideoDefaults,
 } from "./tool-defaults";
 import { merge } from "./hide";
 import type { Values } from "./values";
 
 /** The builder's tools toDesign() writes blocks as, by their type in the design. */
-export type Tool = "heading" | "paragraph" | "button" | "image" | "divider" | "menu" | "social" | "video" | "html" | "page_break" | "custom";
+export type Tool = "heading" | "paragraph" | "button" | "image" | "divider" | "menu" | "social" | "video" | "html" | "page_break" | "table" | "custom";
 
 /** Where a row or a block is hidden: the builder's `_override.mobile.hideMobile` and `_override.desktop.hideDesktop`. */
 export interface Hiding {
@@ -129,6 +130,7 @@ const TOOLS: Record<Tool, Values> = {
   video: { ...VideoDefaults, video: { type: "youtube", videoId: "", thumbnail: "", loading: false, ...VideoDefaults.video } },
   html: HtmlDefaults,
   page_break: { color: "#6b7280" },
+  table: TableDefaults,
   // A custom tool's defaults are its own, in the builder it's registered in.
   custom: {},
 };

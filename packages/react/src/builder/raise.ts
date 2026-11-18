@@ -4,9 +4,11 @@
  * values that draw it as the new engine does: a Section a
  * full-width row, a Row a row of its children as columns (their shares and gap as the columns' widths and padding), a
  * box directly in the root or a Section a row of its own, content directly in the root a one-column row, a text block
- * its HTML. What a tool has no field for is a hidden property of it (hide.ts); what no tool shows (a Layer, an Svg, a
- * Table, a box nested in a column, a template's own element) is an HTML block of the new engine's own markup, and said;
- * a template's own element is its custom tool's block instead where the design is written with them (custom.ts).
+ * its HTML, a Table the builder's table (table.ts). What a tool has no field for is a hidden property of it
+ * (hide.ts); what no tool shows (a Layer, an Svg, a box nested in a column, a template's own element), or a table
+ * the builder's table doesn't draw as it is in an Email or a Page, is an HTML block of the new engine's own markup,
+ * and said; a template's own element is its custom tool's block instead where the design is written with them
+ * (custom.ts).
  */
 import { prepareTemplate, type Json, type Node, type ResolvedNode } from "@hyper-elements/core";
 import type React from "react";
