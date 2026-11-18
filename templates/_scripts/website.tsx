@@ -100,6 +100,7 @@ for (const t of all) {
     description: tpl.description ?? "",
     guidance: tpl.guidance ?? "",
     author: (await import(t.file)).meta?.author ?? kitList.find((k) => k.id === t.kit)!.kit.author,
+    ...((await import(t.file)).meta?.recreates ? { recreates: { company: kitList.find((k) => k.id === t.kit)!.kit.recreates?.company ?? "", ...(await import(t.file)).meta.recreates } } : {}),
     formats,
     fields: description.fields.map((f) => ({ path: f.path, kind: f.kind, label: f.label, required: f.required, fromCategory: required.includes(f.path.split(/[.[]/)[0]) })),
     rules: description.rules,

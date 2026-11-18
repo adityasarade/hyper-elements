@@ -14,6 +14,7 @@ with their own.
   author doesn't answer).
 - **A category:** a job the list doesn't have yet.
 - **A sample brand:** an invented one that covers a look the others don't.
+- **A recreation:** a faithful rebuild of something a real company actually sent, as a kit.
 
 To ask for a template rather than write one, open a [template request](https://github.com/hyper-elements/hyper-elements/issues/new?template=template-request.yml).
 
@@ -110,7 +111,7 @@ The rules every template follows:
 - **Images** you add must be yours to share, or under a license that lets anyone use them. They go under
   `_assets/kits/<kit>/` and are named by their URL under `https://hyperelements.dev/generated/kits/assets/kits/<kit>/`;
   no other image addresses are allowed. Use PNG or JPEG files: some email clients don't show WebP or SVG, and a PDF
-  can't draw an SVG.
+  can't draw an SVG. A recreation's images are the exception: see "A recreation".
 
 ## A kit
 
@@ -151,6 +152,38 @@ announcement, changelog, waitlist, landing, pricing, newsletter, digest, article
 speaker, social-post, quote-card, testimonial, stat-card, job-post, invitation, mention, comment, feedback-request,
 certificate, report, letter, contract, proposal, resume, promotion, ad, re-engagement. Any other name, or a new root
 for an existing category, needs a maintainer's approval in the pull request, with a reason no category does that job.
+
+## A recreation
+
+A recreation rebuilds something a real company actually sent or published (an email, a page, a document, an image)
+as a kit. Its templates are functions of a brand like any other, so anyone can use the layout with their own brand,
+and the company's brand is used only for its own kit. It adds:
+
+- `recreates: { company }` in `kit.ts`, and the company's brand in the kit's `brand.ts`, one declaration like a sample
+  brand's
+- `meta.recreates` in each template: what it rebuilds and where the original can be seen, either a public archive of
+  it or your screenshot under `_assets/recreations/<kit>/`
+
+  ```ts
+  export const meta = { recreates: { what: "Login code email", original: "https://…" } };
+  ```
+
+The rules:
+
+- **Only what the company sent.** No invented emails or documents in a real company's brand, and no lookalike
+  companies.
+- **Each template in a category,** like any template, or bring the category.
+- **Logos and images only as they appear in the original,** saved under `_assets/recreations/<kit>/`.
+- **No names or details of real people.** Sample values are invented.
+- **Every check still passes,** in the company's brand and in every sample brand. There are no exceptions: if the
+  original fails one, such as low contrast, adjust the company brand's color until it passes, and say so in
+  `meta.recreates`.
+- **The company's brand may hold extra tokens** where the original needs a color the contract doesn't have. A template
+  reads one with a fallback to a contract token (`brand.theme.colors.highlight ?? brand.theme.colors.accent`), so the
+  sample brands still work.
+
+A recreation is taken down if its company asks, with no discussion: the
+[removal form](https://github.com/hyper-elements/hyper-elements/issues/new?template=recreation-removal.yml) is how.
 
 ## A sample brand
 
@@ -197,12 +230,15 @@ Tick each item:
 - [ ] `pnpm --filter ./templates typecheck` and `test` pass, and the output, `README.md` and the website's files are
   regenerated and committed.
 - [ ] I looked at every template in the preview, in light and dark brands.
-- [ ] Sample values are invented. Images are mine to share or openly licensed.
+- [ ] Sample values are invented. Images are mine to share or openly licensed, or, for a recreation, as in the
+  original.
 - [ ] A new category, or a new root for one, has a maintainer's approval; a listed category doesn't need it.
 - [ ] A template added to someone else's kit has its author's approval.
+- [ ] For a recreation: only what the company sent, with where each original can be seen, and its images as in the
+  original.
 
 A maintainer reviews it for a look that's clearly different from the other kits' versions of the same categories, and
 for correct guardrails.
 
-By contributing, you agree your contribution is released under this repository's MIT license. Images belong to their
-owners.
+By contributing, you agree your contribution is released under this repository's MIT license. Images, and a
+recreation's brand, belong to their owners.
