@@ -68,7 +68,7 @@ const several = kitList.filter((k) => kitTemplates.filter((t) => t.kit === k.id)
             <span class="gshot" style={`background:${brand.colors.background}`}><KitThumb t={t} brand={brand.id} full /></span>
             <span class="gcap">
               <span class="gname">{t.label}</span>
-              <span class="gmeta">{t.output} · {kitName(t.kit)} in {brand.name}</span>
+              <span class="gmeta">{t.output} · {t.recreates ? `${kitName(t.kit)}, in its own brand` : `${kitName(t.kit)} in ${brand.name}`}</span>
             </span>
           </a>
         );

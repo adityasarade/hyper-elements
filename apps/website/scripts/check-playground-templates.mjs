@@ -146,7 +146,8 @@ export default template({
   await formats.close();
 
   // ─── 3. The Brand menu ───────────────────────────────────────────────────
-  const welcome = kits.templates.find((t) => t.root === "Email");
+  // A design in the sample brands: a recreation opens in its own company's brand.
+  const welcome = kits.templates.find((t) => t.root === "Email" && !t.recreates);
   const branded = await open(`#starter=${idOf(welcome)}`);
   const menu = branded.locator("[data-brand]");
   assert.equal(await menu.isHidden(), false, "the Brand menu shows on a template's single file");

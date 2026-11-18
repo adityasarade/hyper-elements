@@ -26,6 +26,7 @@ This file is written by `pnpm --filter ./templates readme`. Don't edit it by han
   - [Minimal](./minimal/emails/verify-email.tsx), as an email
 - **Welcome** (`welcome`): The first email after someone signs up: a greeting, a few next steps and one button.
   - [Minimal](./minimal/emails/welcome.tsx), as an email
+  - [Stripe](./stripe/emails/welcome.tsx), as an email
 
 ### Billing
 
@@ -53,7 +54,9 @@ This file is written by `pnpm --filter ./templates readme`. Don't edit it by han
 ### Content
 
 - **Newsletter** (`newsletter`): A regular issue of written news: a subject, a lead, and sections the writer fills in.
+  - [CodePen](./codepen/emails/newsletter.tsx), as an email
   - [Editorial](./editorial/emails/newsletter.tsx), as an email
+  - [Stack Overflow](./stack-overflow/emails/newsletter.tsx), as an email
 - **Open Graph card** (`og-card`): The picture a link shows when it's shared: an article's or a page's title, with the brand.
   - [Signal](./signal/images/og-card.tsx), as an image
 
@@ -67,20 +70,32 @@ This file is written by `pnpm --filter ./templates readme`. Don't edit it by han
 - **Ticket** (`ticket`): A ticket someone holds for an event: who it's for, when and where, and the code to show at the door.
   - [Summit](./summit/documents/ticket.tsx), as a PDF
 
+### People
+
+- **Feedback request** (`feedback-request`): Asking someone for their view after something happened (a stay, a purchase, a call), or showing them a review and inviting their reply.
+  - [Airbnb](./airbnb/emails/feedback-request.tsx), as an email
+
 ### Records
 
 - **Certificate** (`certificate`): Recognizing someone for finishing or achieving something: who, what, when, and who signs it.
   - [Laurel](./laurel/documents/certificate.tsx), as a PDF
+- **Report** (`report`): Numbers about a period, told as a story: a year in review, a monthly summary, usage stats.
+  - [Papermark](./papermark/emails/report.tsx), as an email
 
 ## Kits
 
 | Kit | What it is | Designs | By |
 |---|---|---|---|
+| [Airbnb](./airbnb) | Airbnb's review email, ported from React Email's community templates: the guest's photo, their review in a gray box, one button and common questions | `emails/feedback-request` | joaom00, via React Email |
+| [CodePen](./codepen) | CodePen's weekly Challenges newsletter, ported from React Email's community templates: header art on a dark band, a yellow heading, a challenge box, a PRO panel, and ideas and resources side by side | `emails/newsletter` | React Email community |
 | [Editorial](./editorial) | A newsletter with room to read: a masthead, a lead story, more stories with thumbnails, and a closing note | `emails/newsletter` | Hyper Elements |
 | [Laurel](./laurel) | A formal certificate on a landscape page: a framed border, the recipient's name large, and lines for who signs it | `documents/certificate` | Hyper Elements |
 | [Ledger](./ledger) | Quiet, tabular billing: an invoice as the email that sends it and as the PDF itself, from one set of values | `emails/invoice`, `documents/invoice`, `documents/quote`, `documents/receipt` | Hyper Elements |
 | [Minimal](./minimal) | Quiet transactional email: one card on a tinted page, the logo above it and the address below | `emails/magic-link`, `emails/order-confirmation`, `emails/password-reset`, `emails/receipt`, `emails/shipping`, `emails/sign-in-code`, `emails/verify-email`, `emails/welcome` | Hyper Elements |
+| [Papermark](./papermark) | Papermark's year in review, ported from React Email's community templates: big numbers in rounded panels, centered, with pill buttons | `emails/report` | React Email community |
 | [Signal](./signal) | A launch graphic for social posts: a fitted headline, three features and the product in a window, square or landscape | `images/announcement`, `images/og-card` | Hyper Elements |
+| [Stack Overflow](./stack-overflow) | Stack Overflow's search tips newsletter, ported from React Email's community templates: a logo on a pale page, a navy banner with art beside the headline, ruled sections, a tips list and a small print footer | `emails/newsletter` | bruno88cabral, via React Email |
+| [Stripe](./stripe) | Stripe's welcome email, ported from React Email's community templates: white card on a pale page, plain paragraphs, one button | `emails/welcome` | zenorocha, via React Email |
 | [Summit](./summit) | Everything for an event, in one look: the invitation, the event's page, the ticket, and a card for each speaker | `emails/event`, `pages/event`, `documents/ticket`, `images/speaker` | Hyper Elements |
 
 ## Sample brands
