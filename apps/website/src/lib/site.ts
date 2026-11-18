@@ -37,7 +37,6 @@ export const resourcesNav = [
   { href: "/blog", label: "Blog" },
   { href: "/playground", label: "Playground" },
   { href: "/email-testing", label: "Email testing" },
-  { href: "/tools/open-graph-image-generator", label: "OG image generator" },
 ];
 
 export type DocLink = { slug: string; label: string };
