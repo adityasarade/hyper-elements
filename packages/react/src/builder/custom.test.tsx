@@ -1131,6 +1131,33 @@ describe("a tool's fields", () => {
     expect(tool.renderer.exporters.email(block)).toContain("ABC 7.5");
   });
 
+  it("waits while an input method composes: kept once its user's done, so the field isn't drawn again in the middle (\"a\", then \"ab\", isn't \"aab\")", () => {
+    vi.useFakeTimers();
+    const { input, kept, tool } = field("code", "");
+    input.focus();
+    const compose = (text: string) => {
+      input.value = text;
+      input.dispatchEvent(new InputEvent("input", { data: text, isComposing: true }));
+    };
+    input.dispatchEvent(new CompositionEvent("compositionstart"));
+    compose("a");
+    vi.advanceTimersByTime(1000);
+    expect(kept).toEqual([]);
+    // Held meanwhile: an export now would be of the value the block has.
+    expect(() => tool.renderer.exporters.email({ code: "", price: "7.5" })).toThrow(`Code's Code holds "a", which isn't kept (it's being typed)`);
+    compose("ab");
+    // Leaving the field while composing ends the composition first: nothing's kept before.
+    input.dispatchEvent(new Event("change"));
+    vi.advanceTimersByTime(1000);
+    expect(kept).toEqual([]);
+    input.dispatchEvent(new CompositionEvent("compositionend", { data: "ab" }));
+    // A browser may send its last input after the composition ends: it's the same text, kept once.
+    input.dispatchEvent(new InputEvent("input", { data: "ab" }));
+    vi.advanceTimersByTime(300);
+    expect(kept).toEqual(["ab"]);
+    expect(tool.renderer.exporters.email({ code: "ab", price: "7.5" })).toContain("ab 7.5");
+  });
+
   it("shows a value a design was saved with that its prop doesn't take, with why, to be corrected", () => {
     const { input, error } = field("price", "-5");
     expect(input.value).toBe("-5");

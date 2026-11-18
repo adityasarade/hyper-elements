@@ -76,6 +76,8 @@ interface Typing {
   update: (value: unknown) => void;
   kept: string;
   timer?: ReturnType<typeof setTimeout>;
+  /** Whether its user is composing (an input method's text, not yet chosen): nothing's kept till they're done. */
+  composing?: boolean;
 }
 
 /** Where its user was in a field as what they typed was kept: the text, and the caret (or what's selected), and when. */
@@ -135,7 +137,7 @@ export function textField(spec: PropSpec, label: string, owner: string, store: (
         const fresh: Typing = { update, kept: shown };
         state = fresh;
         typing.set(input, fresh);
-        input.addEventListener("input", () => {
+        const heard = () => {
           clearTimeout(fresh.timer);
           const checked = holding(input, fresh);
           // Said only once its user pauses: on the way to "12px", "12p" isn't wrong yet.
@@ -143,9 +145,28 @@ export function textField(spec: PropSpec, label: string, owner: string, store: (
             say(node, label, undefined);
             fresh.timer = setTimeout(() => keep(input, fresh), KEEP_AFTER);
           } else fresh.timer = setTimeout(() => say(node, label, checked.message), SAY_AFTER);
+        };
+        // What an input method is composing isn't typed yet: kept, the builder would draw the field again in a new
+        // input, and the composition would go on in that one, after the text it has ("a", then "ab": "aab"). It's
+        // held (an export fails) and waits till its user is done.
+        input.addEventListener("compositionstart", () => {
+          fresh.composing = true;
+          clearTimeout(fresh.timer);
+          holding(input, fresh);
+        });
+        input.addEventListener("compositionend", () => {
+          fresh.composing = false;
+          heard();
+        });
+        input.addEventListener("input", (event) => {
+          if (fresh.composing || (event as InputEvent).isComposing) {
+            clearTimeout(fresh.timer);
+            holding(input, fresh);
+          } else heard();
         });
         // Left, or Enter: kept now, or said now.
         input.addEventListener("change", () => {
+          if (fresh.composing) return;
           clearTimeout(fresh.timer);
           const checked = holding(input, fresh);
           say(node, label, checked.ok ? undefined : checked.message);
