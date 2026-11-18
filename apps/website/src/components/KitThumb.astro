@@ -33,5 +33,7 @@ const list = brandsFor(t);
 <style>
   .kthumb { pointer-events: none; border-bottom: 1px solid var(--line); overflow: hidden; }
   .kt-image { height: 100%; display: grid; place-items: center; }
+  /* Its display would otherwise win over [hidden], and every brand's image would show at once. */
+  .kt-image[hidden] { display: none; }
   .kt-image img { max-width: 100%; max-height: 100%; object-fit: contain; }
 </style>
