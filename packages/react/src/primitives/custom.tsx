@@ -1,5 +1,5 @@
 /**
- * A template's own elements: a named block made of primitives, with its own typed
+ * Custom elements: a named block made of primitives, with its own typed
  * props and editors, kept as one node in the document and expanded when it's
  * rendered.
  */
@@ -8,6 +8,8 @@ import {
   asset,
   boolean,
   color,
+  blocks,
+  date,
   defineCustomComponent,
   enumOf,
   fontFamily,
@@ -15,7 +17,9 @@ import {
   formatDiagnostics,
   length,
   link,
+  list,
   number,
+  object,
   prop as defineProp,
   text,
   OWN_EDITOR,
@@ -69,9 +73,12 @@ type LengthKind<U extends LengthUnit> = ReturnType<typeof length<U>>;
  * and making its prop with `Mark` besides (a property's: which property it is).
  */
 interface Helpers<X = unknown, Mark = unknown> {
+  /** Text: at most `maxLength` characters, and with `pattern` (a regular expression's source, matched with `u`), text it finds something in; or one of the texts its `enum` lists. */
   text: <const V extends readonly string[] | undefined = undefined, const R extends boolean = false, const D extends OutputOf<TextKind<V>> | undefined = undefined, const L extends string | undefined = undefined>(
-    options: PropOptions<TextKind<V>, R, D, L> & { /** The texts it may be, where it's one of a few. */ enum?: V } & X
+    options: PropOptions<TextKind<V>, R, D, L> & { /** The texts it may be, where it's one of a few. */ enum?: V; maxLength?: number; pattern?: string } & X
   ) => Made<TextKind<V>, R, D, L> & Mark;
+  /** A calendar date, as YYYY-MM-DD ("2026-12-03"). */
+  date: KindHelper<ReturnType<typeof date>, X, Mark>;
   color: KindHelper<ReturnType<typeof color>, { /** Whether it may be see-through (default true): with false, an rgba, an 8-digit hex or "transparent" is refused. */ transparency?: boolean } & X, TakesToken & Mark>;
   image: KindHelper<ReturnType<typeof asset>, X, Mark>;
   link: KindHelper<ReturnType<typeof link>, X, Mark>;
@@ -92,8 +99,15 @@ type Given = { readonly [option: string]: any };
 const made = (kind: Kind<any, any>, options: Given) => defineProp(kind, options as never);
 
 /** What every helper takes, and what some take besides: a property's own options are named otherwise. */
-const EVERY = ["label", "description", "required", "default", "roots", "editable", "support"];
-const BESIDES: { readonly [helper: string]: readonly string[] } = { text: ["enum"], color: ["transparency"], number: ["min", "max", "integer"], length: ["units", "min"] };
+const EVERY = ["label", "description", "guidance", "required", "default", "roots", "editable", "support"];
+const BESIDES: { readonly [helper: string]: readonly string[] } = {
+  text: ["enum", "maxLength", "pattern"],
+  color: ["transparency"],
+  number: ["min", "max", "integer"],
+  length: ["units", "min"],
+  list: ["min", "max"],
+  blocks: ["min", "max"],
+};
 
 /**
  * What a helper is given, where it takes all of it. One it doesn't take is refused where it's written, as a type error
@@ -113,12 +127,18 @@ function takes(helper: string, given: Given | undefined): Given {
 
 const helpers = {
   text: (given: Given) => {
-    const { enum: values, ...rest } = takes("text", given);
+    const { enum: values, maxLength, pattern, ...rest } = takes("text", given);
     if (values !== undefined && !(Array.isArray(values) && values.length > 0 && values.every((value) => typeof value === "string"))) {
       throw new Error(`[Elements] A text's enum lists the texts it may be (["$", "€"]), not ${JSON.stringify(values)}`);
     }
-    return made(values ? enumOf(values as readonly string[]) : text(), rest);
+    if (values !== undefined && (maxLength !== undefined || pattern !== undefined)) {
+      throw new Error(`[Elements] A text with an enum is one of the texts it lists: it takes no ${maxLength !== undefined ? "maxLength" : "pattern"}`);
+    }
+    if (values) return made(enumOf(values as readonly string[]), rest);
+    // Compiled once, with only `u`: a `g` or `y` flag would make the same text pass, then fail (test() keeps its place).
+    return made(text({ maxLength, ...(pattern !== undefined ? { pattern: new RegExp(pattern, "u") } : {}) }), rest);
   },
+  date: (given: Given) => made(date(), takes("date", given)),
   color: (given: Given) => {
     const { transparency, ...rest } = takes("color", given);
     if (transparency !== undefined && typeof transparency !== "boolean") throw new Error(`[Elements] A color's transparency is true or false, not ${JSON.stringify(transparency)}`);
@@ -139,15 +159,89 @@ const helpers = {
   },
 };
 
-/** Props of a template's own element, by value kind. */
+// ─── Composed values: lists and objects of fields ───────────────────────────
+
+/** A spec that's a list of one item spec (`prop.list()`), which it keeps whole. */
+export type ListSpec<I extends PropSpec = PropSpec> = PropSpec & { item: I };
+/** A spec that's an object of field specs (`prop.object()`), which it keeps whole. */
+export type ObjectSpec<F extends PropSpecs = PropSpecs> = PropSpec & { fields: F };
+
+/** Whether a field must be given: it's required. */
+type MustGive<S> = Exclude<S extends { required?: infer R } ? R : never, undefined> extends true ? true : false;
+type Defaulted<S> = S extends { default: infer D } ? ([D] extends [undefined] ? false : true) : false;
+/** Whether a field always has a value once read: it's required, it has a default, or it's a list (none is `[]`). */
+type Always<S> = MustGive<S> extends true ? true : S extends { item: PropSpec } | { blocks: object } ? true : Defaulted<S>;
+
+/** A block's value: its `type`, and its object spec's fields' values. */
+type BlockValue<B> = { [K in keyof B]: B[K] extends { fields: infer G extends PropSpecs } ? { type: K } & FieldValues<G> : never }[keyof B];
+type BlockInput<B> = { [K in keyof B]: B[K] extends { fields: infer G extends PropSpecs } ? { type: K } & FieldInputs<G> : never }[keyof B];
+/** A spec that's a list of blocks (`prop.blocks()`), keeping each block type's object spec. */
+export type BlocksSpec<B extends Record<string, ObjectSpec> = Record<string, ObjectSpec>> = PropSpec & { blocks: B };
+
+/** A field's value once read: a list's an array of its item's, an object's its fields' (`FieldValues`). */
+export type FieldValue<S> = S extends { blocks: infer B } ? Array<BlockValue<B>> : S extends { item: infer I } ? Array<FieldValue<I>> : S extends { fields: infer G extends PropSpecs } ? FieldValues<G> : S extends PropSpec<infer K> ? OutputOf<K> : never;
+/** Fields' values once read: each that always has one (required, defaulted, or a list) present, the rest optional. */
+export type FieldValues<F extends PropSpecs> = { [K in keyof F as Always<F[K]> extends true ? K : never]: FieldValue<F[K]> } & {
+  [K in keyof F as Always<F[K]> extends true ? never : K]?: FieldValue<F[K]>;
+};
+/** A field's value as it's given. */
+export type FieldInput<S> = S extends { blocks: infer B } ? ReadonlyArray<BlockInput<B>> : S extends { item: infer I } ? ReadonlyArray<FieldInput<I>> : S extends { fields: infer G extends PropSpecs } ? FieldInputs<G> : S extends PropSpec<infer K> ? InputOf<K> : never;
+/** Fields' values as they're given: the required ones must be. */
+export type FieldInputs<F extends PropSpecs> = { [K in keyof F as MustGive<F[K]> extends true ? K : never]: FieldInput<F[K]> } & {
+  [K in keyof F as MustGive<F[K]> extends true ? never : K]?: FieldInput<F[K]>;
+};
+
+/** What a list, a list of blocks or an object takes besides its parts: no default, and no editor named, as a helper's. */
+type ComposedOptions<R extends boolean> = Omit<PropSpec<Kind<any, any>, R>, "kind" | "default" | "editor">;
+
+/**
+ * A list, a list of blocks and an object: each made of other props' specs, which it keeps whole, so no property of a
+ * team's own is made on one. What each is given besides is checked as a helper's is.
+ */
+const composed = {
+  list: (item: PropSpec, options: Given) => {
+    const { min, max, ...rest } = takes("list", options);
+    return { ...made(list(item.kind, { min, max }), rest), item };
+  },
+  blocks: (types: Record<string, ObjectSpec>, options: Given) => {
+    const { min, max, ...rest } = takes("blocks", options);
+    const kind = blocks(Object.fromEntries(Object.entries(types).map(([name, spec]) => [name, spec.kind])), { min, max });
+    return { ...made(kind, rest), blocks: types };
+  },
+  object: (fields: PropSpecs, options: Given) => {
+    const kind = object(Object.fromEntries(Object.entries(fields).map(([name, spec]) => [name, { kind: spec.kind, ...(spec.required ? { required: true } : {}), ...(spec.default !== undefined ? { default: spec.default } : {}) }])));
+    return { ...made(kind, takes("object", options)), fields };
+  },
+};
+
+/** Props of a custom element, and a template's fields, by value kind. */
 export const prop = {
   ...helpers,
+  ...composed,
   choice: (values: readonly (string | number)[], options: Given) => made(enumOf(values), takes("choice", options)),
 } as unknown as { [N in keyof Helpers]: Helpers[N] & Based<N> } & {
   choice: <const V extends readonly (string | number)[], const R extends boolean = false, const D extends V[number] | undefined = undefined, const L extends string | undefined = undefined>(
     values: V,
     options: PropOptions<Kind<V[number], V[number]>, R, D, L>
   ) => Made<Kind<V[number], V[number]>, R, D, L>;
+  /**
+   * A list of `item`s, with as few as `min` and as many as `max`. In a template, one not given is `[]` (its `min`
+   * applies to that too). The spec keeps `item` whole, so a template reads its rules (an image's).
+   */
+  list: <const I extends PropSpec, const R extends boolean = false>(
+    item: I,
+    options: ComposedOptions<R> & { min?: number; max?: number }
+  ) => PropSpec<Kind<ReadonlyArray<FieldInput<I>>, Array<FieldValue<I>> & Json[]>, R> & { default: undefined; item: I };
+  /**
+   * A list of blocks the filler picks, orders and fills: each `{ type, …its fields }`, its type one of `types` (each a
+   * `prop.object()` spec). A block type can't have a field named `type`. The spec keeps `blocks` whole.
+   */
+  blocks: <const B extends Record<string, ObjectSpec>, const R extends boolean = false>(
+    types: B,
+    options: ComposedOptions<R> & { min?: number; max?: number }
+  ) => PropSpec<Kind<ReadonlyArray<BlockInput<B>>, Array<BlockValue<B>> & Json[]>, R> & { default: undefined; blocks: B };
+  /** An object of named fields (a story's title, link and image). The spec keeps `fields` whole. */
+  object: <const F extends PropSpecs, const R extends boolean = false>(fields: F, options: ComposedOptions<R>) => PropSpec<Kind<FieldInputs<F>, FieldValues<F> & Json>, R> & { default: undefined; fields: F };
 };
 
 /** A property's own options, each made with one of `prop`'s helpers. */
@@ -250,7 +344,7 @@ export function defineProperty<const Name extends string, const N extends keyof 
 /** A prop's value in JSX: a color's, a length's or a font's may be a theme's token, its value where the instance is. */
 type WithTokens<T, P> = { [K in keyof T]: K extends keyof P ? (P[K] extends TakesToken ? T[K] | Token : T[K]) : T[K] };
 
-/** What a template's own element takes in JSX: its props, and its place in a Row and its visibility. */
+/** What a custom element takes in JSX: its props, and its place in a Row and its visibility. */
 export type CustomProps<P extends PropSpecs> = WithTokens<PropsInput<P>, P> & {
   id?: string;
   style?: { flex?: number | "none" };
@@ -277,7 +371,7 @@ export interface ElementSpec<P extends PropSpecs> {
   render(props: ExpandProps<P>, context: RenderContext): React.ReactElement;
 }
 
-/** What a template's own element's render gets besides its props. */
+/** What a custom element's render gets besides its props. */
 export interface RenderContext {
   /** The theme's tokens where the instance is, as values: `theme.colors.primary`. Empty without a theme. */
   readonly theme: ThemeValues;
@@ -304,6 +398,8 @@ export interface ThemeValues {
  *     });
  */
 export function defineElement<const P extends PropSpecs>(spec: ElementSpec<P>): CustomElement<P> {
+  // Read once, now: changing the spec afterwards (its render included) changes nothing rendered.
+  const render = spec.render;
   const definition = defineCustomComponent({
     type: spec.type,
     label: spec.label,
@@ -311,7 +407,7 @@ export function defineElement<const P extends PropSpecs>(spec: ElementSpec<P>): 
     props: spec.props,
     placement: spec.placement,
     expand(props, context) {
-      const { nodes, components, diagnostics } = collectNodes(spec.render(props, { theme: ((context as { theme?: unknown }).theme ?? {}) as ThemeValues }));
+      const { nodes, components, diagnostics } = collectNodes(render(props, { theme: ((context as { theme?: unknown }).theme ?? {}) as ThemeValues }));
       for (const used of components) context.register(used);
       // An error stops it; a warning or a note (a deprecated prop) is said at the instance's place.
       if (diagnostics.some((diagnostic) => diagnostic.severity === "error")) throw new Error(formatDiagnostics(diagnostics));
@@ -322,13 +418,15 @@ export function defineElement<const P extends PropSpecs>(spec: ElementSpec<P>): 
   const Custom = (props: CustomProps<P>): React.ReactElement => {
     const collection = collectingPrimitives();
     if (!collection) {
-      throw new Error(`[Elements] <${spec.type}> is part of a template: render the template with render(), not this element on its own`);
+      throw new Error(`[Elements] <${definition.type}> is part of a design: render the design with render(), not this element on its own`);
     }
     registerUsed(collection, definition);
-    return recordPrimitive(collection, spec.type, props as Record<string, unknown>);
+    return recordPrimitive(collection, definition.type, props as Record<string, unknown>);
   };
-  Custom.displayName = spec.type;
-  return Object.assign(Custom, { definition });
+  Custom.displayName = definition.type;
+  // Its definition can't be replaced, and is frozen itself.
+  Object.defineProperty(Custom, "definition", { value: definition, enumerable: true });
+  return Custom as CustomElement<P>;
 }
 
 /** @deprecated Renamed `defineElement()`: the same function. */

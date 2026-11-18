@@ -280,19 +280,36 @@ describe("component()", () => {
   });
 
   it("refuses an option a helper doesn't take, for a caller with no types: a name mistyped is said, not dropped", () => {
-    const every = { label: "L", description: "d", required: false, editable: true, roots: ["Email"] as const };
-    const besides: Record<string, Record<string, unknown>> = { text: { enum: ["a", "b"] }, color: { transparency: false }, number: { min: 0, max: 5, integer: true }, length: { units: ["px", "%"], min: 0 } };
-    for (const helper of ["text", "color", "image", "link", "boolean", "fontFamily", "fontWeight", "number", "length"] as const) {
+    const every = { label: "L", description: "d", guidance: "g", required: false, editable: true, roots: ["Email"] as const };
+    const besides: Record<string, Record<string, unknown>> = { text: { maxLength: 20, pattern: "^a" }, color: { transparency: false }, number: { min: 0, max: 5, integer: true }, length: { units: ["px", "%"], min: 0 } };
+    // A text's enum is taken too, apart from its maxLength and pattern (below).
+    const named: Record<string, string[]> = { text: ["enum", "maxLength", "pattern"] };
+    for (const helper of ["text", "date", "color", "image", "link", "boolean", "fontFamily", "fontWeight", "number", "length"] as const) {
       const make = prop[helper] as (options: Record<string, unknown>) => unknown;
       expect(() => make({ ...every, ...besides[helper] })).not.toThrow();
-      const taken = ["label", "description", "required", "default", "roots", "editable", "support", ...Object.keys(besides[helper] ?? {})].join(", ");
+      const taken = ["label", "description", "guidance", "required", "default", "roots", "editable", "support", ...(named[helper] ?? Object.keys(besides[helper] ?? {}))].join(", ");
       expect(() => make({ label: "L", lable: "L" })).toThrow(`prop.${helper} has no option named lable (it takes ${taken})`);
     }
+    expect(() => prop.text({ ...every, enum: ["a", "b"] })).not.toThrow();
+    // A text with an enum is one of its texts: a length or a pattern would be dropped.
+    expect(() => prop.text({ label: "L", enum: ["a"], maxLength: 3 })).toThrow("A text with an enum is one of the texts it lists: it takes no maxLength");
+    expect(() => prop.text({ label: "L", enum: ["a"], pattern: "^a" })).toThrow("A text with an enum is one of the texts it lists: it takes no pattern");
+    // A list, a list of blocks and an object refuse one too, an editor named by its name among them.
+    const item = prop.text({ label: "Item" });
+    expect(() => prop.list(item, { ...every, min: 1, max: 3 })).not.toThrow();
+    expect(() => prop.blocks({ quote: prop.object({ text: item }, { label: "Quote" }) }, { ...every, min: 1, max: 3 })).not.toThrow();
+    expect(() => prop.object({ text: item }, every)).not.toThrow();
+    // @ts-expect-error -- a list has no maxLength.
+    expect(() => prop.list(item, { label: "L", maxLength: 3 })).toThrow("prop.list has no option named maxLength (it takes label, description, guidance, required, default, roots, editable, support, min, max)");
+    // @ts-expect-error -- an object has no min.
+    expect(() => prop.object({ text: item }, { label: "L", min: 1 })).toThrow("prop.object has no option named min (it takes label, description, guidance, required, default, roots, editable, support)");
+    // @ts-expect-error -- nor an editor by its name.
+    expect(() => prop.blocks({ quote: prop.object({ text: item }, { label: "Quote" }) }, { label: "L", editor: "cards" })).toThrow(`prop.blocks takes no editor: ${"a prop is edited with its kind's editor"}`);
     // What another helper takes isn't this one's.
     // @ts-expect-error -- a text has no min.
     expect(() => prop.text({ label: "L", min: 1 })).toThrow("prop.text has no option named min");
     // @ts-expect-error -- a choice's values are apart from its options.
-    expect(() => prop.choice(["a"], { label: "L", enum: ["a"] })).toThrow("prop.choice has no option named enum (it takes label, description, required, default, roots, editable, support)");
+    expect(() => prop.choice(["a"], { label: "L", enum: ["a"] })).toThrow("prop.choice has no option named enum (it takes label, description, guidance, required, default, roots, editable, support)");
   });
 
   it("takes a color that lets what's under it show, unless its transparency is false", async () => {
@@ -451,7 +468,7 @@ describe("component()", () => {
     for (const name of ["currency", "Acme.currency", "acme.", "acme.two words"]) {
       expect(() => defineProperty({ name, base: prop.number })).toThrow(`A property's name is a namespace, a dot and a word ("acme.currency"), not ${JSON.stringify(name)}`);
     }
-    const helpers = "prop.text, prop.color, prop.image, prop.link, prop.boolean, prop.fontFamily, prop.fontWeight, prop.number, prop.length";
+    const helpers = "prop.text, prop.date, prop.color, prop.image, prop.link, prop.boolean, prop.fontFamily, prop.fontWeight, prop.number, prop.length";
     // @ts-expect-error -- a base is one of prop's helpers itself, not its name.
     expect(() => defineProperty({ name: "acme.currency", base: "number" })).toThrow(`The property acme.currency is made on one of prop's helpers (${helpers})`);
     // @ts-expect-error -- a choice takes its values apart from its options: a text with an enum is the base for one.

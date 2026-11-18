@@ -15,7 +15,7 @@ Anything the elements can't express (content with `display: none`, markup the co
 
 ## What the check guarantees
 
-The goal is an editable Unlayer template with the same content, not pixel parity. Every template is written; the original and the migrated version are rendered with the template's `PreviewProps`, then again with each boolean prop flipped, and compared.
+The goal is an editable design with the same content, not pixel parity. Every template is written; the original and the migrated version are rendered with the template's `PreviewProps`, then again with each boolean prop flipped, and compared.
 
 **Content** must be the same, or the template is flagged `✗` and the command exits with code `2` (it's still written: content that differs is a converter bug, since anything it can't map is kept as HTML):
 
@@ -50,7 +50,7 @@ const { design } = toDesign(element); // open in the visual editor with loadDesi
 
 `--out` refuses symlinked destinations and directories inside the output folder, and cannot replace input templates. Use `--write` to replace originals. It doesn't replace files already in the output folder that the run didn't produce either, unless you pass `--overwrite` (with `--strict`, it still never writes a template that failed the check).
 
-`--design` also writes each template's design JSON next to it, ready for `loadDesign()`. Text props become merge tags (`{{name}}`) where the template shows them as given; `--no-merge-tags` keeps the `PreviewProps` values. CSS, font URLs, backgrounds and all image sources retain sample values even when merge tags are enabled.
+`--design` also writes each template's builder design next to it, ready for `loadDesign()`. Text props become merge tags (`{{name}}`) where the template shows them as given; `--no-merge-tags` keeps the `PreviewProps` values. CSS, font URLs, backgrounds and all image sources retain sample values even when merge tags are enabled.
 
 ## A template that fails
 
@@ -68,7 +68,7 @@ npx @hyper-elements/migrate emails --out unlayer --design --report unlayer/repor
 editor.loadDesign(await fetch("/unlayer/welcome.design.json").then((r) => r.json()));
 ```
 
-A template's web fonts (Google Fonts, `<Font>`) aren't part of the design JSON: the editor loads and exports a web font only when it's registered when the editor is created. The report lists each template's fonts in that shape, so pass them on:
+A template's web fonts (Google Fonts, `<Font>`) aren't part of the builder design: the editor loads and exports a web font only when it's registered when the editor is created. The report lists each template's fonts in that shape, so pass them on:
 
 ```js
 const report = await fetch("/unlayer/report.json").then((r) => r.json());
@@ -78,9 +78,9 @@ const editor = unlayer.createEditor({ id: "editor", displayMode: "email", fonts:
 
 From the library, `verifyConversion(...).editorFonts` and `convertReactEmail(...).editorFonts()` return the same list.
 
-The [react-email-in-editor example](../../../examples/react-email-in-editor) runs this end to end: it migrates two templates and opens them in the hosted editor, with a picker for every template it wrote. Spacing between sections becomes padding, and a column that only holds space (around a card, beside an image) holds an invisible divider, so the editor shows the design as it looks rather than empty-column placeholders.
+The [react-email-in-editor example](../../../examples/react-email-in-editor) runs this end to end: it migrates two templates and opens them in the hosted editor, with a picker for every template it wrote. Spacing between sections becomes padding, and a column that only holds space (around a card, beside an image) holds an invisible divider, so the editor shows the email as it looks rather than empty-column placeholders.
 
-For a right-to-left design, call `unlayer.setTextDirection("rtl")` when loading it. The design keeps `body.values.textDirection`; `lang` belongs to the rendered document and is not stored in the editor's design JSON.
+For a right-to-left builder design, call `unlayer.setTextDirection("rtl")` when loading it. The builder design keeps `body.values.textDirection`; `lang` belongs to the rendered document and is not stored in the editor's design JSON.
 
 ## Agent rules
 

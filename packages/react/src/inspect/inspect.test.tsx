@@ -32,7 +32,7 @@ describe("describeElements()", () => {
     expect(document.conditions.map((c) => c.name)).toEqual(["hover"]);
   });
 
-  it("describes one element, and a template's own with the built-in ones", () => {
+  it("describes one element, and a custom one with the built-in ones", () => {
     expect(describeElement("Svg", { root: "Email" })).toBeUndefined();
     expect(describeElement("Svg", { root: "Canvas" })).toMatchObject({ version: INSPECT_VERSION, type: "Svg", roots: ["Canvas"] });
     expect(describeElement("Nope")).toBeUndefined();
@@ -179,7 +179,7 @@ describe("inspect()", () => {
   });
 
   it("takes only a template", () => {
-    expect(() => inspect(null as never)).toThrow(/takes a template as JSX/);
+    expect(() => inspect(null as never)).toThrow(/takes a design as JSX/);
     expect(inspect(<>{null}</>)).toMatchObject({ root: null, valid: false, nodes: [] });
   });
 });

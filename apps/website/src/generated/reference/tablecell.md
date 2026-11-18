@@ -11,7 +11,7 @@ Holds: text; PageNumber, Span, Link, LineBreak, MergeTag, Image.
 
 Props:
 - `colSpan`: an integer from 1 (default `1`). How many columns it spans.
-- `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the template's; it starts on that side unless aligned otherwise.
+- `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the design's; it starts on that side unless aligned otherwise.
 
 `style`:
 - `color`: *color* (inherited, Typography)

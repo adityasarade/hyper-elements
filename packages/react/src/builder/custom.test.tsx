@@ -210,7 +210,7 @@ describe("fromDesign with elements", () => {
     const back = fromDesign(design, { elements: [MyShopCard, NewCard, Callout, AcmeText, AcmeTemplate] });
     expect(back.report).toEqual([]);
     expect(back.code).toContain(
-      "// The template's own elements, to import from where they're defined: Callout (acme.Callout), AcmeTemplate (acme.Template), AcmeText (acme.Text), MyShopCard (my-shop.Card), NewCard (new.Card)."
+      "// Custom elements, to import from where they're defined: Callout (acme.Callout), AcmeTemplate (acme.Template), AcmeText (acme.Text), MyShopCard (my-shop.Card), NewCard (new.Card)."
     );
     expect(back.code).toContain('<MyShopCard title="One" />');
     expect(back.code).toContain('<Callout title="Three" />');

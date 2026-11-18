@@ -36,10 +36,10 @@ From code, `migrateElements(source)` (from `@hyper-elements/migrate/elements`) r
 
 ## What it writes
 
-The new template draws what Unlayer Elements drew. Where Unlayer Elements' components fill in a value the new ones don't
+The new design draws what Unlayer Elements drew. Where Unlayer Elements' components fill in a value the new ones don't
 share, the codemod writes it out:
 
-| Unlayer Elements | The new template |
+| Unlayer Elements | The new design |
 |---|---|
 | `Email`'s 500px, black text, Arial | `width={500}` and the color and font in `style` |
 | A block's 10px of padding (`containerPadding`) | `padding: 10` on the block, or on a `Column` around an `Image`, `Button`, `Social`, `Menu` or `Video` |

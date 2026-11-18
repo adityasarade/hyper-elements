@@ -10,7 +10,7 @@ An item of a List: text, and a List of its own to nest one.
 Holds: text; PageNumber, Span, Link, LineBreak, MergeTag, List.
 
 Props:
-- `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the template's; it starts on that side unless aligned otherwise.
+- `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the design's; it starts on that side unless aligned otherwise.
 
 `style`:
 - `color`: *color* (inherited, Typography)

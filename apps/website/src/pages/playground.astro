@@ -1,5 +1,5 @@
 ---
-// The playground: write a template, and the real engine renders it here, in the visitor's browser. The code runs in
+// The playground: write a design, and the real engine renders it here, in the visitor's browser. The code runs in
 // a sandboxed frame (playground/README.md); this page is the bench around it, and src/playground/main.ts drives it.
 import Base from "../layouts/Base.astro";
 import CodeBlock from "../components/CodeBlock.astro";
@@ -8,7 +8,7 @@ import { defaultStarter, engineVersion, starterList } from "../lib/playground";
 import { site } from "../lib/site";
 
 const description =
-  "Write a Hyper Elements template in JSX and see it rendered live as an email, web page, PDF and image, with every diagnostic and its fix.";
+  "Write a Hyper Elements design in JSX and see it rendered live as an email, web page, PDF and image, with every diagnostic and its fix.";
 
 const icon = (d: string, size = 15) =>
   `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
@@ -78,9 +78,9 @@ get_playground_code()`;
     <section class="sr-only" aria-label="Instructions for AI agents">
       <h2>Instructions for AI agents</h2>
       <p>
-        This page renders Hyper Elements templates (<code>{site.pkg}</code> {engineVersion}) in the browser, with nothing to install:
-        email HTML and plain text, a web page, print HTML and a PDF, a PNG or SVG image, the template's outline and its diagnostics.
-        Write a module that exports the template (<code>export default function Welcome() &#123; return &lt;Email&gt;…&lt;/Email&gt;; &#125;</code>),
+        This page renders Hyper Elements designs (<code>{site.pkg}</code> {engineVersion}) in the browser, with nothing to install:
+        email HTML and plain text, a web page, print HTML and a PDF, a PNG or SVG image, the design's outline and its diagnostics.
+        Write a module that exports the design (<code>export default function Welcome() &#123; return &lt;Email&gt;…&lt;/Email&gt;; &#125;</code>),
         or JSX alone (<code>&lt;Email&gt;&lt;Text&gt;Hi&lt;/Text&gt;&lt;/Email&gt;</code>). The root decides the output: Email, Page, Document or Canvas.
       </p>
       <p>
@@ -100,7 +100,7 @@ get_playground_code()`;
 
     <div class="pg-top">
       <h1 class="sr-only">Playground</h1>
-      <div class="pg-roots" role="radiogroup" aria-label="Root: the output this template writes" data-roots>
+      <div class="pg-roots" role="radiogroup" aria-label="Root: the output this design writes" data-roots>
         {roots.map((r) => (
           <button type="button" role="radio" aria-checked="false" data-root={r.root} title={`<${r.root}>: ${r.writes}`}>
             <span class="pg-root-icon" set:html={icons[r.root]} /><span class="pg-root-name">{r.label}</span>
@@ -110,10 +110,10 @@ get_playground_code()`;
       <div class="pg-menu pg-templates" data-menu="templates">
         <button class="pg-starter" type="button" data-templates-open aria-haspopup="menu" aria-expanded="false">
           <span class="pg-starter-icon" set:html={icons.grid} />
-          <span class="pg-starter-text"><span class="pg-starter-kicker">Template</span><span class="pg-starter-name" data-starter-name>{defaultStarter.title}</span></span>
+          <span class="pg-starter-text"><span class="pg-starter-kicker">Design</span><span class="pg-starter-name" data-starter-name>{defaultStarter.title}</span></span>
           <span class="pg-caret" set:html={icons.caret} />
         </button>
-        <div class="pg-menu-list pg-templates-list" role="menu" aria-label="Templates" data-templates-list hidden></div>
+        <div class="pg-menu-list pg-templates-list" role="menu" aria-label="Designs" data-templates-list hidden></div>
       </div>
       <span class="pg-origin" data-origin hidden></span>
       <div class="pg-top-actions">
@@ -225,13 +225,13 @@ get_playground_code()`;
       <div class="section-head">
         <p class="eyebrow">For agents</p>
         <h2 class="h-section">An agent can drive this page.</h2>
-        <p class="lede">Render a template without installing anything, read what's wrong with it and how to fix it, then hand a person a link to the result. Three ways in, all of them the same sandbox.</p>
+        <p class="lede">Render a design without installing anything, read what's wrong with it and how to fix it, then hand a person a link to the result. Three ways in, all of them the same sandbox.</p>
       </div>
       <div class="pg-ways">
         <article class="card pg-way-link">
           <span class="tag">A link</span>
           <h3>The code in the URL</h3>
-          <p>Put the template in the hash and the page opens with it rendered. <code>#code=</code> is the UTF-8 code in base64url; Share writes <code>#z=</code>, the same deflated. Add <code>view</code> (<code>preview</code>, <code>html</code>, <code>text</code>, <code>pdf</code>, <code>png</code>, <code>svg</code>, <code>clients</code>), <code>device=phone</code> or <code>layout=preview</code> for the output alone.</p>
+          <p>Put the design in the hash and the page opens with it rendered. <code>#code=</code> is the UTF-8 code in base64url; Share writes <code>#z=</code>, the same deflated. Add <code>view</code> (<code>preview</code>, <code>html</code>, <code>text</code>, <code>pdf</code>, <code>png</code>, <code>svg</code>, <code>clients</code>), <code>device=phone</code> or <code>layout=preview</code> for the output alone.</p>
           <CodeBlock code={linkSample} lang="text" />
           <p><code>&lt;html data-render-status&gt;</code> becomes <code>ok</code> or <code>error</code> when it has rendered.</p>
         </article>

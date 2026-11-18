@@ -8,6 +8,8 @@ import { describe, expect, it } from "vitest";
 import React from "react";
 import { Button, Column, Document, ElementsError, Email, Heading, Html, Image, Layer, Link, List, ListItem, MergeTag, Menu, Page, Text, Row, Section, Social, Span, Table, TableCell, TableRow, Video, render } from "../primitives/index";
 import { toDesign } from "../builder/index";
+import { prop } from "../primitives/index";
+import { field, template } from "../template/index";
 import { textJsonHtml } from "../builder/text-json";
 
 const PAYLOADS = [
@@ -95,6 +97,75 @@ describe.each(Object.entries(ROOTS))("%s", (_, Root) => {
     for (const payload of PAYLOADS) {
       const html = await htmlOf(<R {...props(payload)}><Text>Hello</Text></R>);
       if (html !== null) expect(injected(html), payload).toEqual([]);
+    }
+  });
+});
+
+describe("a template's values", () => {
+  const roots = { Email, Page, Document } as const;
+  it.each(Object.keys(roots))("in a %s, no text field can add markup, as a design's root or through design()", async (rootName) => {
+    const Root = roots[rootName as keyof typeof roots] as React.FC<Record<string, unknown> & { children?: React.ReactNode }>;
+    const T = template({
+      id: "acme.Hostile",
+      version: "1.0.0",
+      label: "Hostile",
+      root: rootName as "Email",
+      fields: {
+        title: prop.text({ label: "Title", required: true }),
+        items: prop.list(prop.text({ label: "Item" }), { label: "Items" }),
+        cta: prop.object({ text: prop.text({ label: "Text", required: true }), href: prop.link({ label: "Link", required: true }) }, { label: "Call to action", required: true }),
+      },
+      example: { title: "x", cta: { text: "x", href: "https://example.com" } },
+      render: (v) => (
+        <Root title={v.title} lang="en">
+          <Heading field="title">{v.title}</Heading>
+          <List>{v.items.map((item, i) => <ListItem key={i} field={`items[${i}]`}>{item}</ListItem>)}</List>
+          <Text field="cta.text"><Link href={v.cta.href}>{v.cta.text}</Link></Text>
+        </Root>
+      ),
+    });
+    let rendered = 0;
+    for (const payload of PAYLOADS) {
+      const values = { title: payload, items: [payload, payload], cta: { text: payload, href: `https://example.com/${payload}` } };
+      for (const element of [<T {...values} />, ...(T.check(values).valid ? [T.design(values)] : [])]) {
+        const html = await htmlOf(element);
+        if (html === null) continue;
+        rendered++;
+        expect(injected(html), payload).toEqual([]);
+      }
+    }
+    expect(rendered).toBeGreaterThan(PAYLOADS.length);
+  });
+
+  it("markup in a slot's text adds no element, through the snapshot check() returns", async () => {
+    const T = template({
+      id: "acme.HostileSlot",
+      version: "1.0.0",
+      label: "Hostile slot",
+      root: "Email",
+      fields: { body: field.slot({ label: "Body", allow: "all", styles: "free" }) },
+      example: {},
+      render: (v) => (
+        <Email lang="en">
+          <Section field="body">{v.body}</Section>
+        </Email>
+      ),
+    });
+    let rendered = 0;
+    for (const payload of PAYLOADS) {
+      const checked = T.check({ body: <Column><Heading>{payload}</Heading><Text><Link href={`https://example.com/${payload}`}>{payload}</Link></Text></Column> });
+      if (!checked.valid) continue;
+      rendered++;
+      expect(injected((await render(checked.snapshots.default!)).html), payload).toEqual([]);
+    }
+    expect(rendered).toBeGreaterThan(PAYLOADS.length / 2);
+  });
+
+  it("a field key with markup in it is template/field-path, and no writer writes it", async () => {
+    for (const payload of PAYLOADS) {
+      const element = <Email><Text field={payload}>Hello</Text></Email>;
+      await expect(render(element)).rejects.toThrow(/template\/field-path/);
+      expect(injected((await render(<Email><Text field="ok">Hello</Text></Email>)).html)).toEqual([]);
     }
   });
 });

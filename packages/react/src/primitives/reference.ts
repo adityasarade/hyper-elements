@@ -1,15 +1,15 @@
 /**
- * The docs the package ships for writing templates, from the elements' definitions (`describeComponents()`), so
+ * The docs the package ships for writing designs, from the elements' definitions (`describeComponents()`), so
  * they can't fall behind (a test checks the files are what this writes):
  *
- * - GUIDE.md, the guide: how a template is written, a whole one, and each element on a line (what it holds,
+ * - GUIDE.md, the guide: how a design is written, a whole one, and each element on a line (what it holds,
  *   its props and styles), short enough to read whole before writing one. It's what an agent needs.
  * - REFERENCE.md: every prop and style, with the values it takes, its default and what it does.
  * - skills/hyper-elements/SKILL.md, at the repository's root: the guide as an agent skill.
  */
 import { describeComponents, describeConditions, ROOT_NAMES, type ComponentDescription, type PropertyDescription } from "@hyper-elements/core";
 
-/** How a template writes an element whose definition is named otherwise. */
+/** How a design writes an element whose definition is named otherwise. */
 const JSX: Record<string, string> = { DocumentPage: "Document.Page" };
 const name = (type: string) => JSX[type] ?? type;
 
@@ -38,7 +38,7 @@ function guideRootsNote(c: ComponentDescription): string {
 const GROUPS: Array<{ title: string; about: string; has: (c: ComponentDescription) => boolean }> = [
   {
     title: "Roots",
-    about: "A template is one of these, and the root decides the output: `render()` writes an Email's HTML, a Page's HTML, and a Document's print HTML. `renderPdf()` (`@hyper-elements/react/pdf`) writes a Document's PDF, and `renderImage()` (`@hyper-elements/react/image`) a Canvas's PNG or SVG (`render()` writes a Canvas's HTML, to look at).",
+    about: "A design is one of these, and the root decides the output: `render()` writes an Email's HTML, a Page's HTML, and a Document's print HTML. `renderPdf()` (`@hyper-elements/react/pdf`) writes a Document's PDF, and `renderImage()` (`@hyper-elements/react/image`) a Canvas's PNG or SVG (`render()` writes a Canvas's HTML, to look at).",
     has: (c) => c.categories.includes("root"),
   },
   { title: "Sections and layout", about: "Bands and boxes that arrange blocks. None is required: a root stacks its children.", has: (c) => c.categories.includes("section") || c.categories.includes("layout") },
@@ -125,7 +125,7 @@ export function primitivesReference(): string {
     "",
     GENERATED,
     "",
-    "Every element, what it holds, and every prop and style it takes, with its default and what it does. [GUIDE.md](./GUIDE.md) shows how a template is written; `validate()` checks one against what's here.",
+    "Every element, what it holds, and every prop and style it takes, with its default and what it does. [GUIDE.md](./GUIDE.md) shows how a design is written; `validate()` checks one against what's here.",
     "",
     "Every element also takes:",
     "",
@@ -152,9 +152,9 @@ export function primitivesReference(): string {
 const BLOCK_MAP = [
   "## For tools: where each block is in an Email's HTML",
   "",
-  "`await render(email, { blockMap: true })` also gives `blocks`, for a tool that previews an Email and needs to know which block of the template it's looking at: `{ version, unit: \"utf8\", entries: [{ path, nodeId?, type, offset }] }`.",
+  "`await render(email, { blockMap: true })` also gives `blocks`, for a tool that previews an Email and needs to know which block of the design it's looking at: `{ version, unit: \"utf8\", entries: [{ path, nodeId?, type, offset }] }`.",
   "",
-  "- Each block written as an element has an entry: its place in the template (`root.children[2]`, as diagnostics give it), its `id` where it has one, its element (`type`, as laid out: a Grid's rows are `Row`s), and the UTF-8 byte offset in `html` just after its outermost element's tag name (`<table`, `<div`). That's the first element every email client but classic Outlook reads, else its first in Outlook's own markup.",
+  "- Each block written as an element has an entry: its place in the design (`root.children[2]`, as diagnostics give it), its `id` where it has one, its element (`type`, as laid out: a Grid's rows are `Row`s), and the UTF-8 byte offset in `html` just after its outermost element's tag name (`<table`, `<div`). That's the first element every email client but classic Outlook reads, else its first in Outlook's own markup.",
   "- Entries are in the order of their offsets; at one offset, the outer block comes first. A `LineBreak` and a `MergeTag` have none, nor a `Layer`'s `Image` (drawn as the Layer's background).",
   "- The HTML is the same bytes as without the option. Merge tags are written before the offsets are taken, and the offsets count the whole document, `<head>` included.",
   "- `version` is `BLOCK_MAP_VERSION`, which changes only when this format does.",
@@ -217,15 +217,15 @@ function line(c: ComponentDescription, named: Map<string, string>): string {
   return `- **${name(c.type)}**: ${parts.join(" ")}`;
 }
 
-/** GUIDE.md: how a template is written, the README's template (`example`, as an author imports it), and each element on a line. */
+/** GUIDE.md: how a design is written, the README's design (`example`, as an author imports it), and each element on a line. */
 export function primitivesGuide(example: string): string {
   return [
-    "# Writing templates with the new elements (`@hyper-elements/react`)",
+    "# Writing designs with the new elements (`@hyper-elements/react`)",
     "",
     GENERATED,
     `<!-- ${guideLine(guideId(guide(example)))} -->`,
     "",
-    "Everything needed to write a template, in short. Every prop's and style's details: [REFERENCE.md](./REFERENCE.md).",
+    "Everything needed to write a design, in short. Every prop's and style's details: [REFERENCE.md](./REFERENCE.md).",
     "",
     guide(example),
   ].join("\n");
@@ -233,12 +233,12 @@ export function primitivesGuide(example: string): string {
 
 /** What the skill's frontmatter says, which is how an agent decides to load it. */
 const SKILL_DESCRIPTION =
-  "Write emails, web pages, printed documents, PDFs and images in code with Hyper Elements (@hyper-elements/react), React components that render email-safe HTML, responsive page HTML, print HTML, PDFs and PNG or SVG images. Use when writing or changing an Elements template, or when asked to build an email, page, document, PDF or image in code with Elements.";
+  "Write emails, web pages, printed documents, PDFs and images in code with Hyper Elements (@hyper-elements/react), React components that render email-safe HTML, responsive page HTML, print HTML, PDFs and PNG or SVG images. Use when writing or changing an Elements design, or when asked to build an email, page, document, PDF or image in code with Elements.";
 
 /**
  * skills/hyper-elements/SKILL.md, at the repository's root, which `npx skills add hyper-elements/hyper-elements` installs: the
  * guide, as GUIDE.md has it, under the frontmatter a skill needs and a few lines for projects with Unlayer Elements'
- * components. An agent given the guide before writing a template gets it right on the first try far more often.
+ * components. An agent given the guide before writing a design gets it right on the first try far more often.
  */
 export function primitivesSkill(example: string): string {
   const body = guide(example);
@@ -252,11 +252,11 @@ export function primitivesSkill(example: string): string {
     "",
     generated("packages/react/src/primitives/reference.ts"),
     "",
-    "Write emails, web pages, printed documents, PDFs and images in code with Hyper Elements (`npm install @hyper-elements/react`). This is the package's own guide to its elements at `@hyper-elements/react` (GUIDE.md in the package), written from their definitions: everything needed to write a template, in short. Every prop's and style's details, with its default: `node_modules/@hyper-elements/react/REFERENCE.md`.",
+    "Write emails, web pages, printed documents, PDFs and images in code with Hyper Elements (`npm install @hyper-elements/react`). This is the package's own guide to its elements at `@hyper-elements/react` (GUIDE.md in the package), written from their definitions: everything needed to write a design, in short. Every prop's and style's details, with its default: `node_modules/@hyper-elements/react/REFERENCE.md`.",
     "",
-    "To test an email in Outlook, Gmail and other clients, a template or any HTML: the `email-testing` skill has the steps, or run `npx @hyper-elements/cli preview emails/welcome.tsx`.",
+    "To test an email in Outlook, Gmail and other clients, a design or any HTML: the `email-testing` skill has the steps, or run `npx @hyper-elements/cli preview emails/welcome.tsx`.",
     "",
-    "## Before you write a template",
+    "## Before you write a design",
     "",
     "- If the project's package.json doesn't list `@hyper-elements/react`, install it: `npm install @hyper-elements/react react react-dom`, or the same with the project's package manager (`pnpm add`, `yarn add`, `bun add`).",
     `- Once it's installed, its own guide is \`node_modules/@hyper-elements/react/GUIDE.md\`, written for the version installed. \`grep "hyper-elements guide" node_modules/@hyper-elements/react/GUIDE.md\` gives its id; this skill's is \`${guideLine(guideId(body))}\`. The same id: this skill is that guide, so read on. Another id, or none: read GUIDE.md and follow it where it differs from this skill.`,
@@ -305,7 +305,7 @@ const { image, diagnostics } = await renderImage(
   }
 );`;
 
-/** The guide itself, from "How a template is written" on: the same in GUIDE.md and the skill. */
+/** The guide itself, from "How a design is written" on: the same in GUIDE.md and the skill. */
 function guide(example: string): string {
   const all = describeComponents();
   const named = glossary(all);
@@ -316,18 +316,19 @@ function guide(example: string): string {
     return [`### ${group.title}`, "", ...members.map((c) => line(c, named))].join("\n");
   });
   return [
-    "## How a template is written",
+    "## How a design is written",
     "",
-    "- Import from `@hyper-elements/react`. A template has one root: `Email`, `Page`, `Document` or `Canvas`.",
+    "- Import from `@hyper-elements/react`. A design has one root: `Email`, `Page`, `Document` or `Canvas`.",
     "- Styles go in `style={{ … }}`, never as props: `<Heading style={{ fontSize: 24, color: \"#111827\" }}>`. A number is px; `padding` takes `16`, `[12, 24]` or `\"12px 24px\"`. A box's text styles are inherited by what it holds.",
     "- There are no margins: space between blocks is their parent's `gap` (`<Column style={{ gap: 16 }}>`), space inside a box its `padding`.",
     "- A root, a `Section` and a `Column` stack their children. A `Row` puts its children side by side (each `Column` at its `style.width`, or an equal share) and stacks them on phones. `Grid columns={3}` makes rows of three. A `Section` is a band whose background spans the window; a `Column` with a background is a card.",
     "- Text is elements, not HTML: `Heading level={1}` and `Text` hold text; inside them `Span` styles a run, `Link href` links one, `LineBreak` breaks the line and `MergeTag name` writes a merge tag. No raw HTML (`<b>`, `<br>`, `<div>`) and no `html` prop.",
     "- `Image src={{ src, width, height }}` (the file's size in px) with `alt`; `style.width` sets the size shown.",
-    "- An image's `src` is a public `https` URL the reader's email client can fetch: the project's own (its CDN, its other templates, its site) or one the person gives you. Never make one up: `example.com`, a guessed path or a file on this computer shows as a broken image. Where the template needs an image that doesn't exist yet, use a placeholder that loads, at the image's size: `https://placehold.co/1200x600/png?text=Product+screenshot` (width x height in px). Then tell the person which images to replace. A `data:` URI works in a Page, Document or Canvas, but Gmail doesn't show one in an Email.",
+    "- An image's `src` is a public `https` URL the reader's email client can fetch: the project's own (its CDN, its other templates, its site) or one the person gives you. Never make one up: `example.com`, a guessed path or a file on this computer shows as a broken image. Where the design needs an image that doesn't exist yet, use a placeholder that loads, at the image's size: `https://placehold.co/1200x600/png?text=Product+screenshot` (width x height in px). Then tell the person which images to replace. A `data:` URI works in a Page, Document or Canvas, but Gmail doesn't show one in an Email.",
     "- Lists: `<List type=\"number\">` of `ListItem`s. Tables: a `Table` of `TableRow`s (`header` on the first) of `TableCell`s, with `cellPadding` and `rowBorder` in the Table's `style`.",
     "- Phones: `style={{ fontSize: 24, mobile: { fontSize: 20 } }}` (the styles listed under \"Phones\", where `text` is fontSize, lineHeight, letterSpacing and textAlign), `hidden={{ mobile: true }}`; in an Email or a Page. Hover: `style={{ hover: { backgroundColor: \"#374151\" } }}` (those under \"Hover\").",
-    "- `await render(element)` gives `{ html, text, diagnostics }`; errors throw an `ElementsError` with the same `diagnostics`. `validate(element)` runs the checks without rendering; `outline(element)` prints the laid-out template (each block, its width, its text).",
+    "- `await render(element)` gives `{ html, text, diagnostics }`; errors throw an `ElementsError` with the same `diagnostics`. `validate(element)` runs the checks without rendering; `outline(element)` prints the laid-out design (each block, its width, its text).",
+    "- Templates (fixed parts, typed fields and checks): `@hyper-elements/react/template`.",
     "- Email clients: `@hyper-elements/email-clients`. `validate(email, { plugins: [await emailClients()] })` adds what classic Outlook, Gmail, Apple Mail and others remove or change, naming its `clients`, with a `fix` (without it, one note: `email/more-checks`). To test an email in them, `await renderInEmailClients(email)` gives a preview per client: HTML that shows the email as that client does, in Chromium. It takes any other HTML email too.",
     "",
     "```tsx",
@@ -353,14 +354,14 @@ function guide(example: string): string {
     "",
     "A theme is the brand, written once: `defineTheme({ colors, spacing, fontSizes, lineHeights, fonts, radii, elements, styles, formats })`, given to a root as `theme`.",
     "",
-    "- In a template `token(\"colors.primary\")` is a token's value, or part of one (`border: { width: 1, style: \"solid\", color: token(\"colors.border\") }`); inside a theme, and only there, a token is `\"{colors.primary}\"`: everywhere in a template (a root's `style`, a scope's `tokens`) it is `token()`. Names are letters and digits: nest `gray.900`.",
+    "- In a design `token(\"colors.primary\")` is a token's value, or part of one (`border: { width: 1, style: \"solid\", color: token(\"colors.border\") }`); inside a theme, and only there, a token is `\"{colors.primary}\"`: everywhere in a design (a root's `style`, a scope's `tokens`) it is `token()`. Names are letters and digits: nest `gray.900`.",
     "- Roles: `colors.background` is the root's background; `colors.foreground`, `fonts.body`, `fontSizes.body` and `lineHeights.body` are its body text (color, font, size and line height), which Text, table cells and list items inherit: set body text here, not on `Text` (a style on `Text` misses table cells). `fonts.heading` is a Heading's font, `colors.primary` and `colors.primaryForeground` a Button's (`colors.primary` a Link's) and `fontSizes.body` its size too, `colors.border` a Divider's.",
     "- `elements.Button: { … }` is every Button's default style; `by: { level: { 1: { fontSize: 40 } } }` sets one by a prop's value (a type scale); `variants: { secondary: { … } }` are picked with `variant=\"secondary\"` (a list merges in order).",
     "- `styles: { card: { … } }` are named styles: `style={{ apply: [\"card\"], padding: 8 }}`. A key an element sets itself also replaces the theme's phone and hover values for it.",
     "- `tokens` on a Section, Row, Column or Grid overrides tokens inside it: an inverted band is `<Section tokens={{ colors: { background: \"#111827\", foreground: \"#ffffff\" } }}>`.",
     "- `formats: { email: { … } }` overrides it for one kind of root; `extendTheme(base, overrides)` makes a brand's or a customer's theme from a shared one; `declare module \"@hyper-elements/react\" { interface Register { theme: typeof brand } }` types every name.",
     "",
-    "## A whole template",
+    "## A whole design",
     "",
     "```tsx",
     example.trim(),
@@ -368,7 +369,7 @@ function guide(example: string): string {
     "",
     "## A Canvas as an image",
     "",
-    "`renderImage(element, options)` (`@hyper-elements/react/image`) writes a `Canvas` as a PNG (`format: \"svg\"` an SVG, `scale: 2` twice the pixels). Nothing is fetched: `fonts` gives each font file by the family the template names (TTF, OTF or WOFF, not WOFF2; one per weight and style used), `images` each image file by the `src` the template gives. It gives `{ image, width, height, diagnostics }` (what it drew otherwise: a weight not given, a hover); errors throw an `ElementsError`.",
+    "`renderImage(element, options)` (`@hyper-elements/react/image`) writes a `Canvas` as a PNG (`format: \"svg\"` an SVG, `scale: 2` twice the pixels). Nothing is fetched: `fonts` gives each font file by the family the design names (TTF, OTF or WOFF, not WOFF2; one per weight and style used), `images` each image file by the `src` the design gives. It gives `{ image, width, height, diagnostics }` (what it drew otherwise: a weight not given, a hover); errors throw an `ElementsError`.",
     "",
     "```tsx",
     CANVAS_EXAMPLE,

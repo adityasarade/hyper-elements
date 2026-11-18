@@ -2,7 +2,7 @@
 
 <!-- Written from the element definitions by src/primitives/reference.ts: don't edit by hand. Regenerate with UPDATE_REFERENCE=1 pnpm --filter @hyper-elements/react test reference -->
 
-Every element, what it holds, and every prop and style it takes, with its default and what it does. [GUIDE.md](./GUIDE.md) shows how a template is written; `validate()` checks one against what's here.
+Every element, what it holds, and every prop and style it takes, with its default and what it does. [GUIDE.md](./GUIDE.md) shows how a design is written; `validate()` checks one against what's here.
 
 Every element also takes:
 
@@ -34,7 +34,7 @@ What a property takes, where it says *kind*:
 
 ## Roots
 
-A template is one of these, and the root decides the output: `render()` writes an Email's HTML, a Page's HTML, and a Document's print HTML. `renderPdf()` (`@hyper-elements/react/pdf`) writes a Document's PDF, and `renderImage()` (`@hyper-elements/react/image`) a Canvas's PNG or SVG (`render()` writes a Canvas's HTML, to look at).
+A design is one of these, and the root decides the output: `render()` writes an Email's HTML, a Page's HTML, and a Document's print HTML. `renderPdf()` (`@hyper-elements/react/pdf`) writes a Document's PDF, and `renderImage()` (`@hyper-elements/react/image`) a Canvas's PNG or SVG (`render()` writes a Canvas's HTML, to look at).
 
 ### Email
 
@@ -48,7 +48,7 @@ Props:
 - `title`: text. The document's title (shown in a browser tab, and by some email clients).
 - `lang`: text. Its language, as a BCP 47 tag ("en", "ar").
 - `dir`: one of "ltr", "rtl", "auto"
-- `fonts`: *fontFaces*. The font files the template loads: a family's file for each weight and style it uses. Text names a family in its fontFamily stack, before the fonts to show where it can't load.
+- `fonts`: *fontFaces*. The font files the design loads: a family's file for each weight and style it uses. Text names a family in its fontFamily stack, before the fonts to show where it can't load.
 
 `style`:
 - `color`: *color* (default `"#000000"`, inherited, Typography)
@@ -79,7 +79,7 @@ Props:
 - `title`: text. The document's title (shown in a browser tab, and by some email clients).
 - `lang`: text. Its language, as a BCP 47 tag ("en", "ar").
 - `dir`: one of "ltr", "rtl", "auto"
-- `fonts`: *fontFaces*. The font files the template loads: a family's file for each weight and style it uses. Text names a family in its fontFamily stack, before the fonts to show where it can't load.
+- `fonts`: *fontFaces*. The font files the design loads: a family's file for each weight and style it uses. Text names a family in its fontFamily stack, before the fonts to show where it can't load.
 
 `style`:
 - `color`: *color* (default `"#000000"`, inherited, Typography)
@@ -110,7 +110,7 @@ Props:
 - `title`: text. The document's title (shown in a browser tab, and by some email clients).
 - `lang`: text. Its language, as a BCP 47 tag ("en", "ar").
 - `dir`: one of "ltr", "rtl", "auto"
-- `fonts`: *fontFaces*. The font files the template loads: a family's file for each weight and style it uses. Text names a family in its fontFamily stack, before the fonts to show where it can't load.
+- `fonts`: *fontFaces*. The font files the design loads: a family's file for each weight and style it uses. Text names a family in its fontFamily stack, before the fonts to show where it can't load.
 
 `style`:
 - `color`: *color* (default `"#000000"`, inherited, Typography)
@@ -138,7 +138,7 @@ Props:
 - `title`: text. The document's title (shown in a browser tab, and by some email clients).
 - `lang`: text. Its language, as a BCP 47 tag ("en", "ar").
 - `dir`: one of "ltr", "rtl", "auto"
-- `fonts`: *fontFaces*. The font files the template loads: a family's file for each weight and style it uses. Text names a family in its fontFamily stack, before the fonts to show where it can't load.
+- `fonts`: *fontFaces*. The font files the design loads: a family's file for each weight and style it uses. Text names a family in its fontFamily stack, before the fonts to show where it can't load.
 
 `style`:
 - `color`: *color* (default `"#000000"`, inherited, Typography)
@@ -192,7 +192,7 @@ Holds: Row, Column, Grid, Layer, Svg, Text, Heading, Link, Button, Image, Divide
 
 Props:
 - `stackOnMobile`: true or false (default `true`). Its children stack full-width on phones (in an Email or a Page).
-- `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the template's; it starts on that side unless aligned otherwise.
+- `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the design's; it starts on that side unless aligned otherwise.
 
 `style`:
 - `color`: *color* (inherited, Typography)
@@ -350,7 +350,8 @@ A paragraph of text.
 Holds: text; PageNumber, Span, Link, LineBreak, MergeTag, Image.
 
 Props:
-- `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the template's; it starts on that side unless aligned otherwise.
+- `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the design's; it starts on that side unless aligned otherwise.
+- `fit`: { sizes, maxLines } (only in Canvas). In a Canvas: sizes it may be drawn at (a list of px, or { min, max, step }), largest first, and the lines it may take (maxLines). The image draws the largest size that fits.
 
 `style`:
 - `color`: *color* (inherited, Typography)
@@ -381,7 +382,8 @@ Holds: text; PageNumber, Span, Link, LineBreak, MergeTag.
 
 Props:
 - `level`: one of 1, 2, 3, 4, 5, 6 (default `1`)
-- `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the template's; it starts on that side unless aligned otherwise.
+- `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the design's; it starts on that side unless aligned otherwise.
+- `fit`: { sizes, maxLines } (only in Canvas). In a Canvas: sizes it may be drawn at (a list of px, or { min, max, step }), largest first, and the lines it may take (maxLines). The image draws the largest size that fits.
 
 `style`:
 - `color`: *color* (inherited, Typography)
@@ -764,7 +766,7 @@ An item of a List: text, and a List of its own to nest one.
 Holds: text; PageNumber, Span, Link, LineBreak, MergeTag, List.
 
 Props:
-- `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the template's; it starts on that side unless aligned otherwise.
+- `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the design's; it starts on that side unless aligned otherwise.
 
 `style`:
 - `color`: *color* (inherited, Typography)
@@ -813,7 +815,7 @@ Holds: text; PageNumber, Span, Link, LineBreak, MergeTag, Image.
 
 Props:
 - `colSpan`: an integer from 1 (default `1`). How many columns it spans.
-- `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the template's; it starts on that side unless aligned otherwise.
+- `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the design's; it starts on that side unless aligned otherwise.
 
 `style`:
 - `color`: *color* (inherited, Typography)
@@ -942,9 +944,9 @@ Props:
 
 ## For tools: where each block is in an Email's HTML
 
-`await render(email, { blockMap: true })` also gives `blocks`, for a tool that previews an Email and needs to know which block of the template it's looking at: `{ version, unit: "utf8", entries: [{ path, nodeId?, type, offset }] }`.
+`await render(email, { blockMap: true })` also gives `blocks`, for a tool that previews an Email and needs to know which block of the design it's looking at: `{ version, unit: "utf8", entries: [{ path, nodeId?, type, offset }] }`.
 
-- Each block written as an element has an entry: its place in the template (`root.children[2]`, as diagnostics give it), its `id` where it has one, its element (`type`, as laid out: a Grid's rows are `Row`s), and the UTF-8 byte offset in `html` just after its outermost element's tag name (`<table`, `<div`). That's the first element every email client but classic Outlook reads, else its first in Outlook's own markup.
+- Each block written as an element has an entry: its place in the design (`root.children[2]`, as diagnostics give it), its `id` where it has one, its element (`type`, as laid out: a Grid's rows are `Row`s), and the UTF-8 byte offset in `html` just after its outermost element's tag name (`<table`, `<div`). That's the first element every email client but classic Outlook reads, else its first in Outlook's own markup.
 - Entries are in the order of their offsets; at one offset, the outer block comes first. A `LineBreak` and a `MergeTag` have none, nor a `Layer`'s `Image` (drawn as the Layer's background).
 - The HTML is the same bytes as without the option. Merge tags are written before the offsets are taken, and the offsets count the whole document, `<head>` included.
 - `version` is `BLOCK_MAP_VERSION`, which changes only when this format does.

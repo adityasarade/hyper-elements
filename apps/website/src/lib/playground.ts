@@ -1,5 +1,5 @@
-// The playground's templates: the site's examples as they are (examples/, read from src/generated/examples.json, which
-// scripts/generate.mjs writes). The Template menu lists the ones of the root that's picked. (The API and links call
+// The playground's designs: the site's examples as they are (examples/, read from src/generated/examples.json, which
+// scripts/generate.mjs writes). The Design menu lists the ones of the root that's picked. (The API and links call
 // them starters: hyperElementsPlayground.starters(), loadStarter(), #starter=.)
 import data from "../generated/examples.json";
 import engine from "../../../../packages/react/package.json";
@@ -12,7 +12,7 @@ export interface Starter {
   description: string;
   root: StarterRoot;
   source: string;
-  /** Its HTML as the site rendered it, for its thumbnail in the Template menu. */
+  /** Its HTML as the site rendered it, for its thumbnail in the Design menu. */
   html: string;
 }
 
@@ -46,11 +46,11 @@ export const starters: Starter[] = [
   ...byRoot("Canvas"),
 ];
 
-/** What the page opens with: the first template, an Email. Each root starts with its first. */
+/** What the page opens with: the first design, an Email. Each root starts with its first. */
 export const defaultStarter = starters[0];
 
 /** The engine the playground runs: this repository's, bundled from its sources. */
 export const engineVersion: string = engine.version;
 
-/** What the page lists before a template is opened: everything but the sources. */
+/** What the page lists before a design is opened: everything but the sources. */
 export const starterList = starters.map(({ id, title, description, root }) => ({ id, title, description, root }));

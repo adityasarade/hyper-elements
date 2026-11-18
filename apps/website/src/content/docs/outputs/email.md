@@ -75,7 +75,7 @@ The email client emulator, `renderInEmailClients()` from `@hyper-elements/email-
 
 ## What email can't do
 
-`validate()` tells you each of these for your template, with the path; the ones about particular clients come from `@hyper-elements/email-clients`' plugin:
+`validate()` tells you each of these for your design, with the path; the ones about particular clients come from `@hyper-elements/email-clients`' plugin:
 
 - **Svg.** The Email writer has no inline SVG (Gmail and classic Outlook drop it), so an `Svg` in an email is an error. Use an `Image` of it, a PNG.
 - **Layer.** An email draws one shape of it: an Image as wide as the Layer, with one child over it. The image is the cell's background, with VML for Outlook.
@@ -95,4 +95,4 @@ There are no dark-mode styles yet. The head declares `color-scheme` as light.
 
 > **Warning:** Chromium and a model of Outlook aren't email clients. The output hasn't been checked in real email clients yet, and button padding through `mso-padding-alt` hasn't been measured in real Outlook. Send tests to the clients your users have before you rely on a layout.
 
-The layout doesn't measure text, either. A box with less room than its words needs looks different in email, where the table cell widens to its longest word, than on a page. See [Layout](/docs/layout#every-box-gets-a-px-width).
+The layout doesn't measure text, either. A box with less room than its words needs looks different in email, where the table cell widens to its longest word, than on a page. See [Layout](/docs/layout#how-widths-are-worked-out).

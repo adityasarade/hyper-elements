@@ -23,7 +23,7 @@ import { builderBorder, builderFont, cssPx, cssSides, fieldLineHeight, type Valu
 type Sides = { top: number; right: number; bottom: number; left: number };
 const ZERO: Sides = { top: 0, right: 0, bottom: 0, left: 0 };
 
-/** What the table needs from the template it's in. */
+/** What the table needs from the design it's in. */
 export interface TablePlace {
   at(path: string): ResolvedNode;
   report: string[];
@@ -156,7 +156,7 @@ export function tableValues(node: Node, path: string, place: TablePlace): Values
   const free = given.filter((width) => width == null).length;
   const left = Math.max(0, 100 - given.reduce<number>((all, width) => all + (width ?? 0), 0)) / (free || 1);
   // Laid out, columns sharing the width equally are a px apart at most (whole px): they're equal shares here, so any
-  // other difference, however small, is the template's own.
+  // other difference, however small, is the design's own.
   const widths = given.every((width) => !Number.isNaN(width))
     ? given.map((width) => width ?? left)
     : Math.max(...laidOut) > 1 && Math.max(...laidOut) - Math.min(...laidOut) <= 1

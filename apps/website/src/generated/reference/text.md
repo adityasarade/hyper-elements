@@ -10,7 +10,8 @@ A paragraph of text.
 Holds: text; PageNumber, Span, Link, LineBreak, MergeTag, Image.
 
 Props:
-- `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the template's; it starts on that side unless aligned otherwise.
+- `dir`: one of "ltr", "rtl", "auto". Its text's direction, where it differs from the design's; it starts on that side unless aligned otherwise.
+- `fit`: { sizes, maxLines } (only in Canvas). In a Canvas: sizes it may be drawn at (a list of px, or { min, max, step }), largest first, and the lines it may take (maxLines). The image draws the largest size that fits.
 
 `style`:
 - `color`: *color* (inherited, Typography)

@@ -34,6 +34,7 @@ const SOURCES = {
   "@hyper-elements/react/inspect": join(reactDir, "src/inspect/index.ts"),
   "@hyper-elements/react/pdf": join(reactDir, "src/pdf/index.ts"),
   "@hyper-elements/react/image": join(reactDir, "src/image/index.ts"),
+  "@hyper-elements/react/template": join(reactDir, "src/template/index.ts"),
   "@hyper-elements/core": join(coreDir, "src/index.ts"),
   "@hyper-elements/core/pdf": join(coreDir, "src/pdf/index.ts"),
   "@hyper-elements/core/image": join(coreDir, "src/image/index.ts"),

@@ -16,7 +16,7 @@ Props:
 - `title`: text. The document's title (shown in a browser tab, and by some email clients).
 - `lang`: text. Its language, as a BCP 47 tag ("en", "ar").
 - `dir`: one of "ltr", "rtl", "auto"
-- `fonts`: *fontFaces*. The font files the template loads: a family's file for each weight and style it uses. Text names a family in its fontFamily stack, before the fonts to show where it can't load.
+- `fonts`: *fontFaces*. The font files the design loads: a family's file for each weight and style it uses. Text names a family in its fontFamily stack, before the fonts to show where it can't load.
 
 `style`:
 - `color`: *color* (default `"#000000"`, inherited, Typography)

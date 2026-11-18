@@ -121,19 +121,26 @@ jobs:
       # 322KB for plain text's one-pass scan of service tags in large headings and
       # the email's encoding of URLs in CSS; 317,000 bytes for a Table's free column
       # written for classic Outlook apart (its own col and first-row cell, without width: auto);
-      # 322,000 bytes for defineProperty(): a team's own property as data (one of prop's
-      # helpers, its editor's name and its options, each checked by its kind), a text's enum,
-      # and what's refused of one; 323,300 bytes for prop's helpers refusing an option they
-      # don't take (an editor named by its name among them) and a color's transparency;
-      # 324,400 bytes for a theme's `elements` read beside `components`, its name before (1,021
-      # bytes measured, with the messages that say "element").
+      # 318,100 bytes for a theme's `elements` read beside `components`, its name before (1,021
+      # bytes measured, with the messages that say "element");
+      # then, for templates, raised from 317,000 bytes before the `elements` key: 327,400 bytes (10,352 more) for templates' part of the main entry: the list, object and
+      # date kinds and their prop helpers, the field key, and a template design's request handed
+      # to its template by the render that collects it; 345,100 bytes (17,692 more) for snapshots: a design captured
+      # once as inert data (snapshot(), slotMark(), captureFragment() and readFragment(), with their plain-data
+      # grammar and limits), the blocks kind, and frozen kinds and definitions; 348,700 bytes (3,554 more) for fitted
+      # text in a Canvas: the fit kind and prop, style/fit, and a fitted node laid out at its largest size; 349,800
+      # bytes for the two together, templates and the `elements` key (349,212 measured);
+      # 355,100 bytes for those with defineProperty(): a team's own property as data (one of prop's
+      # helpers, its editor's name and its options, each checked by its kind), a text's enum, what's refused of one,
+      # prop's helpers and the list, blocks and object refusing an option they don't take (an editor named by its name
+      # among them), and a color's transparency (355,065 bytes measured).
       - name: Check main entry bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
           test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=324400
+          MAX_SIZE=355100
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::Main entry bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -156,28 +163,52 @@ jobs:
       # grew: 485.5KB for the same scan and encoding, in the writers it shares;
       # 479,000 bytes for a Table's free column written for classic Outlook apart;
       # 480,000 bytes for a theme's `elements` beside `components` (984 bytes measured);
+      # then, for templates, raised from 479,000 bytes before the `elements` key: 484,500 bytes (5,503 more) for the same kinds, field key and template hand-off,
+      # and builder/template for a template design; 486,200 bytes (1,639 more) for the blocks kind, frozen kinds and
+      # definitions, and refusing a snapshot; 489,600 bytes (3,380 more) for the fit kind and prop, which the builder
+      # reads with the other definitions; 490,600 bytes for the two together (490,122 measured).
       # 506,000 for a Document's Table as the builder's table and back (about 11KB
       # to write it, 9.5KB to read it, 2.5KB of the table's defaults, 2KB beside them);
       # 509,500 for an Email's and a Page's Table as the builder's table where it draws
       # it as it is, an HTML block with the reason said where it doesn't (3,431 bytes measured);
       # 511,000 for its columns' percentages as given, a header's or a footer's background shared only where all its rows
-      # have it, its words read at the page's line height, and a row below a footer row said (1,927 bytes measured);
-      # 527,500 for a template's own elements as the builder's custom tools (custom.ts: their blocks in a design both
-      # ways, and registerTools(), with a field for every kind of prop and a team's own editors; and what the builder
-      # keeps on such a block that isn't read, said as a built-in block's is), and fromDesign()'s code writing each such
-      # element by the name its type ends with, with its namespace where that's another's too (527,331 bytes measured).
+      # have it, its words read at the page's line height, and a row below a footer row said (1,927 bytes measured).
+      # 521,700 bytes for templates and the builder's table together (521,210 measured).
+      # 537,800 for a template's own elements as the builder's custom tools too (custom.ts: their blocks in a
+      # design both ways, and registerTools(), with a field for every kind of prop and a team's own editors; and what
+      # the builder keeps on such a block that isn't read, said as a built-in block's is), and fromDesign()'s code
+      # writing each such element by the name its type ends with, with its namespace where that's another's too
+      # (537,771 bytes measured).
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=527500
+          MAX_SIZE=537800
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
             exit 1
           fi
           echo "✅ /builder bundle within budget"
+
+      # Templates (/template, dist/template.js): about 86.2KB unminified ESM (template(), reading
+      # values by their fields, the checks of a design built from them, describe(), values files and
+      # versions, fitInside(), sniffImage() and formatDate(); slots and their preflight, blocks, rules
+      # over the result with lint's and core's, links and root props, and annotated templates). The
+      # main entry and /inspect are external. Set from that plus 10%. Raise it on purpose, with what grew.
+      - name: Check /template bundle size
+        run: |
+          BUNDLE="packages/react/dist/template.js"
+          test -s "$BUNDLE" && test -s "packages/react/dist/template.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
+          SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
+          MAX_SIZE=94800
+          echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
+          if [ "$SIZE" -gt "$MAX_SIZE" ]; then
+            echo "::error::/template bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
+            exit 1
+          fi
+          echo "✅ /template bundle within budget"
 
       # The email client checks and previews (@hyper-elements/email-clients, dist/index.js):
       # about 60.3KB unminified ESM (0.4.1 added preview widths and computers; previews of HTML given as a string, and
@@ -653,7 +684,9 @@ jobs:
           npm run build
           # An email rendered in a route handler and a Server Component comes out as one (tables, a design with
           # its rows), with Elements bundled into Next's server layers (no serverExternalPackages); an edge route
-          # builds (Turbopack) and renders or says to render in the Node.js runtime.
+          # builds (Turbopack) and renders or says to render in the Node.js runtime. An OpenGraph image drawn from a
+          # template (@hyper-elements/react/template and /image, the engines as server external packages): two pages
+          # prerendered, one on request, each the bytes Node draws (verify.mjs --og).
           npm run verify
 
       # ── More consumers ──────────────────────────────────────────
@@ -676,6 +709,7 @@ jobs:
       # create-next-app's setup since Next.js 16: a route handler, a Server Component and a Client Component that
       # render an email are prerendered when the app builds, and the build fails if a render reads a random number
       # or the date. 0.2.0's did (crypto.getRandomValues() for each render's nonce), so no new app could build.
+      # It draws the same OpenGraph images from a template, cached (Cache Components) so two are prerendered.
       - name: Next.js 16 consumer (Cache Components)
         run: |
           cd tests/next16-integration
