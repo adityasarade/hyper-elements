@@ -78,10 +78,12 @@
             status.textContent = `Design saved, HTML not: ${blocking.map((error) => `${error.title} (${error.description})`).join("; ")}`;
             return;
           }
-          editor.exportHtml(({ html, chunks }) => {
-            // A block that can't be drawn at the room it has fails the export too: the editor writes why in place of the body.
-            if (chunks?.body?.startsWith("Failed to export html.")) {
-              status.textContent = `Design saved, HTML not: ${chunks.body}`;
+          editor.exportHtml(({ html, chunks, error }) => {
+            // A block that can't be drawn at the room it has fails the export too. An editor that reports it gives the
+            // result an `error`; one that doesn't writes why in place of the body.
+            const failed = error ?? (chunks?.body?.startsWith("Failed to export html.") ? chunks.body : undefined);
+            if (failed !== undefined) {
+              status.textContent = `Design saved, HTML not: ${failed}`;
               return;
             }
             download(`${set}.html`, html, "text/html");
