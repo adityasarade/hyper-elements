@@ -8,6 +8,8 @@ import type { EditorWidget } from "@hyper-elements/react/builder";
 import type { currency } from "./properties";
 
 const escape = (text: string) => text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+/** A number as it's written in decimal, with an exponent maybe ("12.50", "-3", "1e3"). */
+const DECIMAL = /^[+-]?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i;
 
 export const currencyField: EditorWidget<typeof currency> = {
   // A property editor of a team's own draws all of its field: its label too, which is its prop's. It's given the
@@ -21,9 +23,14 @@ export const currencyField: EditorWidget<typeof currency> = {
     `</div>`,
   // What it gives back is kept only where the prop takes it: a price below its minimum, or what isn't a number yet
   // ("1e"), stays in the field, and registerTools() says why under it, while the block keeps the price it had. A text
-  // input, so what's typed reaches that check as it is. An empty field is no price.
+  // input, so what's typed reaches that check as it is. An empty field is no price, and what isn't a number as it's
+  // written in decimal ("0x10", which Number() reads as 16) isn't one.
   mount(node, _value, update) {
     const input = node.querySelector<HTMLInputElement>(".example-currency");
-    if (input) input.onchange = () => update(input.value.trim() === "" ? undefined : Number(input.value.trim()));
+    if (!input) return;
+    input.onchange = () => {
+      const text = input.value.trim();
+      update(text === "" ? undefined : DECIMAL.test(text) ? Number(text) : Number.NaN);
+    };
   },
 };

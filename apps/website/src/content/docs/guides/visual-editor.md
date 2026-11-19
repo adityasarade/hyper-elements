@@ -232,10 +232,14 @@ const currencyField: EditorWidget<typeof currency> = {
   // Its markup. The builder draws nothing around an editor of your own: its label is here too. A text input, so
   // what's typed reaches the check as it is: unfinished input ("1e") isn't a number, where a number input gives "".
   render: (value, update, { label, symbol }) => `<label>${label}</label> ${symbol} <input type="text" inputmode="decimal" value="${value ?? ""}" />`,
-  // Once that's in the page: call update() with the new value. An empty field is no price, not zero.
+  // Once that's in the page: call update() with the new value. An empty field is no price, not zero, and what isn't
+  // a number as it's written in decimal ("0x10", which Number() reads as 16) isn't one.
   mount: (node, value, update) => {
     const input = node.querySelector("input");
-    input.onchange = () => update(input.value.trim() === "" ? undefined : Number(input.value.trim()));
+    input.onchange = () => {
+      const text = input.value.trim();
+      update(text === "" ? undefined : /^[+-]?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i.test(text) ? Number(text) : Number.NaN);
+    };
   },
 };
 
