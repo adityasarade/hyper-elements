@@ -587,8 +587,6 @@ describe("registerTools", () => {
         steps: prop.number({ label: "Steps", min: 0, max: 100, integer: true, default: 10 }),
         side: prop.choice(["left", "center", "right"], { label: "Side", default: "left" }),
         due: prop.text({ label: "Due" }),
-        accent: prop.color({ label: "Accent", default: "#ff0000" }),
-        ink: prop.color({ label: "Ink", transparency: false, default: "#000000" }),
       },
       render: (p) => <Text>{`${p.steps} ${p.side} ${p.due ?? ""}`}</Text>,
     });
@@ -600,9 +598,6 @@ describe("registerTools", () => {
     // A choice is the builder's dropdown, with its values, and a text registerTools()'s own text field.
     expect(properties.side).toEqual({ label: "Side", defaultValue: "left", widget: "dropdown", data: { options: ["left", "center", "right"].map((value) => ({ label: value, value })) } });
     expect(properties.due).toEqual({ label: "Due", defaultValue: "", widget: "elements_text__acme_order__due" });
-    // A color that can't be see-through tells the builder's picker so: it has no opacity to set there.
-    expect(properties.accent).toEqual({ label: "Accent", defaultValue: "#ff0000", widget: "color_picker" });
-    expect(properties.ink).toEqual({ label: "Ink", defaultValue: "#000000", widget: "color_picker", data: { allowTransparent: false } });
     // The builder's own controls are its kinds': none is given in editors, which are for properties of your own.
     expect(() => registerTools(builder, [Order], { editors: { counter: { render: () => "" } } })).toThrow(
       "[Elements] registerTools: editors has counter, which is the property of no prop of the elements given (none of their props is a property of your own)"

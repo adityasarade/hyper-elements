@@ -170,7 +170,7 @@ A prop's kind says what its value is. The builder edits it with its own property
 |------|----------------------|
 | `prop.text()` | `registerTools()`'s text field |
 | `prop.text()` with an `enum` | `dropdown`, with its texts |
-| `prop.color()` | `color_picker`, told it takes no see-through color where `transparency` is `false` |
+| `prop.color()` | `color_picker` |
 | `prop.number()` with `integer: true` | `counter`, between the prop's `min` and `max` |
 | `prop.number()` | `registerTools()`'s text field: a number that isn't whole is kept as text (`"7.99"`) |
 | `prop.length()` | `counter` for px, from the prop's `min`; `registerTools()`'s text field where it takes another unit (`"50%"`) |
@@ -190,7 +190,7 @@ background: prop.color({ label: "Background", transparency: true }),
 price: currency({ label: "Price", symbol: "€", min: 0 }),
 ```
 
-A color may be see-through unless its `transparency` is `false`, which takes an opaque color alone. The builder's color picker gives see-through colors in a page, not in an email. For a color that can't be see-through, `registerTools()` gives the picker `allowTransparent: false`, so it has no opacity to set there and no "transparent" to pick. A builder whose picker doesn't take that still gives one in a page: the block then says it can't be drawn, as a block saved with one does.
+A color may be see-through unless its `transparency` is `false`, which takes an opaque color alone. The builder's color picker gives see-through colors in a page, not in an email. A see-through color picked in a page for a color that can't be one isn't drawn: the block says why in its place, as a block saved with one does.
 
 For an editor of your own, a prop is a property you define once (`currency` here), and then give the builder a control for. Its value stays its kind's: a price is still a number, checked as one.
 
