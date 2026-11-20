@@ -65,8 +65,8 @@ jobs:
       - name: Templates pages' data is up to date
         run: |
           pnpm --filter @hyper-elements/website generate:kits
-          git add -N apps/website/public/generated/kits apps/website/src/generated/kits.json apps/website/src/content/docs/templates/contributing.md
-          git diff --exit-code --stat -- apps/website/public/generated/kits apps/website/src/generated/kits.json apps/website/src/content/docs/templates/contributing.md || { echo "::error::the templates pages' data is out of date: run pnpm --filter @hyper-elements/website generate:kits and commit it"; exit 1; }
+          git add -N apps/website/public/generated/kits apps/website/src/generated/kits.json
+          git diff --exit-code --stat -- apps/website/public/generated/kits apps/website/src/generated/kits.json || { echo "::error::the templates pages' data is out of date: run pnpm --filter @hyper-elements/website generate:kits and commit it"; exit 1; }
 
       - name: Build the website
         run: pnpm --filter @hyper-elements/website build

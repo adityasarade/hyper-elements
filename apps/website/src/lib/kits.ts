@@ -37,8 +37,11 @@ export interface TemplateInfo {
   file: string;
   /** The design as it's written, which takes its brand's type from ./brand: the same in every brand. */
   code: string;
-  byBrand: Record<string, { views: Record<string, Example>; single: string; brandFile: string }>;
+  byBrand: Record<string, { views: Record<string, View>; single: string; brandFile: string }>;
 }
+/** A view of a template in one brand, with the file the gallery loads it from when that brand is picked: its HTML
+ * (images and assets already pointed at this site), or a Canvas's PNG. */
+export type View = Example & { preview?: string };
 export interface CategoryInfo {
   label: string;
   group: string;
@@ -61,11 +64,6 @@ export const brandsFor = (t: TemplateInfo): BrandInfo[] => {
   return own ? [own, ...brands] : brands;
 };
 export const templateUrl = (t: TemplateInfo) => `/templates/${t.kit}/${t.folder}/${t.category}`;
-/** "Recreation of Acme's login code email". */
-export const recreationLabel = (t: TemplateInfo) => (t.recreates ? `Recreation of ${t.recreates.company}'s ${t.recreates.what.charAt(0).toLowerCase()}${t.recreates.what.slice(1)}` : undefined);
-/** An original's screenshot is under the kit assets' address; on the site it loads from its own copy. */
-export const sitePath = (url: string) => url.replace("https://hyperelements.dev/generated/kits/assets/", "/generated/kits/assets/");
-export const kitUrl = (kit: string) => `/templates/${kit}`;
 // Page sizes at 96px to the inch, portrait: [width, height].
 const PAGE_SIZES: Record<string, [number, number]> = { A3: [1123, 1587], A4: [794, 1123], A5: [559, 794], LETTER: [816, 1056], LEGAL: [816, 1344] };
 /** How wide a template's preview is drawn before it's scaled to fit: a Document at its own page's width (from the
@@ -81,7 +79,7 @@ export const previewWidth = (t: TemplateInfo, brand?: string): number => {
   return (page![2]?.toLowerCase() === "landscape" ? size[1] : size[0]) + 26;
 };
 /** The first view of a template in a brand: its first format. */
-export const firstView = (t: TemplateInfo, brand: string): Example => {
+export const firstView = (t: TemplateInfo, brand: string): View => {
   const views = t.byBrand[brand]?.views ?? {};
   return views[t.formats[0] ?? "default"] ?? Object.values(views)[0];
 };
