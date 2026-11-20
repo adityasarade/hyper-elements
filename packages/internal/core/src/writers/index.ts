@@ -5,7 +5,8 @@ import { acceptPlugins, pluginChecks, pluginOutputChecks, type ElementsPlugin, t
 import { expandDocument } from "../expand";
 import { registryOf, type ComponentsOption } from "../registry";
 import type { Target } from "../define";
-import { renderEmail, type EmailOptions } from "./email";
+import { shownAnywhere } from "../conditions";
+import { checkAssetsOption, drawEmailFiles, renderEmail, type EmailAsset, type EmailOptions, type RenderedFile } from "./email";
 import { emailSupport } from "./email/support";
 import { overflow, pagedSupport } from "./shared/paged";
 import { support } from "./shared/support";
@@ -14,7 +15,7 @@ import { renderText } from "./plain-text";
 import { prettyHtml } from "./shared/pretty";
 import type { BlockMap } from "./shared/block-map";
 
-export { renderEmail, EMAIL_PHONE_MARGIN, type EmailHtml, type EmailOptions } from "./email";
+export { renderEmail, EMAIL_PHONE_MARGIN, type EmailHtml, type EmailOptions, type EmailAssetsOption, type Rasterizer, type RenderedFile, type SvgDrawing } from "./email";
 export { renderPage, PAGE_PHONE_WIDTH, pagePhoneWidth, type PageHtml, type PageOptions } from "./page";
 export { renderText, type TextOptions } from "./plain-text";
 export { emailSupport } from "./email/support";
@@ -46,6 +47,71 @@ export interface RenderResult {
   diagnostics: Diagnostic[];
   /** With `blockMap`, for an Email: where each block is in `html`. */
   blocks?: BlockMap;
+  /**
+   * For an Email with an Svg: the image files it links to (each Svg's SVG, and classic Outlook's PNG of it), named as
+   * the HTML links to them under `assets.baseUrl`. Upload them there before sending.
+   */
+  files?: RenderedFile[];
+}
+
+/** renderTemplate()'s result: with the Svgs' files still to draw (finishRender() draws classic Outlook's). */
+export type WrittenTemplate = RenderResult & { assets?: EmailAsset[] };
+
+/** Where an Email's Svgs are, shown somewhere (an Svg hidden everywhere isn't written). */
+function svgsOf(root: ResolvedNode): ResolvedNode[] {
+  const out: ResolvedNode[] = [];
+  const visit = (node: ResolvedNode) => {
+    if (!shownAnywhere(node)) return;
+    if (node.type === "Svg") out.push(node);
+    for (const child of node.children) if (typeof child !== "string") visit(child);
+  };
+  visit(root);
+  return out;
+}
+
+/**
+ * What an Email's Svgs need of `assets`: an error where it's missing (email clients drop inline SVG, so each is a file
+ * the email links to), and a warning where classic Outlook's PNG is left out (`rasterize: false`: it shows a hosted SVG
+ * as a broken image).
+ */
+function svgAssetProblems(root: ResolvedNode, assets: EmailOptions["assets"]): Diagnostic[] {
+  const svgs = svgsOf(root);
+  if (!svgs.length) return [];
+  const first = svgs[0]!;
+  const at = { path: first.path, ...(first.id ? { nodeId: first.id } : {}) };
+  if (!assets) {
+    return [
+      {
+        code: "email/svg-assets",
+        severity: "error",
+        message: "An Svg in an Email is an image file the email links to, as email clients drop inline SVG: say where the files are hosted with render()'s assets option, and upload the files it returns",
+        fix: 'render(email, { assets: { baseUrl: "https://cdn.example.com/email/", rasterize: pngRasterizer() } }), with pngRasterizer from @hyper-elements/react/image; then upload each of result.files to baseUrl',
+        ...at,
+      },
+    ];
+  }
+  if (assets.rasterize === false) {
+    return [
+      {
+        code: "email/svg-outlook",
+        severity: "warning",
+        message: "Classic Outlook (2019 in the real client) shows a hosted SVG as a broken image, and assets.rasterize is false: it gets no PNG of this Email's Svgs",
+        fix: "rasterize: pngRasterizer(), with pngRasterizer from @hyper-elements/react/image",
+        ...at,
+      },
+    ];
+  }
+  return [];
+}
+
+/**
+ * A written template's files drawn: each Svg's SVG, and classic Outlook's PNG of it by `assets.rasterize`. What
+ * render() returns; a template without Svgs is returned as it was written.
+ */
+export async function finishRender(written: WrittenTemplate, options: Pick<RenderOptions, "assets"> = {}): Promise<RenderResult> {
+  const { assets, ...result } = written;
+  if (!assets?.length || !options.assets) return result;
+  return { ...result, files: await drawEmailFiles(assets, options.assets.rasterize) };
 }
 
 /** The output each root renders to, and whether its writer exists yet. */
@@ -130,13 +196,18 @@ export function validateTemplate(input: unknown, options: ComponentsOption & Plu
  * rendered to the output its root says: prepared (`prepareTemplate`), then
  * written. Throws an `ElementsError` listing the errors if there are any.
  */
-export function renderTemplate(input: unknown, options: RenderOptions & ComponentsOption = {}): RenderResult {
+export function renderTemplate(input: unknown, options: RenderOptions & ComponentsOption = {}): WrittenTemplate {
   // Indenting rewrites the HTML after it's written, which would move every offset.
   if (options.blockMap && options.pretty) throw new ElementsError([{ code: "render/block-map-pretty", severity: "error", message: "blockMap gives offsets in the compact HTML; leave pretty off", path: "root" }]);
+  const badAssets = checkAssetsOption(options.assets);
+  if (badAssets.length) throw new ElementsError(badAssets);
   const { resolved, target, diagnostics, plugins } = prepareTemplate(input, options);
   if (!resolved) throw new ElementsError(diagnostics);
+  const svgProblems = target === "email" ? inTemplate(resolved, svgAssetProblems(resolved.root, options.assets)) : [];
+  if (svgProblems.some((d) => d.severity === "error")) throw new ElementsError([...diagnostics, ...svgProblems]);
+  diagnostics.push(...svgProblems);
   const text = renderText(resolved, options);
-  const written = target === "email" ? renderEmail(resolved, options) : { ...renderPage(resolved, options), stylesheet: "", diagnostics: [] };
+  const written = target === "email" ? renderEmail(resolved, options) : { ...renderPage(resolved, options), stylesheet: "", diagnostics: [], assets: [] };
   // The plugins' checks on the written output, compact (what `pretty` would change isn't what an email client receives).
   const outputChecks = pluginOutputChecks(plugins, { root: resolved.root.type, html: written.html, head: written.head, body: written.body, stylesheet: written.stylesheet }, resolved);
   const shown = (html: string) => (options.pretty ? prettyHtml(html) : html);
@@ -149,5 +220,6 @@ export function renderTemplate(input: unknown, options: RenderOptions & Componen
     text,
     diagnostics: [...diagnostics, ...inTemplate(resolved, written.diagnostics), ...outputChecks],
     ...(blocks ? { blocks } : {}),
+    ...(written.assets.length ? { assets: written.assets } : {}),
   };
 }

@@ -67,6 +67,7 @@
  ],
  "./image": [
   "layoutImage",
+  "pngRasterizer",
   "renderImage",
   "templateAssets"
  ],

@@ -107,6 +107,14 @@ function withinReach(svg: string, resvg: Resvg, width: number, height: number): 
   return `${open}${kept.join("")}</svg>`;
 }
 
+/**
+ * SVG text drawn as a PNG `width` px wide, by resvg alone: an email's Svg for classic Outlook (shapes only, no text,
+ * so no fonts and no Satori). System fonts aren't loaded: the same SVG is the same PNG on every machine.
+ */
+export function resvgPng(svg: string, width: number): Uint8Array {
+  return new Uint8Array(new Resvg(svg, { fitTo: { mode: "width", value: Math.max(1, Math.round(width)) }, font: { loadSystemFonts: false } }).render().asPng());
+}
+
 export const satoriResvg: Engine = async (canvas, output) => {
   const tree = clean(createElement("div", { style: canvas.style }, ...canvas.children.map(block)));
   const fonts = canvas.fonts.map((font) => ({ name: font.family, data: font.data, weight: font.weight, style: font.style }));

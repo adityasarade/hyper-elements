@@ -3,6 +3,7 @@ import {
   acceptPlugins,
   checkPluginsOption,
   ElementsError,
+  finishRender,
   LAYOUT_VERSION,
   pagedSupport,
   prepareTemplate,
@@ -99,7 +100,8 @@ export async function render(element: React.ReactElement | Snapshot, options: Re
   const refused = undecided(pending, "render()");
   if (refused.length) throw new ElementsError(refused);
   if (!document || diagnostics.some((d) => d.severity === "error")) throw new ElementsError(diagnostics);
-  const rendered = renderTemplate(document, { ...options, components });
+  // An Email's Svgs are files it links to: classic Outlook's PNG of each is drawn now, by `assets.rasterize`.
+  const rendered = await finishRender(renderTemplate(document, { ...options, components }), options);
   const all = withFound(diagnostics, rendered.diagnostics, fields);
   return { ...rendered, diagnostics: [...all, ...callNotes(document.root.type, all, options)], ...used(from) };
 }
@@ -178,3 +180,4 @@ export function prepare(
 }
 
 export type { RenderOptions, RenderResult, ResolvedNode };
+export type { EmailAssetsOption, Rasterizer, RenderedFile, SvgDrawing } from "@hyper-elements/core";

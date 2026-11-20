@@ -2,12 +2,12 @@
 "title": "Svg"
 "group": "Blocks"
 "order": 10
-"summary": "Shapes (Rect, Circle, Ellipse, Line, Polygon, Path) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them."
+"summary": "Shapes (Rect, Circle, Ellipse, Line, Polygon, Path) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them. In an Email, an image file it links to (render()'s assets)."
 ---
 
-Shapes (Rect, Circle, Ellipse, Line, Polygon, Path) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them.
+Shapes (Rect, Circle, Ellipse, Line, Polygon, Path) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them. In an Email, an image file it links to (render()'s assets).
 
-Holds: Rect, Circle, Ellipse, Line, Polygon, Path. Not in an Email.
+Holds: Rect, Circle, Ellipse, Line, Polygon, Path.
 
 Props:
 - `width`: a number from 0 (required)

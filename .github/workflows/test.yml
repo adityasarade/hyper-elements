@@ -128,14 +128,16 @@ jobs:
       # once as inert data (snapshot(), slotMark(), captureFragment() and readFragment(), with their plain-data
       # grammar and limits), the blocks kind, and frozen kinds and definitions; 348,700 bytes (3,554 more) for fitted
       # text in a Canvas: the fit kind and prop, style/fit, and a fitted node laid out at its largest size; 349,800
-      # bytes for the two together, templates and the `elements` key (349,212 measured).
+      # bytes for the two together, templates and the `elements` key (349,212 measured); 361,200 bytes (11,070 more:
+      # 360,622 measured) for an Svg in an Email: its SVG file and classic Outlook's PNG, named by a SHA-256 written in
+      # (the package has no dependencies), and render()'s assets option and files.
       - name: Check main entry bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
           test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=349800
+          MAX_SIZE=361200
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::Main entry bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -168,13 +170,14 @@ jobs:
       # it as it is, an HTML block with the reason said where it doesn't (3,431 bytes measured);
       # 511,000 for its columns' percentages as given, a header's or a footer's background shared only where all its rows
       # have it, its words read at the page's line height, and a row below a footer row said (1,927 bytes measured).
-      # 521,700 bytes for templates and the builder's table together (521,210 measured).
+      # 521,700 bytes for templates and the builder's table together (521,210 measured). 532,100 bytes (10,222 more:
+      # 531,493 measured) for an Svg in an Email, which the builder's copy of core writes too.
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=521700
+          MAX_SIZE=532100
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"

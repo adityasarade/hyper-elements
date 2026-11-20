@@ -324,9 +324,9 @@ Content, stacked down whatever holds it.
 
 ### Svg
 
-Shapes (Rect, Circle, Ellipse, Line, Polygon, Path) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them.
+Shapes (Rect, Circle, Ellipse, Line, Polygon, Path) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them. In an Email, an image file it links to (render()'s assets).
 
-Holds: Rect, Circle, Ellipse, Line, Polygon, Path. Not in an Email.
+Holds: Rect, Circle, Ellipse, Line, Polygon, Path.
 
 Props:
 - `width`: a number from 0 (required)
@@ -844,7 +844,7 @@ Only inside an Svg, in its viewBox's units.
 
 A rectangle at x, y in its Svg, rounded by rx.
 
-Holds: nothing. Not in an Email.
+Holds: nothing.
 
 Props:
 - `x`: a number (default `0`)
@@ -863,7 +863,7 @@ Props:
 
 A circle centered at cx, cy in its Svg.
 
-Holds: nothing. Not in an Email.
+Holds: nothing.
 
 Props:
 - `cx`: a number (default `0`)
@@ -880,7 +880,7 @@ Props:
 
 An ellipse centered at cx, cy in its Svg.
 
-Holds: nothing. Not in an Email.
+Holds: nothing.
 
 Props:
 - `cx`: a number (default `0`)
@@ -898,7 +898,7 @@ Props:
 
 A straight line from x1, y1 to x2, y2 in its Svg (drawn by its stroke).
 
-Holds: nothing. Not in an Email.
+Holds: nothing.
 
 Props:
 - `x1`: a number (default `0`)
@@ -916,7 +916,7 @@ Props:
 
 A closed shape through its points ("0,0 40,0 20,30"), in its Svg.
 
-Holds: nothing. Not in an Email.
+Holds: nothing.
 
 Props:
 - `points`: text (required)
@@ -931,7 +931,7 @@ Props:
 
 A shape drawn by an SVG path (d), in its Svg.
 
-Holds: nothing. Not in an Email.
+Holds: nothing.
 
 Props:
 - `d`: text (required). SVG path data ("M0 0 L40 0 L20 30 Z").

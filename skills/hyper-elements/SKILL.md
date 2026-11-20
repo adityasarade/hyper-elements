@@ -14,7 +14,7 @@ To test an email in Outlook, Gmail and other clients, a design or any HTML: the 
 ## Before you write a design
 
 - If the project's package.json doesn't list `@hyper-elements/react`, install it: `npm install @hyper-elements/react react react-dom`, or the same with the project's package manager (`pnpm add`, `yarn add`, `bun add`).
-- Once it's installed, its own guide is `node_modules/@hyper-elements/react/GUIDE.md`, written for the version installed. `grep "hyper-elements guide" node_modules/@hyper-elements/react/GUIDE.md` gives its id; this skill's is `hyper-elements guide f82a37d3`. The same id: this skill is that guide, so read on. Another id, or none: read GUIDE.md and follow it where it differs from this skill.
+- Once it's installed, its own guide is `node_modules/@hyper-elements/react/GUIDE.md`, written for the version installed. `grep "hyper-elements guide" node_modules/@hyper-elements/react/GUIDE.md` gives its id; this skill's is `hyper-elements guide bed1a8bc`. The same id: this skill is that guide, so read on. Another id, or none: read GUIDE.md and follow it where it differs from this skill.
 
 ## Templates from Unlayer Elements
 
@@ -182,7 +182,7 @@ const { image, diagnostics } = await renderImage(
 
 ### Blocks
 
-- **Svg**: Shapes (Rect, Circle, Ellipse, Line, Polygon, Path) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them. Not in an Email. Holds shapes. Props: width* (a number from 0), height* (a number from 0), viewBox (text), title (text). Style: padding, backgroundColor, border, borderRadius, flex. Phones: padding, border.
+- **Svg**: Shapes (Rect, Circle, Ellipse, Line, Polygon, Path) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them. In an Email, an image file it links to (render()'s assets). Holds shapes. Props: width* (a number from 0), height* (a number from 0), viewBox (text), title (text). Style: padding, backgroundColor, border, borderRadius, flex. Phones: padding, border.
 - **Text**: A paragraph of text. Holds text, inline, Image. Props: dir (ltr|rtl|auto), fit ({ sizes, maxLines }). Style: text, box, textDecoration (none|underline|line-through), flex. Phones: text, width, maxWidth, padding, border.
 - **Heading**: A heading, from level 1 (the page's title) to 6. Holds text, inline. Props: level (1|2|3|4|5|6), dir (ltr|rtl|auto), fit ({ sizes, maxLines }). Style: text, box, textDecoration (none|underline|line-through), flex. Phones: text, width, maxWidth, padding, border.
 - **Button**: A link drawn as a button. Holds text, Span, MergeTag, LineBreak. Props: href* (link), title (text), aria-label (text), attrs (attributes). Style: text, box, textDecoration (none|underline|line-through), boxSizing (border-box|content-box), alignSelf (start|center|end), flex. Hover: color, backgroundColor. Phones: text, width, maxWidth, padding, border, alignSelf.

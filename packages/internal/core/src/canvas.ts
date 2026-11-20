@@ -1,8 +1,9 @@
 /**
  * Images: a Canvas is a fixed-size root, its children laid out in it as on a page, written as an
  * image by @hyper-elements/react/image (and as HTML by render(), to look at); an Svg draws shapes (Rect, Circle, Ellipse,
- * Line, Polygon, Path) in a box of its own, on a page, in a Canvas and in a PDF. An email can't show one: Gmail and
- * Outlook drop inline SVG.
+ * Line, Polygon, Path) in a box of its own, on a page, in a Canvas and in a PDF. In an email it's an image file the
+ * email links to (Gmail and Outlook drop inline SVG): render()'s `assets` says where they're hosted
+ * (writers/email/assets.ts).
  */
 import { defineComponent, prop, type PropSpecs, type SupportByTarget } from "./define";
 import { color, length, number, text } from "./kinds";
@@ -10,8 +11,10 @@ import { ROOT_DEFAULT_STYLE, ROOT_PROPS, ROOT_STYLE, SURFACE_ROLES, TEXT_EDITOR 
 import { boxStyle, css, layoutStyle, pick, placementStyle } from "./styles";
 
 const WRITTEN: SupportByTarget = { web: { level: "full", source: "writer" } };
-const coordinate = (label: string, description?: string) => prop(number(), { support: WRITTEN, label, ...(description ? { description } : {}), default: 0 });
-const size = (label: string) => prop(number({ min: 0 }), { support: WRITTEN, label, required: true });
+/** An Svg's and its shapes': written inline on a page, and into the SVG file an email links to. */
+const DRAWN: SupportByTarget = { web: { level: "full", source: "writer" }, email: { level: "full", source: "writer" } };
+const coordinate = (label: string, description?: string) => prop(number(), { support: DRAWN, label, ...(description ? { description } : {}), default: 0 });
+const size = (label: string) => prop(number({ min: 0 }), { support: DRAWN, label, required: true });
 
 export const Canvas = defineComponent({
   type: "Canvas",
@@ -41,40 +44,50 @@ export const Canvas = defineComponent({
 export const Svg = defineComponent({
   type: "Svg",
   label: "Vector drawing",
-  description: "Shapes (Rect, Circle, Ellipse, Line, Polygon, Path) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them.",
+  description: "Shapes (Rect, Circle, Ellipse, Line, Polygon, Path) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them. In an Email, an image file it links to (render()'s assets).",
   categories: ["block"],
   props: {
     width: size("Width"),
     height: size("Height"),
-    viewBox: prop(text({ maxLength: 100 }), { support: WRITTEN, label: "View box", description: 'The shapes\' coordinates in it, as "x y width height" (its width and height by default).' }),
-    title: prop(text({ maxLength: 200 }), { support: WRITTEN, label: "Title", description: "What it shows, read out by screen readers." }),
+    viewBox: prop(text({ maxLength: 100 }), { support: DRAWN, label: "View box", description: 'The shapes\' coordinates in it, as "x y width height" (its width and height by default).' }),
+    title: prop(text({ maxLength: 200 }), { support: DRAWN, label: "Title", description: "What it shows, read out by screen readers." }),
   },
-  style: { ...pick(boxStyle, "padding", "backgroundColor", "border", "borderRadius"), ...placementStyle },
+  style: {
+    ...pick(boxStyle, "padding", "backgroundColor", "border", "borderRadius"),
+    // In a Row an Svg is as wide as it says (resolve.ts): in an email, a share of the Row isn't written.
+    flex: {
+      ...placementStyle.flex,
+      support: {
+        web: placementStyle.flex.support.web,
+        email: { level: "none", shows: "its own width: an Svg in a Row is as wide as its drawing", when: (value) => value !== "none" && value !== 0, source: "writer", fix: "leave flex out, and set the Svg's width" },
+      },
+    },
+  },
   children: { categories: ["shape"] },
   sizing: "shrink",
-  targets: { web: {} },
-  unsupported: { email: "the Email writer has no inline SVG; use an Image of it (a PNG) instead" },
+  // In an email, an image file the email links to: render() needs `assets` there.
+  targets: { web: {}, email: {} },
   editor: { groups: [{ title: "Drawing", paths: ["props.width", "props.height", "props.viewBox", "props.title"] }] },
 });
 
 /** How a shape is painted. */
 const PAINT = {
-  fill: { kind: color(), label: "Fill", description: 'Its inside ("transparent" for none).', support: { web: css } },
-  stroke: { kind: color(), label: "Stroke", description: "Its outline's color.", support: { web: css } },
-  strokeWidth: { kind: number({ min: 0 }), label: "Stroke width", support: { web: css } },
-  opacity: { kind: number({ min: 0, max: 1 }), label: "Opacity", support: { web: css } },
+  fill: { kind: color(), label: "Fill", description: 'Its inside ("transparent" for none).', support: { web: css, email: DRAWN.email! } },
+  stroke: { kind: color(), label: "Stroke", description: "Its outline's color.", support: { web: css, email: DRAWN.email! } },
+  strokeWidth: { kind: number({ min: 0 }), label: "Stroke width", support: { web: css, email: DRAWN.email! } },
+  opacity: { kind: number({ min: 0, max: 1 }), label: "Opacity", support: { web: css, email: DRAWN.email! } },
 };
 const PAINT_DEFAULT = { fill: "#000000" } as const;
 
 const shape = <const P extends PropSpecs>(type: string, label: string, description: string, props: P) =>
-  defineComponent({ type, label, description, categories: ["shape"], props, style: PAINT, defaultStyle: PAINT_DEFAULT, children: {}, sizing: "none", targets: { web: {} } });
+  defineComponent({ type, label, description, categories: ["shape"], props, style: PAINT, defaultStyle: PAINT_DEFAULT, children: {}, sizing: "none", targets: { web: {}, email: {} } });
 
 export const Rect = shape("Rect", "Rectangle", "A rectangle at x, y in its Svg, rounded by rx.", {
   x: coordinate("X"),
   y: coordinate("Y"),
   width: size("Width"),
   height: size("Height"),
-  rx: prop(number({ min: 0 }), { support: WRITTEN, label: "Corner radius" }),
+  rx: prop(number({ min: 0 }), { support: DRAWN, label: "Corner radius" }),
 });
 export const Circle = shape("Circle", "Circle", "A circle centered at cx, cy in its Svg.", { cx: coordinate("Center X"), cy: coordinate("Center Y"), r: size("Radius") });
 export const Ellipse = shape("Ellipse", "Ellipse", "An ellipse centered at cx, cy in its Svg.", { cx: coordinate("Center X"), cy: coordinate("Center Y"), rx: size("Radius across"), ry: size("Radius down") });
@@ -85,10 +98,10 @@ export const Line = shape("Line", "Line", "A straight line from x1, y1 to x2, y2
   y2: coordinate("End Y"),
 });
 export const Polygon = shape("Polygon", "Polygon", 'A closed shape through its points ("0,0 40,0 20,30"), in its Svg.', {
-  points: prop(text({ maxLength: 10000 }), { support: WRITTEN, label: "Points", required: true }),
+  points: prop(text({ maxLength: 10000 }), { support: DRAWN, label: "Points", required: true }),
 });
 export const Path = shape("Path", "Path", "A shape drawn by an SVG path (d), in its Svg.", {
-  d: prop(text({ maxLength: 100000 }), { support: WRITTEN, label: "Path", description: 'SVG path data ("M0 0 L40 0 L20 30 Z").', required: true }),
+  d: prop(text({ maxLength: 100000 }), { support: DRAWN, label: "Path", description: 'SVG path data ("M0 0 L40 0 L20 30 Z").', required: true }),
 });
 
 /** The shapes, by type. */

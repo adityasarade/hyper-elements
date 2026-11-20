@@ -562,8 +562,7 @@ export function checkTargetExpanded(document: ElementsDocument, target: Target, 
   const visit = (node: Node, path: string) => {
     const definition = registry.get(node.type);
     if (definition && !definition.targets[target]) {
-      const why = definition.unsupported?.[target];
-      d.error("target/unsupported", `A ${node.type} can't be rendered to ${target}${why ? `: ${why}` : ""}`, path, node.id);
+      d.error("target/unsupported", `A ${node.type} can't be rendered to ${target}`, path, node.id);
       // What's in it goes with it: one error.
       return;
     }

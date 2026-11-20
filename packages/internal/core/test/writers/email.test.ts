@@ -1,5 +1,6 @@
+import { createHash } from "node:crypto";
 import { JSDOM } from "jsdom";
-import { renderTemplate } from "../../src/writers";
+import { finishRender, renderTemplate } from "../../src/writers";
 
 const email = (children: unknown[], extra: Record<string, unknown> = {}) => ({ root: { type: "Email", props: { width: 600 }, children, ...extra } });
 const render = (input: unknown, options: Record<string, unknown> = {}) => renderTemplate(input, options);
@@ -781,8 +782,97 @@ describe("email HTML", () => {
     });
   });
 
-  it("leaves an Svg out of an email, with an error: the Email writer has no inline SVG", () => {
-    expect(() => render(email([{ type: "Svg", props: { width: 40, height: 40 }, children: [{ type: "Circle", props: { cx: 20, cy: 20, r: 10 } }] }]))).toThrow("A Svg can't be rendered to email: the Email writer has no inline SVG; use an Image of it (a PNG) instead");
+  describe("an Svg", () => {
+    const moon = (title?: string) => ({ type: "Svg", id: "moon", props: { width: 40, height: 20, ...(title ? { title } : {}) }, children: [{ type: "Circle", props: { cx: 20, cy: 10, r: 8 }, style: { fill: "#fde68a" } }] });
+    const MOON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20" viewBox="0 0 40 20"><circle cx="20" cy="10" r="8" fill="#fde68a"></circle></svg>';
+    const hashOf = (text: string) => createHash("sha256").update(text, "utf8").digest("hex").slice(0, 32);
+    const drawn: Array<{ svg: string; width: number; height: number }> = [];
+    const stub = { suffix: "2x", extension: "png" as const, contentType: "image/png", draw: (drawing: { svg: string; width: number; height: number }) => (drawn.push(drawing), Uint8Array.of(1, 2, 3)) };
+    const assets = { baseUrl: "https://files.test/email", rasterize: stub };
+
+    it("is an SVG file for every client, and its PNG for classic Outlook, both named by the SVG's SHA-256", async () => {
+      drawn.length = 0;
+      const written = render(email([moon("A moon")]), { assets });
+      const hash = hashOf(MOON_SVG);
+      // No inline <svg>: Gmail, Outlook and Yahoo drop it.
+      expect(written.html).not.toContain("<svg");
+      expect(outlookOnly(written.html)).toContain(`<img src="https://files.test/email/${hash}-2x.png" alt="A moon" width="40" height="20" border="0" style="display:block;border:0">`);
+      expect(outlookOnly(written.html)).not.toContain(".svg");
+      expect(notOutlook(written.html)).toContain(`<!--[if !mso]><!--><img src="https://files.test/email/${hash}.svg" alt="A moon" width="40" height="20" border="0" style="display:block;width:100%;max-width:40px;height:auto;border:0"><!--<![endif]-->`);
+      const done = await finishRender(written, { assets });
+      expect(done.html).toBe(written.html);
+      // What's left to draw isn't part of what render() returns.
+      expect("assets" in done).toBe(false);
+      expect(done.files!.map((f) => [f.name, f.contentType, new TextDecoder().decode(f.bytes), f.width, f.height])).toEqual([
+        [`${hash}.svg`, "image/svg+xml", MOON_SVG, 40, 20],
+        [`${hash}-2x.png`, "image/png", "\u0001\u0002\u0003", 40, 20],
+      ]);
+      // The PNG is drawn from the SVG's text at its size.
+      expect(drawn).toEqual([{ svg: MOON_SVG, width: 40, height: 20 }]);
+    });
+
+    it("is one pair of files per drawing: the same Svg twice links to the same files, another drawing to others", async () => {
+      const other = { ...moon(), id: "other", children: [{ type: "Circle", props: { cx: 20, cy: 10, r: 9 }, style: { fill: "#fde68a" } }] };
+      const written = render(email([moon(), { ...moon(), id: "again" }, other]), { assets });
+      const files = (await finishRender(written, { assets })).files!;
+      expect(files.map((f) => f.name.split(/[.-]/)[0])).toEqual([hashOf(MOON_SVG), hashOf(MOON_SVG), expect.any(String), expect.any(String)]);
+      expect(new Set(files.map((f) => f.name)).size).toBe(4);
+      // The same template is the same HTML.
+      expect(render(email([moon(), { ...moon(), id: "again" }, other]), { assets }).html).toBe(written.html);
+    });
+
+    it("needs assets: an error says where the files go, and nothing is written", () => {
+      expect(() => render(email([{ type: "Text", children: ["Hi"] }, moon()]))).toThrow("An Svg in an Email is an image file the email links to");
+      try {
+        render(email([{ type: "Text", children: ["Hi"] }, moon()]));
+      } catch (error) {
+        expect((error as { diagnostics: Array<{ code: string; path: string; nodeId?: string }> }).diagnostics.map((d) => [d.code, d.path, d.nodeId])).toEqual([["email/svg-assets", "root.children[1]", "moon"]]);
+      }
+      // An Email without one needs none, and one hidden everywhere isn't written.
+      expect(() => render(email([{ type: "Text", children: ["Hi"] }]))).not.toThrow();
+      expect(render(email([{ ...moon(), hidden: { desktop: true, mobile: true } }])).html).not.toContain("<img");
+    });
+
+    it("refuses an assets option it can't use", () => {
+      const code = (options: Record<string, unknown>) => {
+        try {
+          render(email([moon()]), options);
+          return "rendered";
+        } catch (error) {
+          return (error as { diagnostics: Array<{ code: string }> }).diagnostics.map((d) => d.code).join();
+        }
+      };
+      expect(code({ assets: { baseUrl: "javascript:alert(1)", rasterize: false } })).toBe("render/assets");
+      expect(code({ assets: { baseUrl: "/relative/", rasterize: false } })).toBe("render/assets");
+      expect(code({ assets: { baseUrl: "https://files.test/", rasterize: { suffix: "2x", extension: "webp", contentType: "image/webp", draw: () => new Uint8Array(1) } } })).toBe("render/assets");
+      expect(code({ assets: { baseUrl: "https://files.test/" } })).toBe("render/assets");
+      expect(code({ assets: "https://files.test/" })).toBe("render/assets");
+      expect(code({ assets: { baseUrl: "https://files.test/", rasterize: false } })).toBe("rendered");
+    });
+
+    it("with rasterize: false, is the SVG file alone, with a warning that classic Outlook shows it broken", async () => {
+      const written = render(email([moon()]), { assets: { baseUrl: "https://files.test/", rasterize: false } });
+      expect(outlookOnly(written.html)).not.toContain("<img");
+      expect(written.html).toContain(`<img src="https://files.test/${hashOf(MOON_SVG)}.svg" alt="" width="40" height="20"`);
+      expect(written.diagnostics.filter((d) => d.code.startsWith("email/svg")).map((d) => [d.code, d.severity, d.path])).toEqual([["email/svg-outlook", "warning", "root.children[0]"]]);
+      expect((await finishRender(written, { assets: { baseUrl: "https://files.test/", rasterize: false } })).files!.map((f) => f.name)).toEqual([`${hashOf(MOON_SVG)}.svg`]);
+    });
+
+    it("draws its padding, background and border as a cell around the image, which Word draws", () => {
+      const framed = { ...moon(), style: { padding: 6, backgroundColor: "#112233", border: "2px solid #445566" } };
+      const { html } = render(email([framed]), { assets });
+      const cell = html.match(/<td[^>]*bgcolor="#112233"[^>]*>/)?.[0];
+      expect(cell).toContain("padding:6px");
+      expect(cell).toContain("border:2px solid #456");
+      // The cell holds both images; the drawing itself is the same file as without its frame.
+      expect(html.slice(html.indexOf(cell!))).toContain(`${hashOf(MOON_SVG)}-2x.png`);
+    });
+
+    it("keeps its title in the alt attribute only, as text, inside Outlook's conditional comment too", () => {
+      const { html } = render(email([moon('--><![endif]--><script>x</script> "quoted"')]), { assets });
+      expect(html).not.toContain("<script");
+      expect(outlookOnly(html)).toContain('alt="--&gt;&lt;![endif]--&gt;&lt;script&gt;x&lt;/script&gt; &quot;quoted&quot;"');
+    });
   });
 
   it("writes a large email without TextEncoder (Jest's jsdom has none), and leaves its size to the email-clients plugin", () => {

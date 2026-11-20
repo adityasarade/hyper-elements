@@ -36,6 +36,7 @@ import { utf8Bytes } from "../shared/bytes";
 import { Stylesheet } from "../shared/classes";
 import { attrs, css, escapeText, styleAttr } from "../shared/css";
 import { fontFaces } from "../shared/fonts";
+import { withEmailAssets, type EmailAsset } from "./assets";
 import { shown, type EmailOptions, type Props, type Component } from "./context";
 import { Button } from "./Button";
 import { Column } from "./Column";
@@ -54,6 +55,7 @@ import { Row } from "./Row";
 import { Layer } from "./Layer";
 import { Section } from "./Section";
 import { Span } from "./Span";
+import { Svg } from "./Svg";
 import { Table } from "./Table";
 import { TableCell } from "./TableCell";
 import { TableRow } from "./TableRow";
@@ -61,6 +63,7 @@ import { Video } from "./Video";
 import { mobileTextOf, phoneText, type MobileText } from "./styles";
 
 export type { EmailOptions } from "./context";
+export { checkAssetsOption, drawEmailFiles, type EmailAsset, type EmailAssetsOption, type Rasterizer, type RenderedFile, type SvgDrawing } from "./assets";
 
 /** The components, by where they go: in a stack or a Row, or inside text. (The root, `Email`, is called on its own.) */
 const BLOCKS: Record<string, Component> = {
@@ -80,6 +83,7 @@ const BLOCKS: Record<string, Component> = {
   TableRow,
   TableCell,
   Video,
+  Svg,
   Html: HtmlBlock,
 };
 const INLINES: Record<string, Component> = {
@@ -155,6 +159,8 @@ export interface EmailHtml {
   diagnostics: Diagnostic[];
   /** With `blockMap`, where each block is in `html`. */
   blocks?: BlockMap;
+  /** The files its Svgs link to (assets.ts), one per drawing, in the order written: classic Outlook's are drawn after. */
+  assets: EmailAsset[];
 }
 
 /** An email is on a phone below its content width plus this. */
@@ -169,8 +175,11 @@ export function renderEmail(resolved: ResolvedDocument, options: EmailOptions & 
   const width = root.width ?? 600;
   const write = (marks: BlockMarks | null) => {
     const sheet = new Stylesheet(options.classPrefix);
-    const markup = withStylesheet(sheet, () => withBlockMarks(marks, () => String(markBlock(Email(propsOf(root, { parent: root, fill: false, mobile: {}, inline: false, rtl: false }, options)), root))));
-    return { sheet, markup };
+    const assets = new Map<string, EmailAsset>();
+    const markup = withEmailAssets(assets, () =>
+      withStylesheet(sheet, () => withBlockMarks(marks, () => String(markBlock(Email(propsOf(root, { parent: root, fill: false, mobile: {}, inline: false, rtl: false }, options)), root))))
+    );
+    return { sheet, markup, assets: [...assets.values()] };
   };
   // With a block map, written with marks (again with another pair where the template's text holds one), which come out again.
   let written = options.blockMap ? null : write(null);
@@ -180,9 +189,9 @@ export function renderEmail(resolved: ResolvedDocument, options: EmailOptions & 
     const marks = new BlockMarks(pair);
     const attempt = write(marks);
     marked = readMarks(marks, attempt.markup);
-    if (marked) written = { sheet: attempt.sheet, markup: marked.text };
+    if (marked) written = { sheet: attempt.sheet, markup: marked.text, assets: attempt.assets };
   }
-  const { sheet, markup: email } = written;
+  const { sheet, markup: email, assets } = written;
 
   const background = root.style.backgroundColor as string | undefined;
   const lang = root.props.lang as string | undefined;
@@ -232,7 +241,7 @@ export function renderEmail(resolved: ResolvedDocument, options: EmailOptions & 
     `<head>${head}</head><body${styleAttr(bodyDeclarations)}>`;
   const html = `${shell}${body}</body></html>`;
 
-  return { html, head, body, bodyStyle, stylesheet, diagnostics: d.list, ...(marked ? { blocks: blockMap(resolved, marked.found, email, utf8Bytes(shell + preheader + opening)) } : {}) };
+  return { html, head, body, bodyStyle, stylesheet, diagnostics: d.list, assets, ...(marked ?{ blocks: blockMap(resolved, marked.found, email, utf8Bytes(shell + preheader + opening)) } : {}) };
 }
 
 /** Each mark's block, at its offset in UTF-8 bytes: `start` bytes before the email's markup, and its markup up to the mark. */

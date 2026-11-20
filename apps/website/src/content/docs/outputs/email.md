@@ -69,6 +69,27 @@ Web fonts in `fonts` are written as `@font-face` rules where classic Outlook doe
 
 Gmail clips a message after about 100 KB of HTML, and reads 16 KB of a `<style>`. `@hyper-elements/email-clients`' plugin warns about both when it's passed to `render()` (`email/size`, `email/style-size`).
 
+## An Svg
+
+Email clients drop inline SVG (Gmail, Outlook, Yahoo) and images whose file is in the email as a `data:` URI (every Gmail), so an `Svg` in an email is an image file the email links to. Say where the files are hosted with `render()`'s `assets` option, and upload the files it returns before you send:
+
+```tsx
+import { render } from "@hyper-elements/react";
+import { pngRasterizer } from "@hyper-elements/react/image";
+
+const { html, files } = await render(<Launch />, {
+  assets: { baseUrl: "https://cdn.example.com/email/", rasterize: pngRasterizer() },
+});
+for (const file of files ?? []) await upload(`email/${file.name}`, file.bytes, file.contentType);
+```
+
+- **Every client but classic Outlook** gets the SVG file, sharp at any size. Serve it as `image/svg+xml`: Gmail shows it converted to a PNG.
+- **Classic Outlook** shows a hosted SVG as a broken image (Outlook 2019, in the real client), so it gets a PNG of the drawing, at twice its size by default, in a conditional comment only it reads. `pngRasterizer()` draws it with resvg (an optional peer, as for `renderImage()`). `rasterize: false` leaves it out, with a warning.
+- **Each file is named by its drawing** (the SHA-256 of its SVG), so the same drawing is the same file in every email, and a name never changes what it shows: cache the files for good.
+- **Its padding, background and border** are a table cell around the image, which classic Outlook draws too. A transparent drawing sits on the email's background, or a dark-mode client's: give the Svg a `backgroundColor` where that matters.
+
+Without `assets`, `render()` rejects an Email with an `Svg` (`email/svg-assets`), saying how to pass them. `validate()` doesn't need them.
+
 ## Seeing it in the clients
 
 The email client emulator, `renderInEmailClients()` from `@hyper-elements/email-clients`, shows the email as each email client shows it, as HTML files you open in a browser, with what each client changed listed. Nothing is sent or uploaded. See [Email client emulator](/docs/email-client-emulator).
@@ -77,7 +98,6 @@ The email client emulator, `renderInEmailClients()` from `@hyper-elements/email-
 
 `validate()` tells you each of these for your design, with the path; the ones about particular clients come from `@hyper-elements/email-clients`' plugin:
 
-- **Svg.** The Email writer has no inline SVG (Gmail and classic Outlook drop it), so an `Svg` in an email is an error. Use an `Image` of it, a PNG.
 - **Layer.** An email draws one shape of it: an Image as wide as the Layer, with one child over it. The image is the cell's background, with VML for Outlook.
 - **`justifyContent: "space-between"`.** The children start at the left.
 - **Rounded corners and letter spacing in classic Outlook.** Corners are square, and letter spacing is normal. The plugin notes it (`email/outlook-degraded`).

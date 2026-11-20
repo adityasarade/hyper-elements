@@ -4,6 +4,31 @@ Versions before 0.3.0 were published as `@unlayer/react-elements`.
 
 ## Unreleased
 
+### An Svg in an Email
+
+An `Svg` and its shapes go in an Email now. Email clients drop inline SVG and `data:` images, so each Svg is an image
+file the email links to: `render()`'s new `assets` option says where the files are hosted, and `render()` returns them
+in `files` to upload there.
+
+```tsx
+import { pngRasterizer } from "@hyper-elements/react/image";
+
+const { html, files } = await render(<Launch />, {
+  assets: { baseUrl: "https://cdn.example.com/email/", rasterize: pngRasterizer() },
+});
+```
+
+- Every client but classic Outlook gets the SVG file. Classic Outlook shows a hosted SVG as a broken image (Outlook
+  2019 in the real client), so it gets a PNG of the drawing at twice its size, in a conditional comment only it reads.
+  `pngRasterizer()` (from `@hyper-elements/react/image`, with resvg) draws it; `rasterize: false` leaves it out, with a
+  warning (`email/svg-outlook`).
+- Both files are named by the SHA-256 of the drawing's SVG, so the same Svg is the same HTML and the same file names
+  everywhere. The hash is written in: the package still has no dependencies, and the main entry runs where
+  `node:crypto` doesn't.
+- An Email with an Svg and no `assets` is an error from `render()` (`email/svg-assets`), saying how to pass them; an
+  `assets` it can't use is `render/assets`. `validate()` doesn't need them.
+- In a Row an Svg is as wide as its drawing: `flex` on one in an Email is a warning (`email/unsupported`).
+
 ### GUIDE.md: where an image comes from, and an id to compare
 
 - The guide says an image's `src` is a public URL the reader's email client can fetch, never a made-up one

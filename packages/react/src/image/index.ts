@@ -9,13 +9,15 @@
  * Nothing is fetched: fonts are given (`fonts`, or the Canvas's `fonts` as data: URIs), and so are images (`images`
  * by URL, or data: URIs). An image needs at least one font: its text is drawn with the fonts it's given.
  * templateAssets() lists the fonts and images a template names, for a tool that loads them.
+ *
+ * pngRasterizer() draws an Email's Svgs as PNGs for classic Outlook, for render()'s `assets` option.
  */
-import { assetParts, fontStack, LAYOUT_VERSION, satoriResvg, writeCanvas, type Asset, type Font } from "@hyper-elements/core/image";
+import { assetParts, fontStack, LAYOUT_VERSION, resvgPng, satoriResvg, writeCanvas, type Asset, type Font } from "@hyper-elements/core/image";
 import { measure, type ImageLayout } from "./layout";
 
 export type { FitResult, GlyphResult, ImageLayout, LaidOutNode } from "./layout";
 import type { FontFace } from "@hyper-elements/core";
-import { ElementsError, prepare, type Diagnostic, type ResolvedNode, type Snapshot } from "@hyper-elements/react";
+import { ElementsError, prepare, type Diagnostic, type Rasterizer, type ResolvedNode, type Snapshot } from "@hyper-elements/react";
 import type { ReactElement } from "react";
 
 export interface ImageFont {
@@ -72,6 +74,22 @@ export async function renderImage(element: ReactElement | Snapshot, options: Ima
   if (options.format === "svg") return { image: await satoriResvg(canvas, { format: "svg", scale }), width, height, diagnostics: all };
   const image = await satoriResvg(canvas, { format: "png", scale });
   return { image, width: Math.round(width * scale), height: Math.round(height * scale), diagnostics: all };
+}
+
+/**
+ * Draws each Svg of an Email as a PNG for classic Outlook, which shows a hosted SVG as a broken image (Outlook 2019):
+ * for render()'s `assets` option. `scale` is pixels per px (2, the default, is sharp on high-density screens); it's in
+ * the file's name (`<hash>-2x.png`), so another scale is another file.
+ *
+ *   const { html, files } = await render(<Welcome />, {
+ *     assets: { baseUrl: "https://cdn.example.com/email/", rasterize: pngRasterizer() },
+ *   });
+ *   // upload each of files to baseUrl, then send html
+ */
+export function pngRasterizer(options: { scale?: number } = {}): Rasterizer {
+  const scale = options.scale ?? 2;
+  if (!Number.isInteger(scale) || scale < 1 || scale > 4) throw new TypeError(`[Elements] pngRasterizer({ scale }) takes a whole number from 1 to 4, not ${String(options.scale)}`);
+  return { suffix: `${scale}x`, extension: "png", contentType: "image/png", draw: ({ svg, width }) => resvgPng(svg, width * scale) };
 }
 
 /**

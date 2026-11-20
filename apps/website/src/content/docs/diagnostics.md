@@ -128,7 +128,9 @@ try {
 | `id/duplicate` | Two elements with one `id` |
 | `id/invalid` | An `id` that doesn't start with a letter |
 | `mobile/invalid`, `hover/invalid`, `hidden/invalid` | A `mobile`, `hover` or `hidden` value that isn't one they take |
-| `target/unsupported` | An element the output can't draw: an `Svg` or a `PageNumber` in an email (Gmail and classic Outlook drop inline SVG) |
+| `target/unsupported` | An element the output can't draw, such as a `PageNumber` your own element renders in an email |
+| `email/svg-assets` | An Email with an `Svg` rendered without `assets`: its drawing is an image file the email links to (see [Email](/docs/outputs/email#an-svg)) |
+| `render/assets` | An `assets` option `render()` can't use: a `baseUrl` that isn't an http or https URL, or a `rasterize` that isn't one |
 | `document/page-number` | A `PageNumber` in a Page or a Canvas, which have no pages |
 | `element/not-supported` | An element under a root that doesn't take it. The message names the roots that do |
 | `prop/not-supported` | A prop for some roots only (a `defineElement()`'s, made with `roots`), under another |
@@ -163,6 +165,7 @@ try {
 | `layout/overflow` | warning | Content wider than the space it has: a Row's children at their minimum widths, a box wider than its parent, a Table's columns wider than the Table |
 | `style/ignored` | warning | A style that does nothing where it is, such as `flex` on a child that isn't in a Row |
 | `email/layer-phone` | info | On phones, an email keeps a Layer's height and cuts its image at the sides |
+| `email/svg-outlook` | warning | `assets.rasterize` is `false`: classic Outlook, which shows a hosted SVG as a broken image, gets no PNG of the email's Svgs |
 | `hidden/everywhere` | warning | Hidden on phones and on desktop, so it never shows |
 | `theme/inherited` | warning | A theme's default for an element (`elements.Text.color`) replaces the body text's color, font, size or line height a box sets for what it holds. Set them with the roles `colors.foreground`, `fonts.body`, `fontSizes.body` and `lineHeights.body` |
 | `id/dropped` | info | An `id` inside one of your own elements used without one of its own is left out |
@@ -204,7 +207,7 @@ Before it writes, an agent can ask what a root takes. `@hyper-elements/react/ins
 ```tsx
 import { describeElement, inspect } from "@hyper-elements/react/inspect";
 
-describeElement("Svg", { root: "Email" });   // undefined: an Email doesn't take one
+describeElement("PageHeader", { root: "Email" });   // undefined: an Email doesn't take one
 inspect(<Welcome />).nodes.filter((node) => !node.allowed || node.problems.length);   // what's wrong, and where
 ```
 
