@@ -9,7 +9,7 @@
  * the builder's table doesn't draw as it is in an Email or a Page, is an HTML block of the new engine's own markup,
  * and said.
  */
-import { prepareTemplate, type Json, type Node, type ResolvedNode } from "@hyper-elements/core";
+import { checkAssetsOption, prepareTemplate, shownAnywhere, type EmailAssetsOption, type Json, type Node, type ResolvedNode } from "@hyper-elements/core";
 import type React from "react";
 import { collectTemplate, snapshotData } from "../primitives/collect";
 import { add, boxRowOf, builderId, gapOf, hasBox, hiding, linesOf, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";
@@ -36,7 +36,12 @@ const PAINT = ["backgroundColor", "border", "borderRadius"];
 /** What a browser gives text where nothing says otherwise. */
 const BROWSER_TEXT: Record<string, unknown> = { fontSize: 16, fontStyle: "normal", letterSpacing: 0, textAlign: "left", textTransform: "none" };
 
-export function raise(element: React.ReactElement): Raised {
+export interface RaiseOptions {
+  /** An Email's Svgs as image files under `baseUrl` (render()'s `assets`): their HTML blocks link to the same files. */
+  assets?: EmailAssetsOption;
+}
+
+export function raise(element: React.ReactElement, options: RaiseOptions = {}): Raised {
   const report: string[] = [];
   // The builder takes a design's element; a snapshot is the guardrail path's, which the builder isn't part of.
   if (snapshotData(element)) return { body: null, report: ["builder/snapshot: toDesign() takes a design's element, not a snapshot"] };
@@ -62,6 +67,21 @@ export function raise(element: React.ReactElement): Raised {
   const prepared = prepareTemplate(document, { components });
   if (!prepared.resolved) return { body: null, report: prepared.diagnostics.filter((d) => d.severity === "error").map((d) => `${d.path}: ${d.message}`) };
   const resolvedRoot = prepared.resolved.root;
+  // An Email's Svg is an image file the email links to (Gmail and Outlook drop inline SVG), in the builder's HTML block
+  // too: the same markup render() writes, linking the same files, so `assets` is needed where an Email has one.
+  const badAssets = checkAssetsOption(options.assets);
+  if (badAssets.length) return { body: null, report: badAssets.map((d) => `${d.path}: ${d.message}`) };
+  const svg = root.type === "Email" ? firstSvg(resolvedRoot) : undefined;
+  if (svg && options.assets?.rasterize === false) report.push(`${prepared.resolved.templatePath?.(svg.path) ?? svg.path}: assets.rasterize is false: classic Outlook, which shows a hosted SVG as a broken image, gets no PNG of the Email's Svgs`);
+  if (svg && !options.assets) {
+    const where = prepared.resolved.templatePath?.(svg.path) ?? svg.path;
+    return {
+      body: null,
+      report: [
+        `${where}: an Svg in an Email is an image file the email links to, in the builder as in render(): pass toDesign(email, { assets }) with the assets render() gets ({ baseUrl, rasterize: pngRasterizer() }, pngRasterizer from @hyper-elements/react/image), and upload the files render() returns`,
+      ],
+    };
+  }
   const resolved = new Map<string, ResolvedNode>();
   const index = (node: ResolvedNode) => {
     resolved.set(node.path, node);
@@ -107,7 +127,13 @@ export function raise(element: React.ReactElement): Raised {
     locked: (node, path, why, around) => {
       report.push(`${path}: ${why}: ${root.type === "Document" ? `it's an HTML block of its own markup in the design: ${NOT_IN_DOCUMENTS}` : "it's an HTML block of its own markup in the builder (it can be moved, not edited)"}`);
       const own = at(path);
-      return put(lockedHtml(node, own.width ?? own.available ?? Number(resolvedRoot.width), root, components, around, inheritedText(path), { theme: document.theme, scopes: enclosing.get(node) }));
+      return put(
+        lockedHtml(node, own.width ?? own.available ?? Number(resolvedRoot.width), root, components, around, inheritedText(path), {
+          theme: document.theme,
+          scopes: enclosing.get(node),
+          ...(root.type === "Email" && options.assets ? { assets: options.assets } : {}),
+        })
+      );
     },
     stack: (node, path, around) => stack(node, path, at(path), around),
     textAround,
@@ -315,6 +341,17 @@ export function raise(element: React.ReactElement): Raised {
   }
   const previewText = root.type === "Email" && root.props?.previewText ? { previewText: String(root.props.previewText) } : {};
   return { body: { root: root.type, fields: common, ...previewText, values: bodyHidden, rows: body }, report };
+}
+
+/** An Email's first Svg shown somewhere (one hidden everywhere isn't written). */
+function firstSvg(node: ResolvedNode): ResolvedNode | undefined {
+  if (!shownAnywhere(node)) return undefined;
+  if (node.type === "Svg") return node;
+  for (const child of node.children) {
+    const found = typeof child === "string" ? undefined : firstSvg(child);
+    if (found) return found;
+  }
+  return undefined;
 }
 
 /** How many rows of the builder's children make (a Grid's rows each, runs of blocks one). */

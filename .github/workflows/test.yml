@@ -170,14 +170,15 @@ jobs:
       # it as it is, an HTML block with the reason said where it doesn't (3,431 bytes measured);
       # 511,000 for its columns' percentages as given, a header's or a footer's background shared only where all its rows
       # have it, its words read at the page's line height, and a row below a footer row said (1,927 bytes measured).
-      # 521,700 bytes for templates and the builder's table together (521,210 measured). 532,100 bytes (10,222 more:
-      # 531,493 measured) for an Svg in an Email, which the builder's copy of core writes too.
+      # 521,700 bytes for templates and the builder's table together (521,210 measured). 533,800 bytes (12,065 more:
+      # 533,336 measured) for an Svg in an Email, which the builder's copy of core writes too, and toDesign()'s assets
+      # option with the report of a sanitizer that took classic Outlook's markup out.
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=532100
+          MAX_SIZE=533800
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"

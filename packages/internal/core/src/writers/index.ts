@@ -15,7 +15,7 @@ import { renderText } from "./plain-text";
 import { prettyHtml } from "./shared/pretty";
 import type { BlockMap } from "./shared/block-map";
 
-export { renderEmail, EMAIL_PHONE_MARGIN, type EmailHtml, type EmailOptions, type EmailAssetsOption, type Rasterizer, type RenderedFile, type SvgDrawing } from "./email";
+export { checkAssetsOption, renderEmail, EMAIL_PHONE_MARGIN, type EmailHtml, type EmailOptions, type EmailAssetsOption, type Rasterizer, type RenderedFile, type SvgDrawing } from "./email";
 export { renderPage, PAGE_PHONE_WIDTH, pagePhoneWidth, type PageHtml, type PageOptions } from "./page";
 export { renderText, type TextOptions } from "./plain-text";
 export { emailSupport } from "./email/support";

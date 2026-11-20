@@ -28,6 +28,12 @@ const { html, files } = await render(<Launch />, {
 - An Email with an Svg and no `assets` is an error from `render()` (`email/svg-assets`), saying how to pass them; an
   `assets` it can't use is `render/assets`. `validate()` doesn't need them.
 - In a Row an Svg is as wide as its drawing: `flex` on one in an Email is a warning (`email/unsupported`).
+- `toDesign(element, { assets })` takes the same `assets`: an Email's Svg goes to the Unlayer builder as an HTML block
+  of exactly the markup `render()` writes, linking the same files, so the editor's export is what `render()` sends
+  (checked through the real editor's loadDesign, saveDesign and exportHtml, and back with `fromDesign()`). Without
+  `assets`, an Email with an Svg can't go to the builder, and the error says what to pass.
+- `fromDesign()` reports where its `toSafeHtml` took out markup only classic Outlook reads (`<!--[if mso]>`), which
+  holds an Svg's PNG.
 
 ### GUIDE.md: where an image comes from, and an id to compare
 

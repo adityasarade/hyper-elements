@@ -88,7 +88,7 @@ for (const file of files ?? []) await upload(`email/${file.name}`, file.bytes, f
 - **Each file is named by its drawing** (the SHA-256 of its SVG), so the same drawing is the same file in every email, and a name never changes what it shows: cache the files for good.
 - **Its padding, background and border** are a table cell around the image, which classic Outlook draws too. A transparent drawing sits on the email's background, or a dark-mode client's: give the Svg a `backgroundColor` where that matters.
 
-Without `assets`, `render()` rejects an Email with an `Svg` (`email/svg-assets`), saying how to pass them. `validate()` doesn't need them.
+Without `assets`, `render()` rejects an Email with an `Svg` (`email/svg-assets`), saying how to pass them. `validate()` doesn't need them. In the Unlayer builder, `toDesign()` takes the same `assets`: the Svg is an HTML block of this markup, linking the same files (see [Visual editor](/docs/guides/visual-editor#what-the-builder-holds)).
 
 ## Seeing it in the clients
 
