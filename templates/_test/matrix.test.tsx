@@ -118,6 +118,16 @@ for (const t of all) {
       });
     }
 
+    // Evergreen: a template reads the same in any year, so it names no year, and no weekday with a date (a weekday is
+    // right for a date only in some years).
+    it("names no year, and no weekday with a date", () => {
+      const { text, said } = treeFacts(<Design brand={brandsFor(t.kit)[0]!.brand} />);
+      for (const words of [text, ...said]) {
+        expect(words.match(/\b(?:19|20)\d{2}\b/g), `a year in "${words.slice(0, 120)}"`).toBeNull();
+        expect(words.match(/\b(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*,? (?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d/g), `a weekday with a date in "${words.slice(0, 120)}"`).toBeNull();
+      }
+    });
+
     it("needs only the contract's tokens", () => {
       const { diagnostics } = treeFacts(<Design brand={contractOnly(sampleBrands[0].brand)} />);
       expect(diagnostics.filter((d) => d.code === "theme/missing-token").map((d) => d.message)).toEqual([]);

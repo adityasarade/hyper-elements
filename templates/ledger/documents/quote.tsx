@@ -47,11 +47,11 @@ export default function LedgerQuote({ brand }: { brand: Brand }) {
           <Row style={{ gap: token("spacing.lg") }}>
             <Column style={{ gap: 2 }}>
               <Text style={{ fontSize: token("fontSizes.small"), color: token("colors.muted") }}>Issued</Text>
-              <Text style={{ fontWeight: 700 }}>April 2, 2026</Text>
+              <Text style={{ fontWeight: 700 }}>April 2</Text>
             </Column>
             <Column style={{ gap: 2 }}>
               <Text style={{ fontSize: token("fontSizes.small"), color: token("colors.muted") }}>Valid until</Text>
-              <Text style={{ fontWeight: 700 }}>May 2, 2026</Text>
+              <Text style={{ fontWeight: 700 }}>May 2</Text>
             </Column>
           </Row>
         </Row>
@@ -220,7 +220,7 @@ export default function LedgerQuote({ brand }: { brand: Brand }) {
           <Column style={{ gap: token("spacing.xs") }}>
             <Text style={{ fontWeight: 700 }}>To go ahead</Text>
             <Text style={{ fontSize: token("fontSizes.small"), color: token("colors.muted") }}>
-              Sign below and send it back before May 2, 2026. Prices hold until then; we'll invoice when the work starts.
+              Sign below and send it back before May 2. Prices hold until then; we'll invoice when the work starts.
             </Text>
           </Column>
           <Column

@@ -11,7 +11,7 @@ export default function LedgerInvoice({ brand }: { brand: Brand }) {
     <Email
       width={600}
       title={`Invoice INV-0417 from ${brand.name}`}
-      previewText="$378.00 due March 31, 2026"
+      previewText="$378.00 due March 31"
       lang={brand.lang ?? "en"}
       dir={brand.dir}
       theme={brand.theme}
@@ -60,7 +60,7 @@ export default function LedgerInvoice({ brand }: { brand: Brand }) {
               >
                 Due
               </Text>
-              <Text style={{ fontWeight: 700, textAlign: "right" }}>March 31, 2026</Text>
+              <Text style={{ fontWeight: 700, textAlign: "right" }}>March 31</Text>
             </Column>
           </Row>
           <Divider />

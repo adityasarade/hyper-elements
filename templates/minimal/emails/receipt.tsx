@@ -63,7 +63,7 @@ export default function MinimalReceipt({ brand }: { brand: Brand }) {
                 Payment received
               </Text>
               <Heading level={1}>$48.00</Heading>
-              <Text style={{ color: token("colors.muted") }}>Paid on March 4, 2026 with Visa ending 4242</Text>
+              <Text style={{ color: token("colors.muted") }}>Paid on March 4 with Visa ending 4242</Text>
             </Column>
             <Table>
               <TableRow header={true}>
@@ -162,7 +162,7 @@ export default function MinimalReceipt({ brand }: { brand: Brand }) {
                 >
                   Date paid
                 </Text>
-                <Text style={{ fontWeight: 700, textAlign: "right" }}>March 4, 2026</Text>
+                <Text style={{ fontWeight: 700, textAlign: "right" }}>March 4</Text>
               </Column>
             </Row>
             <Text style={{ color: token("colors.muted") }}>

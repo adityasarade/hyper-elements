@@ -47,11 +47,11 @@ export default function LedgerInvoice({ brand }: { brand: Brand }) {
           <Row style={{ gap: token("spacing.lg") }}>
             <Column style={{ gap: 2 }}>
               <Text style={{ fontSize: token("fontSizes.small"), color: token("colors.muted") }}>Issued</Text>
-              <Text style={{ fontWeight: 700 }}>March 1, 2026</Text>
+              <Text style={{ fontWeight: 700 }}>March 1</Text>
             </Column>
             <Column style={{ gap: 2 }}>
               <Text style={{ fontSize: token("fontSizes.small"), color: token("colors.muted") }}>Due</Text>
-              <Text style={{ fontWeight: 700 }}>March 31, 2026</Text>
+              <Text style={{ fontWeight: 700 }}>March 31</Text>
             </Column>
           </Row>
         </Row>
@@ -203,7 +203,7 @@ export default function LedgerInvoice({ brand }: { brand: Brand }) {
             <Text style={{ fontSize: 26, fontWeight: 700, lineHeight: 1.2, color: token("colors.primary") }}>
               $378.00
             </Text>
-            <Text style={{ fontWeight: 700 }}>by March 31, 2026</Text>
+            <Text style={{ fontWeight: 700 }}>by March 31</Text>
           </Column>
         </Row>
       </Document.Page>

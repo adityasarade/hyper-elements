@@ -11,7 +11,7 @@ export default function SummitEvent({ brand }: { brand: Brand }) {
     <Page
       width={1040}
       title={`Build Day · ${brand.name}`}
-      description="A day of talks and workshops for the people who build and ship software. Thursday, May 14, The Foundry."
+      description="A day of talks and workshops for the people who build and ship software. May 14, The Foundry."
       lang={brand.lang ?? "en"}
       dir={brand.dir}
       theme={brand.theme}
@@ -48,7 +48,7 @@ export default function SummitEvent({ brand }: { brand: Brand }) {
               textTransform: "uppercase",
             }}
           >
-            Thursday, May 14 · The Foundry
+            May 14 · The Foundry
           </Text>
           <Heading level={1} style={{ color: token("colors.primaryForeground") }}>Build Day</Heading>
           <Text style={{ fontSize: 20 }}>A day of talks and workshops for the people who build and ship software.</Text>

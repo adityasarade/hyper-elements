@@ -63,7 +63,7 @@ export default function StackOverflowNewsletter({ brand }: { brand: Brand }) {
           <Heading level={2}>Take a break and read about the worst coder in the world</Heading>
           <Column style={{ padding: [token("spacing.sm"), 0, 0], alignItems: "start" }}>
             <Button
-              href={`${site}/blog/2019/10/22`}
+              href={`${site}/blog/code-review`}
               style={{
                 backgroundColor: token("colors.primary"),
                 color: token("colors.primaryForeground"),

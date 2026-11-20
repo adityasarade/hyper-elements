@@ -40,7 +40,7 @@ export default function SummitTicket({ brand }: { brand: Brand }) {
               Admit one
             </Text>
             <Heading level={2} style={{ color: token("colors.primaryForeground") }}>Build Day</Heading>
-            <Text>Thursday, May 14, 2026</Text>
+            <Text>May 14</Text>
           </Column>
           <Column style={{ padding: token("spacing.lg"), gap: token("spacing.md") }}>
             <Image

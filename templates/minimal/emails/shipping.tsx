@@ -11,7 +11,7 @@ export default function MinimalShipping({ brand }: { brand: Brand }) {
     <Email
       width={560}
       title={`Your ${brand.name} order 10482 is on its way`}
-      previewText="It should arrive by Friday, March 13, with Parcel Post."
+      previewText="It should arrive by March 13, with Parcel Post."
       lang={brand.lang ?? "en"}
       dir={brand.dir}
       theme={brand.theme}
@@ -74,7 +74,7 @@ export default function MinimalShipping({ brand }: { brand: Brand }) {
               }}
             >
               <Text style={{ fontSize: token("fontSizes.small"), color: token("colors.muted") }}>Arrives by</Text>
-              <Text style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.25 }}>Friday, March 13</Text>
+              <Text style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.25 }}>March 13</Text>
               <Text style={{ color: token("colors.muted") }}>With Parcel Post, order 10482</Text>
             </Column>
             <Button

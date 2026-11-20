@@ -91,7 +91,7 @@ export default function LaurelCertificate({ brand }: { brand: Brand }) {
             <Row style={{ gap: 48, justifyContent: "center", alignItems: "center" }}>
               <Column style={{ width: 230, gap: 4, alignItems: "center" }}>
                 <Column style={{ height: 64, justifyContent: "end", alignItems: "center" }}>
-                  <Text style={{ fontSize: 15 }}>June 20, 2026</Text>
+                  <Text style={{ fontSize: 15 }}>June 20</Text>
                 </Column>
                 <Column
                   style={{
@@ -156,7 +156,7 @@ export default function LaurelCertificate({ brand }: { brand: Brand }) {
                         textAlign: "center",
                       }}
                     >
-                      2026
+                      Merit
                     </Text>
                     <Text
                       style={{

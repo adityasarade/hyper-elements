@@ -1,7 +1,7 @@
 {
   "casa-albero": {
-    "html": "2ed4db7055083344",
-    "text": "4edd987b04533ff0",
+    "html": "da9eb1a33fea6386",
+    "text": "c76a6baf7c0883f0",
     "diagnostics": [
       "info email/degraded root.props.fonts",
       "info email/lint-preview-text root.props.previewText",
@@ -10,8 +10,8 @@
     ]
   },
   "ember": {
-    "html": "9839047265f2a82c",
-    "text": "9e0a720ee0ea6527",
+    "html": "2f69e49062dbc722",
+    "text": "f1b612ef772bbb8e",
     "diagnostics": [
       "info email/degraded root.props.fonts",
       "info email/lint-preview-text root.props.previewText",
@@ -20,8 +20,8 @@
     ]
   },
   "keel": {
-    "html": "bfb7e39082c9fcde",
-    "text": "45137dc509213102",
+    "html": "094ccca4a895bb30",
+    "text": "65588d8858f16536",
     "diagnostics": [
       "info email/degraded root.props.fonts",
       "info email/lint-preview-text root.props.previewText",
@@ -30,8 +30,8 @@
     ]
   },
   "orbit": {
-    "html": "87fe093b60db2732",
-    "text": "39cea90af2e4e142",
+    "html": "e34a5fd64fe05867",
+    "text": "df19deeac3602ba8",
     "diagnostics": [
       "info email/degraded root.props.fonts",
       "info email/lint-preview-text root.props.previewText",
@@ -40,8 +40,8 @@
     ]
   },
   "oyen": {
-    "html": "ad800496f18ab302",
-    "text": "46cde6db3bc12031",
+    "html": "707c55d7260a6ba1",
+    "text": "0ae5a91b808888f7",
     "diagnostics": [
       "info email/degraded root.props.fonts",
       "info email/lint-preview-text root.props.previewText",
@@ -50,8 +50,8 @@
     ]
   },
   "pell-ashby": {
-    "html": "91374ba439f19e38",
-    "text": "f57fb544e9f4827d",
+    "html": "703337e6c9f8949b",
+    "text": "477c6c149aec63e2",
     "diagnostics": [
       "info email/degraded root.props.fonts",
       "info email/lint-preview-text root.props.previewText",
@@ -60,8 +60,8 @@
     ]
   },
   "pith": {
-    "html": "e063d4c51e366c48",
-    "text": "f2cecaee3f03fb09",
+    "html": "b749a120ad38c904",
+    "text": "378cf7a768101c81",
     "diagnostics": [
       "info email/degraded root.props.fonts",
       "info email/lint-preview-text root.props.previewText",
@@ -70,8 +70,8 @@
     ]
   },
   "quarry": {
-    "html": "d9f7fa092f9d35bb",
-    "text": "5c4f1f3158d75496",
+    "html": "d9d8a61b1c97ba29",
+    "text": "16da5d32d7dbb8b2",
     "diagnostics": [
       "info email/degraded root.props.fonts",
       "info email/lint-preview-text root.props.previewText",
@@ -80,8 +80,8 @@
     ]
   },
   "slow-signals": {
-    "html": "1fd6fce9e4e34714",
-    "text": "bfc2d543ee6c25b0",
+    "html": "ac53cec9ae67e147",
+    "text": "7046617bac5bb656",
     "diagnostics": [
       "info email/degraded root.props.fonts",
       "info email/lint-preview-text root.props.previewText",

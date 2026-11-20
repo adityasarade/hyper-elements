@@ -11,7 +11,7 @@ export default function SummitEvent({ brand }: { brand: Brand }) {
     <Email
       width={600}
       title="You're invited to Build Day"
-      previewText="Thursday, May 14, The Foundry. A day of talks and workshops for the people who build and ship software."
+      previewText="May 14, The Foundry. A day of talks and workshops for the people who build and ship software."
       lang={brand.lang ?? "en"}
       dir={brand.dir}
       theme={brand.theme}
@@ -75,7 +75,7 @@ export default function SummitEvent({ brand }: { brand: Brand }) {
               </Column>
             </Column>
             <Column style={{ gap: 2 }}>
-              <Text style={{ fontWeight: 700 }}>Thursday, May 14</Text>
+              <Text style={{ fontWeight: 700 }}>May 14</Text>
               <Text style={{ color: token("colors.muted") }}>9:30 AM to 6:00 PM</Text>
               <Text style={{ color: token("colors.muted") }}>The Foundry, 120 Mill Street, Pittsburgh</Text>
             </Column>

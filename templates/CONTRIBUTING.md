@@ -88,6 +88,8 @@ every design follows:
   as a light one. An email or a page passes lint's `contrast`, `text-size`, `link-text` and `alt-text`; nothing is
   wider than its layout; an image's text fits its box.
 - **Use invented sample words,** never real people's names or details.
+- **Keep it evergreen:** no years, and no weekday with a date. Write "March 31", not "March 31, 2026" or
+  "Tuesday, March 31" (a weekday is right for a date only in some years), and "© Acme", not "© 2026 Acme".
 - **No `Html` blocks.** Raw markup can't be checked for brand colors, contrast or alternate text.
 - **Images** you add must be yours to share, or under a license that lets anyone use them. They go under
   `_assets/kits/<kit>/` and are named by their URL under `https://hyperelements.dev/generated/kits/assets/kits/<kit>/`;

@@ -81,7 +81,7 @@ export default function MinimalOrderConfirmation({ brand }: { brand: Brand }) {
                 >
                   Placed on
                 </Text>
-                <Text style={{ fontWeight: 700, textAlign: "right" }}>March 9, 2026</Text>
+                <Text style={{ fontWeight: 700, textAlign: "right" }}>March 9</Text>
               </Column>
             </Row>
             <Table>

@@ -66,7 +66,7 @@ export default function LedgerReceipt({ brand }: { brand: Brand }) {
           </Column>
           <Column style={{ gap: 2 }}>
             <Text style={{ fontSize: token("fontSizes.small"), color: token("colors.muted") }}>Date paid</Text>
-            <Text style={{ fontWeight: 700 }}>March 4, 2026</Text>
+            <Text style={{ fontWeight: 700 }}>March 4</Text>
           </Column>
           <Column style={{ gap: 2 }}>
             <Text style={{ fontSize: token("fontSizes.small"), color: token("colors.muted") }}>Paid with</Text>
