@@ -98,6 +98,7 @@ The email client emulator, `renderInEmailClients()` from `@hyper-elements/email-
 
 `validate()` tells you each of these for your design, with the path; the ones about particular clients come from `@hyper-elements/email-clients`' plugin:
 
+- **An image in the email as a `data:` URI.** Every Gmail drops it. Host the file and link to it. The plugin warns (`email/image-data`).
 - **Layer.** An email draws one shape of it: an Image as wide as the Layer, with one child over it. The image is the cell's background, with VML for Outlook.
 - **`justifyContent: "space-between"`.** The children start at the left.
 - **Rounded corners and letter spacing in classic Outlook.** Corners are square, and letter spacing is normal. The plugin notes it (`email/outlook-degraded`).
