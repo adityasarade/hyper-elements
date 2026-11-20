@@ -828,9 +828,8 @@ describe("email HTML", () => {
       } catch (error) {
         expect((error as { diagnostics: Array<{ code: string; path: string; nodeId?: string }> }).diagnostics.map((d) => [d.code, d.path, d.nodeId])).toEqual([["email/svg-assets", "root.children[1]", "moon"]]);
       }
-      // An Email without one needs none, and one hidden everywhere isn't written.
+      // An Email without one needs none.
       expect(() => render(email([{ type: "Text", children: ["Hi"] }]))).not.toThrow();
-      expect(render(email([{ ...moon(), hidden: { desktop: true, mobile: true } }])).html).not.toContain("<img");
     });
 
     it("refuses an assets option it can't use", () => {
@@ -844,6 +843,14 @@ describe("email HTML", () => {
       };
       expect(code({ assets: { baseUrl: "javascript:alert(1)", rasterize: false } })).toBe("render/assets");
       expect(code({ assets: { baseUrl: "/relative/", rasterize: false } })).toBe("render/assets");
+      // A file's name follows the base: a query or a fragment would take it (every image asking for the same file), and
+      // a port has to be one.
+      for (const baseUrl of ["https://files.test/email/?v=2", "https://files.test/email#drawings", "https://files.test:invalid/email/", "https://files.test:70000/", "https://user@files.test/", "https://files.test/a b/"]) {
+        expect(code({ assets: { baseUrl, rasterize: false } }), baseUrl).toBe("render/assets");
+      }
+      for (const baseUrl of ["https://files.test", "http://localhost:3000/files/", "https://cdn.files-test.com:8443/email/v2", "https://192.168.0.10/e/%7Euser/"]) {
+        expect(code({ assets: { baseUrl, rasterize: false } }), baseUrl).toBe("rendered");
+      }
       expect(code({ assets: { baseUrl: "https://files.test/", rasterize: { suffix: "2x", extension: "webp", contentType: "image/webp", draw: () => new Uint8Array(1) } } })).toBe("render/assets");
       expect(code({ assets: { baseUrl: "https://files.test/" } })).toBe("render/assets");
       expect(code({ assets: "https://files.test/" })).toBe("render/assets");
@@ -856,6 +863,29 @@ describe("email HTML", () => {
       expect(written.html).toContain(`<img src="https://files.test/${hashOf(MOON_SVG)}.svg" alt="" width="40" height="20"`);
       expect(written.diagnostics.filter((d) => d.code.startsWith("email/svg")).map((d) => [d.code, d.severity, d.path])).toEqual([["email/svg-outlook", "warning", "root.children[0]"]]);
       expect((await finishRender(written, { assets: { baseUrl: "https://files.test/", rasterize: false } })).files!.map((f) => f.name)).toEqual([`${hashOf(MOON_SVG)}.svg`]);
+    });
+
+    it("of no width or no height draws nothing and has no file, and the email around it renders", async () => {
+      for (const size of [{ width: 0, height: 20 }, { width: 40, height: 0 }]) {
+        const written = render(email([{ type: "Text", children: ["Around it"] }, { ...moon(), props: size }]), { assets });
+        expect(written.html).toContain("Around it");
+        expect(written.html).not.toContain("<img");
+        expect((await finishRender(written, { assets })).files).toBeUndefined();
+      }
+      // It needs no assets either: there's nothing to host.
+      expect(() => render(email([{ ...moon(), props: { width: 0, height: 20 } }]))).not.toThrow();
+    });
+
+    it("hidden everywhere, isn't written but has its files, and needs assets as any Svg does", async () => {
+      const hidden = email([{ type: "Text", children: ["Hi"] }, { type: "Column", hidden: { desktop: true, mobile: true }, children: [moon()] }]);
+      // A design made from the email (the builder's) keeps it, and can show it again: its files are render()'s too.
+      expect(() => render(hidden)).toThrow("An Svg in an Email is an image file the email links to");
+      const written = render(hidden, { assets });
+      expect(written.html).not.toContain("<img");
+      expect((await finishRender(written, { assets })).files!.map((f) => f.name)).toEqual([`${hashOf(MOON_SVG)}.svg`, `${hashOf(MOON_SVG)}-2x.png`]);
+      // Shown once and hidden once: one pair of files.
+      const both = render(email([moon(), { type: "Column", hidden: { desktop: true, mobile: true }, children: [{ ...moon(), id: "again" }] }]), { assets });
+      expect((await finishRender(both, { assets })).files).toHaveLength(2);
     });
 
     it("draws its padding, background and border as a cell around the image, which Word draws", () => {

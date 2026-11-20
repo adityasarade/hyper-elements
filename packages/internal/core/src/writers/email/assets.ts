@@ -67,19 +67,53 @@ const RASTER_EXTENSIONS = new Set(["png", "jpg", "gif"]);
 
 const optionError = (message: string): Diagnostic => ({ code: "render/assets", severity: "error", message, path: "root", fix: "render(email, { assets: { baseUrl: \"https://cdn.example.com/email/\", rasterize: pngRasterizer() } }), with pngRasterizer from @hyper-elements/react/image" });
 
+/**
+ * A URL the files can go under: http or https, a host (names or an IPv4 address) and a port that is one, then a path
+ * with no query or fragment, which the files' names follow (`?v=2` would put the name in the query, and every image
+ * would ask for the same file).
+ */
+const BASE_URL = /^https?:\/\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*(?::(\d{1,5}))?(?:\/[^\s"'<>?#\\]*)?$/i;
+const goodBase = (url: string) => {
+  const found = BASE_URL.exec(url);
+  return !!found && (found[1] === undefined || Number(found[1]) <= 65535);
+};
+
 /** What's wrong with `assets` as given: nothing for a well-formed option. */
 export function checkAssetsOption(assets: unknown): Diagnostic[] {
   if (assets === undefined) return [];
   if (!assets || typeof assets !== "object" || Array.isArray(assets)) return [optionError(`assets takes { baseUrl, rasterize }, not ${JSON.stringify(assets) ?? typeof assets}`)];
   const { baseUrl, rasterize } = assets as Record<string, unknown>;
   const out: Diagnostic[] = [];
-  if (typeof baseUrl !== "string" || !/^https?:\/\/[^\s"'<>]+$/i.test(baseUrl)) out.push(optionError(`assets.baseUrl is where the files are hosted, an http or https URL an email can link to: not ${JSON.stringify(baseUrl) ?? typeof baseUrl}`));
+  if (typeof baseUrl !== "string" || !goodBase(baseUrl)) {
+    out.push(optionError(`assets.baseUrl is the folder the files are hosted in, an http or https URL with no query or fragment, which each file's name follows: not ${JSON.stringify(baseUrl) ?? typeof baseUrl}`));
+  }
   if (rasterize !== false) {
     const r = rasterize as Partial<Rasterizer> | undefined;
     if (!r || typeof r !== "object" || typeof r.draw !== "function" || typeof r.suffix !== "string" || !/^[a-z0-9]+$/i.test(r.suffix) || !RASTER_EXTENSIONS.has(String(r.extension)) || typeof r.contentType !== "string") {
       out.push(optionError("assets.rasterize draws classic Outlook's PNG of each Svg: pngRasterizer() from @hyper-elements/react/image, or false to leave it out"));
     }
   }
+  return out;
+}
+
+/** Whether an Svg is drawn at all: one of no width or no height draws nothing, in a file or not. */
+export const drawsSomething = (node: ResolvedNode) => {
+  const { width, height } = svgFrame(node);
+  return width > 0 && height > 0;
+};
+
+/**
+ * Every Svg of an email that draws something, shown or hidden: each is a file the email may link to. One hidden on
+ * phones and on desktops isn't written, but has its files all the same, so a design made from the email (the
+ * builder's, where it can be shown again) links to files render() returned.
+ */
+export function svgsIn(root: ResolvedNode): ResolvedNode[] {
+  const out: ResolvedNode[] = [];
+  const visit = (node: ResolvedNode) => {
+    if (node.type === "Svg" && drawsSomething(node)) out.push(node);
+    for (const child of node.children) if (typeof child !== "string") visit(child);
+  };
+  visit(root);
   return out;
 }
 

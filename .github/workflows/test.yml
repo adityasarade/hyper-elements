@@ -130,14 +130,15 @@ jobs:
       # text in a Canvas: the fit kind and prop, style/fit, and a fitted node laid out at its largest size; 349,800
       # bytes for the two together, templates and the `elements` key (349,212 measured); 361,200 bytes (11,070 more:
       # 360,622 measured) for an Svg in an Email: its SVG file and classic Outlook's PNG, named by a SHA-256 written in
-      # (the package has no dependencies), and render()'s assets option and files.
+      # (the package has no dependencies), and render()'s assets option and files; 361,800 bytes (361,525 measured) with
+      # the guard that keeps resvg from ending the process, and the files of a hidden Svg.
       - name: Check main entry bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
           test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=361200
+          MAX_SIZE=361800
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::Main entry bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -172,13 +173,14 @@ jobs:
       # have it, its words read at the page's line height, and a row below a footer row said (1,927 bytes measured).
       # 521,700 bytes for templates and the builder's table together (521,210 measured). 533,800 bytes (12,065 more:
       # 533,336 measured) for an Svg in an Email, which the builder's copy of core writes too, and toDesign()'s assets
-      # option with the report of a sanitizer that took classic Outlook's markup out.
+      # option with the report of a sanitizer that took classic Outlook's markup out; 534,600 bytes (534,309 measured)
+      # with a locked block placed as its stack places it.
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=533800
+          MAX_SIZE=534600
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"

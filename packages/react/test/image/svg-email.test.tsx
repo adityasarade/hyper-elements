@@ -83,6 +83,31 @@ describe("an Email's Svg through render()", () => {
     expect(() => pngRasterizer({ scale: 1.5 })).toThrow("pngRasterizer({ scale }) takes a whole number from 1 to 4");
   });
 
+  it("leaves out a shape far outside the drawing, where resvg would end the process, and draws the same picture", async () => {
+    const draw = pngRasterizer().draw;
+    const svg = (extra: string, viewBox = "0 0 40 20", size = 'width="40" height="20"') =>
+      `<svg xmlns="http://www.w3.org/2000/svg" ${size} viewBox="${viewBox}"><rect x="0" y="0" width="40" height="20" fill="#1e1b4b"></rect>${extra}</svg>`;
+    // A translucent shape wholly beyond twice the drawing's size: resvg panics on its layer (SIGABRT) where it's drawn.
+    const far = '<rect x="200" y="0" width="40" height="20" fill="#ff0000" opacity="0.5"></rect>';
+    const alone = await draw({ svg: svg(""), width: 40, height: 20 });
+    expect(Buffer.from(await draw({ svg: svg(far), width: 40, height: 20 })).equals(Buffer.from(alone))).toBe(true);
+    // Measured in its viewBox's units, from where the viewBox starts.
+    // Each the same picture as without the far shape: what's in the drawing is kept.
+    const same = async (withFar: string, without: string) => Buffer.from(await draw({ svg: withFar, width: 40, height: 20 })).equals(Buffer.from(await draw({ svg: without, width: 40, height: 20 })));
+    const scaled = (extra: string) => svg(extra.replace('x="200"', 'x="2000"'), "0 0 400 200").replace(/width="40" height="20" fill/, 'width="400" height="200" fill');
+    expect(await same(scaled(far), scaled(""))).toBe(true);
+    const shifted = (extra: string) => svg(extra.replace('x="200"', 'x="1200"'), "1000 0 40 20").replace('x="0" y="0"', 'x="1000" y="0"');
+    expect(await same(shifted(far), shifted(""))).toBe(true);
+    // And it's a picture: the drawing's color, not an empty image.
+    expect(pngSize(await draw({ svg: shifted(far), width: 40, height: 20 }))).toEqual([80, 40]);
+    expect(await pixel(await draw({ svg: shifted(far), width: 40, height: 20 }), 40, 20)).toEqual([0x1e, 0x1b, 0x4b, 255]);
+  });
+
+  it("draws a very large drawing at most 8,192 px on a side", async () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="10000" height="100" viewBox="0 0 10000 100"><rect x="0" y="0" width="10000" height="100" fill="#123456"></rect></svg>';
+    expect(pngSize(await pngRasterizer().draw({ svg, width: 10000, height: 100 }))).toEqual([8192, 82]);
+  });
+
   it("rejects an Email with an Svg and no assets, saying how to pass them", async () => {
     const error = await render(moon).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(ElementsError);

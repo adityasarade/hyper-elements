@@ -36,7 +36,7 @@ import { utf8Bytes } from "../shared/bytes";
 import { Stylesheet } from "../shared/classes";
 import { attrs, css, escapeText, styleAttr } from "../shared/css";
 import { fontFaces } from "../shared/fonts";
-import { withEmailAssets, type EmailAsset } from "./assets";
+import { emailAsset, svgsIn, withEmailAssets, type EmailAsset } from "./assets";
 import { shown, type EmailOptions, type Props, type Component } from "./context";
 import { Button } from "./Button";
 import { Column } from "./Column";
@@ -63,7 +63,7 @@ import { Video } from "./Video";
 import { mobileTextOf, phoneText, type MobileText } from "./styles";
 
 export type { EmailOptions } from "./context";
-export { checkAssetsOption, drawEmailFiles, type EmailAsset, type EmailAssetsOption, type Rasterizer, type RenderedFile, type SvgDrawing } from "./assets";
+export { checkAssetsOption, drawEmailFiles, svgsIn, type EmailAsset, type EmailAssetsOption, type Rasterizer, type RenderedFile, type SvgDrawing } from "./assets";
 
 /** The components, by where they go: in a stack or a Row, or inside text. (The root, `Email`, is called on its own.) */
 const BLOCKS: Record<string, Component> = {
@@ -191,7 +191,19 @@ export function renderEmail(resolved: ResolvedDocument, options: EmailOptions & 
     marked = readMarks(marks, attempt.markup);
     if (marked) written = { sheet: attempt.sheet, markup: marked.text, assets: attempt.assets };
   }
-  const { sheet, markup: email, assets } = written;
+  const { sheet, markup: email } = written;
+  // The files of the Svgs written, then of those hidden everywhere (not written, but a design made from the email can
+  // show them again): one per drawing.
+  const assets = [...written.assets];
+  if (options.assets) {
+    const named = new Set(assets.map((asset) => asset.svg.name));
+    for (const node of svgsIn(root)) {
+      const { svg, drawing, raster } = emailAsset(node, options.assets);
+      if (named.has(svg.name)) continue;
+      named.add(svg.name);
+      assets.push({ svg, drawing, ...(raster ? { raster } : {}) });
+    }
+  }
 
   const background = root.style.backgroundColor as string | undefined;
   const lang = root.props.lang as string | undefined;

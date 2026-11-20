@@ -1,4 +1,5 @@
 /** toDesign(): a template as the builder's design JSON, every block a tool where one shows it, and what it can't hold said. */
+import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
 import { Button, Canvas, Column, component, Document, Email, Grid, Heading, Html, Image, Layer, LineBreak, Link, List, ListItem, Page, PageBreak, PageFooter, PageHeader, PageNumber, Text, prop, Rect, Row, Span, Section, Svg, Table, TableCell, TableRow, render } from "../primitives";
 import { airbnb, stripe } from "../primitives/testing/codemod-examples";
@@ -84,6 +85,42 @@ describe("toDesign", () => {
       // An Email without one, and a Page's or a Document's Svg (inline SVG, which browsers draw), need none.
       expect(() => toDesign(<Email><Text>Hi</Text></Email>)).not.toThrow();
       expect(String(blocks(toDesign(<Page><Svg width={20} height={20}><Rect width={20} height={20} /></Svg></Page>).design)[0]!.values.html)).toContain("<svg");
+    });
+
+    it("hidden everywhere, needs assets as render() does, and links only files render() returns", async () => {
+      const hidden = (
+        <Email>
+          <Text>Tonight</Text>
+          <Column hidden={{ desktop: true, mobile: true }}>
+            <Svg width={40} height={20}>
+              <Rect width={40} height={20} style={{ fill: "#1e1b4b" }} />
+            </Svg>
+          </Column>
+        </Email>
+      );
+      // The builder's report, never an error from inside a block.
+      expect(() => toDesign(hidden)).toThrow(/can't go to the builder:\nroot\.children\[1\]\.children\[0\]: an Svg in an Email/);
+      const files = new Set((await render(hidden, { assets })).files!.map((file) => `https://cdn.example.com/email/${file.name}`));
+      const linked = JSON.stringify(toDesign(hidden, { assets }).design).match(/https:\/\/cdn\.example\.com\/email\/[^"\\]+/g)!;
+      expect(linked.length).toBeGreaterThan(0);
+      expect(linked.filter((url) => !files.has(url))).toEqual([]);
+    });
+
+    it("sits where render() places it across what holds it: a centered Section's Svg is centered in its block", async () => {
+      const centered = (
+        <Email>
+          <Section style={{ alignItems: "center" }}>
+            <Svg width={40} height={20}>
+              <Rect width={40} height={20} />
+            </Svg>
+          </Section>
+        </Email>
+      );
+      // The cell holding the Svg's table says where it sits (Word reads align on a cell). The block is an email of its
+      // own, centered in the builder's column whatever it holds: only the cell around the Svg says where the Svg sits.
+      const placed = (html: string) => new JSDOM(html).window.document.querySelector("img")!.closest("table")!.parentElement!.getAttribute("align");
+      expect(placed((await render(centered, { assets })).body)).toBe("center");
+      expect(placed(String(blocks(toDesign(centered, { assets }).design).find((content) => content.type === "html")!.values.html))).toBe("center");
     });
 
     it("with rasterize: false, is the SVG alone, and the report says classic Outlook gets no PNG", () => {

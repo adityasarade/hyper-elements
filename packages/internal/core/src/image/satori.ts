@@ -73,12 +73,17 @@ function topLevel(svg: string): { open: string; parts: string[] } {
  * lies there is cut off anyway, so the image is the same. Only where the content reaches that far; an SVG that doesn't
  * is drawn as it is.
  */
-function withinReach(svg: string, resvg: Resvg, width: number, height: number): string | undefined {
-  const box = resvg.getBBox();
+function withinReach(svg: string, resvg: Resvg, width: number, height: number, origin: { x: number; y: number } = { x: 0, y: 0 }): string | undefined {
+  const measured = resvg.getBBox();
+  // Where the drawing is, from the canvas's top left (an Svg's viewBox can start elsewhere than 0, 0).
+  const box = measured && { x: measured.x - origin.x, y: measured.y - origin.y, width: measured.width, height: measured.height };
   // A pixel short of the limit, as resvg widens each layer by 2px for its antialiasing.
   const reach = (side: number) => 2 * side - 4;
-  const far = (b: { x: number; y: number; width: number; height: number }) =>
-    b.y > reach(height) || b.x > reach(width) || b.y + b.height < -reach(height) || b.x + b.width < -reach(width);
+  const far = (b: { x: number; y: number; width: number; height: number }) => {
+    const x = b.x - origin.x;
+    const y = b.y - origin.y;
+    return y > reach(height) || x > reach(width) || y + b.height < -reach(height) || x + b.width < -reach(width);
+  };
   if (!box || !(box.y + box.height > reach(height) || box.x + box.width > reach(width) || box.y < -reach(height) || box.x < -reach(width))) return undefined;
   const { open, parts } = topLevel(svg);
   // Each definition by the ids in it, so a part is measured with only those it refers to (and those refer to), in
@@ -109,10 +114,16 @@ function withinReach(svg: string, resvg: Resvg, width: number, height: number): 
 
 /**
  * SVG text drawn as a PNG `width` px wide, by resvg alone: an email's Svg for classic Outlook (shapes only, no text,
- * so no fonts and no Satori). System fonts aren't loaded: the same SVG is the same PNG on every machine.
+ * so no fonts and no Satori). System fonts aren't loaded: the same SVG is the same PNG on every machine. Shapes far
+ * outside its viewBox are left out first, as for a Canvas (withinReach): resvg would end the process on one, and
+ * nothing there shows.
  */
 export function resvgPng(svg: string, width: number): Uint8Array {
-  return new Uint8Array(new Resvg(svg, { fitTo: { mode: "width", value: Math.max(1, Math.round(width)) }, font: { loadSystemFonts: false } }).render().asPng());
+  const options = { fitTo: { mode: "width" as const, value: Math.max(1, Math.round(width)) }, font: { loadSystemFonts: false } };
+  const resvg = new Resvg(svg, options);
+  const [x = 0, y = 0, viewWidth = resvg.width, viewHeight = resvg.height] = (/\bviewBox="([^"]*)"/.exec(svg)?.[1] ?? "").trim().split(/[\s,]+/).filter(Boolean).map(Number);
+  const trimmed = withinReach(svg, resvg, viewWidth, viewHeight, { x, y });
+  return new Uint8Array((trimmed === undefined ? resvg : new Resvg(trimmed, options)).render().asPng());
 }
 
 export const satoriResvg: Engine = async (canvas, output) => {

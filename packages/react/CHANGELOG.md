@@ -20,16 +20,22 @@ const { html, files } = await render(<Launch />, {
 
 - Every client but classic Outlook gets the SVG file. Classic Outlook shows a hosted SVG as a broken image (Outlook
   2019 in the real client), so it gets a PNG of the drawing at twice its size, in a conditional comment only it reads.
-  `pngRasterizer()` (from `@hyper-elements/react/image`, with resvg) draws it; `rasterize: false` leaves it out, with a
-  warning (`email/svg-outlook`).
+  `pngRasterizer()` (from `@hyper-elements/react/image`, whose optional peers `@resvg/resvg-js` and `satori` it needs
+  installed, as `renderImage()` does) draws it, leaving out shapes far outside the drawing and at most 8,192 px on a
+  side; `rasterize: false` leaves the PNG out, with a warning (`email/svg-outlook`).
 - Both files are named by the SHA-256 of the drawing's SVG, so the same Svg is the same HTML and the same file names
   everywhere. The hash is written in: the package still has no dependencies, and the main entry runs where
   `node:crypto` doesn't.
 - An Email with an Svg and no `assets` is an error from `render()` (`email/svg-assets`), saying how to pass them; an
-  `assets` it can't use is `render/assets`. `validate()` doesn't need them.
+  `assets` it can't use is `render/assets`: `baseUrl` is the folder the files go in, an http or https URL with no
+  query or fragment. `validate()` doesn't need them.
+- An Svg hidden on phones and desktops isn't written, but has its files and needs `assets` all the same: a design
+  made from the email (the builder's) keeps it and can show it again. One of no width or no height draws nothing and
+  has no file.
 - In a Row an Svg is as wide as its drawing: `flex` on one in an Email is a warning (`email/unsupported`).
 - `toDesign(element, { assets })` takes the same `assets`: an Email's Svg goes to the Unlayer builder as an HTML block
-  of exactly the markup `render()` writes, linking the same files, so the editor's export is what `render()` sends
+  of exactly the markup `render()` writes, linking the same files and placed as `render()` places it (a centered
+  Section's Svg is centered), so the editor's export is what `render()` sends
   (checked through the real editor's loadDesign, saveDesign and exportHtml, and back with `fromDesign()`). Without
   `assets`, an Email with an Svg can't go to the builder, and the error says what to pass.
 - `fromDesign()` reports where its `toSafeHtml` took out markup only classic Outlook reads (`<!--[if mso]>`), which

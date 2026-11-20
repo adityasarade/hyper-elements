@@ -79,7 +79,8 @@ export async function renderImage(element: ReactElement | Snapshot, options: Ima
 /**
  * Draws each Svg of an Email as a PNG for classic Outlook, which shows a hosted SVG as a broken image (Outlook 2019):
  * for render()'s `assets` option. `scale` is pixels per px (2, the default, is sharp on high-density screens); it's in
- * the file's name (`<hash>-2x.png`), so another scale is another file.
+ * the file's name (`<hash>-2x.png`), so another scale is another file. It draws with resvg alone, but this entry loads
+ * Satori too: install both optional peers, `@resvg/resvg-js` and `satori`.
  *
  *   const { html, files } = await render(<Welcome />, {
  *     assets: { baseUrl: "https://cdn.example.com/email/", rasterize: pngRasterizer() },
@@ -89,7 +90,9 @@ export async function renderImage(element: ReactElement | Snapshot, options: Ima
 export function pngRasterizer(options: { scale?: number } = {}): Rasterizer {
   const scale = options.scale ?? 2;
   if (!Number.isInteger(scale) || scale < 1 || scale > 4) throw new TypeError(`[Elements] pngRasterizer({ scale }) takes a whole number from 1 to 4, not ${String(options.scale)}`);
-  return { suffix: `${scale}x`, extension: "png", contentType: "image/png", draw: ({ svg, width }) => resvgPng(svg, width * scale) };
+  // At most 8,192 px on a side: a drawing that large is drawn smaller (classic Outlook shows it at its width anyway).
+  const MAX = 8192;
+  return { suffix: `${scale}x`, extension: "png", contentType: "image/png", draw: ({ svg, width, height }) => resvgPng(svg, Math.min(width * scale, MAX, (MAX * width) / height)) };
 }
 
 /**

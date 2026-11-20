@@ -1,16 +1,24 @@
 /**
  * An Svg as an image file the email links to (assets.ts): email clients drop inline `<svg>`. Every client but classic
- * Outlook gets the SVG file; classic Outlook, which shows a hosted SVG as a broken image (2019, in the real client), gets its PNG, in
- * a conditional comment the others read as a comment. Both are the drawing's size in their `width` and `height`
- * attributes (Word sizes images by them, not by CSS), and fluid elsewhere, its width at most. Its padding, background
- * and border are a cell around it (Box), as Word draws no box on an image.
+ * Outlook gets the SVG file; classic Outlook, which shows a hosted SVG as a broken image (2019, in the real client),
+ * gets its PNG, in a conditional comment the others read as a comment. Both are the drawing's size in their `width` and
+ * `height` attributes (Word sizes images by them, not by CSS), and fluid elsewhere, its width at most. Its padding,
+ * background and border are a cell around it (Box), as Word draws no box on an image.
  */
 import { h, NotOutlook, Outlook } from "../jsx";
-import { addEmailAsset, emailAsset } from "./assets";
+import { addEmailAsset, drawsSomething, emailAsset } from "./assets";
 import type { Component } from "./context";
 import { Box } from "./layout";
 
 export const Svg: Component = ({ node, fill, options }) => {
+  // No width or no height draws nothing: no file (resvg can't draw one), only its box, as on a page.
+  if (!drawsSomething(node)) {
+    return (
+      <Box node={node} fill={fill}>
+        <div />
+      </Box>
+    );
+  }
   // render() refuses an Email with an Svg and no assets before writing (renderTemplate): here it always has them.
   const assets = options.assets!;
   const asset = emailAsset(node, assets);

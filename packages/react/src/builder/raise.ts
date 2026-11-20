@@ -9,7 +9,7 @@
  * the builder's table doesn't draw as it is in an Email or a Page, is an HTML block of the new engine's own markup,
  * and said.
  */
-import { checkAssetsOption, prepareTemplate, shownAnywhere, type EmailAssetsOption, type Json, type Node, type ResolvedNode } from "@hyper-elements/core";
+import { checkAssetsOption, prepareTemplate, svgsIn, type EmailAssetsOption, type Json, type Node, type ResolvedNode } from "@hyper-elements/core";
 import type React from "react";
 import { collectTemplate, snapshotData } from "../primitives/collect";
 import { add, boxRowOf, builderId, gapOf, hasBox, hiding, linesOf, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";
@@ -71,7 +71,9 @@ export function raise(element: React.ReactElement, options: RaiseOptions = {}): 
   // too: the same markup render() writes, linking the same files, so `assets` is needed where an Email has one.
   const badAssets = checkAssetsOption(options.assets);
   if (badAssets.length) return { body: null, report: badAssets.map((d) => `${d.path}: ${d.message}`) };
-  const svg = root.type === "Email" ? firstSvg(resolvedRoot) : undefined;
+  // Every Svg that draws something, hidden or not, as render() gives each its files: a hidden one is in the builder's
+  // design too, where it can be shown again.
+  const svg = root.type === "Email" ? svgsIn(resolvedRoot)[0] : undefined;
   if (svg && options.assets?.rasterize === false) report.push(`${prepared.resolved.templatePath?.(svg.path) ?? svg.path}: assets.rasterize is false: classic Outlook, which shows a hosted SVG as a broken image, gets no PNG of the Email's Svgs`);
   if (svg && !options.assets) {
     const where = prepared.resolved.templatePath?.(svg.path) ?? svg.path;
@@ -127,8 +129,13 @@ export function raise(element: React.ReactElement, options: RaiseOptions = {}): 
     locked: (node, path, why, around) => {
       report.push(`${path}: ${why}: ${root.type === "Document" ? `it's an HTML block of its own markup in the design: ${NOT_IN_DOCUMENTS}` : "it's an HTML block of its own markup in the builder (it can be moved, not edited)"}`);
       const own = at(path);
+      // Where it sits across a stack that holds it (a Section's or a Column's alignItems), as render() places it: the
+      // block is the column's width, and what's narrower sits in it as it does there. A Row's alignItems is down it,
+      // which the builder's row holds; a root's is the block's own root's already.
+      const parent = resolved.get(path.replace(/\.children\[\d+\]$/, ""));
+      const align = parent && ACROSS_STACKS.has(parent.type) ? parent.style.alignItems : undefined;
       return put(
-        lockedHtml(node, own.width ?? own.available ?? Number(resolvedRoot.width), root, components, around, inheritedText(path), {
+        lockedHtml(node, own.width ?? own.available ?? Number(resolvedRoot.width), root, components, around, { ...inheritedText(path), ...(align !== undefined ? { alignItems: align } : {}) }, {
           theme: document.theme,
           scopes: enclosing.get(node),
           ...(root.type === "Email" && options.assets ? { assets: options.assets } : {}),
@@ -343,16 +350,8 @@ export function raise(element: React.ReactElement, options: RaiseOptions = {}): 
   return { body: { root: root.type, fields: common, ...previewText, values: bodyHidden, rows: body }, report };
 }
 
-/** An Email's first Svg shown somewhere (one hidden everywhere isn't written). */
-function firstSvg(node: ResolvedNode): ResolvedNode | undefined {
-  if (!shownAnywhere(node)) return undefined;
-  if (node.type === "Svg") return node;
-  for (const child of node.children) {
-    const found = typeof child === "string" ? undefined : firstSvg(child);
-    if (found) return found;
-  }
-  return undefined;
-}
+/** What stacks its children, so that its alignItems places them across it (a Row's, a Grid's and a Layer's is down). */
+const ACROSS_STACKS = new Set(["Section", "Column", "DocumentPage", "PageHeader", "PageFooter"]);
 
 /** How many rows of the builder's children make (a Grid's rows each, runs of blocks one). */
 function countRows(children: Child[]): number {

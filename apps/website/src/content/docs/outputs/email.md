@@ -83,8 +83,8 @@ const { html, files } = await render(<Launch />, {
 for (const file of files ?? []) await upload(`email/${file.name}`, file.bytes, file.contentType);
 ```
 
-- **Every client but classic Outlook** gets the SVG file, sharp at any size. Serve it as `image/svg+xml`: Gmail shows it converted to a PNG.
-- **Classic Outlook** shows a hosted SVG as a broken image (Outlook 2019, in the real client), so it gets a PNG of the drawing, at twice its size by default, in a conditional comment only it reads. `pngRasterizer()` draws it with resvg (an optional peer, as for `renderImage()`). `rasterize: false` leaves it out, with a warning.
+- **Every client but classic Outlook** gets the SVG file, sharp at any size. Serve it as `image/svg+xml`: Gmail shows it converted to a PNG. Mail.ru shows no SVG at all.
+- **Classic Outlook** shows a hosted SVG as a broken image (Outlook 2019, in the real client), so it gets a PNG of the drawing, at twice its size by default, in a conditional comment only it reads. `pngRasterizer()` draws it with resvg. Install the image entry's optional peers, `@resvg/resvg-js` and `satori`, as for `renderImage()`: `@hyper-elements/react/image` loads both. `rasterize: false` leaves it out, with a warning.
 - **Each file is named by its drawing** (the SHA-256 of its SVG), so the same drawing is the same file in every email, and a name never changes what it shows: cache the files for good.
 - **Its padding, background and border** are a table cell around the image, which classic Outlook draws too. A transparent drawing sits on the email's background, or a dark-mode client's: give the Svg a `backgroundColor` where that matters.
 

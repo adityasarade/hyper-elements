@@ -5,8 +5,7 @@ import { acceptPlugins, pluginChecks, pluginOutputChecks, type ElementsPlugin, t
 import { expandDocument } from "../expand";
 import { registryOf, type ComponentsOption } from "../registry";
 import type { Target } from "../define";
-import { shownAnywhere } from "../conditions";
-import { checkAssetsOption, drawEmailFiles, renderEmail, type EmailAsset, type EmailOptions, type RenderedFile } from "./email";
+import { checkAssetsOption, drawEmailFiles, renderEmail, svgsIn, type EmailAsset, type EmailOptions, type RenderedFile } from "./email";
 import { emailSupport } from "./email/support";
 import { overflow, pagedSupport } from "./shared/paged";
 import { support } from "./shared/support";
@@ -15,7 +14,7 @@ import { renderText } from "./plain-text";
 import { prettyHtml } from "./shared/pretty";
 import type { BlockMap } from "./shared/block-map";
 
-export { checkAssetsOption, renderEmail, EMAIL_PHONE_MARGIN, type EmailHtml, type EmailOptions, type EmailAssetsOption, type Rasterizer, type RenderedFile, type SvgDrawing } from "./email";
+export { checkAssetsOption, renderEmail, svgsIn, EMAIL_PHONE_MARGIN, type EmailHtml, type EmailOptions, type EmailAssetsOption, type Rasterizer, type RenderedFile, type SvgDrawing } from "./email";
 export { renderPage, PAGE_PHONE_WIDTH, pagePhoneWidth, type PageHtml, type PageOptions } from "./page";
 export { renderText, type TextOptions } from "./plain-text";
 export { emailSupport } from "./email/support";
@@ -57,25 +56,14 @@ export interface RenderResult {
 /** renderTemplate()'s result: with the Svgs' files still to draw (finishRender() draws classic Outlook's). */
 export type WrittenTemplate = RenderResult & { assets?: EmailAsset[] };
 
-/** Where an Email's Svgs are, shown somewhere (an Svg hidden everywhere isn't written). */
-function svgsOf(root: ResolvedNode): ResolvedNode[] {
-  const out: ResolvedNode[] = [];
-  const visit = (node: ResolvedNode) => {
-    if (!shownAnywhere(node)) return;
-    if (node.type === "Svg") out.push(node);
-    for (const child of node.children) if (typeof child !== "string") visit(child);
-  };
-  visit(root);
-  return out;
-}
-
 /**
  * What an Email's Svgs need of `assets`: an error where it's missing (email clients drop inline SVG, so each is a file
  * the email links to), and a warning where classic Outlook's PNG is left out (`rasterize: false`: it shows a hosted SVG
  * as a broken image).
  */
 function svgAssetProblems(root: ResolvedNode, assets: EmailOptions["assets"]): Diagnostic[] {
-  const svgs = svgsOf(root);
+  // Every Svg that draws something, hidden or not: each has its files (svgsIn).
+  const svgs = svgsIn(root);
   if (!svgs.length) return [];
   const first = svgs[0]!;
   const at = { path: first.path, ...(first.id ? { nodeId: first.id } : {}) };
