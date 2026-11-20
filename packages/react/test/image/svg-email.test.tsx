@@ -4,6 +4,7 @@
  * drawing and what render() returns.
  */
 import { Circle, ElementsError, Email, Rect, Section, Svg, Text, render } from "@hyper-elements/react";
+import type { ReactElement } from "react";
 import { pngRasterizer } from "../../src/image";
 
 /** A PNG's size, from its IHDR chunk. */
@@ -101,6 +102,31 @@ describe("an Email's Svg through render()", () => {
     // And it's a picture: the drawing's color, not an empty image.
     expect(pngSize(await draw({ svg: shifted(far), width: 40, height: 20 }))).toEqual([80, 40]);
     expect(await pixel(await draw({ svg: shifted(far), width: 40, height: 20 }), 40, 20)).toEqual([0x1e, 0x1b, 0x4b, 255]);
+  });
+
+  it("keeps every shape that shows: in a viewBox of any units, in a letterboxed drawing's margin, at an edge", async () => {
+    const { Resvg } = await import("@resvg/resvg-js");
+    // The PNG is what resvg draws of the whole SVG file, at twice its size: nothing that shows is left out.
+    const check = async (width: number, height: number, viewBox: string, shapes: ReactElement) => {
+      const { files } = await render(
+        <Email>
+          <Svg width={width} height={height} viewBox={viewBox}>
+            {shapes}
+          </Svg>
+        </Email>,
+        { assets: { baseUrl: "https://cdn.example.com/email/", rasterize: pngRasterizer() } }
+      );
+      const [svg, png] = files!;
+      const whole = new Resvg(Buffer.from(svg!.bytes), { fitTo: { mode: "width", value: 2 * width }, font: { loadSystemFonts: false } }).render();
+      expect(whole.pixels.some((value, i) => i % 4 === 3 && value > 0)).toBe(true);
+      expect(Buffer.from(png!.bytes).equals(whole.asPng())).toBe(true);
+    };
+    // A viewBox of one unit across, shown 40 px wide.
+    await check(40, 40, "0 0 1 1", <Rect width={1} height={1} style={{ fill: "#123456" }} />);
+    // A square viewBox in a wide drawing: shown centered, with what's beside it shown in the margins.
+    await check(400, 20, "0 0 20 20", <Rect x={60} width={20} height={20} style={{ fill: "#123456" }} />);
+    // A stroke reaching in from outside.
+    await check(40, 20, "0 0 40 20", <Rect x={-10} y={0} width={10} height={20} style={{ fill: "transparent", stroke: "#123456", strokeWidth: 4 }} />);
   });
 
   it("draws a very large drawing at most 8,192 px on a side", async () => {
