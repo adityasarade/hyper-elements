@@ -146,17 +146,21 @@ describe("toDesign with customTools", () => {
     expect(report.join("\n")).toContain("HTML block");
   });
 
-  it("says of a Document's own element that the builder's document mode doesn't draw its tool's block", () => {
+  it("writes a Document's own element as its tool's block, which the builder draws in a document as in a page", () => {
     const document = <Document><Footer /></Document>;
     const { design, report } = toDesign(document, { customTools: true });
     expect(blocks(design).map((content) => content.slug)).toEqual(["acme_legal_footer"]);
-    expect(report).toEqual(["root.children[0]: a acme.LegalFooter is its custom tool's block: the builder's document mode keeps it but doesn't draw or export it, so what's in it isn't in the builder's PDF"]);
+    expect(report).toEqual([]);
     // It comes back as the element still.
     const back = fromDesign(design, { displayMode: "document", elements: [Footer] });
     expect(back.report).toEqual([]);
     expect(back.code).toContain("<LegalFooter />");
-    // An Email's or a Page's is drawn there: nothing to say.
-    expect(toDesign(<Email><Footer /></Email>, { customTools: true }).report).toEqual([]);
+    // One its tool can't draw on its own, at the room it has, is an HTML block, and said, as in an email.
+    const Themed = defineElement({ type: "acme.Themed", label: "Themed", props: {}, render: () => <Text style={{ color: token("colors.primary") }}>Hi</Text> });
+    const theme = defineTheme({ colors: { primary: "#0a7" } });
+    const themed = toDesign(<Document theme={theme}><Themed /></Document>, { customTools: true });
+    expect(blocks(themed.design).map((content) => content.type)).toEqual(["html"]);
+    expect(themed.report.join("\n")).toContain("its custom tool draws a acme.Themed on its own");
   });
 
   it("writes a prop given a theme's token as the value it has there: the builder keeps no theme", () => {
@@ -543,7 +547,7 @@ describe("registerTools", () => {
     const { builder, tools } = fakeBuilder();
     expect(registerTools(builder, [ProductCard, Footer], { icons: { "acme.ProductCard": "fa-tag" } })).toEqual(["acme_product_card", "acme_legal_footer"]);
     const [product, footer] = tools;
-    expect(product).toMatchObject({ name: "acme_product_card", label: "Product", icon: "fa-tag", supportedDisplayModes: ["web", "email"], values: {} });
+    expect(product).toMatchObject({ name: "acme_product_card", label: "Product", icon: "fa-tag", supportedDisplayModes: ["web", "email", "document"], values: {} });
     expect(footer).toMatchObject({ name: "acme_legal_footer", label: "Legal footer", icon: "fa-cube", options: {} });
     const properties = product.options.acme_product_card.options;
     expect(product.options.acme_product_card.title).toBe("Product");
@@ -814,6 +818,19 @@ describe("registerTools", () => {
     const { builder, tools } = fakeBuilder();
     registerTools(builder, [ProductCard], { displayMode: "web" });
     expect(tools[0].renderer.Viewer.render({ name: "Mug" })).not.toContain("<table");
+  });
+
+  it("draws a block in a document as a page's, in the canvas and in what the builder exports and prints", () => {
+    const { builder, tools } = fakeBuilder();
+    registerTools(builder, [ProductCard], { displayMode: "document" });
+    const [tool] = tools;
+    const values = { name: "Mug", price: "7.99" };
+    const drawn = tool.renderer.Viewer.render(values);
+    expect(drawn).toContain("Mug");
+    expect(drawn).not.toContain("<table");
+    // A page's markup, with none of a Document's own page size or margins: the builder's are the document's.
+    expect(tool.renderer.exporters.document(values)).toBe(tool.renderer.exporters.web(values));
+    expect(tool.renderer.exporters.document(values)).not.toContain("@page");
   });
 
   it("draws at its column's share of the content width", () => {

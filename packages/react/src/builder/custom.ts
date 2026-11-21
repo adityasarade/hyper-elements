@@ -285,8 +285,11 @@ export interface EditorWidget<D = unknown> {
 }
 
 export interface RegisterToolsOptions {
-  /** The builder's display mode, which says what the canvas draws: an Email's markup ("email", the default) or a Page's ("web"). */
-  displayMode?: "email" | "web";
+  /**
+   * The builder's display mode, which says what the canvas draws: an Email's markup ("email", the default), or a Page's
+   * ("web", and "document", where the builder prints what it exports).
+   */
+  displayMode?: "email" | "web" | "document";
   /** Each tool's icon in the builder's panel, by its element's type: a Font Awesome class, an image's URL or an SVG. */
   icons?: Record<string, string>;
   /**
@@ -433,7 +436,9 @@ export function registerTools(builder: Builder, elements: readonly WithDefinitio
   // Every element given, for the ones a tool's own renders.
   const all = [...tools.values()];
   for (const [name, definition] of tools) if (inSection(definition)) tools.delete(name);
-  const canvas = options.displayMode === "web" ? "Page" : "Email";
+  // A document's blocks are drawn as a page's: the builder prints what it exports, with its own page size and margins,
+  // which a Document's markup would set again.
+  const canvas = options.displayMode === "web" || options.displayMode === "document" ? "Page" : "Email";
   const editors = options.editors ?? {};
   // An editor given for no prop is a name mistyped: its prop would be edited with its kind's, without a word. A name
   // of the builder's own editors is none of these: those are its kinds'.
@@ -520,7 +525,7 @@ export function registerTools(builder: Builder, elements: readonly WithDefinitio
       name,
       label: definition.label,
       icon: options.icons?.[definition.type] ?? "fa-cube",
-      supportedDisplayModes: ["web", "email"],
+      supportedDisplayModes: ["web", "email", "document"],
       options: Object.keys(properties).length ? { [name]: { title: definition.label, position: 1, options: properties } } : {},
       values: {},
       renderer: {
@@ -535,7 +540,7 @@ export function registerTools(builder: Builder, elements: readonly WithDefinitio
             }
           },
         }),
-        exporters: { email: written("Email"), web: written("Page") },
+        exporters: { email: written("Email"), web: written("Page"), document: written("Page") },
         head: { css: () => "", js: () => "" },
       },
       // The builder's audit (its Audit tab, unlayer.audit()): a block that can't be drawn at any room, which the

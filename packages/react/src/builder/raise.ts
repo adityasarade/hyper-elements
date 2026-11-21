@@ -118,12 +118,6 @@ export function raise(element: React.ReactElement, options: { customTools?: bool
       // with a prop named as one of the builder's own for a block can't keep it there.
       const definition = options.customTools ? components.find((c) => c.type === node.type && !c.categories.includes("section") && !unkept(c)) : undefined;
       if (!definition) return undefined;
-      // The builder has these tools for emails and pages (registerTools()): in a document it keeps the block, as it
-      // does an HTML block, and fromDesign() reads it back as the element.
-      if (root.type === "Document") {
-        report.push(`${path}: a ${node.type} is its custom tool's block: ${NOT_IN_DOCUMENTS}`);
-        return put(customBlock(node, definition, around, hiding));
-      }
       // Checked once the rows are written, at the room its column leaves it there (below).
       const made = put(customBlock(node, definition, around, hiding));
       tools.set(made, { node, path, around, definition });
@@ -329,22 +323,23 @@ export function raise(element: React.ReactElement, options: { customTools?: bool
   const margin = root.type === "Document" ? { margin: cssSides((root.props?.margin as Sides | undefined) ?? { top: 48, right: 48, bottom: 48, left: 48 }) } : {};
   // No background is none (the builder's own default is a grey).
   const bodyHidden = { ...hiddenOf("body", root, ["props.margin"]), ...margin, ...title, backgroundColor: (style.backgroundColor as string | undefined) ?? "" };
-  if (root.type === "Document") {
-    const paper = { documentSize: (root.props?.size as string | undefined) ?? "A4", documentOrientation: (root.props?.orientation as string | undefined) ?? "portrait" };
-    return { body: { root: root.type, fields: { ...common, ...paper }, values: bodyHidden, rows: body, headers, footers }, report };
-  }
   // Each element's tool's block, drawn as the builder exports it: on its own, at the room its column leaves it, with
-  // no theme. One its tool can't draw so (a theme's token in its render) would fail the export: it's an HTML
-  // block of its markup instead, drawn as the template draws it, and said.
-  for (const row of body) {
+  // no theme (in a document, as a page's, which the builder prints). One its tool can't draw so (a theme's token in
+  // its render) would fail the export: it's an HTML block of its markup instead, drawn as the template draws it, and
+  // said.
+  for (const row of [...body, ...headers, ...footers]) {
     row.columns.forEach((column, index) => {
       column.contents = column.contents.map((made) => {
         const tool = tools.get(made);
         if (!tool) return made;
-        const problem = toolProblem(tool.definition, components, root.type as "Email" | "Page", made.values, { contentWidth: common.contentWidth }, row.cells, index, { ...column.fields, ...column.values });
+        const problem = toolProblem(tool.definition, components, root.type === "Email" ? "Email" : "Page", made.values, { contentWidth: common.contentWidth }, row.cells, index, { ...column.fields, ...column.values });
         return problem ? place.locked(tool.node, tool.path, `its custom tool draws a ${tool.node.type} on its own, at the room its column leaves it and without the template's theme, and can't draw it so (${problem})`, tool.around) : made;
       });
     });
+  }
+  if (root.type === "Document") {
+    const paper = { documentSize: (root.props?.size as string | undefined) ?? "A4", documentOrientation: (root.props?.orientation as string | undefined) ?? "portrait" };
+    return { body: { root: root.type, fields: { ...common, ...paper }, values: bodyHidden, rows: body, headers, footers }, report };
   }
   const previewText = root.type === "Email" && root.props?.previewText ? { previewText: String(root.props.previewText) } : {};
   return { body: { root: root.type, fields: common, ...previewText, values: bodyHidden, rows: body }, report };

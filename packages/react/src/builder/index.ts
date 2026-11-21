@@ -21,8 +21,7 @@ export interface ToDesignOptions {
    * block's values, for a builder those tools are registered in (`registerTools()`): there it's edited by its props,
    * and `fromDesign()` reads it back as the element. Without it, each is an HTML block of its own markup, which any
    * builder draws and none edits. An element placed where a Section goes is that HTML block either way. In a
-   * Document the block is written and read back the same, but the builder's document mode doesn't draw it (the
-   * report says so): the tools are for emails and pages.
+   * Document it's written and read back the same, and a document builder draws it as a page's.
    */
   customTools?: boolean;
 }

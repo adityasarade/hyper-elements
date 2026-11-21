@@ -98,7 +98,9 @@ so the two can't differ, and rejects a template as they do (with errors, or anot
   (`prop.list()`, `prop.object()`, `prop.blocks()`) is edited in a field of `registerTools()`'s own: a box for each item,
   with a field for each of its parts, to move, remove or add, its value given to the block once its user leaves a text
   and kept only where its prop takes it. Each field `registerTools()` registers gives the builder's AI the schema of the
-  value the builder keeps. A color that can't be see-through gives the builder's picker `allowTransparent: false`. A block saved with a value its prop doesn't take, or with none for a prop its element needs, says what's
+  value the builder keeps. A color that can't be see-through gives the builder's picker `allowTransparent: false`. The
+  tools are a document builder's too: there, the canvas and the export draw an element as a Page's markup, which the
+  builder prints with its own page size and margins (`displayMode: "document"`). A block saved with a value its prop doesn't take, or with none for a prop its element needs, says what's
   wrong in the canvas and is an error in the builder's audit; its export fails, naming the block and why, as does an
   export while a field holds a value that isn't kept. What a failed export says is plain text, with `<`, `>` and `&`
   written as JSON escapes them (`\u003c`), as the builder writes it in place of the HTML. `fromDesign()` leaves such a block out and says so. An element
