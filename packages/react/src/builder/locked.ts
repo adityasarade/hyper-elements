@@ -24,6 +24,11 @@ export interface InPlace {
   theme?: { [key: string]: Json };
   scopes?: ReadonlyArray<{ [key: string]: Json }>;
   /**
+   * Narrower than what holds it: the width it has there (`room`), and the alignItems across it of the stack it's in
+   * (a Section's, a Column's): it's drawn that wide, placed so (placedIn in raise.ts).
+   */
+  placed?: { room: number; alignItems?: Json };
+  /**
    * In an Email, where its pictures' files are (render()'s `assets`); the node's place in the template (`at`); and the
    * pictures the whole template's render cut out of it, at their places in the template: its markup links their files.
    */
@@ -33,7 +38,7 @@ export interface InPlace {
 }
 
 /** A node drawn on its own by the new engine, at its width, in the root's output: its HTML, with its stylesheet. */
-function renderSubtree(node: Node, width: number, root: Node, components: unknown, inherited: Record<string, Json>, { theme, scopes = [], assets, at = "", pictures = [] }: InPlace): string {
+function renderSubtree(node: Node, width: number, root: Node, components: unknown, inherited: Record<string, Json>, { theme, scopes = [], placed: placement, assets, at = "", pictures = [] }: InPlace): string {
   // Drawn at its width in a page at least as wide as a root can be (a Document's block as a page's), the root's text
   // styles around it, and the text styles its ancestors give it in a Column around it.
   const drawn = Math.round(width);
@@ -41,7 +46,9 @@ function renderSubtree(node: Node, width: number, root: Node, components: unknow
   const tokens = (n: Node): Node =>
     n.type === "PageNumber" ? { type: "MergeTag", props: { name: n.props?.total ? "page_count" : "page_number" } } : n.children ? { ...n, children: n.children.map((child) => (typeof child === "string" ? child : tokens(child))) } : n;
   const subtree = tokens(node);
-  const around = { ...inherited, ...(drawn < 200 ? { width: drawn } : {}) };
+  // Narrower than what holds it: drawn as wide as that, the block at its width placed as there.
+  const page = placement ? Math.round(placement.room) : drawn;
+  const around = { ...inherited, ...(drawn < Math.max(200, page) ? { width: drawn } : {}) };
   const wrapped = Object.keys(around).length > 0;
   // A Page's own phone width, so the block's phone styles switch where the page's do.
   const breakpoints: Record<string, Json> = root.type === "Page" && root.props?.breakpoints ? { breakpoints: root.props.breakpoints } : {};
@@ -53,8 +60,8 @@ function renderSubtree(node: Node, width: number, root: Node, components: unknow
   // The root's text styles, not its background: the builder draws the body's color, and its rows' and columns', behind
   // the block, so the block painting the body's over them would hide a Section's own.
   const { backgroundColor: _, ...rootStyle } = root.style ?? {};
-  const page: Node = { type: root.type === "Email" ? "Email" : "Page", props: { width: Math.max(200, drawn), ...breakpoints }, style: rootStyle, children: [placed] };
-  const written = renderTemplate(theme ? { root: page, theme, merged: true } : { root: page }, { components: components as never, ...(assets ? { assets } : {}) });
+  const holder: Node = { type: root.type === "Email" ? "Email" : "Page", props: { width: Math.max(200, page), ...breakpoints }, style: { ...rootStyle, ...(placement ? { alignItems: placement.alignItems ?? "start" } : {}) }, children: [placed] };
+  const written = renderTemplate(theme ? { root: holder, theme, merged: true } : { root: holder }, { components: components as never, ...(assets ? { assets } : {}) });
   const { head } = written;
   // Its pictures, drawn on their own here (without the template's fonts and language around them), link the files the
   // whole template's render names: each the one cut out at its place in the node, at its size.

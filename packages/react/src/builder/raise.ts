@@ -154,6 +154,16 @@ export function raise(element: React.ReactElement, options: RaiseOptions = {}): 
     const given: Record<string, unknown> = { ...BROWSER_TEXT, color: resolvedRoot.text.color, fontFamily: resolvedRoot.text.fontFamily, fontWeight: resolvedRoot.text.fontWeight };
     return Object.fromEntries(Object.entries(text).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(given[key]))) as Record<string, Json>;
   };
+  /**
+   * Where a block narrower than what holds it sits there, as render() places it: the width it has, and the stack's
+   * alignItems across it (a Section's, a Column's). The block is drawn that wide, what's in it placed so.
+   */
+  const placedIn = (path: string): { placed?: { room: number; alignItems?: Json } } => {
+    const own = resolved.get(path);
+    const parent = resolved.get(path.replace(/\.children\[\d+\]$/, ""));
+    if (!own || own.width === null || own.available === null || own.width >= own.available) return {};
+    return { placed: { room: own.available, ...(parent && ACROSS_STACKS.has(parent.type) && parent.style.alignItems !== undefined ? { alignItems: parent.style.alignItems } : {}) } };
+  };
   const place: Place = {
     at,
     report,
@@ -169,6 +179,7 @@ export function raise(element: React.ReactElement, options: RaiseOptions = {}): 
         lockedHtml(node, own.width ?? own.available ?? Number(resolvedRoot.width), root, components, around, inheritedText(path), {
           theme: document.theme,
           scopes: enclosing.get(node),
+          ...placedIn(path),
           ...(options.assets ? { assets: options.assets, at: path, pictures: inside } : {}),
         })
       );
@@ -430,3 +441,6 @@ export function nodeOf(node: ResolvedNode): Node {
     children: node.children.map((child) => (typeof child === "string" ? child : nodeOf(child))),
   };
 }
+
+/** What stacks its children, so that its alignItems places them across it (a Row's, a Grid's and a Layer's is down). */
+const ACROSS_STACKS = new Set(["Section", "Column", "DocumentPage", "PageHeader", "PageFooter"]);

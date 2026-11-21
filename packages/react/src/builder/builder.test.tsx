@@ -1,4 +1,5 @@
 /** toDesign(): a template as the builder's design JSON, every block a tool where one shows it, and what it can't hold said. */
+import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
 import { Button, Canvas, Column, component, defineElement, Document, Email, Grid, Heading, Html, Image, Layer, LineBreak, Link, List, ListItem, Page, PageBreak, PageFooter, PageHeader, PageNumber, Text, prop, Rect, Row, Span, Section, Svg, Table, TableCell, TableRow } from "../primitives";
 import { airbnb, stripe } from "../primitives/testing/codemod-examples";
@@ -231,6 +232,47 @@ describe("toDesign", () => {
       ).design;
       expect(inSection.body.rows.map((row: any) => row.columns.flatMap((c: any) => c.contents.map((x: any) => x.type)))).toEqual([["paragraph", "paragraph"]]);
       expect(JSON.stringify(inSection)).toContain("After");
+    });
+
+    it("in a block drawn as HTML that's narrower than its column sit where render() puts them", async () => {
+      const Badge = defineElement({
+        type: "acme.Badge",
+        label: "Badge",
+        props: {},
+        render: () => (
+          <Canvas width={160} height={44} alt="VIP" style={{ backgroundColor: "#0f766e" }}>
+            <Text>VIP</Text>
+          </Canvas>
+        ),
+      });
+      const email = (alignItems?: "start" | "center" | "end") => (
+        <Email>
+          <Section style={alignItems ? { alignItems } : {}}>
+            <Badge />
+          </Section>
+        </Email>
+      );
+      /** Where the cells between the picture and the content's 600px box place it: the nearest that says (left otherwise). */
+      const placement = (markup: string) => {
+        const doc = new JSDOM(markup).window.document;
+        const out: string[] = [];
+        const content = (el: Element) => el.getAttribute("width") === "600" || /max-width:600px/.test(el.getAttribute("style") ?? "");
+        for (let at: Element | null = doc.querySelector("img")!.parentElement; at && !content(at); at = at.parentElement) {
+          if (at.tagName === "TD") out.push(at.getAttribute("align") ?? /text-align:(\w+)/.exec(at.getAttribute("style") ?? "")?.[1] ?? "-");
+        }
+        return out.find((align) => align !== "-") ?? "left";
+      };
+      const { render: renderEmail } = await import("../primitives");
+      const places: string[] = [];
+      for (const alignItems of [undefined, "center", "end"] as const) {
+        const html = String(blocks(toDesign(email(alignItems), { assets }).design).find((content) => content.type === "html")!.values.html);
+        // Drawn as wide as its column, placed in it as render() places it there.
+        expect(html, String(alignItems)).toMatch(/max-width:600px|width="600"/);
+        expect(placement(html), String(alignItems)).toBe(placement((await renderEmail(email(alignItems), { assets })).html));
+        places.push(placement(html));
+      }
+      // Three placements, not one: left, centered, right.
+      expect(new Set(places).size).toBe(3);
     });
 
     it("come back from the builder as images", () => {
