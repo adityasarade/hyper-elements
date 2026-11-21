@@ -22,9 +22,16 @@ export interface ToDesignOptions {
   assets?: EmailAssetsOption;
 }
 
+/**
+ * A template in the new components (an `<Email>`, a `<Page>` or a `<Document>`) as the builder's design JSON; with
+ * `assets`, an Email's pictures linking the files render() returns for them.
+ */
+export function toDesign(element: React.ReactElement, options: ToDesignOptions): DesignResult;
 /** A template in the new components (an `<Email>`, a `<Page>` or a `<Document>`) as the builder's design JSON. */
-export function toDesign(element: React.ReactElement, options: ToDesignOptions = {}): DesignResult {
-  return writeDesign(element, options);
+export function toDesign(element: React.ReactElement): DesignResult;
+export function toDesign(element: React.ReactElement, options?: ToDesignOptions): DesignResult {
+  // As a callback (emails.map(toDesign)), it's given an index: that's no options.
+  return writeDesign(element, typeof options === "object" && options !== null ? options : {});
 }
 
 export interface TemplateResult {
