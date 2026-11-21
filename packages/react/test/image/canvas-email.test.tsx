@@ -149,6 +149,33 @@ describe("an Email's Svg on its own", () => {
     </Email>
   );
 
+  it("is drawn in an Email that loads a web font for its text, that font's file not given", async () => {
+    // The Email's web fonts are its pictures' too, but nothing in this one names it: its file isn't needed.
+    const brand = [{ family: "Brand Sans", src: "https://fonts.example.com/brand.woff2" }];
+    const receipt = (
+      <Email fonts={brand} style={{ fontFamily: "'Brand Sans', Arial, sans-serif" }}>
+        <Text>Your receipt</Text>
+        <Svg width={40} height={40} title="Logo">
+          <Circle cx={20} cy={20} r={16} style={{ fill: "#4f46e5" }} />
+        </Svg>
+      </Email>
+    );
+    const drawn = await render(receipt, { assets: { baseUrl: BASE, draw: emailImages() } });
+    expect(drawn.files!.length).toBe(1);
+    expect(drawn.diagnostics.filter((d) => d.code.startsWith("image/"))).toEqual([]);
+    // A Canvas whose text names another family, whose file is given: drawn, the Email's web font not asked for.
+    const card = (
+      <Email fonts={brand} style={{ fontFamily: "'Brand Sans', Arial, sans-serif" }}>
+        <Canvas width={200} height={60} alt="Hi" style={{ backgroundColor: "#1e1b4b", fontFamily: "Liberation Sans" }}>
+          <Text>Hi</Text>
+        </Canvas>
+      </Email>
+    );
+    const other = await render(card, { assets: { baseUrl: BASE, draw: emailImages({ fonts }) } });
+    expect(other.files!.length).toBe(1);
+    expect(other.diagnostics.filter((d) => d.code === "image/font")).toEqual([]);
+  });
+
   it("is a PNG of its drawing at twice its size, with no font given", async () => {
     const { html, files } = await render(moon, { assets: { baseUrl: BASE, draw: emailImages() } });
     const [png] = files!;

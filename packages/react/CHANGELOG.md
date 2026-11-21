@@ -24,9 +24,9 @@ const { html, files } = await render(<Launch />, {
   don't load, it shows the alt on the picture's background color, in a color that reads on it: `Image` takes a
   `backgroundColor` for this too.
 - A picture is drawn as a Canvas, its text in the text styles and fonts of where it is in the email.
-  `emailImages()` draws with Satori and resvg (the image entry's optional peers). A web font the email loads without
-  its file there, or a character no font given has, is an error; text in another family whose file isn't given is
-  drawn in the first font given, with a warning (`image/font-family`).
+  `emailImages()` draws with Satori and resvg (the image entry's optional peers). A web font the email loads that a
+  picture's text is in, without its file there, or a character no font given has, is an error; text in another family
+  whose file isn't given is drawn in the first font given, with a warning (`image/font-family`).
 - Each file is named by the SHA-256 of what's drawn and what draws it (the scale, the fonts' and images' bytes, the
   template's theme, and the versions of this package, Satori and resvg), so the same picture is the same HTML and the
   same file everywhere, on Node and Bun, and a name never changes what it shows. Where a version can't be read (an app

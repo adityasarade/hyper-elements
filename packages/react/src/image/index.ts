@@ -98,9 +98,10 @@ function canvasFor(element: ReactElement | Snapshot, options: Omit<ImageOptions,
 }
 
 /** A laid-out Canvas read with its fonts and images, ready to measure (canvasFor's, and each of an Email's pictures'). */
-function readied(root: ResolvedNode, diagnostics: Diagnostic[], options: Omit<ImageOptions, "format">, strict: boolean) {
+/** `used`: say a font face with no file only where text names its family (an Email's picture: its file isn't drawn else). */
+function readied(root: ResolvedNode, diagnostics: Diagnostic[], options: Omit<ImageOptions, "format">, strict: boolean, used = false) {
   const found: Diagnostic[] = [];
-  const fonts = fontsOf(root, options.fonts ?? [], found, strict);
+  const fonts = fontsOf(root, options.fonts ?? [], found, strict, used ? textFamilies(root) : undefined);
   const images = imageSources(root, options.images ?? {}, found);
   // What can't be drawn at all stops it here (an image with no file, no font at all); what strict makes an error is
   // measured with the rest, so every finding is said at once.
@@ -182,7 +183,8 @@ export function emailImages(options: EmailImagesOptions = {}): PictureDrawer {
     contentType: "image/png",
     async draw({ root, layout }) {
       readable(layout, "image");
-      const { context, diagnostics, found, strict } = readied(root, [], { fonts, images, scale }, false);
+      // The Email's fonts are the picture's: one with no file is an error only where the picture's text names it.
+      const { context, diagnostics, found, strict } = readied(root, [], { fonts, images, scale }, false, true);
       const { layout: measured, sizes } = await measure(context, { strict, scale });
       // A font or a character with no file is an error: the picture would be in another type than the email around it,
       // or show boxes. What runs past it is a warning, as for any Canvas. Fonts are given to emailImages() here.
@@ -283,7 +285,7 @@ const woff2 = (bytes: ArrayBuffer | Uint8Array) => String.fromCharCode(...new Ui
 /** The Canvas's own font faces (its `fonts` prop): the files renderImage's fonts option gives, or data: URIs. */
 const facesOf = (root: ResolvedNode): FontFace[] => (root.props.fonts as FontFace[] | undefined) ?? [];
 
-function fontsOf(root: ResolvedNode, given: ImageFont[], found: Diagnostic[], strict = false): Font[] {
+function fontsOf(root: ResolvedNode, given: ImageFont[], found: Diagnostic[], strict = false, used?: Set<string>): Font[] {
   const level = strict ? ("error" as const) : ("warning" as const);
   const drawn = (family: string, bytes: ArrayBuffer | Uint8Array) => {
     if (!woff2(bytes)) return true;
@@ -300,6 +302,7 @@ function fontsOf(root: ResolvedNode, given: ImageFont[], found: Diagnostic[], st
       out.push({ family: face.family, data: buffer(Uint8Array.from(Buffer.from(data, "base64"))), weight: weight(Array.isArray(face.weight) ? face.weight[0] : face.weight), style: face.style ?? "normal" });
       continue;
     }
+    if (used && !used.has(face.family.toLowerCase())) continue;
     found.push({ code: "image/font", severity: level, message: `Image output loads no fonts: give ${face.family}'s file in renderImage's fonts option. Its text is drawn in another font meanwhile`, path: "root.props.fonts" });
   }
   if (!out.length && hasText(root)) {
@@ -367,6 +370,18 @@ function missingFaces(root: ResolvedNode, fonts: Font[], strict = false): Diagno
   };
   visit(root);
   return [...out.values()];
+}
+
+/** The families the font stacks of its text (shown on desktop) name, lowercased. */
+function textFamilies(root: ResolvedNode): Set<string> {
+  const out = new Set<string>();
+  const visit = (node: ResolvedNode) => {
+    if (node.hidden?.desktop) return;
+    if (node.children.some((child) => typeof child === "string" && child.trim())) for (const name of fontStack(String(node.text.fontFamily))) out.add(name.toLowerCase());
+    for (const child of node.children) if (typeof child !== "string") visit(child);
+  };
+  visit(root);
+  return out;
 }
 
 /** Whether it draws any text (shown on desktop). */
