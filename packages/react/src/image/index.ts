@@ -136,7 +136,13 @@ export function emailImages(options: EmailImagesOptions = {}): PictureDrawer {
   if (!Number.isInteger(scale) || scale < 1 || scale > 4) throw new TypeError(`[Elements] emailImages({ scale }) takes a whole number from 1 to 4, not ${String(options.scale)}`);
   // Copies, so the bytes the key names are the bytes drawn, whatever the caller does with its own later.
   const copy = (bytes: Uint8Array | ArrayBuffer) => new Uint8Array(buffer(bytes).slice(0));
-  const fonts = (options.fonts ?? []).map((font) => ({ ...font, src: copy(font.src) }));
+  // Each field read as given (a getter of a class's too), not spread.
+  const fonts: ImageFont[] = (options.fonts ?? []).map((font) => ({
+    family: font.family,
+    src: copy(font.src),
+    ...(font.weight !== undefined ? { weight: font.weight } : {}),
+    ...(font.style !== undefined ? { style: font.style } : {}),
+  }));
   const images = Object.fromEntries(Object.entries(options.images ?? {}).map(([url, bytes]) => [url, copy(bytes)]));
   const digest = (bytes: Uint8Array | ArrayBuffer) => sha256Hex(new Uint8Array(buffer(bytes)));
   const versions = { "@hyper-elements/react": installedVersion("@hyper-elements/react"), satori: installedVersion("satori"), "@resvg/resvg-js": installedVersion("@resvg/resvg-js") };

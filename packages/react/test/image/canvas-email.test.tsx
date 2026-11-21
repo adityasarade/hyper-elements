@@ -9,7 +9,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Canvas, Circle, defineElement, ElementsError, Email, Image, Rect, Section, Svg, Text, render } from "@hyper-elements/react";
-import { emailImages, renderImage } from "../../src/image";
+import { emailImages, renderImage, type ImageFont } from "../../src/image";
 import { pixel, pngSize } from "./png";
 
 const FONT = readFileSync(join(dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")), "standard_fonts", "LiberationSans-Regular.ttf"));
@@ -276,5 +276,71 @@ describe("an Email's picture, as the Canvas it is", () => {
       const style = /<img[^>]*alt="Concert tonight"[^>]*style="([^"]+)"/.exec(html)?.[1];
       expect(style, backgroundColor).toMatch(/(?:^|;)color:#fff(?:fff)?(?:;|$)/);
     }
+  });
+});
+
+describe("an Email's pictures' fonts, given as a class's", () => {
+  const card = (
+    <Canvas width={120} height={60} alt="Promo" style={{ fontFamily: "Liberation Sans" }}>
+      <Text>Promo</Text>
+    </Canvas>
+  );
+
+  it("are drawn as the same fonts given as plain objects, the same files", async () => {
+    // A family, a weight and a style read through getters, as a class gives them.
+    class Regular implements ImageFont {
+      readonly src = FONT;
+      get family() {
+        return "Liberation Sans";
+      }
+    }
+    const plain = (await render(<Email>{card}</Email>, { assets: { baseUrl: BASE, draw: emailImages({ fonts }) } })).files![0]!;
+    const fromClass = (await render(<Email>{card}</Email>, { assets: { baseUrl: BASE, draw: emailImages({ fonts: [new Regular()] }) } })).files![0]!;
+    expect(fromClass.name).toBe(plain.name);
+    expect(Buffer.from(fromClass.bytes).equals(Buffer.from(plain.bytes))).toBe(true);
+    const boldItalic = readFileSync(join(dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")), "standard_fonts", "LiberationSans-BoldItalic.ttf"));
+    class BoldItalic implements ImageFont {
+      readonly family = "Liberation Sans";
+      readonly src = boldItalic;
+      get weight() {
+        return 700;
+      }
+      get style() {
+        return "italic" as const;
+      }
+    }
+    const loud = (
+      <Email>
+        <Canvas width={120} height={60} alt="Promo" style={{ fontFamily: "Liberation Sans" }}>
+          <Text style={{ fontWeight: 700, fontStyle: "italic" }}>Promo</Text>
+        </Canvas>
+      </Email>
+    );
+    const draw = async (face: ImageFont) => (await render(loud, { assets: { baseUrl: BASE, draw: emailImages({ fonts: [...fonts, face] }) } })).files![0]!;
+    const given = await draw({ family: "Liberation Sans", src: boldItalic, weight: 700, style: "italic" });
+    const got = await draw(new BoldItalic());
+    expect(got.name).toBe(given.name);
+    expect(Buffer.from(got.bytes).equals(Buffer.from(given.bytes))).toBe(true);
+  });
+
+  it("leave the Email's rules for what's after a Canvas: a custom element there takes phone styles", async () => {
+    const Title = defineElement({ type: "acme.FitTitle", label: "Title", props: {}, render: () => <Text fit={{ sizes: [30, 20] }}>Promo</Text> });
+    const Caption = defineElement({ type: "acme.Caption", label: "Caption", props: {}, render: () => <Text style={{ mobile: { fontSize: 20 } }}>Caption</Text> });
+    // Its own alignment over its direction's, and drawn as the Canvas on its own is.
+    const canvas = (
+      <Canvas width={120} height={60} dir="rtl" style={{ fontFamily: "Liberation Sans", textAlign: "left" }}>
+        <Title />
+      </Canvas>
+    );
+    const alone = await renderImage(canvas, { fonts, scale: 2 });
+    const email = await render(
+      <Email dir="ltr">
+        {canvas}
+        <Caption />
+      </Email>,
+      { assets: { baseUrl: BASE, draw: emailImages({ fonts }) } }
+    );
+    expect(Buffer.from(email.files![0]!.bytes).equals(Buffer.from(alone.image))).toBe(true);
+    expect(email.html).toContain("font-size:20px!important");
   });
 });
