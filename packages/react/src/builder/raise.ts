@@ -46,7 +46,7 @@ export interface RaiseOptions {
  * writes, where the template has it: the builder's image tool takes it, or a block it's in drawn as HTML links its
  * file. Returns the places of those put in (what's in a custom element isn't in the template: its block links them).
  */
-function picturesAsImages(root: Node, pictures: ReadonlyArray<{ path: string; name: string; width: number; height: number }>, baseUrl: string, report: string[]): Set<string> {
+function picturesAsImages(root: Node, pictures: ReadonlyArray<{ path: string; name: string; width: number; height: number }>, baseUrl: string, report: string[], nothing: WeakSet<Node>): Set<string> {
   const byPath = new Map(pictures.map((picture) => [picture.path, picture]));
   const placed = new Set<string>();
   const visit = (node: Node, path: string) => {
@@ -56,8 +56,8 @@ function picturesAsImages(root: Node, pictures: ReadonlyArray<{ path: string; na
       if (child.type !== "Canvas" && child.type !== "Svg") return visit(child, at);
       const picture = byPath.get(at);
       if (!picture) {
-        // One of no size draws nothing: an empty Column, which a stack leaves out (it's only its padding, none).
-        node.children![index] = { type: "Column" };
+        // One of no size draws nothing: left where it is (what's after it keeps its place), and out of the design.
+        nothing.add(child);
         return;
       }
       const alt = child.type === "Svg" ? child.props?.title : child.props?.alt;
@@ -114,7 +114,8 @@ export function raise(element: React.ReactElement, options: RaiseOptions = {}): 
     }
   }
   // Each picture as the Image of its file; one of no size, nothing.
-  const placed = root.type === "Email" ? picturesAsImages(root, prepared.pictures ?? [], options.assets?.baseUrl ?? "", report) : new Set<string>();
+  const nothing = new WeakSet<Node>();
+  const placed = root.type === "Email" ? picturesAsImages(root, prepared.pictures ?? [], options.assets?.baseUrl ?? "", report, nothing) : new Set<string>();
   const resolvedRoot = prepared.resolved.root;
   const resolved = new Map<string, ResolvedNode>();
   const index = (node: ResolvedNode) => {
@@ -136,7 +137,7 @@ export function raise(element: React.ReactElement, options: RaiseOptions = {}): 
   /** A Row with a child of its own size, whose width the layout doesn't know. */
   const unsized = (node: Node, path: string) => childrenOf(node, path).some(({ child, path: childPath }) => !child.hidden?.desktop && resolved.get(childPath)?.width === null);
   const childrenOf = (node: Node, path: string): Child[] =>
-    (node.children ?? []).map((child, i) => ({ child, path: `${path}.children[${i}]` })).filter((c): c is Child => typeof c.child !== "string");
+    (node.children ?? []).map((child, i) => ({ child, path: `${path}.children[${i}]` })).filter((c): c is Child => typeof c.child !== "string" && !nothing.has(c.child));
 
   /** The text styles a node inherits from its ancestors (its parent's, as resolved) that the root's don't give it. */
   const inheritedText = (path: string): Record<string, Json> => {

@@ -181,7 +181,7 @@ describe("toDesign", () => {
       expect(JSON.stringify(toDesign(email, { assets: amp }).design)).toContain(`https://cdn.example.com/R&amp;D/${files![0]!.name}`);
     });
 
-    it("of no size are nothing in the builder", () => {
+    it("of no size are nothing in the builder, where they are and in a Section", () => {
       const { design } = toDesign(
         <Email>
           <Svg width={0} height={20} />
@@ -189,6 +189,18 @@ describe("toDesign", () => {
         </Email>
       );
       expect(blocks(design).map((content) => content.type)).toEqual(["paragraph"]);
+      // In a Section, between two blocks: no row of its own, and the block after it is the Text it is.
+      const inSection = toDesign(
+        <Email>
+          <Section>
+            <Text>Before</Text>
+            <Svg width={0} height={20} />
+            <Text>After</Text>
+          </Section>
+        </Email>
+      ).design;
+      expect(inSection.body.rows.map((row: any) => row.columns.flatMap((c: any) => c.contents.map((x: any) => x.type)))).toEqual([["paragraph", "paragraph"]]);
+      expect(JSON.stringify(inSection)).toContain("After");
     });
 
     it("come back from the builder as images", () => {
