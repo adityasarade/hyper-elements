@@ -97,13 +97,13 @@ so the two can't differ, and rejects a template as they do (with errors, or anot
   on or off, and keeps what an input method composes once its user is done. A list, an object or a list of blocks
   (`prop.list()`, `prop.object()`, `prop.blocks()`) is edited in a field of `registerTools()`'s own: a box for each item,
   with a field for each of its parts, to move, remove or add, its value given to the block once its user leaves a text
-  and kept only where its prop takes it. Each field `registerTools()` registers gives the builder's AI the schema of the
-  value the builder keeps. A color that can't be see-through gives the builder's picker `allowTransparent: false`. The
+  and kept only where its prop takes it. Each field `registerTools()` draws itself, and a team's control where the
+  builder keeps the prop's value or its text, gives the builder's AI the schema of what's kept. A color that can't be see-through gives the builder's picker `allowTransparent: false`. The
   tools are a document builder's too: there, the canvas and the export draw an element as a Page's markup, which the
   builder prints with its own page size and margins (`displayMode: "document"`). A block saved with a value its prop doesn't take, or with none for a prop its element needs, says what's
   wrong in the canvas and is an error in the builder's audit; its export fails, naming the block and why, as does an
   export while a field holds a value that isn't kept. What a failed export says is plain text, with `<`, `>` and `&`
-  written as JSON escapes them (`\u003c`), as the builder writes it in place of the HTML. `fromDesign()` leaves such a block out and says so. An element
+  written as JSON escapes them (`\u003c`), as the builder writes it in place of the HTML. `fromDesign()` leaves such a block out and says so, as it does a block its element can't render with its values (two that don't go together); a saved number is read as it's written in decimal, as its field reads it. `toDesign()` refuses two elements that are one tool in the builder, as `registerTools()` does. An element
   its tool can't draw on its own, at the room the builder gives its block (one with a theme's token in its `render`),
   stays an HTML block, and `toDesign()`'s report says why.
 - **`checkValue()`: a field checked as its prop checks it.** `checkValue(spec, held)` checks what a field holds against

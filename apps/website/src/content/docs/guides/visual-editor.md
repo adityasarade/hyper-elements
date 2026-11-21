@@ -127,6 +127,8 @@ A builder design's markup comes back as it is. If your builder designs can hold 
 const { element } = fromDesign(saved, { displayMode: "email", toSafeHtml });
 ```
 
+A block of your own element isn't markup: its values are checked by its props and given to your element, which draws them as text. One whose `render` draws a prop's text as markup (an `Html` block of it) draws what's in the design, so sanitize it there.
+
 ## Your own elements as tools
 
 An element you made with [`defineElement()`](/docs/custom-elements#defineelement) can be a tool of the builder: a block an editor user drags in and edits by its props, drawn by Elements. You write it once. There's no separate tool to write, and no HTML to write by hand for the canvas, for web and for email.
@@ -293,7 +295,7 @@ registerTools(unlayer, [ProductCard], {
 - **In a Document, an element's block is drawn as a page's.** The builder prints what it exports, with the document's own page size and margins, so its canvas and its export draw the element's Page markup there. Give `registerTools()` `displayMode: "document"` in a document builder, so the canvas draws the same.
 - **A text is what's typed, with the builder's `safeHtml` on or off.** `registerTools()`'s own text field gives a tool the text as it's typed, which Elements writes as text: `A<B` is drawn as `A<B`, and `A&lt;B` typed so is those six characters. The builder also takes the comments for classic Outlook out of what a custom tool exports, so a `Row` inside an element is stacked there.
 - **The builder's image editor has a width control, which an element doesn't read.** It takes the image's URL and size from it, and sizes the image itself in its `render`.
-- **The builder's AI fills a field by the schema of its value.** Each field `registerTools()` registers, its own and a control of yours given in `editors`, says what the builder keeps there.
+- **The builder's AI fills a field by the schema of its value.** Each field `registerTools()` draws itself says what the builder keeps there, and so does a control of yours given in `editors`, where the builder keeps the prop's value or its text. One for a link, an image or a font, which the builder keeps its own way, gives none.
 - `registerTools()` takes `displayMode: "web"` for a builder of pages, or `"document"` for one of documents, so the canvas draws a Page's markup, and `icons` for each tool's icon in the panel.
 
 The [custom elements example](https://github.com/hyper-elements/hyper-elements/tree/main/examples/custom-elements-in-editor) has two sets made this way: five tools a shop reuses (a product filled from a store, a testimonial, a coupon, an order tracker, a ticket with its barcode), and a whole email's own parts.
