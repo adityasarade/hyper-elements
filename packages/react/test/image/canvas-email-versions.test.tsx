@@ -23,14 +23,18 @@ it("says once that the pictures' names don't follow an engine whose version can'
       <Text>{words}</Text>
     </Canvas>
   );
-  const { diagnostics } = await render(
-    <Email>
-      {card("One")}
-      {card("Two")}
-    </Email>,
-    { assets: { baseUrl: "https://cdn.example.com/email/", draw: emailImages({ fonts: [{ family: "Liberation Sans", src: FONT }] }) } }
-  );
-  const said = diagnostics.filter((d) => d.code === "image/engine-version");
-  expect(said.map((d) => d.severity)).toEqual(["warning"]);
-  expect(said[0]!.message).toContain("satori's installed version can't be read here");
+  // One drawer, made once and used for each email (as an app does): said once in each render.
+  const draw = emailImages({ fonts: [{ family: "Liberation Sans", src: FONT }] });
+  for (const words of ["One", "Two"]) {
+    const { diagnostics } = await render(
+      <Email>
+        {card(`${words} a`)}
+        {card(`${words} b`)}
+      </Email>,
+      { assets: { baseUrl: "https://cdn.example.com/email/", draw } }
+    );
+    const said = diagnostics.filter((d) => d.code === "image/engine-version");
+    expect(said.map((d) => [d.severity, d.path])).toEqual([["warning", "root.children[0]"]]);
+    expect(said[0]!.message).toContain("satori's installed version can't be read here");
+  }
 });

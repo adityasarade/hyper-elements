@@ -18,7 +18,7 @@ import { Diagnostics, type Diagnostic } from "../../diagnostics";
 import { templatePathsOf, type TemplatePaths } from "../../expand";
 import { isNode, type ElementsDocument, type Json, type Node } from "../../model";
 import type { Registry } from "../../registry";
-import { passedText, stylesOfText, toPx, type ResolvedNode, type ResolvedText } from "../../resolve";
+import { directed, passedText, stylesOfText, toPx, type ResolvedNode, type ResolvedText } from "../../resolve";
 import { utf8Encode } from "../shared/bytes";
 import { sha256Hex } from "../shared/sha256";
 
@@ -45,6 +45,8 @@ export interface PictureDrawer {
   readonly suffix: string;
   readonly extension: "png";
   readonly contentType: "image/png";
+  /** What it says of itself, once in each render that draws a picture (an engine whose version it can't read). */
+  readonly notes?: readonly Diagnostic[];
   draw(picture: PictureToDraw): Promise<{ bytes: Uint8Array; diagnostics: Diagnostic[] }>;
 }
 
@@ -230,7 +232,9 @@ export function cutOutPictures(document: ElementsDocument, registry: Registry, p
       height = toPx(node.props?.height ?? 630, null) ?? 630;
       const { id: _, hidden: __, field: ___, mobile: ____, ...rest } = node;
       const { alt: _alt, ...props } = (node.props ?? {}) as Record<string, Json>;
-      canvas = { ...rest, props: { ...props, width, height }, style: { ...stylesOfText(inherited), ...((node.style ?? {}) as Record<string, Json>) } };
+      // Its own direction sets where its text starts, unless it's aligned (as the resolver does, in place).
+      const text = directed(inherited, node.props?.dir, (node.style as Record<string, Json> | undefined)?.textAlign);
+      canvas = { ...rest, props: { ...props, width, height }, style: { ...stylesOfText(text), ...((node.style ?? {}) as Record<string, Json>) } };
     }
     // Its direction, language and fonts as where it is (a Row's direction, the Email's), under its own.
     const props = canvas.props as Record<string, Json>;

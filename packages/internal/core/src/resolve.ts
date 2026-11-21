@@ -204,7 +204,7 @@ function textOf(parent: ResolvedText, style: Record<string, Json>): ResolvedText
 }
 
 /** A direction of its own (a block's, or the root's) sets where its text starts, unless its author aligned it. */
-function directed(text: ResolvedText, dir: Json | undefined, ownAlign: Json | undefined): ResolvedText {
+export function directed(text: ResolvedText, dir: Json | undefined, ownAlign: Json | undefined): ResolvedText {
   if (ownAlign !== undefined || (dir !== "rtl" && dir !== "ltr")) return text;
   return { ...text, textAlign: dir === "rtl" ? "right" : "left" };
 }

@@ -157,6 +157,30 @@ describe("toDesign", () => {
       }
     });
 
+    it("link the files render() returns under a baseUrl with an & in it, in a block drawn as HTML too", async () => {
+      const Logo = defineElement({
+        type: "acme.Logo",
+        label: "Logo",
+        props: {},
+        render: () => (
+          <Svg width={20} height={20}>
+            <Rect width={20} height={20} style={{ fill: "#ff0000" }} />
+          </Svg>
+        ),
+      });
+      // (Its language is the picture's, which the block drawn on its own doesn't have: its file is named otherwise there.)
+      const email = (
+        <Email lang="en">
+          <Logo />
+        </Email>
+      );
+      const amp = { ...assets, baseUrl: "https://cdn.example.com/R&D/" };
+      const { files, html } = await (await import("../primitives")).render(email, { assets: amp });
+      // The HTML writes the & as &amp;: the builder's block links the same file.
+      expect(html).toContain(`src="https://cdn.example.com/R&amp;D/${files![0]!.name}"`);
+      expect(JSON.stringify(toDesign(email, { assets: amp }).design)).toContain(`https://cdn.example.com/R&amp;D/${files![0]!.name}`);
+    });
+
     it("of no size are nothing in the builder", () => {
       const { design } = toDesign(
         <Email>

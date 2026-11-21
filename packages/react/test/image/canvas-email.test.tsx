@@ -8,8 +8,8 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Canvas, Circle, ElementsError, Email, Rect, Section, Svg, Text, render } from "@hyper-elements/react";
-import { emailImages } from "../../src/image";
+import { Canvas, Circle, defineElement, ElementsError, Email, Image, Rect, Section, Svg, Text, render } from "@hyper-elements/react";
+import { emailImages, renderImage } from "../../src/image";
 import { pixel, pngSize } from "./png";
 
 const FONT = readFileSync(join(dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")), "standard_fonts", "LiberationSans-Regular.ttf"));
@@ -201,5 +201,80 @@ describe("the engines' versions, in a drawer's key", () => {
     expect(installedVersion("satori")).toBe(require("satori/package.json").version);
     expect(installedVersion("@resvg/resvg-js")).toBe(require("@resvg/resvg-js/package.json").version);
     expect(installedVersion("no-such-package-anywhere")).toBe("unknown");
+  });
+});
+
+describe("an Email's picture, as the Canvas it is", () => {
+  it("is drawn as the Canvas on its own is, a custom element's fitted text in it measured", async () => {
+    const Title = defineElement({ type: "acme.Title", label: "Title", props: {}, render: () => <Text fit={{ sizes: [30, 20] }}>Promo</Text> });
+    const canvas = (
+      <Canvas width={120} height={60} style={{ fontFamily: "Liberation Sans", backgroundColor: "#ffffff" }}>
+        <Title />
+      </Canvas>
+    );
+    const alone = await renderImage(canvas, { fonts, scale: 2 });
+    const { files } = await render(<Email>{canvas}</Email>, { assets: { baseUrl: BASE, draw: emailImages({ fonts }) } });
+    expect(Buffer.from(files![0]!.bytes).equals(Buffer.from(alone.image))).toBe(true);
+  });
+
+  it("starts its text on its own direction's side, in an Email of the other", async () => {
+    const canvas = (
+      <Canvas width={120} height={50} dir="rtl" style={{ fontFamily: "Liberation Sans", backgroundColor: "#ffffff" }}>
+        <Text>Promo</Text>
+      </Canvas>
+    );
+    // Where the first dark pixel of the text's line is, from the left.
+    const ink = async (bytes: Uint8Array) => (await Promise.all(Array.from({ length: 120 }, (_, x) => pixel(bytes, x, 12)))).findIndex(([r, g, b]) => r! < 128 && g! < 128 && b! < 128);
+    expect(await ink((await renderImage(canvas, { fonts })).image)).toBeGreaterThan(60);
+    const { files } = await render(<Email dir="ltr">{canvas}</Email>, { assets: { baseUrl: BASE, draw: emailImages({ fonts, scale: 1 }) } });
+    expect(await ink(files![0]!.bytes)).toBeGreaterThan(60);
+  });
+
+  it("is drawn with the files its drawer was given then, whatever is done with them after", async () => {
+    const square = async (fill: string) =>
+      (
+        await renderImage(
+          <Canvas width={20} height={20}>
+            <Svg width={20} height={20}>
+              <Rect width={20} height={20} style={{ fill }} />
+            </Svg>
+          </Canvas>
+        )
+      ).image;
+    const url = "https://example.com/logo.png";
+    const images: Record<string, Uint8Array> = { [url]: await square("#ff0000") };
+    const draw = emailImages({ images });
+    const email = (
+      <Email>
+        <Canvas width={20} height={20} alt="Logo">
+          <Image src={{ src: url, width: 20, height: 20 }} alt="" />
+        </Canvas>
+      </Email>
+    );
+    const first = (await render(email, { assets: { baseUrl: BASE, draw } })).files![0]!;
+    // The bytes given changed where they are, then another file under the same URL: the drawer made with the first
+    // still draws the first, under the first's name.
+    images[url]!.fill(0);
+    images[url] = await square("#0000ff");
+    const again = (await render(email, { assets: { baseUrl: BASE, draw } })).files![0]!;
+    expect(again.name).toBe(first.name);
+    expect(await pixel(again.bytes, 10, 10)).toEqual([255, 0, 0, 255]);
+    // A drawer given the second draws it, under another name.
+    const other = (await render(email, { assets: { baseUrl: BASE, draw: emailImages({ images }) } })).files![0]!;
+    expect(other.name).not.toBe(first.name);
+    expect(await pixel(other.bytes, 10, 10)).toEqual([0, 0, 255, 255]);
+  });
+
+  it("shows its alt in a color that reads on its background, written as a name or as hex", async () => {
+    for (const backgroundColor of ["#000000", "black", "navy"]) {
+      const { html } = await render(
+        <Email>
+          <Svg width={80} height={30} title="Concert tonight" style={{ backgroundColor }} />
+        </Email>,
+        { assets: { baseUrl: BASE, draw: emailImages() } }
+      );
+      const style = /<img[^>]*alt="Concert tonight"[^>]*style="([^"]+)"/.exec(html)?.[1];
+      expect(style, backgroundColor).toMatch(/(?:^|;)color:#fff(?:fff)?(?:;|$)/);
+    }
   });
 });

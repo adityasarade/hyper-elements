@@ -56,7 +56,9 @@ function renderSubtree(node: Node, width: number, root: Node, components: unknow
   let { body } = written;
   const own = written.pictures ?? [];
   if (own.length !== pictures.length) throw new Error(`[Elements] This block's pictures (${own.length}) aren't the template's here (${pictures.length}): it can't link the files render() returns`);
-  own.forEach((picture, i) => (body = body.split(pictureUrl(assets!.baseUrl, picture.name)).join(pictureUrl(assets!.baseUrl, pictures[i]!.name))));
+  // As the HTML writes a URL: its & as &amp; (a baseUrl has no quote or angle bracket).
+  const inHtml = (url: string) => url.replace(/&/g, "&amp;");
+  own.forEach((picture, i) => (body = body.split(inHtml(pictureUrl(assets!.baseUrl, picture.name))).join(inHtml(pictureUrl(assets!.baseUrl, pictures[i]!.name)))));
   const style = /<style>[\s\S]*?<\/style>/.exec(head)?.[0] ?? "";
   // A page's <main> is centered by its margins: in a flex box, which the builder may draw a block in, those shrink it to its words. It fills its block.
   const filled = body.replace(/^<main style="/, '<main style="width:100%;');

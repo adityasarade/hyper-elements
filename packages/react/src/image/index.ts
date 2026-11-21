@@ -134,12 +134,25 @@ export interface EmailImagesOptions {
 export function emailImages(options: EmailImagesOptions = {}): PictureDrawer {
   const scale = options.scale ?? 2;
   if (!Number.isInteger(scale) || scale < 1 || scale > 4) throw new TypeError(`[Elements] emailImages({ scale }) takes a whole number from 1 to 4, not ${String(options.scale)}`);
-  const fonts = options.fonts ?? [];
-  const images = options.images ?? {};
+  // Copies, so the bytes the key names are the bytes drawn, whatever the caller does with its own later.
+  const copy = (bytes: Uint8Array | ArrayBuffer) => new Uint8Array(buffer(bytes).slice(0));
+  const fonts = (options.fonts ?? []).map((font) => ({ ...font, src: copy(font.src) }));
+  const images = Object.fromEntries(Object.entries(options.images ?? {}).map(([url, bytes]) => [url, copy(bytes)]));
   const digest = (bytes: Uint8Array | ArrayBuffer) => sha256Hex(new Uint8Array(buffer(bytes)));
   const versions = { "@hyper-elements/react": installedVersion("@hyper-elements/react"), satori: installedVersion("satori"), "@resvg/resvg-js": installedVersion("@resvg/resvg-js") };
   const unread = Object.keys(versions).filter((name) => versions[name as keyof typeof versions] === "unknown");
-  let said = false;
+  // Where a version can't be read (an app bundled into one file), names don't follow it: said in each render.
+  const notes: Diagnostic[] = unread.length
+    ? [
+        {
+          code: "image/engine-version",
+          severity: "warning",
+          message: `${unread.join(" and ")}'s installed version can't be read here (an app bundled into one file): the pictures' file names don't change with it, so a file cached for good may be another version's drawing`,
+          fix: `keep ${unread.join(" and ")} in node_modules beside the app, unbundled`,
+          path: "root",
+        },
+      ]
+    : [];
   const key = sha256Hex(
     utf8Encode(
       JSON.stringify({
@@ -157,6 +170,7 @@ export function emailImages(options: EmailImagesOptions = {}): PictureDrawer {
   );
   return {
     key,
+    notes,
     suffix: `${scale}x`,
     extension: "png",
     contentType: "image/png",
@@ -173,17 +187,6 @@ export function emailImages(options: EmailImagesOptions = {}): PictureDrawer {
       }));
       if (all.some((d) => d.severity === "error")) throw new ElementsError(all);
       const canvas = writeCanvas(root, { families: context.families, fallback: context.fallback, fonts: context.fonts, image: context.image, sizes });
-      // Where a version can't be read (an app bundled into one file), names don't follow it: said once.
-      if (unread.length && !said) {
-        said = true;
-        all.push({
-          code: "image/engine-version",
-          severity: "warning",
-          message: `${unread.join(" and ")}'s installed version can't be read here (an app bundled into one file): the pictures' file names don't change with it, so a file cached for good may be another version's drawing`,
-          fix: `keep ${unread.join(" and ")} in node_modules beside the app, unbundled`,
-          path: "root",
-        });
-      }
       return { bytes: await satoriResvg(canvas, { format: "png", scale }), diagnostics: all };
     },
   };

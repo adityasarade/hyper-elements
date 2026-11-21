@@ -190,6 +190,24 @@ describe("a Canvas in an Email", () => {
     await expect(finishRender(renderTemplate(many, { assets: assets() }))).rejects.toThrow("pass them to finishRender() too");
   });
 
+  it("says what each drawing found in the pictures' order, whichever is drawn first", async () => {
+    // The first picture takes longest: its finding still comes first.
+    const late: PictureDrawer = {
+      ...drawer(),
+      draw: async (picture) => {
+        const words = JSON.stringify(picture.document.root.children);
+        await new Promise((done) => setTimeout(done, words.includes("First") ? 20 : 1));
+        return { bytes: Uint8Array.of(1), diagnostics: [{ code: "image/note", severity: "info", message: words.includes("First") ? "first" : "second", path: "root" }] };
+      },
+    };
+    const two = email([card({}, [{ type: "Text", children: ["First"] }]), card({}, [{ type: "Text", children: ["Second"] }])]);
+    const result = await finishRender(renderTemplate(two, { assets: assets(late as never) }), { assets: assets(late as never) });
+    expect(result.diagnostics.filter((d) => d.code === "image/note").map((d) => [d.message, d.path])).toEqual([
+      ["first", "root.children[0]"],
+      ["second", "root.children[1]"],
+    ]);
+  });
+
   it("is a root or a picture in an Email, and nothing else", () => {
     const codes = (template: unknown) => validateTemplate(template).diagnostics.filter((d) => d.severity === "error").map((d) => [d.code, d.path]);
     expect(codes({ root: { type: "Page", children: [card()] } })).toEqual([["element/not-supported", "root.children[0]"]]);

@@ -272,7 +272,8 @@ export async function finishRender(written: WrittenTemplate, options: Pick<Rende
   const { draw } = options.assets;
   const unique = new Map<string, Picture>();
   for (const picture of pictures) if (!unique.has(picture.name)) unique.set(picture.name, picture);
-  const found: Diagnostic[] = [];
+  // What each picture's drawing says, in the pictures' order, whichever is drawn first.
+  const found: Diagnostic[][] = [];
   // A few at a time: each holds its pixels (a 1200 by 630 Canvas at 2x is 12 MB) while it's drawn.
   const files = await inTurns(
     [...unique.values()],
@@ -289,9 +290,10 @@ export async function finishRender(written: WrittenTemplate, options: Pick<Rende
         const why = error instanceof Error ? error.message : String(error);
         throw new ElementsError([{ code: "email/canvas-draw", severity: "error", message: `This picture couldn't be drawn: ${why}`, path: picture.path, ...(picture.nodeId ? { nodeId: picture.nodeId } : {}) }]);
       }
-      found.push(...drawn.diagnostics.map((d) => ({ ...d, path: picture.at(d.path) })));
+      found[[...unique.values()].indexOf(picture)] = drawn.diagnostics.map((d) => ({ ...d, path: picture.at(d.path) }));
       return { name: picture.name, contentType: draw.contentType, bytes: drawn.bytes, width: picture.width, height: picture.height };
     }
   );
-  return { ...result, diagnostics: once([...result.diagnostics, ...found]), files };
+  const notes = (draw.notes ?? []).map((d) => ({ ...d, path: pictures[0]!.path }));
+  return { ...result, diagnostics: once([...result.diagnostics, ...found.flat(), ...notes]), files };
 }

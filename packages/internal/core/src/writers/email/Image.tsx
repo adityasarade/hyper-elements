@@ -5,7 +5,7 @@
  * doesn't load, its alternate text in the text's color and font (a picture of
  * a Canvas has its background).
  */
-import { assetParts, type Asset } from "../../kinds";
+import { assetParts, opaqueRgb, type Asset } from "../../kinds";
 import { h, type Style } from "../jsx";
 import type { Component } from "./context";
 import { fluidImage, PLACE, toNumber } from "./layout";
@@ -47,13 +47,12 @@ export const Image: Component = ({ node, style, mobile, parent, fill, inline }) 
   );
 };
 
-/** A hex color's relative luminance (WCAG), or undefined for another form. */
+/** An opaque color's relative luminance (WCAG); undefined for a see-through one, which shows what's behind it. */
 function luminance(color: string): number | undefined {
-  const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim())?.[1];
-  if (!hex) return undefined;
-  const full = hex.length === 3 ? [...hex].map((c) => c + c).join("") : hex;
-  const [r, g, b] = [0, 2, 4].map((i) => {
-    const c = parseInt(full.slice(i, i + 2), 16) / 255;
+  const rgb = opaqueRgb(color.trim());
+  if (!rgb) return undefined;
+  const [r, g, b] = rgb.map((channel) => {
+    const c = channel / 255;
     return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
   });
   return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
