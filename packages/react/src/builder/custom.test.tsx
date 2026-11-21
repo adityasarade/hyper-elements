@@ -527,6 +527,48 @@ describe("fromDesign with elements", () => {
     expect((await render(back.element)).text).toContain("0.25 -3 120 16");
   });
 
+  it("leaves out a block whose element can't render the values it has together, and says why, as the builder's canvas, audit and export do", () => {
+    const Stock = defineElement({
+      type: "acme.Stock",
+      label: "Stock",
+      props: { available: prop.number({ label: "Available", integer: true, min: 0, default: 10 }), reserved: prop.number({ label: "Reserved", integer: true, min: 0, default: 0 }) },
+      render: (p) => {
+        if (p.reserved > p.available) throw new Error(`reserved (${p.reserved}) is more than available (${p.available})`);
+        return <Text>{`${p.available - p.reserved} left`}</Text>;
+      },
+    });
+    const { design } = toDesign(<Email><Stock available={10} reserved={2} /><Text>After</Text></Email>, { customTools: true });
+    const content = blocks(design).find((one) => one.type === "custom")!;
+    content.values.reserved = 12;
+    const back = fromDesign(design, { elements: [Stock] });
+    expect(back.report.join("\n")).toContain(`the custom tool "acme_stock" can't be drawn with its values (`);
+    expect(back.report.join("\n")).toContain("reserved (12) is more than available (10)");
+    expect(back.code).not.toContain("<Stock");
+    expect(back.code).toContain("After");
+  });
+
+  it("checks a block under the root the design is read as: a prop a Page takes alone keeps its block in a page", () => {
+    const Card = defineElement({ type: "acme.Card", label: "Card", props: { caption: prop.text({ label: "Caption", roots: ["Page", "Document"] }) }, render: (p) => <Text>{p.caption ?? "Card"}</Text> });
+    const { design } = toDesign(<Page><Card caption="Hello" /></Page>, { customTools: true });
+    const back = fromDesign(design, { displayMode: "web", elements: [Card] });
+    expect(back.report).toEqual([]);
+    expect(back.code).toContain(`<Card caption="Hello" />`);
+  });
+
+  it("leaves out a block whose element draws what can't be where the block is placed: a page break in its padding's Column", async () => {
+    const Chapter = defineElement({ type: "acme.Chapter", label: "Chapter", props: { title: prop.text({ label: "Title", default: "One" }), newPage: prop.boolean({ label: "New page", default: false }) }, render: (p) => (p.newPage ? <PageBreak /> : <Heading>{p.title}</Heading>) });
+    const { design } = toDesign(<Document><Chapter title="One" /><Text>After</Text></Document>, { customTools: true });
+    const content = blocks(design).find((one) => one.type === "custom")!;
+    // Given padding in the builder: in the template it's in a Column, where no page break goes.
+    content.values.newPage = true;
+    content.values.containerPadding = "10px";
+    const back = fromDesign(design, { displayMode: "document", elements: [Chapter] });
+    expect(back.report.join("\n")).toContain(`the custom tool "acme_chapter" can't be drawn with its values (`);
+    expect(back.code).not.toContain("<Chapter");
+    // What's left renders.
+    expect((await render(back.element)).html).toContain("After");
+  });
+
   it("reads a saved number as it's written in decimal, as its field does: \"0x10\" isn't one", () => {
     const Count = defineElement({ type: "acme.Count", label: "Count", props: { price: prop.number({ label: "Price", min: 0, default: 1.5 }) }, render: (p) => <Text>{String(p.price)}</Text> });
     const { design } = toDesign(<Email><Count price={2.5} /></Email>, { customTools: true });

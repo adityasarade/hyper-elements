@@ -209,7 +209,7 @@ export function customBlock(node: Node, definition: CustomDefinition<any>, aroun
 }
 
 /** A custom tool's block as its element, where it's one of those given; none where it isn't, and said. */
-export function readCustom(slug: unknown, values: Values, context: Context, tools: Map<string, CustomDefinition<any>>): Node[] {
+export function readCustom(slug: unknown, values: Values, context: Context, tools: Map<string, CustomDefinition<any>>, root: "Email" | "Page" | "Document" = "Email"): Node[] {
   const definition = typeof slug === "string" ? tools.get(slug) : undefined;
   if (!definition) {
     context.say(`${typeof slug === "string" ? `the custom tool ${JSON.stringify(slug)}` : "a custom tool"} of the builder's is none of the elements given (fromDesign()'s elements): left out`);
@@ -242,6 +242,17 @@ export function readCustom(slug: unknown, values: Values, context: Context, tool
     context.say(`${tool} has no ${missing.join(" or ")}, which a ${definition.type} needs: left out`);
     return [];
   }
+  // The element as it's placed in the template (in a Column, where its block has padding).
+  const placeAs = (node: Node) => placed(node, sides(values.containerPadding ?? "10px"), undefined, sides(obj(obj(values._override).mobile).containerPadding), hiddenOn(values));
+  // Values its props each take that its element's render doesn't (two that don't go together), or what it draws that
+  // can't be where it's placed (a page break in a Column), which the builder's canvas, audit and export say: with it,
+  // the template wouldn't render. Checked without its id, which is read as fromDesign() reads ids (one a template
+  // doesn't take is left out).
+  const problem = renderProblem([...tools.values()], root, placeAs(make(definition.type, { props })));
+  if (problem) {
+    context.say(`${tool} can't be drawn with its values (${problem}): left out`);
+    return [];
+  }
   // What the builder keeps on any block that an element has no place for is said, as a built-in block's is: a display
   // condition, an anchor, a prop's value on phones. A value that's neither the builder's own nor a prop's is the
   // tool's own (registerTools()'s `properties`): it stays in the block, and isn't the element's.
@@ -249,8 +260,7 @@ export function readCustom(slug: unknown, values: Values, context: Context, tool
   const its = (kept: unknown): Values => Object.fromEntries(Object.entries(obj(kept)).filter(([key]) => read.includes(key) || builders(key)));
   const devices = obj(values._override);
   sayUnread("custom", { ...its(values), _override: { ...devices, mobile: its(devices.mobile) } }, undefined, context.say, { values: [...read, "containerPadding"], phone: ["containerPadding", "hideMobile"] });
-  const node = make(definition.type, { id: givenId(values), props });
-  return [placed(node, sides(values.containerPadding ?? "10px"), undefined, sides(obj(obj(values._override).mobile).containerPadding), hiddenOn(values))];
+  return [placeAs(make(definition.type, { id: givenId(values), props }))];
 }
 
 // ─── The tools, in a builder ─────────────────────────────────────────────────
@@ -408,8 +418,18 @@ function auditProblem(definition: CustomDefinition<any>, tools: readonly CustomD
   if (refused.length) return refused.map((one) => `its ${one.key} ${JSON.stringify(one.kept)} isn't one it takes (${one.reason})`).join("; ");
   const missing = Object.keys(definition.props).filter((key) => definition.props[key].required && !Object.hasOwn(props, key));
   if (missing.length) return `it has no ${missing.join(" or ")}, which it needs`;
+  return renderProblem(tools, root, make(definition.type, { props }));
+}
+
+/**
+ * What stops an element (`child`, as it's placed) from rendering under a root: what its render does with its props (an
+ * error it throws for two that don't go together, a theme's token), or what it draws that can't be where it's placed.
+ * None where it renders.
+ */
+function renderProblem(tools: readonly CustomDefinition<any>[], root: "Email" | "Page" | "Document", child: Node): string | undefined {
   const registry = registryOf({ components: [...tools] });
-  const checked = checkDocument({ root: { type: root, props: { width: 600 }, children: [make(definition.type, { props })] } }, registry);
+  // Under the root it's read in: a prop may be one some roots alone take. A Document has no width of its own.
+  const checked = checkDocument({ root: { type: root, props: root === "Document" ? {} : { width: 600 }, children: [child] } }, registry);
   const found = [...checked.diagnostics];
   if (checked.document && !found.some((d) => d.severity === "error")) found.push(...expandDocument(checked.document, registry, root === "Email" ? "email" : "web").diagnostics);
   return found.find((d) => d.severity === "error")?.message;

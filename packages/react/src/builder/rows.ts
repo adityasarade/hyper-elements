@@ -34,6 +34,8 @@ export interface Where {
   part: boolean;
   /** The template's own elements given, by their tools' names (custom.ts). */
   tools: Map<string, CustomDefinition<any>>;
+  /** The root the design is read as, which an element's block is checked under. */
+  root: "Email" | "Page" | "Document";
 }
 
 /** A column's blocks, page breaks among them where it's a Document's. */
@@ -41,7 +43,7 @@ function blocksOf(column: Values, where: string, at: Where, slot: Omit<Slot, "co
   return arr(column.contents).flatMap((content, i) => {
     const path = `${where}.contents[${i}]`;
     const { type, values, slug } = obj(content);
-    if (type === "custom") return readCustom(slug, obj(values), at.context(path), at.tools);
+    if (type === "custom") return readCustom(slug, obj(values), at.context(path), at.tools, at.root);
     if (type === "page_break") {
       if (at.document && !at.part) return [{ type: "PageBreak" }];
       at.context(path).say("a page break is a Document's, between its pages: left out");
