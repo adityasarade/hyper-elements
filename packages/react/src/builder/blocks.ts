@@ -227,19 +227,9 @@ function withoutDefaultLine(html: string): string {
   return depth === 0 ? inner : html;
 }
 
-/** Markup only classic Outlook reads: an Email's Svg's PNG is in one (an Svg's block, as render() writes it). */
-const OUTLOOK_ONLY = /<!--\[if mso\]>/g;
-
 function html(values: Values, context: Context): Node[] {
   const hidden = readHidden("html", "Html", values, context.say);
-  const given = withParagraphMargin(typeof values.html === "string" ? withoutDefaultLine(values.html) : "", "margin:0");
-  const safe = context.safe(given);
-  // A sanitizer that drops comments drops classic Outlook's markup with them: an Svg's PNG, which Outlook shows in
-  // place of the SVG it can't (Outlook 2019 shows a broken image).
-  if ((safe.match(OUTLOOK_ONLY)?.length ?? 0) < (given.match(OUTLOOK_ONLY)?.length ?? 0)) {
-    context.say("toSafeHtml removed markup only classic Outlook reads (<!--[if mso]>): an Svg's PNG goes with it, and classic Outlook shows its SVG as a broken image. Let the sanitizer keep conditional comments");
-  }
-  const node = make("Html", { id: givenId(values), props: { html: safe, ...hidden.props } });
+  const node = make("Html", { id: givenId(values), props: { html: context.safe(withParagraphMargin(typeof values.html === "string" ? withoutDefaultLine(values.html) : "", "margin:0")), ...hidden.props } });
   return [placed(node, sides(values.containerPadding ?? "10px"), undefined, sides(obj(obj(values._override).mobile).containerPadding), { ...hiddenOn(values), ...hidden.hidden })];
 }
 

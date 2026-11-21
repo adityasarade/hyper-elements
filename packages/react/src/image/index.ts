@@ -9,15 +9,14 @@
  * Nothing is fetched: fonts are given (`fonts`, or the Canvas's `fonts` as data: URIs), and so are images (`images`
  * by URL, or data: URIs). An image needs at least one font: its text is drawn with the fonts it's given.
  * templateAssets() lists the fonts and images a template names, for a tool that loads them.
- *
- * pngRasterizer() draws an Email's Svgs as PNGs for classic Outlook, for render()'s `assets` option.
  */
-import { assetParts, fontStack, LAYOUT_VERSION, resvgPng, satoriResvg, writeCanvas, type Asset, type Font } from "@hyper-elements/core/image";
+import { assetParts, fontStack, LAYOUT_VERSION, satoriResvg, sha256Hex, utf8Encode, writeCanvas, type Asset, type Font } from "@hyper-elements/core/image";
+import { installedVersion } from "./engines";
 import { measure, type ImageLayout } from "./layout";
 
 export type { FitResult, GlyphResult, ImageLayout, LaidOutNode } from "./layout";
 import type { FontFace } from "@hyper-elements/core";
-import { ElementsError, prepare, type Diagnostic, type Rasterizer, type ResolvedNode, type Snapshot } from "@hyper-elements/react";
+import { ElementsError, prepare, type Diagnostic, type PictureDrawer, type ResolvedNode, type Snapshot } from "@hyper-elements/react";
 import type { ReactElement } from "react";
 
 export interface ImageFont {
@@ -77,25 +76,6 @@ export async function renderImage(element: ReactElement | Snapshot, options: Ima
 }
 
 /**
- * Draws each Svg of an Email as a PNG for classic Outlook, which shows a hosted SVG as a broken image (Outlook 2019):
- * for render()'s `assets` option. `scale` is pixels per px (2, the default, is sharp on high-density screens); it's in
- * the file's name (`<hash>-2x.png`), so another scale is another file. It draws with resvg alone, but this entry loads
- * Satori too: install both optional peers, `@resvg/resvg-js` and `satori`.
- *
- *   const { html, files } = await render(<Welcome />, {
- *     assets: { baseUrl: "https://cdn.example.com/email/", rasterize: pngRasterizer() },
- *   });
- *   // upload each of files to baseUrl, then send html
- */
-export function pngRasterizer(options: { scale?: number } = {}): Rasterizer {
-  const scale = options.scale ?? 2;
-  if (!Number.isInteger(scale) || scale < 1 || scale > 4) throw new TypeError(`[Elements] pngRasterizer({ scale }) takes a whole number from 1 to 4, not ${String(options.scale)}`);
-  // At most 8,192 px on a side: a drawing that large is drawn smaller (classic Outlook shows it at its width anyway).
-  const MAX = 8192;
-  return { suffix: `${scale}x`, extension: "png", contentType: "image/png", draw: ({ svg, width, height }) => resvgPng(svg, Math.min(width * scale, MAX, (MAX * width) / height)) };
-}
-
-/**
  * A Canvas measured with its fonts, nothing drawn: each fitted node's size, each node's box, the glyphs no font covers,
  * and what runs past the Canvas (Decision 18). What a template's `checkLayout()` reads. Rejects as `renderImage()` does
  * for a design it can't read; the measured findings are in `diagnostics`.
@@ -114,6 +94,11 @@ export async function layoutImage(element: ReactElement | Snapshot, options: Omi
 function canvasFor(element: ReactElement | Snapshot, options: Omit<ImageOptions, "format">) {
   const { root, diagnostics, pending } = canvasOf(element);
   const strict = options.strict === true || pending.template !== undefined;
+  return { ...readied(root, diagnostics, options, strict), pending };
+}
+
+/** A laid-out Canvas read with its fonts and images, ready to measure (canvasFor's, and each of an Email's pictures'). */
+function readied(root: ResolvedNode, diagnostics: Diagnostic[], options: Omit<ImageOptions, "format">, strict: boolean) {
   const found: Diagnostic[] = [];
   const fonts = fontsOf(root, options.fonts ?? [], found, strict);
   const images = imageSources(root, options.images ?? {}, found);
@@ -122,7 +107,86 @@ function canvasFor(element: ReactElement | Snapshot, options: Omit<ImageOptions,
   if (found.some((d) => d.severity === "error" && (d.code === "image/image" || d.path === "root"))) throw new ElementsError([...diagnostics, ...found]);
   found.push(...missingFaces(root, fonts, strict));
   const families = new Set(fonts.map((font) => font.family.toLowerCase()));
-  return { context: { root, fonts, families, fallback: fonts[0]?.family ?? "", image: (src: string) => images.get(src) }, diagnostics, found, pending, strict };
+  return { context: { root, fonts, families, fallback: fonts[0]?.family ?? "", image: (src: string) => images.get(src) }, diagnostics, found, strict };
+}
+
+export interface EmailImagesOptions {
+  /** Font files, by the family the Email's text names: a picture's text is drawn with these, and needs its family's. */
+  fonts?: ImageFont[];
+  /** Image files (PNG, JPEG, GIF, SVG), by the URL an Image in a Canvas gives: nothing is fetched. */
+  images?: Record<string, Uint8Array | ArrayBuffer>;
+  /** Pixels per px: 2, the default, is sharp on a phone's screen. In each file's name (`<hash>-2x.png`). */
+  scale?: number;
+}
+
+/**
+ * Draws the pictures of an Email (each Canvas in it, and each Svg on its own) as PNGs, for render()'s `assets`:
+ *
+ *   const { html, files } = await render(<Launch />, {
+ *     assets: { baseUrl: "https://cdn.example.com/email/", draw: emailImages({ fonts: [{ family: "Inter", src: inter }] }) },
+ *   });
+ *   // upload each of files to baseUrl, then send html
+ *
+ * A font its text names and isn't given is an error, not a fallback: the picture would be in another type than the
+ * email around it. Its key, in each file's name, is what it draws with: the scale, the fonts' and images' bytes, and
+ * the versions of this package, Satori and resvg, so another of any is another file (one cached for good stays right).
+ */
+export function emailImages(options: EmailImagesOptions = {}): PictureDrawer {
+  const scale = options.scale ?? 2;
+  if (!Number.isInteger(scale) || scale < 1 || scale > 4) throw new TypeError(`[Elements] emailImages({ scale }) takes a whole number from 1 to 4, not ${String(options.scale)}`);
+  const fonts = options.fonts ?? [];
+  const images = options.images ?? {};
+  const digest = (bytes: Uint8Array | ArrayBuffer) => sha256Hex(new Uint8Array(buffer(bytes)));
+  const versions = { "@hyper-elements/react": installedVersion("@hyper-elements/react"), satori: installedVersion("satori"), "@resvg/resvg-js": installedVersion("@resvg/resvg-js") };
+  const unread = Object.keys(versions).filter((name) => versions[name as keyof typeof versions] === "unknown");
+  let said = false;
+  const key = sha256Hex(
+    utf8Encode(
+      JSON.stringify({
+        drawer: 1,
+        elements: versions["@hyper-elements/react"],
+        satori: versions.satori,
+        resvg: versions["@resvg/resvg-js"],
+        scale,
+        fonts: fonts.map((font) => [font.family, font.weight ?? 400, font.style ?? "normal", digest(font.src)]),
+        images: Object.keys(images)
+          .sort()
+          .map((url) => [url, digest(images[url]!)]),
+      })
+    )
+  );
+  return {
+    key,
+    suffix: `${scale}x`,
+    extension: "png",
+    contentType: "image/png",
+    async draw({ root, layout }) {
+      readable(layout, "image");
+      const { context, diagnostics, found, strict } = readied(root, [], { fonts, images, scale }, false);
+      const { layout: measured, sizes } = await measure(context, { strict, scale });
+      // A font or a character with no file is an error: the picture would be in another type than the email around it,
+      // or show boxes. What runs past it is a warning, as for any Canvas. Fonts are given to emailImages() here.
+      const all = [...diagnostics, ...found, ...otherFamilies(root, context.fonts), ...measured.diagnostics].map((d) => ({
+        ...d,
+        ...(d.code === "image/font" || d.code === "image/glyph" ? { severity: "error" as const } : {}),
+        message: d.message.replace(/renderImage's fonts option/g, "emailImages({ fonts })"),
+      }));
+      if (all.some((d) => d.severity === "error")) throw new ElementsError(all);
+      const canvas = writeCanvas(root, { families: context.families, fallback: context.fallback, fonts: context.fonts, image: context.image, sizes });
+      // Where a version can't be read (an app bundled into one file), names don't follow it: said once.
+      if (unread.length && !said) {
+        said = true;
+        all.push({
+          code: "image/engine-version",
+          severity: "warning",
+          message: `${unread.join(" and ")}'s installed version can't be read here (an app bundled into one file): the pictures' file names don't change with it, so a file cached for good may be another version's drawing`,
+          fix: `keep ${unread.join(" and ")} in node_modules beside the app, unbundled`,
+          path: "root",
+        });
+      }
+      return { bytes: await satoriResvg(canvas, { format: "png", scale }), diagnostics: all };
+    },
+  };
 }
 
 /** Given to prepare(): this entry decides a template's measured rules, so they're handed over, not refused. */
@@ -236,6 +300,34 @@ function fontsOf(root: ResolvedNode, given: ImageFont[], found: Diagnostic[], st
 }
 
 /** Text in a weight or style of a family that isn't given: drawn in the nearest given (a browser would fake it). */
+/**
+ * Text whose font stack names no family given: drawn in the first font given, another type than the email around it
+ * shows. Said once for each stack (an Email's pictures: emailImages()).
+ */
+function otherFamilies(root: ResolvedNode, fonts: Font[]): Diagnostic[] {
+  const given = new Set(fonts.map((font) => font.family.toLowerCase()));
+  const fallback = fonts[0]?.family;
+  const out = new Map<string, Diagnostic>();
+  const visit = (node: ResolvedNode) => {
+    if (node.hidden?.desktop) return;
+    if (fallback && node.children.some((child) => typeof child === "string" && child.trim())) {
+      const stack = String(node.text.fontFamily);
+      if (!fontStack(stack).some((name) => given.has(name.toLowerCase())) && !out.has(stack)) {
+        out.set(stack, {
+          code: "image/font-family",
+          severity: "warning",
+          message: `Text in ${stack} is drawn in ${fallback}: none of its fonts is given. Give its file in emailImages({ fonts })`,
+          path: node.path,
+          ...(node.id ? { nodeId: node.id } : {}),
+        });
+      }
+    }
+    for (const child of node.children) if (typeof child !== "string") visit(child);
+  };
+  visit(root);
+  return [...out.values()];
+}
+
 function missingFaces(root: ResolvedNode, fonts: Font[], strict = false): Diagnostic[] {
   const out = new Map<string, Diagnostic>();
   const given = new Map<string, Font[]>();

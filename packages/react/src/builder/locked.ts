@@ -3,7 +3,7 @@
  * markup for it, in an HTML block of the builder's. It can be moved, duplicated or deleted there, not edited; it
  * comes back as an `Html` block.
  */
-import { renderTemplate, type EmailAssetsOption, type Json, type Node } from "@hyper-elements/core";
+import { renderTemplate, type Json, type Node } from "@hyper-elements/core";
 import { block, type Block } from "./design";
 import { withParagraphMargin } from "./text";
 import { cssSides } from "./values";
@@ -18,18 +18,14 @@ export function lockedHtml(node: Node, width: number, root: Node, components: un
   return { ...block("html"), values: { html: renderSubtree(node, width, root, components, inherited, themed), containerPadding: cssSides(around) } };
 }
 
-/**
- * The template's theme (read already), and the tokens of each scope around a node, outermost first; in an Email, where
- * its Svgs' files are (render()'s `assets`), so an Svg's block is the markup render() writes, linking the same files.
- */
+/** The template's theme (read already), and the tokens of each scope around a node, outermost first. */
 export interface Themed {
   theme?: { [key: string]: Json };
   scopes?: ReadonlyArray<{ [key: string]: Json }>;
-  assets?: EmailAssetsOption;
 }
 
 /** A node drawn on its own by the new engine, at its width, in the root's output: its HTML, with its stylesheet. */
-function renderSubtree(node: Node, width: number, root: Node, components: unknown, inherited: Record<string, Json>, { theme, scopes = [], assets }: Themed): string {
+function renderSubtree(node: Node, width: number, root: Node, components: unknown, inherited: Record<string, Json>, { theme, scopes = [] }: Themed): string {
   // Drawn at its width in a page at least as wide as a root can be (a Document's block as a page's), the root's text
   // styles around it, and the text styles its ancestors give it in a Column around it.
   const drawn = Math.round(width);
@@ -47,7 +43,7 @@ function renderSubtree(node: Node, width: number, root: Node, components: unknow
   // the block, so the block painting the body's over them would hide a Section's own.
   const { backgroundColor: _, ...rootStyle } = root.style ?? {};
   const page: Node = { type: root.type === "Email" ? "Email" : "Page", props: { width: Math.max(200, drawn), ...breakpoints }, style: rootStyle, children: [placed] };
-  const { head, body } = renderTemplate(theme ? { root: page, theme, merged: true } : { root: page }, { components: components as never, ...(assets ? { assets } : {}) });
+  const { head, body } = renderTemplate(theme ? { root: page, theme, merged: true } : { root: page }, { components: components as never });
   const style = /<style>[\s\S]*?<\/style>/.exec(head)?.[0] ?? "";
   // A page's <main> is centered by its margins: in a flex box, which the builder may draw a block in, those shrink it to its words. It fills its block.
   const filled = body.replace(/^<main style="/, '<main style="width:100%;');

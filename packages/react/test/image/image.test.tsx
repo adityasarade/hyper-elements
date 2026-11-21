@@ -318,7 +318,8 @@ describe("renderImage", () => {
 
     it("has a sample of each (a new block needs its case in the writer, and one here)", () => {
       const takes = new Set(COMPONENTS.Canvas.children.categories);
-      const blocks = Object.values(COMPONENTS).filter((definition) => definition.categories.some((category) => takes.has(category)));
+      // A root isn't a block in it (a Canvas is one only in an Email, as a picture).
+      const blocks = Object.values(COMPONENTS).filter((definition) => !definition.categories.includes("root") && definition.categories.some((category) => takes.has(category)));
       expect(Object.keys(SAMPLES).sort()).toEqual(blocks.map((definition) => definition.type).sort());
     });
 

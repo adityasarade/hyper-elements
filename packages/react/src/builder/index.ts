@@ -4,7 +4,6 @@
  * tool has no field for is a hidden property of that tool (manifest.ts), kept in the design with no editor yet. What
  * the builder can't arrange comes back as the builder holds it: the same look, flatter.
  */
-import type { EmailAssetsOption } from "@hyper-elements/core";
 import type React from "react";
 import { printTemplate, toElement } from "./print";
 import { readDesign, type DisplayMode } from "./read";
@@ -14,18 +13,9 @@ import { writeDesign, type Design, type DesignResult } from "./write";
 
 export type { Design, DesignResult, DisplayMode };
 
-export interface ToDesignOptions {
-  /**
-   * An Email's Svgs, as `render()` writes them: image files the email links to, under `baseUrl` (classic Outlook's
-   * PNG among them, named by `rasterize`). Pass the same `assets` as to `render()`, and upload the files `render()`
-   * returns: the design links to the same ones. An Email with an Svg needs it.
-   */
-  assets?: EmailAssetsOption;
-}
-
 /** A template in the new components (an `<Email>`, a `<Page>` or a `<Document>`) as the builder's design JSON. */
-export function toDesign(element: React.ReactElement, options: ToDesignOptions = {}): DesignResult {
-  return writeDesign(element, options);
+export function toDesign(element: React.ReactElement): DesignResult {
+  return writeDesign(element);
 }
 
 export interface TemplateResult {

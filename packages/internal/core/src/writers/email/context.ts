@@ -9,18 +9,8 @@ import type { Json } from "../../model";
 import type { ResolvedNode } from "../../resolve";
 import type { Html } from "../jsx";
 import type { Declarations } from "../shared/css";
-import type { EmailAssetsOption } from "./assets";
 
 export interface EmailOptions {
-  /**
-   * Where the image files the email links to are hosted, and how classic Outlook's are drawn: an Email with an Svg
-   * needs it (email clients drop inline SVG). `render()` returns the files in `files`; upload them to `baseUrl`.
-   *
-   *   render(email, { assets: { baseUrl: "https://cdn.example.com/email/", rasterize: pngRasterizer() } })
-   *
-   * with `pngRasterizer` from `@hyper-elements/react/image`.
-   */
-  assets?: EmailAssetsOption;
   /** How a merge tag is written (default `{{name}}`): into the HTML as it is, the name in it escaped. */
   mergeTag?: (name: string) => string;
   /** What every class name in the stylesheet starts with (default "e"). */

@@ -1,7 +1,6 @@
 /** toDesign(): a template as the builder's design JSON, every block a tool where one shows it, and what it can't hold said. */
-import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
-import { Button, Canvas, Column, component, Document, Email, Grid, Heading, Html, Image, Layer, LineBreak, Link, List, ListItem, Page, PageBreak, PageFooter, PageHeader, PageNumber, Text, prop, Rect, Row, Span, Section, Svg, Table, TableCell, TableRow, render } from "../primitives";
+import { Button, Canvas, Column, component, Document, Email, Grid, Heading, Html, Image, Layer, LineBreak, Link, List, ListItem, Page, PageBreak, PageFooter, PageHeader, PageNumber, Text, prop, Rect, Row, Span, Section, Svg, Table, TableCell, TableRow } from "../primitives";
 import { airbnb, stripe } from "../primitives/testing/codemod-examples";
 import { collectTemplate } from "../primitives/collect";
 import { withParagraphMargin } from "./text";
@@ -50,102 +49,6 @@ describe("toDesign", () => {
     expect(String(contents[2].values.html)).toContain("<svg");
     expect(String(contents[4].values.html)).toContain("Mine");
     expect(report.filter((line) => line.includes("it's an HTML block")).map((line) => line.split(":")[0])).toEqual(["root.children[1]", "root.children[2]", "root.children[3].children[0].children[0]", "root.children[4]"]);
-  });
-
-  describe("an Email's Svg", () => {
-    const stub = { suffix: "2x", extension: "png" as const, contentType: "image/png", draw: () => Uint8Array.of(1) };
-    const assets = { baseUrl: "https://cdn.example.com/email/", rasterize: stub };
-    const moon = (
-      <Email>
-        <Text>Tonight</Text>
-        <Svg width={40} height={20} title="The moon">
-          <Rect width={40} height={20} style={{ fill: "#1e1b4b" }} />
-        </Svg>
-      </Email>
-    );
-    /** The two images render() writes for the Svg: classic Outlook's PNG and everyone else's SVG, in their conditional comments. */
-    const svgImages = (html: string) => /<!--\[if mso\]><img[^>]*><!\[endif\]--><!--\[if !mso\]><!--><img[^>]*><!--<!\[endif\]-->/.exec(html)?.[0];
-
-    it("is an HTML block of the markup render() writes, linking the same files", async () => {
-      const { design } = toDesign(moon, { assets });
-      const block = blocks(design).find((content) => content.type === "html")!;
-      const rendered = await render(moon, { assets });
-      const images = svgImages(rendered.html)!;
-      expect(images).toContain(`https://cdn.example.com/email/${rendered.files![1]!.name}`);
-      expect(images).toContain(`https://cdn.example.com/email/${rendered.files![0]!.name}`);
-      // Byte for byte: an edit in the builder exports what render() sends, to every client.
-      expect(svgImages(String(block.values.html))).toBe(images);
-      expect(String(block.values.html)).not.toContain("<svg");
-    });
-
-    it("needs assets: without them it can't go to the builder, and says what to pass", () => {
-      expect(() => toDesign(moon)).toThrow(/root\.children\[1\]: an Svg in an Email is an image file the email links to, in the builder as in render\(\): pass toDesign\(email, \{ assets \}\)/);
-      // A bad assets option is the builder's report too, not an error from inside a block.
-      expect(() => toDesign(moon, { assets: { baseUrl: "javascript:alert(1)", rasterize: false } })).toThrow(/can't go to the builder:\nroot: assets\.baseUrl/);
-      // An Email without one, and a Page's or a Document's Svg (inline SVG, which browsers draw), need none.
-      expect(() => toDesign(<Email><Text>Hi</Text></Email>)).not.toThrow();
-      expect(String(blocks(toDesign(<Page><Svg width={20} height={20}><Rect width={20} height={20} /></Svg></Page>).design)[0]!.values.html)).toContain("<svg");
-    });
-
-    it("hidden everywhere, needs assets as render() does, and links only files render() returns", async () => {
-      const hidden = (
-        <Email>
-          <Text>Tonight</Text>
-          <Column hidden={{ desktop: true, mobile: true }}>
-            <Svg width={40} height={20}>
-              <Rect width={40} height={20} style={{ fill: "#1e1b4b" }} />
-            </Svg>
-          </Column>
-        </Email>
-      );
-      // The builder's report, never an error from inside a block.
-      expect(() => toDesign(hidden)).toThrow(/can't go to the builder:\nroot\.children\[1\]\.children\[0\]: an Svg in an Email/);
-      const files = new Set((await render(hidden, { assets })).files!.map((file) => `https://cdn.example.com/email/${file.name}`));
-      const linked = JSON.stringify(toDesign(hidden, { assets }).design).match(/https:\/\/cdn\.example\.com\/email\/[^"\\]+/g)!;
-      expect(linked.length).toBeGreaterThan(0);
-      expect(linked.filter((url) => !files.has(url))).toEqual([]);
-    });
-
-    it("sits where render() places it across what holds it: a centered Section's Svg is centered in its block", async () => {
-      const centered = (
-        <Email>
-          <Section style={{ alignItems: "center" }}>
-            <Svg width={40} height={20}>
-              <Rect width={40} height={20} />
-            </Svg>
-          </Section>
-        </Email>
-      );
-      // The cell holding the Svg's table says where it sits (Word reads align on a cell). The block is an email of its
-      // own, centered in the builder's column whatever it holds: only the cell around the Svg says where the Svg sits.
-      const placed = (html: string) => new JSDOM(html).window.document.querySelector("img")!.closest("table")!.parentElement!.getAttribute("align");
-      expect(placed((await render(centered, { assets })).body)).toBe("center");
-      expect(placed(String(blocks(toDesign(centered, { assets }).design).find((content) => content.type === "html")!.values.html))).toBe("center");
-    });
-
-    it("with rasterize: false, is the SVG alone, and the report says classic Outlook gets no PNG", () => {
-      const { design, report } = toDesign(moon, { assets: { baseUrl: "https://cdn.example.com/email/", rasterize: false } });
-      const html = String(blocks(design).find((content) => content.type === "html")!.values.html);
-      expect(html).not.toContain("[if mso]><img");
-      expect(html).toMatch(/<img src="https:\/\/cdn\.example\.com\/email\/[0-9a-f]{32}\.svg"/);
-      expect(report.some((line) => line.startsWith("root.children[1]: assets.rasterize is false"))).toBe(true);
-    });
-
-    it("says where a sanitizer took classic Outlook's markup out on the way back", () => {
-      const { design } = toDesign(moon, { assets });
-      // A sanitizer that drops comments, as some do by default.
-      const dropsComments = (html: string) => html.replace(/<!--[\s\S]*?-->/g, "");
-      expect(fromDesign(design, { toSafeHtml: dropsComments }).report.some((line) => line.includes("toSafeHtml removed markup only classic Outlook reads"))).toBe(true);
-      // One that keeps them says nothing.
-      expect(fromDesign(design, { toSafeHtml: (html) => html }).report.some((line) => line.includes("toSafeHtml removed"))).toBe(false);
-    });
-
-    it("comes back from the builder as an Html block that renders the same images", async () => {
-      const { design } = toDesign(moon, { assets });
-      const back = fromDesign(design);
-      const again = await render(back.element);
-      expect(svgImages(again.html)).toBe(svgImages((await render(moon, { assets })).html));
-    });
   });
 
   it("writes an HTML block of the new engine's markup without the root's background, which the builder draws behind it", () => {

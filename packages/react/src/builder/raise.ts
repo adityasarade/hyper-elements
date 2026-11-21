@@ -9,7 +9,7 @@
  * the builder's table doesn't draw as it is in an Email or a Page, is an HTML block of the new engine's own markup,
  * and said.
  */
-import { checkAssetsOption, prepareTemplate, svgsIn, type EmailAssetsOption, type Json, type Node, type ResolvedNode } from "@hyper-elements/core";
+import { prepareTemplate, type Json, type Node, type ResolvedNode } from "@hyper-elements/core";
 import type React from "react";
 import { collectTemplate, snapshotData } from "../primitives/collect";
 import { add, boxRowOf, builderId, gapOf, hasBox, hiding, linesOf, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";
@@ -36,12 +36,7 @@ const PAINT = ["backgroundColor", "border", "borderRadius"];
 /** What a browser gives text where nothing says otherwise. */
 const BROWSER_TEXT: Record<string, unknown> = { fontSize: 16, fontStyle: "normal", letterSpacing: 0, textAlign: "left", textTransform: "none" };
 
-export interface RaiseOptions {
-  /** An Email's Svgs as image files under `baseUrl` (render()'s `assets`): their HTML blocks link to the same files. */
-  assets?: EmailAssetsOption;
-}
-
-export function raise(element: React.ReactElement, options: RaiseOptions = {}): Raised {
+export function raise(element: React.ReactElement): Raised {
   const report: string[] = [];
   // The builder takes a design's element; a snapshot is the guardrail path's, which the builder isn't part of.
   if (snapshotData(element)) return { body: null, report: ["builder/snapshot: toDesign() takes a design's element, not a snapshot"] };
@@ -67,23 +62,6 @@ export function raise(element: React.ReactElement, options: RaiseOptions = {}): 
   const prepared = prepareTemplate(document, { components });
   if (!prepared.resolved) return { body: null, report: prepared.diagnostics.filter((d) => d.severity === "error").map((d) => `${d.path}: ${d.message}`) };
   const resolvedRoot = prepared.resolved.root;
-  // An Email's Svg is an image file the email links to (Gmail and Outlook drop inline SVG), in the builder's HTML block
-  // too: the same markup render() writes, linking the same files, so `assets` is needed where an Email has one.
-  const badAssets = checkAssetsOption(options.assets);
-  if (badAssets.length) return { body: null, report: badAssets.map((d) => `${d.path}: ${d.message}`) };
-  // Every Svg that draws something, hidden or not, as render() gives each its files: a hidden one is in the builder's
-  // design too, where it can be shown again.
-  const svg = root.type === "Email" ? svgsIn(resolvedRoot)[0] : undefined;
-  if (svg && options.assets?.rasterize === false) report.push(`${prepared.resolved.templatePath?.(svg.path) ?? svg.path}: assets.rasterize is false: classic Outlook, which shows a hosted SVG as a broken image, gets no PNG of the Email's Svgs`);
-  if (svg && !options.assets) {
-    const where = prepared.resolved.templatePath?.(svg.path) ?? svg.path;
-    return {
-      body: null,
-      report: [
-        `${where}: an Svg in an Email is an image file the email links to, in the builder as in render(): pass toDesign(email, { assets }) with the assets render() gets ({ baseUrl, rasterize: pngRasterizer() }, pngRasterizer from @hyper-elements/react/image), and upload the files render() returns`,
-      ],
-    };
-  }
   const resolved = new Map<string, ResolvedNode>();
   const index = (node: ResolvedNode) => {
     resolved.set(node.path, node);
@@ -129,18 +107,7 @@ export function raise(element: React.ReactElement, options: RaiseOptions = {}): 
     locked: (node, path, why, around) => {
       report.push(`${path}: ${why}: ${root.type === "Document" ? `it's an HTML block of its own markup in the design: ${NOT_IN_DOCUMENTS}` : "it's an HTML block of its own markup in the builder (it can be moved, not edited)"}`);
       const own = at(path);
-      // Where it sits across a stack that holds it (a Section's or a Column's alignItems), as render() places it: the
-      // block is the column's width, and what's narrower sits in it as it does there. A Row's alignItems is down it,
-      // which the builder's row holds; a root's is the block's own root's already.
-      const parent = resolved.get(path.replace(/\.children\[\d+\]$/, ""));
-      const align = parent && ACROSS_STACKS.has(parent.type) ? parent.style.alignItems : undefined;
-      return put(
-        lockedHtml(node, own.width ?? own.available ?? Number(resolvedRoot.width), root, components, around, { ...inheritedText(path), ...(align !== undefined ? { alignItems: align } : {}) }, {
-          theme: document.theme,
-          scopes: enclosing.get(node),
-          ...(root.type === "Email" && options.assets ? { assets: options.assets } : {}),
-        })
-      );
+      return put(lockedHtml(node, own.width ?? own.available ?? Number(resolvedRoot.width), root, components, around, inheritedText(path), { theme: document.theme, scopes: enclosing.get(node) }));
     },
     stack: (node, path, around) => stack(node, path, at(path), around),
     textAround,
@@ -349,9 +316,6 @@ export function raise(element: React.ReactElement, options: RaiseOptions = {}): 
   const previewText = root.type === "Email" && root.props?.previewText ? { previewText: String(root.props.previewText) } : {};
   return { body: { root: root.type, fields: common, ...previewText, values: bodyHidden, rows: body }, report };
 }
-
-/** What stacks its children, so that its alignItems places them across it (a Row's, a Grid's and a Layer's is down). */
-const ACROSS_STACKS = new Set(["Section", "Column", "DocumentPage", "PageHeader", "PageFooter"]);
 
 /** How many rows of the builder's children make (a Grid's rows each, runs of blocks one). */
 function countRows(children: Child[]): number {

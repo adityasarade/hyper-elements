@@ -107,46 +107,6 @@ function withinReach(svg: string, resvg: Resvg, width: number, height: number): 
   return `${open}${kept.join("")}</svg>`;
 }
 
-/**
- * An Svg's shapes (the elements its <svg> holds, each one, as written: svgFile()) without those wholly outside what it
- * shows. resvg ends the process on a layer far outside the canvas (withinReach), and the canvas clips what lies
- * outside it, so leaving those out draws the same picture. Each shape's box (resvg's, its stroke included) is in the
- * viewBox's units: it's placed as the SVG places it, the viewBox scaled to fit the width and height and centered
- * (SVG's default, xMidYMid meet, which svgFile() keeps), so a letterboxed drawing's margin counts as shown.
- */
-function withinView(svg: string, resvg: Resvg): string | undefined {
-  const width = resvg.width;
-  const height = resvg.height;
-  const view = (/\bviewBox="([^"]*)"/.exec(svg)?.[1] ?? "").trim().split(/[\s,]+/).filter(Boolean).map(Number);
-  const [vx = 0, vy = 0, vw = width, vh = height] = view.length === 4 && view.every(Number.isFinite) && view[2]! > 0 && view[3]! > 0 ? view : [];
-  const scale = Math.min(width / vw, height / vh);
-  const left = (width - vw * scale) / 2 - vx * scale;
-  const top = (height - vh * scale) / 2 - vy * scale;
-  // A pixel around the canvas: antialiasing reaches it, and it keeps what touches an edge.
-  const outside = (b: { x: number; y: number; width: number; height: number }) =>
-    b.x * scale + left > width + 1 || b.y * scale + top > height + 1 || (b.x + b.width) * scale + left < -1 || (b.y + b.height) * scale + top < -1;
-  const all = resvg.getBBox();
-  if (!all || !outside({ x: all.x, y: all.y, width: 0, height: 0 }) && !outside({ x: all.x + all.width, y: all.y + all.height, width: 0, height: 0 })) return undefined;
-  const { open, parts } = topLevel(svg);
-  const kept = parts.filter((part) => {
-    const own = new Resvg(`${open}${part}</svg>`, { font: { loadSystemFonts: false } }).getBBox();
-    return !own || !outside(own);
-  });
-  return `${open}${kept.join("")}</svg>`;
-}
-
-/**
- * SVG text drawn as a PNG `width` px wide, by resvg alone: an email's Svg for classic Outlook (shapes only, no text,
- * so no fonts and no Satori). System fonts aren't loaded: the same SVG is the same PNG on every machine. Shapes wholly
- * outside what it shows are left out first (withinView): resvg would end the process on one far out, and none shows.
- */
-export function resvgPng(svg: string, width: number): Uint8Array {
-  const options = { fitTo: { mode: "width" as const, value: Math.max(1, Math.round(width)) }, font: { loadSystemFonts: false } };
-  const resvg = new Resvg(svg, options);
-  const kept = withinView(svg, resvg);
-  return new Uint8Array((kept === undefined ? resvg : new Resvg(kept, options)).render().asPng());
-}
-
 export const satoriResvg: Engine = async (canvas, output) => {
   const tree = clean(createElement("div", { style: canvas.style }, ...canvas.children.map(block)));
   const fonts = canvas.fonts.map((font) => ({ name: font.family, data: font.data, weight: font.weight, style: font.style }));

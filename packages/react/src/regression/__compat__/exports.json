@@ -66,8 +66,8 @@
   "templateAssets"
  ],
  "./image": [
+  "emailImages",
   "layoutImage",
-  "pngRasterizer",
   "renderImage",
   "templateAssets"
  ],
