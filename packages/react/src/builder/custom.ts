@@ -8,7 +8,7 @@
  */
 import { checkDocument, ElementsError, expandDocument, propertyOf, registryOf, renderTemplate, type CustomDefinition, type Json, type LinkValue, type Node } from "@hyper-elements/core";
 import type { PropertyDefinition } from "../primitives/properties";
-import { listsEmpty } from "../primitives/properties/check";
+import { DECIMAL, listsEmpty } from "../primitives/properties/check";
 import { link } from "./blocks";
 import { block, type Block, type Hiding } from "./design";
 import { checkedControl, textField, unkeptValues } from "./field";
@@ -72,8 +72,8 @@ interface PropertyEditor {
   read?(value: unknown, say: (message: string) => void): unknown;
 }
 
-/** A number as a field of the builder's keeps one: the number, or its digits. */
-const numeric = (value: unknown): unknown => (typeof value === "string" && value.trim() !== "" && !Number.isNaN(Number(value)) ? Number(value) : value);
+/** A number as a field of the builder's keeps one: the number, or its digits as it's written in decimal ("0x10" isn't one, as its field says). */
+const numeric = (value: unknown): unknown => (typeof value === "string" && DECIMAL.test(value.trim()) ? Number(value) : value);
 const options = (values: readonly Json[]): Values => ({ options: values.map((value) => ({ label: String(value), value: String(value) })) });
 /** The builder's counter, which keeps whole numbers: from `min` (where there's none, below zero too, where its own floor is). */
 const counter = (min?: number, max?: number): PropertyEditor => ({ widget: "counter", data: { minValue: min ?? -1e9, ...(max === undefined ? {} : { maxValue: max }) }, read: numeric });

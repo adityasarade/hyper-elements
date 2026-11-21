@@ -527,6 +527,18 @@ describe("fromDesign with elements", () => {
     expect((await render(back.element)).text).toContain("0.25 -3 120 16");
   });
 
+  it("reads a saved number as it's written in decimal, as its field does: \"0x10\" isn't one", () => {
+    const Count = defineElement({ type: "acme.Count", label: "Count", props: { price: prop.number({ label: "Price", min: 0, default: 1.5 }) }, render: (p) => <Text>{String(p.price)}</Text> });
+    const { design } = toDesign(<Email><Count price={2.5} /></Email>, { customTools: true });
+    blocks(design)[0].values.price = "0x10";
+    const back = fromDesign(design, { elements: [Count] });
+    expect(back.report.join("\n")).toContain(`its price "0x10"`);
+    expect(back.code).not.toContain("<Count");
+    const { builder, tools } = fakeBuilder();
+    registerTools(builder, [Count]);
+    expect(() => tools[0].renderer.exporters.email({ price: "0x10" })).toThrow(`its price "0x10" isn't one it takes`);
+  });
+
   it("refuses two elements that are one tool", () => {
     const One = defineElement({ type: "x.Y1Zed", label: "One", props: {}, render: () => <Text>1</Text> });
     const Two = defineElement({ type: "x-y1.Zed", label: "Two", props: {}, render: () => <Text>2</Text> });

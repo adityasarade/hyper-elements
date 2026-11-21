@@ -12,7 +12,7 @@ export type CheckedValue = { readonly ok: true; readonly value: Json | undefined
 export const listsEmpty = (spec: PropSpec): boolean => ((spec.kind.jsonSchema() as { enum?: unknown[] }).enum ?? []).includes("");
 
 /** A number as it's written in decimal, with an exponent maybe: what a number's field holds. */
-const DECIMAL = /^[+-]?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i;
+export const DECIMAL = /^[+-]?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i;
 
 /**
  * Checks what a field holds (`held`, as its user left it) against the prop it edits (`spec`, an element's
