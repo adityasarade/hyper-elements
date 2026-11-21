@@ -129,8 +129,10 @@ try {
 | `id/invalid` | An `id` that doesn't start with a letter |
 | `mobile/invalid`, `hover/invalid`, `hidden/invalid` | A `mobile`, `hover` or `hidden` value that isn't one they take |
 | `target/unsupported` | An element the output can't draw, such as a `PageNumber` your own element renders in an email |
-| `email/svg-assets` | An Email with an `Svg` rendered without `assets`: its drawing is an image file the email links to (see [Email](/docs/outputs/email#an-svg)) |
-| `render/assets` | An `assets` option `render()` can't use: a `baseUrl` that isn't an http or https URL, or a `rasterize` that isn't one |
+| `email/canvas-assets` | An Email with a `Canvas` or an `Svg` rendered without `assets`: each is a picture, a PNG file the email links to (see [Email](/docs/outputs/email#a-canvas)) |
+| `render/assets` | An `assets` option `render()` can't use: a `baseUrl` that isn't an http or https URL, or a `draw` that isn't `emailImages()`'s |
+| `email/canvas-merge-tag` | A `MergeTag` in a picture: it would be drawn as written, never filled in |
+| `email/canvas-draw` | A picture that couldn't be drawn: the message says why |
 | `document/page-number` | A `PageNumber` in a Page or a Canvas, which have no pages |
 | `element/not-supported` | An element under a root that doesn't take it. The message names the roots that do |
 | `prop/not-supported` | A prop for some roots only (a `defineElement()`'s, made with `roots`), under another |
@@ -154,6 +156,15 @@ try {
 | `email/unsupported` | warning | A style or prop email can't show. The message says what it shows instead: `justifyContent: "space-between"` starts children at the left |
 | `email/degraded` | info | Not quite as the Email writer can write it: a wrapped Row's gap between its lines, or `overflow: "hidden"` on a Column or Grid without a box of its own |
 | `email/video-thumbnail` | warning | A Vimeo Video with no `thumbnail`, which can't be found without the network |
+| `email/canvas-merge-tag` | warning | Text in a picture that reads as a merge tag (`{{name}}`, `*\|FNAME\|*`): it's drawn as written |
+| `email/canvas-link` | warning | A link in a picture, which can't be clicked: put the picture in a `Link` instead |
+| `email/canvas-alt` | warning | A picture with text and no `alt` (an Svg's `title`): where images don't load, its text is lost |
+| `email/canvas-background` | warning | A picture with text and no `backgroundColor`: transparent, its text can be dark on dark in a dark mode |
+| `email/canvas-width` | warning | A picture wider than its column: classic Outlook shows it at its width, past the column |
+| `email/canvas-mobile` | warning | An Svg's phone styles: its picture is the same on phones |
+| `image/engine-version` | warning | Satori's or resvg's installed version can't be read (an app bundled into one file): the pictures' file names don't change with it |
+| `image/font-family` | warning | Text in a picture whose font stack names no font given to `emailImages()`: it's drawn in the first font given |
+| `email/canvas-text` | info | A picture holding body copy, which is best as `Text` |
 | `email/more-checks` | info | An Email checked without email-clients' plugin: where the email client checks are (`plugins: []` leaves it out) |
 | `email/clients-moved` | info | `emailClients` passed: the option moved to email-clients' plugin (until 0.5) |
 | `plugin/invalid` | warning | An entry of `plugins` that isn't a plugin (a Promise: `emailClients()` not awaited), or diagnostics a plugin returned that don't fit |
@@ -165,7 +176,6 @@ try {
 | `layout/overflow` | warning | Content wider than the space it has: a Row's children at their minimum widths, a box wider than its parent, a Table's columns wider than the Table |
 | `style/ignored` | warning | A style that does nothing where it is, such as `flex` on a child that isn't in a Row |
 | `email/layer-phone` | info | On phones, an email keeps a Layer's height and cuts its image at the sides |
-| `email/svg-outlook` | warning | `assets.rasterize` is `false`: classic Outlook, which shows a hosted SVG as a broken image, gets no PNG of the email's Svgs |
 | `hidden/everywhere` | warning | Hidden on phones and on desktop, so it never shows |
 | `theme/inherited` | warning | A theme's default for an element (`elements.Text.color`) replaces the body text's color, font, size or line height a box sets for what it holds. Set them with the roles `colors.foreground`, `fonts.body`, `fontSizes.body` and `lineHeights.body` |
 | `id/dropped` | info | An `id` inside one of your own elements used without one of its own is left out |

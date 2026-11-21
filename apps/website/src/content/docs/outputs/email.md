@@ -69,30 +69,47 @@ Web fonts in `fonts` are written as `@font-face` rules where classic Outlook doe
 
 Gmail clips a message after about 100 KB of HTML, and reads 16 KB of a `<style>`. `@hyper-elements/email-clients`' plugin warns about both when it's passed to `render()` (`email/size`, `email/style-size`).
 
-## An Svg
+## Seeing it in the clients
 
-Email clients drop inline SVG (Gmail, Outlook, Yahoo) and images whose file is in the email as a `data:` URI (every Gmail), so an `Svg` in an email is an image file the email links to. Say where the files are hosted with `render()`'s `assets` option, and upload the files it returns before you send:
+The email client emulator, `renderInEmailClients()` from `@hyper-elements/email-clients`, shows the email as each email client shows it, as HTML files you open in a browser, with what each client changed listed. Nothing is sent or uploaded. See [Email client emulator](/docs/email-client-emulator).
+
+## A Canvas
+
+A `Canvas` in an email is a picture: a banner, a chart or a badge, laid out as any Canvas is, drawn as a PNG file the email links to. An `Svg` on its own in an email is a picture too. Email clients drop inline SVG (Gmail, Outlook, Yahoo) and images given in the email as `data:` URIs (every Gmail), and classic Outlook shows a hosted SVG as a broken image, so every client gets the same PNG, at twice its size. Say where the files are hosted, and give the fonts its text is in, with `render()`'s `assets` option. Upload the files it returns before you send:
 
 ```tsx
 import { render } from "@hyper-elements/react";
-import { pngRasterizer } from "@hyper-elements/react/image";
+import { emailImages } from "@hyper-elements/react/image";
 
 const { html, files } = await render(<Launch />, {
-  assets: { baseUrl: "https://cdn.example.com/email/", rasterize: pngRasterizer() },
+  assets: {
+    baseUrl: "https://cdn.example.com/email/",
+    draw: emailImages({ fonts: [{ family: "Inter", src: interRegular }] }),
+  },
 });
 for (const file of files ?? []) await upload(`email/${file.name}`, file.bytes, file.contentType);
 ```
 
-- **Every client but classic Outlook** gets the SVG file, sharp at any size. Serve it as `image/svg+xml`: Gmail shows it converted to a PNG. Mail.ru shows no SVG at all.
-- **Classic Outlook** shows a hosted SVG as a broken image (Outlook 2019, in the real client), so it gets a PNG of the drawing, at twice its size by default, in a conditional comment only it reads. `pngRasterizer()` draws it with resvg. Install the image entry's optional peers, `@resvg/resvg-js` and `satori`, as for `renderImage()`: `@hyper-elements/react/image` loads both. `rasterize: false` leaves it out, with a warning.
-- **Each file is named by its drawing** (the SHA-256 of its SVG), so the same drawing is the same file in every email, and a name never changes what it shows: cache the files for good.
-- **Its padding, background and border** are a table cell around the image, which classic Outlook draws too. A transparent drawing sits on the email's background, or a dark-mode client's: give the Svg a `backgroundColor` where that matters.
+```tsx
+<Section>
+  <Link href="https://example.com/launch">
+    <Canvas width={552} height={240} alt="Launch night: doors at 8" style={{ backgroundColor: "#1e1b4b", padding: 32 }}>
+      <Heading>Launch night</Heading>
+      <Text>Doors at 8</Text>
+    </Canvas>
+  </Link>
+  <Text>Bring a friend: tickets are at the door.</Text>
+</Section>
+```
 
-Without `assets`, `render()` rejects an Email with an `Svg` (`email/svg-assets`), saying how to pass them. `validate()` doesn't need them. In the Unlayer builder, `toDesign()` takes the same `assets`: the Svg is an HTML block of this markup, linking the same files (see [Visual editor](/docs/guides/visual-editor#what-the-builder-holds)).
+- **It's drawn as a Canvas.** Its text takes the text styles and fonts of where it is in the email. `emailImages()` draws with Satori and resvg: install the image entry's optional peers, `satori` and `@resvg/resvg-js`, as for `renderImage()`. Nothing is fetched: give the file of each font its text is in (`fonts`: TTF, OTF or WOFF) and of each image in it (`images`, by URL). A web font the email loads (its `fonts`) without its file here, or a character no font given has, is an error. Text in another family whose file isn't given (a system font, as Georgia) is drawn in the first font given, with a warning. Text that runs past the picture is a warning, as for any Canvas.
+- **Each file is named by what's drawn and what draws it**: the scale, the fonts and images, and the versions of Elements, Satori and resvg. The same picture is the same file, and a name never changes what it shows, so cache the files for good.
+- **Where images don't load** (classic Outlook doesn't load them by default), it shows its `alt` on its background color, in a color that reads on it. Give a Canvas with text an `alt` that says what it says, and a `backgroundColor`: a transparent picture's dark text can vanish in a dark mode.
+- **Put it in a `Link` to link it.** A link inside it is part of the picture, and can't be clicked.
+- **Keep body copy in `Text`.** Text in a picture doesn't show where images don't load, can't be selected or found, and scores worse with spam filters. A `MergeTag` in a picture would be drawn as written, never filled in: that's an error.
+- **Make it no wider than its column.** Phones and most clients shrink it to fit, but classic Outlook shows it at its width.
 
-## Seeing it in the clients
-
-The email client emulator, `renderInEmailClients()` from `@hyper-elements/email-clients`, shows the email as each email client shows it, as HTML files you open in a browser, with what each client changed listed. Nothing is sent or uploaded. See [Email client emulator](/docs/email-client-emulator).
+Without `assets`, `render()` rejects an Email with a Canvas or an Svg (`email/canvas-assets`), saying what to pass. `validate()` doesn't need them. In the Unlayer builder, `toDesign()` takes the same `assets`: each picture is an image linking the same file (see [Visual editor](/docs/guides/visual-editor#what-the-builder-holds)).
 
 ## What email can't do
 

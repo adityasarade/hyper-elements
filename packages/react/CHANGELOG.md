@@ -4,42 +4,49 @@ Versions before 0.3.0 were published as `@unlayer/react-elements`.
 
 ## Unreleased
 
-### An Svg in an Email
+### A Canvas in an Email
 
-An `Svg` and its shapes go in an Email now. Email clients drop inline SVG and `data:` images, so each Svg is an image
-file the email links to: `render()`'s new `assets` option says where the files are hosted, and `render()` returns them
-in `files` to upload there.
+A `Canvas` goes in an Email now, as a picture: a banner, a chart or a badge, laid out as any Canvas is and drawn as a
+PNG file the email links to. An `Svg` on its own in an Email is a picture too (it was an error before). Email clients
+drop inline SVG and `data:` images, and classic Outlook shows a hosted SVG as a broken image, so every client gets the
+same PNG, at twice its size. `render()`'s new `assets` option says where the files are hosted and what draws them, and
+`render()` returns them in `files` to upload there.
 
 ```tsx
-import { pngRasterizer } from "@hyper-elements/react/image";
+import { emailImages } from "@hyper-elements/react/image";
 
 const { html, files } = await render(<Launch />, {
-  assets: { baseUrl: "https://cdn.example.com/email/", rasterize: pngRasterizer() },
+  assets: { baseUrl: "https://cdn.example.com/email/", draw: emailImages({ fonts: [{ family: "Inter", src: inter }] }) },
 });
 ```
 
-- Every client but classic Outlook gets the SVG file. Classic Outlook shows a hosted SVG as a broken image (Outlook
-  2019 in the real client), so it gets a PNG of the drawing at twice its size, in a conditional comment only it reads.
-  `pngRasterizer()` (from `@hyper-elements/react/image`, whose optional peers `@resvg/resvg-js` and `satori` it needs
-  installed, as `renderImage()` does) draws it, leaving out shapes far outside the drawing and at most 8,192 px on a
-  side; `rasterize: false` leaves the PNG out, with a warning (`email/svg-outlook`).
-- Both files are named by the SHA-256 of the drawing's SVG, so the same Svg is the same HTML and the same file names
-  everywhere. The hash is written in: the package still has no dependencies, and the main entry runs where
-  `node:crypto` doesn't.
-- An Email with an Svg and no `assets` is an error from `render()` (`email/svg-assets`), saying how to pass them; an
-  `assets` it can't use is `render/assets`: `baseUrl` is the folder the files go in, an http or https URL with no
-  query or fragment. `validate()` doesn't need them.
-- An Svg hidden on phones and desktops isn't written, but has its files and needs `assets` all the same: a design
-  made from the email (the builder's) keeps it and can show it again. One of no width or no height draws nothing and
-  has no file.
-- In a Row an Svg is as wide as its drawing: `flex` on one in an Email is a warning (`email/unsupported`).
-- `toDesign(element, { assets })` takes the same `assets`: an Email's Svg goes to the Unlayer builder as an HTML block
-  of exactly the markup `render()` writes, linking the same files and placed as `render()` places it (a centered
-  Section's Svg is centered), so the editor's export is what `render()` sends
-  (checked through the real editor's loadDesign, saveDesign and exportHtml, and back with `fromDesign()`). Without
-  `assets`, an Email with an Svg can't go to the builder, and the error says what to pass.
-- `fromDesign()` reports where its `toSafeHtml` took out markup only classic Outlook reads (`<!--[if mso]>`), which
-  holds an Svg's PNG.
+- The email gets an ordinary `<img>` of each picture, at its size and fluid on phones, with its `alt`. Where images
+  don't load, it shows the alt on the picture's background color, in a color that reads on it: `Image` takes a
+  `backgroundColor` for this too.
+- A picture is drawn as a Canvas, its text in the text styles and fonts of where it is in the email.
+  `emailImages()` draws with Satori and resvg (the image entry's optional peers). A web font the email loads without
+  its file there, or a character no font given has, is an error; text in another family whose file isn't given is
+  drawn in the first font given, with a warning (`image/font-family`).
+- Each file is named by the SHA-256 of what's drawn and what draws it (the scale, the fonts' and images' bytes, the
+  template's theme, and the versions of this package, Satori and resvg), so the same picture is the same HTML and the
+  same file everywhere, on Node and Bun, and a name never changes what it shows. Where a version can't be read (an app
+  bundled into one file), that's a warning (`image/engine-version`). The hash is written in: the package still has no
+  dependencies.
+- `render()` rejects an Email with a picture and no `assets` (`email/canvas-assets`), saying what to pass, and an
+  `assets` it can't use (`render/assets`). A picture that can't be drawn rejects it too: no HTML is returned that links
+  to a file that isn't there. `validate()` doesn't need `assets`.
+- It says what a picture can't do, where it is: a `MergeTag` in one (an error: it's drawn as written), text that reads
+  as a merge tag, a link in one (it can't be clicked: put the picture in a `Link`), text with no `alt` or no
+  background, one wider than its column (classic Outlook shows it at its width), and body copy that's best as `Text`.
+- A `Link` takes a `Canvas` in an Email, and a `Canvas` takes `alt`. A Canvas's width and height can be any px from
+  1, and it has no phone styles.
+- `toDesign(element, { assets })` takes the same `assets`: each picture goes to the Unlayer builder as an image of its
+  file, linking the file `render()` returns.
+
+### A Canvas's Svg is drawn as a page draws it
+
+An `Svg` whose `viewBox` is another shape than its box is drawn at one scale, centered, as a browser draws it, in an
+image (`renderImage()`) too. It was stretched to fill its box before.
 
 ### GUIDE.md: where an image comes from, and an id to compare
 
