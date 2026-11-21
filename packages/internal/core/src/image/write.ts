@@ -36,6 +36,16 @@ const aligned = (style: Style): Style => {
   return justify ? { ...style, justifyContent: justify } : style;
 };
 
+/**
+ * The text a node draws in an image, as the writer draws it: its own words; an Html's plain text, a Video's title
+ * (drawn from their props). What the image entry's checks of its text read (its fonts, its direction).
+ */
+export function drawnText(node: ResolvedNode): string[] {
+  if (node.type === "Html") return [htmlText(node)];
+  if (node.type === "Video") return [String(node.props.title ?? "Video")];
+  return node.children.filter((child): child is string => typeof child === "string");
+}
+
 export function writeCanvas(root: ResolvedNode, context: WriteContext): DrawnCanvas {
   const write = new Writer(context);
   return {
@@ -165,10 +175,10 @@ class Writer {
         return this.table(node, placed);
       case "Html":
         // An image can't draw markup: its plain text (validate() says so).
-        return { kind: "text", style: aligned({ display: "flex", ...this.text(node), ...placed }), runs: [htmlText(node)] };
+        return { kind: "text", style: aligned({ display: "flex", ...this.text(node), ...placed }), runs: drawnText(node) };
       case "Video":
         // An image can't play a video: its title, as an email or a PDF without its thumbnail shows it.
-        return { kind: "text", style: aligned({ display: "flex", ...this.text(node), ...this.box(node), ...placed }), runs: [String(node.props.title ?? "Video")] };
+        return { kind: "text", style: aligned({ display: "flex", ...this.text(node), ...this.box(node), ...placed }), runs: drawnText(node) };
       case "Section":
       case "Column":
         return {

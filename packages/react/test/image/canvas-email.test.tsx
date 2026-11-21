@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Canvas, Circle, defineElement, ElementsError, Email, Image, Rect, Section, Svg, Text, render } from "@hyper-elements/react";
+import { Canvas, Circle, defineElement, ElementsError, Email, Html, Image, Rect, Section, Svg, Text, render } from "@hyper-elements/react";
 import { emailImages, renderImage, type ImageFont } from "../../src/image";
 import { pixel, pngSize } from "./png";
 
@@ -174,6 +174,17 @@ describe("an Email's Svg on its own", () => {
     const other = await render(card, { assets: { baseUrl: BASE, draw: emailImages({ fonts }) } });
     expect(other.files!.length).toBe(1);
     expect(other.diagnostics.filter((d) => d.code === "image/font")).toEqual([]);
+    // Text drawn from props (an Html's) in the Email's web font: its file is needed, as for a Text's.
+    const markup = (
+      <Email fonts={brand} style={{ fontFamily: "'Brand Sans', Arial, sans-serif" }}>
+        <Canvas width={200} height={60} alt="Sale" style={{ backgroundColor: "#1e1b4b" }}>
+          <Html html="<p>Sale</p>" />
+        </Canvas>
+      </Email>
+    );
+    const refused = await render(markup, { assets: { baseUrl: BASE, draw: emailImages({ fonts }) } }).catch((e: unknown) => e);
+    expect(refused).toBeInstanceOf(ElementsError);
+    expect((refused as ElementsError).diagnostics.filter((d) => d.severity === "error").map((d) => d.code)).toContain("image/font");
   });
 
   it("is a PNG of its drawing at twice its size, with no font given", async () => {

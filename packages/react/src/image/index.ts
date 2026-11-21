@@ -10,7 +10,7 @@
  * by URL, or data: URIs). An image needs at least one font: its text is drawn with the fonts it's given.
  * templateAssets() lists the fonts and images a template names, for a tool that loads them.
  */
-import { assetParts, fontStack, LAYOUT_VERSION, satoriResvg, sha256Hex, utf8Encode, writeCanvas, type Asset, type Font } from "@hyper-elements/core/image";
+import { assetParts, drawnText, fontStack, LAYOUT_VERSION, satoriResvg, sha256Hex, utf8Encode, writeCanvas, type Asset, type Font } from "@hyper-elements/core/image";
 import { installedVersion } from "./engines";
 import { measure, type ImageLayout } from "./layout";
 
@@ -372,12 +372,12 @@ function missingFaces(root: ResolvedNode, fonts: Font[], strict = false): Diagno
   return [...out.values()];
 }
 
-/** The families the font stacks of its text (shown on desktop) name, lowercased. */
+/** The families the font stacks of its text (shown on desktop) name, lowercased: the text the image writer draws. */
 function textFamilies(root: ResolvedNode): Set<string> {
   const out = new Set<string>();
   const visit = (node: ResolvedNode) => {
     if (node.hidden?.desktop) return;
-    if (node.children.some((child) => typeof child === "string" && child.trim())) for (const name of fontStack(String(node.text.fontFamily))) out.add(name.toLowerCase());
+    if (drawnText(node).some((text) => text.trim())) for (const name of fontStack(String(node.text.fontFamily))) out.add(name.toLowerCase());
     for (const child of node.children) if (typeof child !== "string") visit(child);
   };
   visit(root);
