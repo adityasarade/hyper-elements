@@ -237,14 +237,14 @@ export function renderTemplate(input: unknown, options: RenderOptions & Componen
   };
 }
 
-/** Each item done by `work`, `at` most at once, the results in the items' order. The first that fails rejects. */
-async function inTurns<T, R>(items: T[], at: number, work: (item: T) => Promise<R>): Promise<R[]> {
+/** Each item done by `work` (given its index), `at` most at once, the results in the items' order. The first that fails rejects. */
+async function inTurns<T, R>(items: T[], at: number, work: (item: T, index: number) => Promise<R>): Promise<R[]> {
   const results: R[] = new Array(items.length);
   let next = 0;
   const worker = async () => {
     while (next < items.length) {
       const i = next++;
-      results[i] = await work(items[i]!);
+      results[i] = await work(items[i]!, i);
     }
   };
   await Promise.all(Array.from({ length: Math.min(at, items.length) }, worker));
@@ -278,7 +278,7 @@ export async function finishRender(written: WrittenTemplate, options: Pick<Rende
   const files = await inTurns(
     [...unique.values()],
     4,
-    async (picture): Promise<RenderedFile> => {
+    async (picture, index): Promise<RenderedFile> => {
       // Laid out here, as its checks were (prepareTemplate): the drawer draws what's laid out.
       const prepared = prepareTemplate(picture.document);
       if (!prepared.resolved) throw new ElementsError(prepared.diagnostics.map((d) => ({ ...d, path: picture.at(d.path) })));
@@ -290,7 +290,7 @@ export async function finishRender(written: WrittenTemplate, options: Pick<Rende
         const why = error instanceof Error ? error.message : String(error);
         throw new ElementsError([{ code: "email/canvas-draw", severity: "error", message: `This picture couldn't be drawn: ${why}`, path: picture.path, ...(picture.nodeId ? { nodeId: picture.nodeId } : {}) }]);
       }
-      found[[...unique.values()].indexOf(picture)] = drawn.diagnostics.map((d) => ({ ...d, path: picture.at(d.path) }));
+      found[index] = drawn.diagnostics.map((d) => ({ ...d, path: picture.at(d.path) }));
       return { name: picture.name, contentType: draw.contentType, bytes: drawn.bytes, width: picture.width, height: picture.height };
     }
   );
