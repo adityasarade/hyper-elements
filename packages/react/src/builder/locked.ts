@@ -14,24 +14,26 @@ type Sides = { top: number; right: number; bottom: number; left: number };
  * An HTML block of the node's own markup, drawn at its width, with `around` its place's spacing and `inherited` the
  * text styles its ancestors give it (beyond the root's).
  */
-export function lockedHtml(node: Node, width: number, root: Node, components: unknown, around: Sides, inherited: Record<string, Json> = {}, themed: Themed = {}): Block {
-  return { ...block("html"), values: { html: renderSubtree(node, width, root, components, inherited, themed), containerPadding: cssSides(around) } };
+export function lockedHtml(node: Node, width: number, root: Node, components: unknown, around: Sides, inherited: Record<string, Json> = {}, inPlace: InPlace = {}): Block {
+  return { ...block("html"), values: { html: renderSubtree(node, width, root, components, inherited, inPlace), containerPadding: cssSides(around) } };
 }
 
-/** The template's theme (read already), and the tokens of each scope around a node, outermost first. */
-export interface Themed {
+/** What a block drawn on its own takes from where it is in the template. */
+export interface InPlace {
+  /** The template's theme (read already), and the tokens of each scope around the node, outermost first. */
   theme?: { [key: string]: Json };
   scopes?: ReadonlyArray<{ [key: string]: Json }>;
   /**
-   * In an Email, where its pictures' files are (render()'s `assets`), and the files the whole template's render names
-   * for the pictures in this block, in the template's order: its markup links those.
+   * In an Email, where its pictures' files are (render()'s `assets`); the node's place in the template (`at`); and the
+   * pictures the whole template's render cut out of it, at their places in the template: its markup links their files.
    */
   assets?: EmailAssetsOption;
-  pictures?: ReadonlyArray<{ name: string }>;
+  at?: string;
+  pictures?: ReadonlyArray<{ name: string; path: string; width: number; height: number }>;
 }
 
 /** A node drawn on its own by the new engine, at its width, in the root's output: its HTML, with its stylesheet. */
-function renderSubtree(node: Node, width: number, root: Node, components: unknown, inherited: Record<string, Json>, { theme, scopes = [], assets, pictures = [] }: Themed): string {
+function renderSubtree(node: Node, width: number, root: Node, components: unknown, inherited: Record<string, Json>, { theme, scopes = [], assets, at = "", pictures = [] }: InPlace): string {
   // Drawn at its width in a page at least as wide as a root can be (a Document's block as a page's), the root's text
   // styles around it, and the text styles its ancestors give it in a Column around it.
   const drawn = Math.round(width);
@@ -40,11 +42,14 @@ function renderSubtree(node: Node, width: number, root: Node, components: unknow
     n.type === "PageNumber" ? { type: "MergeTag", props: { name: n.props?.total ? "page_count" : "page_number" } } : n.children ? { ...n, children: n.children.map((child) => (typeof child === "string" ? child : tokens(child))) } : n;
   const subtree = tokens(node);
   const around = { ...inherited, ...(drawn < 200 ? { width: drawn } : {}) };
+  const wrapped = Object.keys(around).length > 0;
   // A Page's own phone width, so the block's phone styles switch where the page's do.
   const breakpoints: Record<string, Json> = root.type === "Page" && root.props?.breakpoints ? { breakpoints: root.props.breakpoints } : {};
   // The theme it sees where it is: the template's, with each scope around it in a Column of its tokens, read as they
   // are in place, so what a custom element in it renders is themed as it was there.
-  const placed = scopes.reduceRight<Node>((inner, tokens) => ({ type: "Column", tokens, children: [inner] }), Object.keys(around).length ? { type: "Column", style: around, children: [subtree] } : subtree);
+  const placed = scopes.reduceRight<Node>((inner, tokens) => ({ type: "Column", tokens, children: [inner] }), wrapped ? { type: "Column", style: around, children: [subtree] } : subtree);
+  // The node's place in what's drawn: in the holder, in a Column for each scope, in one of its text styles.
+  const subtreeAt = `root${".children[0]".repeat(1 + scopes.length + (wrapped ? 1 : 0))}`;
   // The root's text styles, not its background: the builder draws the body's color, and its rows' and columns', behind
   // the block, so the block painting the body's over them would hide a Section's own.
   const { backgroundColor: _, ...rootStyle } = root.style ?? {};
@@ -52,13 +57,23 @@ function renderSubtree(node: Node, width: number, root: Node, components: unknow
   const written = renderTemplate(theme ? { root: page, theme, merged: true } : { root: page }, { components: components as never, ...(assets ? { assets } : {}) });
   const { head } = written;
   // Its pictures, drawn on their own here (without the template's fonts and language around them), link the files the
-  // whole template's render names: one for one, in order.
+  // whole template's render names: each the one cut out at its place in the node, at its size.
   let { body } = written;
   const own = written.pictures ?? [];
-  if (own.length !== pictures.length) throw new Error(`[Elements] This block's pictures (${own.length}) aren't the template's here (${pictures.length}): it can't link the files render() returns`);
+  const templates = new Map(pictures.map((picture) => [picture.path.slice(at.length), picture]));
   // As the HTML writes a URL: its & as &amp; (a baseUrl has no quote or angle bracket).
   const inHtml = (url: string) => url.replace(/&/g, "&amp;");
-  own.forEach((picture, i) => (body = body.split(inHtml(pictureUrl(assets!.baseUrl, picture.name))).join(inHtml(pictureUrl(assets!.baseUrl, pictures[i]!.name)))));
+  const files = new Map<string, string>();
+  for (const picture of own) {
+    const template = picture.path.startsWith(subtreeAt) ? templates.get(picture.path.slice(subtreeAt.length)) : undefined;
+    if (!template || template.width !== picture.width || template.height !== picture.height) {
+      throw new Error(`[Elements] This block's picture at ${at}${picture.path.slice(subtreeAt.length)} isn't the template's there: it can't link the file render() returns`);
+    }
+    files.set(inHtml(pictureUrl(assets!.baseUrl, picture.name)), inHtml(pictureUrl(assets!.baseUrl, template.name)));
+  }
+  if (own.length !== pictures.length) throw new Error(`[Elements] This block's pictures (${own.length}) aren't the template's here (${pictures.length}): it can't link the files render() returns`);
+  // In one pass: a file put in isn't swapped again.
+  if (files.size) body = body.replace(new RegExp([...files.keys()].map((url) => url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "g"), (url) => files.get(url)!);
   const style = /<style>[\s\S]*?<\/style>/.exec(head)?.[0] ?? "";
   // A page's <main> is centered by its margins: in a flex box, which the builder may draw a block in, those shrink it to its words. It fills its block.
   const filled = body.replace(/^<main style="/, '<main style="width:100%;');

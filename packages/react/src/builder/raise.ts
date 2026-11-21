@@ -169,7 +169,7 @@ export function raise(element: React.ReactElement, options: RaiseOptions = {}): 
         lockedHtml(node, own.width ?? own.available ?? Number(resolvedRoot.width), root, components, around, inheritedText(path), {
           theme: document.theme,
           scopes: enclosing.get(node),
-          ...(options.assets ? { assets: options.assets, pictures: inside } : {}),
+          ...(options.assets ? { assets: options.assets, at: path, pictures: inside } : {}),
         })
       );
     },

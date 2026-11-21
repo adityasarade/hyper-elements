@@ -181,6 +181,36 @@ describe("toDesign", () => {
       expect(JSON.stringify(toDesign(email, { assets: amp }).design)).toContain(`https://cdn.example.com/R&amp;D/${files![0]!.name}`);
     });
 
+    it("in a block drawn as HTML link each its own file, the one render() returns for it there", async () => {
+      // Two pictures in a custom element, its block drawn on its own: each named otherwise there (no language).
+      const Badges = defineElement({
+        type: "acme.Badges",
+        label: "Badges",
+        props: {},
+        render: () => (
+          <Column>
+            <Svg width={20} height={20}>
+              <Rect width={20} height={20} style={{ fill: "#ff0000" }} />
+            </Svg>
+            <Column style={{ padding: 4 }}>
+              <Svg width={30} height={20}>
+                <Rect width={30} height={20} style={{ fill: "#0000ff" }} />
+              </Svg>
+            </Column>
+          </Column>
+        ),
+      });
+      const email = (
+        <Email lang="en">
+          <Badges />
+        </Email>
+      );
+      const { files } = await (await import("../primitives")).render(email, { assets });
+      expect(files!.map((file) => file.width)).toEqual([20, 30]);
+      const html = blocks(toDesign(email, { assets }).design).filter((content) => content.type === "html").map((content) => String(content.values.html)).join("");
+      expect([...html.matchAll(/<img[^>]*src="([^"]+)"/g)].map((m) => m[1])).toEqual(files!.map((file) => `${assets.baseUrl}${file.name}`));
+    });
+
     it("of no size are nothing in the builder, where they are and in a Section", () => {
       const { design } = toDesign(
         <Email>
