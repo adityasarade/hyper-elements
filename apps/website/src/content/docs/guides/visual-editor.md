@@ -293,6 +293,7 @@ registerTools(unlayer, [ProductCard], {
 - **In a Document, the builder doesn't draw an element's block.** These tools are for emails and pages: the builder's document mode keeps the block but doesn't draw or export it, as with an HTML block there. `toDesign()`'s report says so, and `fromDesign()` reads the block back as the element.
 - **A text is what's typed, with the builder's `safeHtml` on or off.** `registerTools()`'s own text field gives a tool the text as it's typed, which Elements writes as text: `A<B` is drawn as `A<B`, and `A&lt;B` typed so is those six characters. The builder also takes the comments for classic Outlook out of what a custom tool exports, so a `Row` inside an element is stacked there.
 - **The builder's image editor has a width control, which an element doesn't read.** It takes the image's URL and size from it, and sizes the image itself in its `render`.
+- **The builder's AI fills a field by the schema of its value.** Each field `registerTools()` registers, its own and a control of yours given in `editors`, says what the builder keeps there.
 - `registerTools()` takes `displayMode: "web"` for a builder of pages, so the canvas draws a Page's markup, and `icons` for each tool's icon in the panel.
 
 The [custom elements example](https://github.com/hyper-elements/hyper-elements/tree/main/examples/custom-elements-in-editor) has two sets made this way: five tools a shop reuses (a product filled from a store, a testimonial, a coupon, an order tracker, a ticket with its barcode), and a whole email's own parts.

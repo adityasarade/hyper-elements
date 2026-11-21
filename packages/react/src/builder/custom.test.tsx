@@ -651,6 +651,8 @@ describe("registerTools", () => {
     });
     expect(tools[0].options.acme_price.options.price).toEqual({ label: "Price", defaultValue: "7.5", widget: "acme_currency__acme_price__price", data: { label: "Price", symbol: "€" } });
     expect(editors.map((editor) => editor.name)).toEqual(["acme_currency__acme_price__price"]);
+    // The builder's AI fills it by what the builder keeps, which for a number that isn't whole is text.
+    expect(editors[0].Widget.schema).toEqual({ type: "string" });
     // The builder keeps a number that isn't whole as text: the editor is given the number, and what it gives back is kept as text again.
     const kept: unknown[] = [];
     expect(editors[0].Widget.render("7.5", (value: unknown) => kept.push(value))).toMatch(/^<label>Price<\/label><input value="7\.5"><div data-elements-field-error /);
@@ -659,6 +661,20 @@ describe("registerTools", () => {
     expect(kept).toEqual(["9.25"]);
     // And the block is drawn from what's kept.
     expect(tools[0].renderer.Viewer.render({ price: "9.25" })).toContain(">9.25</p>");
+  });
+
+  it("gives the builder's AI the schema of what's kept for a property's control: the prop's own where it keeps the value as it is", () => {
+    const stars = defineProperty({ name: "acme.stars", base: prop.number, options: {} });
+    const Rating = defineElement({ type: "acme.Rating", label: "Rating", props: { stars: stars({ label: "Stars", min: 1, max: 5, integer: true, default: 5 }) }, render: (p) => <Text>{String(p.stars)}</Text> });
+    const { builder, editors } = fakeBuilder();
+    registerTools(builder, [Rating], { editors: { [stars.name]: { render: () => "" } } });
+    expect(editors[0].Widget.schema).toEqual(Rating.definition.props.stars.kind.jsonSchema());
+    // A choice the builder keeps as its text: the choices, as text.
+    const plan = defineProperty({ name: "acme.plan", base: prop.text, options: {} });
+    const Plan = defineElement({ type: "acme.Plan", label: "Plan", props: { plan: plan({ label: "Plan", enum: ["monthly", "annual"], default: "monthly" }) }, render: (p) => <Text>{p.plan}</Text> });
+    const other = fakeBuilder();
+    registerTools(other.builder, [Plan], { editors: { [plan.name]: { render: () => "" } } });
+    expect(other.editors[0].Widget.schema).toEqual({ type: "string", enum: ["monthly", "annual"] });
   });
 
   it("gives a property a template defines its control: the prop's own value, and the property's options as the prop has them", () => {

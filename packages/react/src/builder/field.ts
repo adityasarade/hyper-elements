@@ -214,7 +214,7 @@ export function textField(spec: PropSpec, label: string, owner: string, store: (
  * A team's own control (`render`, `mount`), checked: given its prop's value only where the prop takes it (none
  * otherwise), and what it gives back kept only where the prop takes it. One it doesn't is said under the control, and
  * the block keeps the value it had. `read` is the value the builder keeps as the prop has it, `store` the other way.
- * `owner` is its tool's label.
+ * `owner` is its tool's label. `schema` is what the builder keeps, for its AI to fill the control by.
  */
 export function checkedControl(
   spec: PropSpec,
@@ -223,7 +223,8 @@ export function checkedControl(
   control: { render(value: any, update: (value: any) => void, options: any): string; mount?(node: HTMLElement, value: any, update: (value: any) => void, options: any): void },
   options: unknown,
   read: (kept: unknown) => unknown,
-  store: (value: Json) => unknown
+  store: (value: Json) => unknown,
+  schema?: unknown
 ): Widget {
   // The control's markup in the page, where it says why: one at a time is open in the builder's panel.
   let shown: HTMLElement | null = null;
@@ -245,6 +246,7 @@ export function checkedControl(
     keep(one.value === undefined ? one.value : store(one.value));
   };
   return {
+    ...(schema === undefined ? {} : { schema }),
     render: (kept, keep) => control.render(given(kept), updating(keep), options) + errorLine,
     mount(node, kept, keep) {
       shown = node;

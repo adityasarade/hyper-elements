@@ -82,6 +82,20 @@ const typed: PropertyEditor = { widget: "text", field: true, store: String, read
 const WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900];
 
 /**
+ * What the builder keeps for a prop, as the JSON schema its AI fills a field by: the prop's own, or text where it keeps
+ * the value as text (a number that isn't whole, a choice as its text), with the choices as text. None where it keeps a
+ * value its own way (a link, an image, a font), which the prop's schema doesn't describe.
+ */
+function keptSchema(spec: Spec, editor: PropertyEditor | undefined): unknown {
+  if (editor?.store === String) {
+    if (spec.kind.editor === "text") return spec.kind.jsonSchema();
+    const choices = (spec.kind.jsonSchema() as Schema).enum;
+    return choices ? { type: "string", enum: choices.map(String) } : { type: "string" };
+  }
+  return editor?.store ? undefined : spec.kind.jsonSchema();
+}
+
+/**
  * The builder's editor for a prop, by its kind, and so how its value is kept in a block (a property of a team's own
  * keeps its value as its kind's does, whatever edits it). None for a kind it has no way to keep: its value stays in
  * the block, with no field.
@@ -456,7 +470,7 @@ export function registerTools(builder: Builder, elements: readonly WithDefinitio
         // Given as it's written: registered for this prop, checked (field.ts).
         if (typeof builder.registerPropertyEditor !== "function" || typeof builder.createWidget !== "function") throw new Error(`[Elements] registerTools: editors gives ${widget} as it's written, which takes a builder with registerPropertyEditor() and createWidget()`);
         widget = `${widget.replace(".", "_")}__${name}__${key}`;
-        builder.registerPropertyEditor({ name: widget, Widget: builder.createWidget(checkedControl(spec, spec.label, definition.label, theirs, theirOptions, read, store)) });
+        builder.registerPropertyEditor({ name: widget, Widget: builder.createWidget(checkedControl(spec, spec.label, definition.label, theirs, theirOptions, read, store, keptSchema(spec, editor))) });
       } else if (!theirs && editor?.field) {
         // A text, and a number or a length the builder keeps as text: registerTools()'s own field (field.ts).
         if (typeof builder.registerPropertyEditor !== "function" || typeof builder.createWidget !== "function") throw new Error(`[Elements] registerTools: ${definition.type}'s ${key} is edited with a text field of its own, which takes a builder with registerPropertyEditor() and createWidget()`);
