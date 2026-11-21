@@ -47,6 +47,8 @@ export interface Unkept {
   held: unknown;
   message: string;
   node: Node | null;
+  /** Given to the block in a moment (its user has left the field): held even once the field's out of the page. */
+  pending?: boolean;
 }
 
 /**
@@ -66,7 +68,7 @@ export function holdUnkept(field: object, one?: Unkept): void {
 export function unkeptValues(): string[] {
   const said: string[] = [];
   for (const [field, one] of unkept) {
-    if (!one.node?.isConnected) unkept.delete(field);
+    if (!one.node?.isConnected && !one.pending) unkept.delete(field);
     else said.push(`${one.where} holds ${typeof one.held === "number" ? String(one.held) : JSON.stringify(one.held)}, which isn't kept (${one.message})`);
   }
   return said;

@@ -177,6 +177,39 @@ function valueOf(draft: Draft, path: string, where: string[], item = false): Val
   return { ok: true, value: out };
 }
 
+/**
+ * The draft as the value its prop keeps (`value`, parsed: a part left empty is at its default there): each part that
+ * holds something else is set to it. Whether one was.
+ */
+function sync(draft: Draft, value: unknown): boolean {
+  if (draft.t === "leaf") {
+    // What's kept is what it was saved with from now on (a box ticked, then not, is false, not left out); what it shows
+    // changes only where the kept value isn't what it holds (a part left empty at its default).
+    const now = valueOf(draft, "", []);
+    const same = now.ok && JSON.stringify(now.value) === JSON.stringify(value);
+    draft.saved = value;
+    draft.edited = false;
+    if (same || value === undefined) return false;
+    draft.held = shown(draft.spec, value);
+    return true;
+  }
+  let changed = false;
+  if (draft.t === "object") {
+    const given = isObject(value) ? value : {};
+    for (const [key, field] of Object.entries(draft.fields)) changed = sync(field, given[key]) || changed;
+  } else {
+    const items = Array.isArray(value) ? value : [];
+    draft.rows.forEach((row, index) => {
+      if (row.unknown !== undefined) return;
+      const item = items[index];
+      const parts = draft.t === "blocks" && isObject(item) ? Object.fromEntries(Object.entries(item).filter(([key]) => key !== "type")) : item;
+      changed = sync(row.item, parts) || changed;
+    });
+  }
+  draft.saved = value;
+  return changed;
+}
+
 /** The part of a draft at a path ("/i3/question"), and the list it's an item of, where it's one. */
 function find(draft: Draft, path: string): { draft: Draft; list?: Rows; row?: Row } | undefined {
   let here: Draft = draft;
@@ -209,16 +242,18 @@ const attr = (name: string, value: string) => ` ${name}="${escape(value)}"`;
 
 /** A part's field: a box to tick, a choice to pick, or a text to type. `named` says which part, for a screen reader. */
 function leafMarkup(leaf: Leaf, path: string, label: string, named: string): string {
+  // One that isn't editable (an item's, in a list of them) is shown as it is, and can't be changed.
+  const fixed = leaf.spec.editable === false;
   if (leaf.spec.kind.editor === "toggle") {
-    return `<label style="display:flex;gap:8px;align-items:center;margin:8px 0 0;font-size:12px"><input type="checkbox"${attr("data-path", path)}${attr("aria-label", named)}${leaf.held === true ? " checked" : ""} />${escape(label)}</label>`;
+    return `<label style="display:flex;gap:8px;align-items:center;margin:8px 0 0;font-size:12px"><input type="checkbox"${attr("data-path", path)}${attr("aria-label", named)}${leaf.held === true ? " checked" : ""}${fixed ? " disabled" : ""} />${escape(label)}</label>`;
   }
   const choices = choicesOf(leaf.spec);
   const head = `<label style="${LABEL}">${escape(label)}</label>`;
   if (choices) {
     const options = [`<option value=""></option>`, ...choices.map((choice, index) => `<option value="${index}"${String(index) === leaf.held ? " selected" : ""}>${escape(String(choice))}</option>`)];
-    return `${head}<select${attr("data-path", path)}${attr("aria-label", named)} style="${INPUT}">${options.join("")}</select>`;
+    return `${head}<select${attr("data-path", path)}${attr("aria-label", named)}${fixed ? " disabled" : ""} style="${INPUT}">${options.join("")}</select>`;
   }
-  return `${head}<input type="text" spellcheck="false"${attr("data-path", path)}${attr("aria-label", named)}${attr("value", String(leaf.held))} style="${INPUT}" />`;
+  return `${head}<input type="text" spellcheck="false"${attr("data-path", path)}${attr("aria-label", named)}${attr("value", String(leaf.held))}${fixed ? ' readonly aria-readonly="true"' : ""} style="${INPUT}" />`;
 }
 
 /** A draft's fields, each at its path, its parts named for a screen reader from `named` ("Questions, item 2"). */
@@ -306,8 +341,6 @@ interface Open {
  */
 export function listField(spec: Composed, label: string, owner: string): Widget {
   let open: Open | undefined;
-  // This field, as one holding a value that isn't kept (unkeptValues()).
-  const field = {};
   const where = `${owner}'s ${label}`;
   const key = (value: unknown) => JSON.stringify(value ?? null);
   const checked = (draft: Draft): Valued => {
@@ -357,16 +390,18 @@ export function listField(spec: Composed, label: string, owner: string): Widget 
     back(node, place);
   };
   // What the field holds that isn't kept, to its export (unkeptValues()), at the field as it's in the page.
-  const hold = (held?: { held: unknown; message: string }) => {
+  const hold = (held?: { held: unknown; message: string }, pending = false) => {
     if (!open) return;
     open.held = held;
-    holdUnkept(field, held ? { where, ...held, node: open.node } : undefined);
+    // Known by the field as it's open for one block: another block's opening doesn't let it go.
+    holdUnkept(open, held ? { where, ...held, node: open.node, pending } : undefined);
   };
   // The field's value to the block, once its prop takes it: the builder draws the field again with it. `structural`:
   // items were added, moved or removed, or a block's type changed, so the field is drawn again here first.
   const keep = (place?: Place, structural = false) => {
     if (!open) return;
     clearTimeout(open.timer);
+    open.timer = undefined;
     const at = place ?? here();
     if (structural) redraw(at);
     const one = checked(open.draft);
@@ -375,6 +410,8 @@ export function listField(spec: Composed, label: string, owner: string): Widget 
       return sayAt(open.node, one);
     }
     hold();
+    // What its prop keeps (a part left empty at its default) is what the field shows.
+    if (sync(open.draft, one.value)) redraw(at);
     sayAt(open.node, undefined);
     const next = key(one.value);
     if (next === open.kept) return;
@@ -387,7 +424,27 @@ export function listField(spec: Composed, label: string, owner: string): Widget 
   const later = () => {
     if (!open) return;
     clearTimeout(open.timer);
-    open.timer = setTimeout(() => keep(), 0);
+    open.timer = undefined;
+    // Held till then, even if the field closes meanwhile: an export now would be of the value the block had.
+    if (open.held) hold(open.held, true);
+    const now = open;
+    now.timer = setTimeout(() => {
+      now.timer = undefined;
+      if (open === now) keep();
+      else given(now);
+    }, 0);
+  };
+  // A text its user left as the field was drawn for another block (they clicked it): given to the block it was in
+  // (its update is that block's), and let go.
+  const given = (was: Open) => {
+    const one = checked(was.draft);
+    holdUnkept(was);
+    if (one.ok && key(one.value) !== was.kept) was.update?.(one.value);
+  };
+  // The field drawn for another block, or anew: what it held for the last one is let go, unless a text its user left
+  // is still to be given (above).
+  const close = () => {
+    if (open && open.timer === undefined) holdUnkept(open);
   };
   const listen = (node: HTMLElement) => {
     node.addEventListener("input", (event) => {
@@ -397,7 +454,8 @@ export function listField(spec: Composed, label: string, owner: string): Widget 
       const found = find(open.draft, path);
       if (found?.draft.t !== "leaf") return;
       found.draft.held = target.value;
-      found.draft.edited = true;
+      // Put back as it was: the value it was saved with (a link's target with it), not the text alone.
+      found.draft.edited = target.value !== shown(found.draft.spec, found.draft.saved);
       open.touched = true;
       // Typed, not yet given to the block: an export now would be of the value it had.
       hold({ held: target.value, message: "it's being typed" });
@@ -422,7 +480,7 @@ export function listField(spec: Composed, label: string, owner: string): Widget 
       }
       if (found?.draft.t !== "leaf") return;
       found.draft.held = target instanceof HTMLInputElement && target.type === "checkbox" ? target.checked : target.value;
-      found.draft.edited = true;
+      found.draft.edited = found.draft.held !== shown(found.draft.spec, found.draft.saved);
       if (target instanceof HTMLInputElement && target.type === "text") later();
       else keep();
     });
@@ -471,9 +529,8 @@ export function listField(spec: Composed, label: string, owner: string): Widget 
         open.place = open.place ?? here();
         return inner(open.draft);
       }
-      if (open) clearTimeout(open.timer);
+      close();
       open = { kept: now, draft: draftOf(spec, value), node: null };
-      holdUnkept(field);
       return inner(open.draft);
     },
     mount(node, value, update) {
@@ -481,8 +538,7 @@ export function listField(spec: Composed, label: string, owner: string): Widget 
       // A field drawn somewhere else (the block's fields closed and opened again, another block's with the same value):
       // what its user did in the other isn't this one's.
       if (!open || open.kept !== key(value) || (open.node && open.node !== node)) {
-        if (open) clearTimeout(open.timer);
-        holdUnkept(field);
+        close();
         open = { kept: key(value), draft: draftOf(spec, value), node: null };
         node.innerHTML = inner(open.draft);
       }

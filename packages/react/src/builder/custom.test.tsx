@@ -3,7 +3,7 @@ import * as jsxRuntime from "react/jsx-runtime";
 import ts from "typescript";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as primitives from "../primitives";
-import { Button, Column, defineElement, defineProperty, defineTheme, Document, Email, Heading, Image, Layer, Page, prop, render, Row, Section, Text, token } from "../primitives/index";
+import { Button, Column, defineElement, defineProperty, defineTheme, Document, Email, Heading, Image, Layer, Page, PageBreak, prop, render, Row, Section, Text, token } from "../primitives/index";
 import { fromDesign, registerTools, toDesign, toolName, type Builder, type EditorWidget } from "./index";
 
 type Values = Record<string, any>;
@@ -1626,6 +1626,100 @@ describe("a list's field", () => {
     const amounts = draw("amounts", [-1]);
     expect(amounts.node.querySelector("[data-elements-field-error]")!.textContent).toBe("Amounts: item 1: expected a number from 0, not -1");
     expect(amounts.node.querySelector('input[aria-label="Amounts, item 1"]')!.getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("keeps a box ticked, then unticked, as false; and lets go of what it held once it's drawn for another block, an item added meanwhile too", () => {
+    vi.useFakeTimers();
+    // A box with no default, left out: ticked, then unticked, it's false, not left out again.
+    const Flags = defineElement({ type: "acme.Flags", label: "Flags", props: { settings: prop.object({ name: prop.text({ label: "Name" }), flag: prop.boolean({ label: "Flag" }) }, { label: "Settings" }) }, render: () => <Text>Flags</Text> });
+    const flags = fakeBuilder();
+    registerTools(flags.builder, [Flags]);
+    const flagWidget = flags.editors.find((editor) => editor.name === "elements_list__acme_flags__settings")!.Widget;
+    const flagKept: unknown[] = [];
+    const flagNode = document.createElement("div");
+    document.body.append(flagNode);
+    const redraw = (value: unknown) => {
+      flagNode.innerHTML = flagWidget.render(value, (next: unknown) => flagKept.push(next));
+      flagWidget.mount(flagNode, value, (next: unknown) => flagKept.push(next));
+    };
+    redraw({ name: "Ada" });
+    const flag = () => flagNode.querySelector<HTMLInputElement>('input[aria-label="Settings, Flag"]')!;
+    flag().checked = true;
+    flag().dispatchEvent(new Event("change", { bubbles: true }));
+    expect(last(flagKept)).toEqual({ name: "Ada", flag: true });
+    redraw(last(flagKept));
+    flag().checked = false;
+    flag().dispatchEvent(new Event("change", { bubbles: true }));
+    expect(last(flagKept)).toEqual({ name: "Ada", flag: false });
+    const { part, rows, button, widget, update, node, tool } = field("entries", [{ question: "Q?", answer: "A." }]);
+    // A text left (its save waiting a moment), then an item added that isn't filled: drawn for another block, the
+    // field holds nothing of either, and exports work.
+    type(part(`${rows()[0]}/question`), "Changed?");
+    button("add", "").click();
+    const other = [{ question: "Other?", answer: "Yes.", open: false }];
+    node.innerHTML = widget.render(other, update);
+    widget.mount(node, other, update);
+    vi.advanceTimersByTime(1);
+    expect(tool.renderer.exporters.email({ entries: other, tags: [], parts: [] })).toContain("Other?");
+  });
+
+  it("keeps a part its user put back as it was saved, a link's target too; shows a part left empty at its default; and shows an item that isn't editable as it is", () => {
+    vi.useFakeTimers();
+    const Shop = defineElement({
+      type: "acme.Shop",
+      label: "Shop",
+      props: {
+        items: prop.list(prop.object({ name: prop.text({ label: "Name" }), link: prop.link({ label: "Link" }), price: prop.number({ label: "Price", min: 0, default: 30 }) }, { label: "Item" }), { label: "Items" }),
+        skus: prop.list(prop.text({ label: "SKU", editable: false }), { label: "SKUs" }),
+      },
+      render: () => <Text>Shop</Text>,
+    });
+    const { builder, editors } = fakeBuilder();
+    registerTools(builder, [Shop]);
+    const draw = (key: string, value: unknown) => {
+      const widget = editors.find((editor) => editor.name === `elements_list__acme_shop__${key}`)!.Widget;
+      const kept: unknown[] = [];
+      const node = document.createElement("div");
+      document.body.append(node);
+      node.innerHTML = widget.render(value, (next: unknown) => kept.push(next));
+      widget.mount(node, value, (next: unknown) => kept.push(next));
+      return { node, kept };
+    };
+    const saved = [{ name: "Desk", link: { href: "https://shop.example/desk", target: "_blank" }, price: 95 }];
+    const items = draw("items", saved);
+    const input = (label: string) => items.node.querySelector<HTMLInputElement>(`input[aria-label="Items, item 1, ${label}"]`)!;
+    // Another address typed, then the one it had put back: still the link it was saved with, its target too.
+    input("Link").value = "https://other.example";
+    input("Link").dispatchEvent(new Event("input", { bubbles: true }));
+    type(input("Link"), "https://shop.example/desk");
+    vi.advanceTimersByTime(1);
+    type(input("Name"), "Chair");
+    vi.advanceTimersByTime(1);
+    expect(last(items.kept)).toEqual([{ name: "Chair", link: { href: "https://shop.example/desk", target: "_blank" }, price: 95 }]);
+    // A price emptied is its default, kept and shown.
+    type(input("Price"), "");
+    vi.advanceTimersByTime(1);
+    expect((last(items.kept) as Array<{ price: number }>)[0].price).toBe(30);
+    expect(input("Price").value).toBe("30");
+    // An item that isn't editable is shown as it is, read-only.
+    const skus = draw("skus", ["SKU-1"]);
+    expect(skus.node.querySelector<HTMLInputElement>('input[aria-label="SKUs, item 1"]')!.readOnly).toBe(true);
+  });
+
+  it("gives an edit its user left to the block it was in, where the field's drawn for another block before it's given, and fails an export meanwhile", () => {
+    vi.useFakeTimers();
+    const { kept, part, rows, widget, update, node, tool } = field("entries", ENTRIES);
+    type(part(`${rows()[0]}/question`), "Shipping?");
+    const block = { entries: ENTRIES, tags: [], parts: [] };
+    expect(() => tool.renderer.exporters.email(block)).toThrow("it's being typed");
+    // Its user clicked another FAQ block: the field is drawn for that one, in the same place.
+    const other = [{ question: "Other?", answer: "Yes.", open: false }];
+    node.innerHTML = widget.render(other, update);
+    widget.mount(node, other, update);
+    expect(() => tool.renderer.exporters.email(block)).toThrow("it's being typed");
+    vi.advanceTimersByTime(1);
+    expect(kept).toEqual([[{ ...ENTRIES[0], question: "Shipping?" }, ENTRIES[1]]]);
+    expect(tool.renderer.exporters.email({ ...block, entries: kept[0] })).toContain("Shipping?");
   });
 
   it("shows a list a design was saved with that its prop doesn't take, with why", () => {
