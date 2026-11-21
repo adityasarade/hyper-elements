@@ -4,7 +4,7 @@
  * checked).
  */
 import { CONDITION_NAMES, CONDITIONS, shownAnywhere } from "./conditions";
-import type { ComponentDefinition, RootName, StyleSpecs } from "./define";
+import { rootInside, type ComponentDefinition, type RootName, type StyleSpecs } from "./define";
 import { Diagnostics, ElementsError, type Diagnostic } from "./diagnostics";
 import { type Child, type ElementsDocument, type Json, type Node } from "./model";
 import { CUSTOM_TYPE, propsWithDefaults, registryOf, type ComponentsOption, type Registry } from "./registry";
@@ -464,9 +464,9 @@ function readNode(input: unknown, path: string, parent: ComponentDefinition | nu
     if (hidden) node.hidden = hidden;
   }
 
-  // A root inside another (a Canvas in an Email) is the root of what's in it: its rules, not the outer root's.
+  // What's in a root inside another (a Canvas in an Email) is read under its rules (rootInside).
   const outer = context.root;
-  if (isRoot && parent) context.root = definition;
+  context.root = rootInside(definition, outer, parent !== null);
   const children = readChildren(input.children, definition, `${path}.children`, id, context);
   context.root = outer;
   if (children.length) node.children = children;

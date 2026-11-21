@@ -118,7 +118,8 @@ function reachable(registry: Registry): Map<string, Set<string>> {
       const parent = queue.shift()!;
       for (const child of all) {
         if (seen.has(child.type) || !holds(parent, child)) continue;
-        // A root goes in another only where it says (a Canvas in an Email, a picture): what's in it is its own root's.
+        // A root goes in another only where its `roots` say (a Canvas in an Email): what's in it is its own root's
+        // (rootInside, in define.ts).
         if (child.categories.includes("root")) {
           if (child.roots?.includes(root.type as RootName)) seen.add(child.type);
           continue;
