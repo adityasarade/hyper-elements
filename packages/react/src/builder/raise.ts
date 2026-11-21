@@ -14,7 +14,7 @@ import { prepareTemplate, type Json, type Node, type ResolvedNode } from "@hyper
 import type React from "react";
 import { collectTemplate, snapshotData } from "../primitives/collect";
 import { add, boxRowOf, builderId, gapOf, hasBox, hiding, linesOf, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";
-import { customBlock, toolProblem, unkept } from "./custom";
+import { customBlock, toolProblem, toolsOf, unkept } from "./custom";
 import { block, columnWith, rowWith, type Block, type Body, type BodyFields, type Row } from "./design";
 import { hiddenOf, leftOut, merge } from "./hide";
 import { lockedHtml } from "./locked";
@@ -43,6 +43,9 @@ export function raise(element: React.ReactElement, options: { customTools?: bool
   // The builder takes a design's element; a snapshot is the guardrail path's, which the builder isn't part of.
   if (snapshotData(element)) return { body: null, report: ["builder/snapshot: toDesign() takes a design's element, not a snapshot"] };
   const { document, diagnostics, components, template } = collectTemplate(element);
+  // Two elements that are one tool in the builder (their types in its words are one name) can't both be its blocks:
+  // refused, as registerTools() refuses them.
+  if (options.customTools) toolsOf(components.filter((c) => c.custom && !c.categories.includes("section") && !unkept(c)).map((definition) => ({ definition })));
   // A template's guardrails aren't the builder's: it takes the design a template builds, as a plain root.
   if (template) return { body: null, report: [`builder/template: the design's root is the template ${template.id}: the builder takes the design it builds, toDesign(Template.design(values))`] };
   if (!document || diagnostics.some((d) => d.severity === "error")) return { body: null, report: diagnostics.filter((d) => d.severity === "error").map((d) => `${d.path}: ${d.message}`) };

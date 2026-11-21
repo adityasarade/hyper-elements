@@ -140,6 +140,14 @@ describe("toDesign with customTools", () => {
     expect((await render(back.element)).html).toBe((await render(banner)).html);
   });
 
+  it("refuses two elements that are one tool in the builder, as registerTools() does", () => {
+    const Upper = defineElement({ type: "review.FAQ", label: "FAQ", props: {}, render: () => <Text>Upper</Text> });
+    const Lower = defineElement({ type: "review.Faq", label: "Faq", props: {}, render: () => <Text>Lower</Text> });
+    expect(() => toDesign(<Email><Upper /><Lower /></Email>, { customTools: true })).toThrow("are one tool in the builder (review_faq): rename one");
+    // Without customTools, both are HTML blocks, as before.
+    expect(blocks(toDesign(<Email><Upper /><Lower /></Email>).design).map((content) => content.type)).toEqual(["html", "html"]);
+  });
+
   it("keeps an element placed where a Section goes as an HTML block, and says so", () => {
     const { design, report } = toDesign(<Email><Hero title="Launch" /></Email>, { customTools: true });
     expect(blocks(design).map((content) => content.type)).toEqual(["html"]);
