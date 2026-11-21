@@ -164,6 +164,7 @@ try {
 | `email/canvas-mobile` | warning | An Svg's phone styles: its picture is the same on phones |
 | `image/engine-version` | warning | Satori's or resvg's installed version can't be read (an app bundled into one file): the pictures' file names don't change with it |
 | `image/font-family` | warning | Text in a picture whose font stack names no font given to `emailImages()`: it's drawn in the first font given |
+| `image/direction` | error | Text in a picture in a script written right to left (Hebrew, Arabic): an image draws it left to right. Put it in a `Text` beside or over the picture |
 | `email/canvas-text` | info | A picture holding body copy, which is best as `Text` |
 | `email/more-checks` | info | An Email checked without email-clients' plugin: where the email client checks are (`plugins: []` leaves it out) |
 | `email/clients-moved` | info | `emailClients` passed: the option moved to email-clients' plugin (until 0.5) |

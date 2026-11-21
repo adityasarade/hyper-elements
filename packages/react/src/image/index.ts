@@ -188,7 +188,7 @@ export function emailImages(options: EmailImagesOptions = {}): PictureDrawer {
       const { layout: measured, sizes } = await measure(context, { strict, scale });
       // A font or a character with no file is an error: the picture would be in another type than the email around it,
       // or show boxes. What runs past it is a warning, as for any Canvas. Fonts are given to emailImages() here.
-      const all = [...diagnostics, ...found, ...otherFamilies(root, context.fonts), ...measured.diagnostics].map((d) => ({
+      const all = [...diagnostics, ...found, ...otherFamilies(root, context.fonts), ...rightToLeft(root), ...measured.diagnostics].map((d) => ({
         ...d,
         ...(d.code === "image/font" || d.code === "image/glyph" ? { severity: "error" as const } : {}),
         message: d.message.replace(/renderImage's fonts option/g, "emailImages({ fonts })"),
@@ -370,6 +370,35 @@ function missingFaces(root: ResolvedNode, fonts: Font[], strict = false): Diagno
   };
   visit(root);
   return [...out.values()];
+}
+
+/** A letter of a script written right to left (Hebrew, Arabic, Syriac, Thaana, N'Ko and their forms). */
+const RIGHT_TO_LEFT = /[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufefc]/;
+
+/**
+ * Text in a right-to-left script, which the engine draws left to right (its letters reversed, Arabic's unjoined): an
+ * error in an Email's picture, the email's own text being right. Said once for each place.
+ */
+function rightToLeft(root: ResolvedNode): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  const visit = (node: ResolvedNode) => {
+    if (node.hidden?.desktop) return;
+    const found = drawnText(node).find((text) => RIGHT_TO_LEFT.test(text));
+    if (found) {
+      out.push({
+        code: "image/direction",
+        severity: "error",
+        message: `"${found.trim().slice(0, 40)}" is in a script written right to left, which a picture draws left to right, its letters reversed`,
+        fix: "put that text in a Text beside or over the picture",
+        path: node.path,
+        ...(node.id ? { nodeId: node.id } : {}),
+      });
+      return;
+    }
+    for (const child of node.children) if (typeof child !== "string") visit(child);
+  };
+  visit(root);
+  return out;
 }
 
 /** The families the font stacks of its text (shown on desktop) name, lowercased: the text the image writer draws. */

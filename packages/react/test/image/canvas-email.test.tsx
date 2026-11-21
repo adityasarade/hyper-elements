@@ -121,14 +121,14 @@ describe("an Email's Canvas through render() and emailImages()", () => {
     expect(files!.length).toBe(1);
     expect(diagnostics.filter((d) => d.code === "image/overflow").map((d) => [d.severity, d.path])).toEqual([["warning", "root.children[0].children[0]"]]);
     // A character the font doesn't have would be a box in the picture: an error.
-    const arabic = (
-      <Email dir="rtl">
-        <Canvas width={300} height={60} alt="مرحبا" style={{ backgroundColor: "#1e1b4b", fontFamily: "Liberation Sans" }}>
-          <Text>مرحبا</Text>
+    const japanese = (
+      <Email lang="ja">
+        <Canvas width={300} height={60} alt="こんにちは" style={{ backgroundColor: "#1e1b4b", fontFamily: "Liberation Sans" }}>
+          <Text>こんにちは</Text>
         </Canvas>
       </Email>
     );
-    const error = await render(arabic, { assets: { baseUrl: BASE, draw: emailImages({ fonts }) } }).catch((e: unknown) => e);
+    const error = await render(japanese, { assets: { baseUrl: BASE, draw: emailImages({ fonts }) } }).catch((e: unknown) => e);
     expect((error as ElementsError).diagnostics.filter((d) => d.severity === "error").map((d) => [d.code, d.path])).toEqual([["image/glyph", "root.children[0].children[0]"]]);
   });
 
@@ -266,6 +266,21 @@ describe("an Email's picture, as the Canvas it is", () => {
     expect(await ink((await renderImage(canvas, { fonts })).image)).toBeGreaterThan(60);
     const { files } = await render(<Email dir="ltr">{canvas}</Email>, { assets: { baseUrl: BASE, draw: emailImages({ fonts, scale: 1 }) } });
     expect(await ink(files![0]!.bytes)).toBeGreaterThan(60);
+  });
+
+  it("refuses text in a script written right to left, which an image draws left to right", async () => {
+    const picture = (text: string) => (
+      <Email dir="rtl">
+        <Canvas width={200} height={60} alt="Hello" style={{ backgroundColor: "#ffffff", fontFamily: "Liberation Sans" }}>
+          <Text>{text}</Text>
+        </Canvas>
+      </Email>
+    );
+    const error = await render(picture("שלום"), { assets: { baseUrl: BASE, draw: emailImages({ fonts }) } }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ElementsError);
+    expect((error as ElementsError).diagnostics.filter((d) => d.code === "image/direction").map((d) => [d.severity, d.path])).toEqual([["error", "root.children[0].children[0]"]]);
+    // Its direction isn't refused: words in a left-to-right script are drawn, on its right.
+    expect((await render(picture("Welcome"), { assets: { baseUrl: BASE, draw: emailImages({ fonts }) } })).files!.length).toBe(1);
   });
 
   it("is drawn with the files its drawer was given then, whatever is done with them after", async () => {
