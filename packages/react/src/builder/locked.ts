@@ -24,12 +24,12 @@ export interface InPlace {
   theme?: { [key: string]: Json };
   scopes?: ReadonlyArray<{ [key: string]: Json }>;
   /**
-   * In an Email, where its pictures' files are (render()'s `assets`); the node's place in the template (`at`); and the
-   * pictures the whole template's render cut out of it, at their places in the template: its markup links their files.
+   * In an Email, where its pictures' files are (render()'s `assets`); the node's place as laid out (`at`); and the
+   * pictures the whole template's render cut out of it, at their places as laid out: its markup links their files.
    */
   assets?: EmailAssetsOption;
   at?: string;
-  pictures?: ReadonlyArray<{ name: string; path: string; width: number; height: number }>;
+  pictures?: ReadonlyArray<{ name: string; laidOut: string; width: number; height: number }>;
 }
 
 /** A node drawn on its own by the new engine, at its width, in the root's output: its HTML, with its stylesheet. */
@@ -60,14 +60,14 @@ function renderSubtree(node: Node, width: number, root: Node, components: unknow
   // whole template's render names: each the one cut out at its place in the node, at its size.
   let { body } = written;
   const own = written.pictures ?? [];
-  const templates = new Map(pictures.map((picture) => [picture.path.slice(at.length), picture]));
+  const templates = new Map(pictures.map((picture) => [picture.laidOut.slice(at.length), picture]));
   // As the HTML writes a URL: its & as &amp; (a baseUrl has no quote or angle bracket).
   const inHtml = (url: string) => url.replace(/&/g, "&amp;");
   const files = new Map<string, string>();
   for (const picture of own) {
-    const template = picture.path.startsWith(subtreeAt) ? templates.get(picture.path.slice(subtreeAt.length)) : undefined;
+    const template = picture.laidOut.startsWith(subtreeAt) ? templates.get(picture.laidOut.slice(subtreeAt.length)) : undefined;
     if (!template || template.width !== picture.width || template.height !== picture.height) {
-      throw new Error(`[Elements] This block's picture at ${at}${picture.path.slice(subtreeAt.length)} isn't the template's there: it can't link the file render() returns`);
+      throw new Error(`[Elements] This block's picture at ${at}${picture.laidOut.slice(subtreeAt.length)} isn't the template's there: it can't link the file render() returns`);
     }
     files.set(inHtml(pictureUrl(assets!.baseUrl, picture.name)), inHtml(pictureUrl(assets!.baseUrl, template.name)));
   }

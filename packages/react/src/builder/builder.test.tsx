@@ -211,6 +211,36 @@ describe("toDesign", () => {
       expect([...html.matchAll(/<img[^>]*src="([^"]+)"/g)].map((m) => m[1])).toEqual(files!.map((file) => `${assets.baseUrl}${file.name}`));
     });
 
+    it("in custom elements in a Grid link the files render() returns, each its own", async () => {
+      // A Grid's cells are its Rows' as laid out: the builder finds each card's picture by its place there.
+      const Card = defineElement({
+        type: "acme.PictureCard",
+        label: "Picture card",
+        props: { title: prop.text({ label: "Title", required: true }) },
+        render: ({ title }) => (
+          <Column>
+            <Canvas width={250} height={100} alt={title} style={{ backgroundColor: "#1e1b4b" }}>
+              <Text>{title}</Text>
+            </Canvas>
+            <Text>Below</Text>
+          </Column>
+        ),
+      });
+      const email = (
+        <Email lang="en">
+          <Grid columns={2}>
+            <Card title="One" />
+            <Card title="Two" />
+            <Card title="Three" />
+          </Grid>
+        </Email>
+      );
+      const { files } = await (await import("../primitives")).render(email, { assets });
+      expect(files!.length).toBe(3);
+      const html = blocks(toDesign(email, { assets }).design).filter((content) => content.type === "html").map((content) => String(content.values.html)).join("");
+      expect([...html.matchAll(/<img[^>]*src="([^"]+)"/g)].map((m) => m[1])).toEqual(files!.map((file) => `${assets.baseUrl}${file.name}`));
+    });
+
     it("of no size are nothing in the builder, where they are and in a Section", () => {
       const { design } = toDesign(
         <Email>

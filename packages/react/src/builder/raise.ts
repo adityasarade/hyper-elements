@@ -163,8 +163,9 @@ export function raise(element: React.ReactElement, options: RaiseOptions = {}): 
       report.push(`${path}: ${why}: ${root.type === "Document" ? `it's an HTML block of its own markup in the design: ${NOT_IN_DOCUMENTS}` : "it's an HTML block of its own markup in the builder (it can be moved, not edited)"}`);
       const own = at(path);
       // The pictures drawn in it (a custom element's Canvas): their files are the template's. (One the template has in
-      // it, as in a Layer, is an Image of its file already.)
-      const inside = (prepared.pictures ?? []).filter((picture) => !placed.has(picture.path) && (picture.path === path || picture.path.startsWith(`${path}.`) || picture.path.startsWith(`${path}(`)));
+      // it, as in a Layer, is an Image of its file already.) By their places as laid out, as `path` is (in a Grid, its
+      // cells' places, not the template's).
+      const inside = (prepared.pictures ?? []).filter((picture) => !placed.has(picture.path) && (picture.laidOut === path || picture.laidOut.startsWith(`${path}.`) || picture.laidOut.startsWith(`${path}(`)));
       return put(
         lockedHtml(node, own.width ?? own.available ?? Number(resolvedRoot.width), root, components, around, inheritedText(path), {
           theme: document.theme,
