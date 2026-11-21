@@ -7,6 +7,7 @@ import { JSDOM } from "jsdom";
 import { ElementsError } from "../../src/diagnostics";
 import { finishRender, prepareTemplate, renderTemplate, validateTemplate, type PictureDrawer, type PictureSource } from "../../src/writers";
 import { stylesOfText, type ResolvedNode } from "../../src/resolve";
+import { defineCustomComponent } from "../../src";
 
 const email = (children: unknown[], extra: Record<string, unknown> = {}) => ({ root: { type: "Email", props: { width: 600 }, children, ...extra } });
 
@@ -83,6 +84,56 @@ describe("a Canvas in an Email", () => {
     // In a Link: the Link's color is its words', not the picture's.
     const linked = renderTemplate(email([{ type: "Link", props: { href: "https://example.com" }, children: [card({ style: { backgroundColor: "#000000" } })] }]), { assets: assets() });
     expect((linked.pictures![0]!.document.root.style as Record<string, unknown>).color).toBe("#000000");
+  });
+
+  it("takes the text, direction and language of its place, wherever that is, as the Email gives them there", () => {
+    // A value (not the root's) of each text style the layout passes down. One it passes that has no value here fails
+    // this, so each is tried in every place below.
+    const outer: Record<string, unknown> = { color: "#123456", fontFamily: "Georgia, serif", fontSize: 21, fontWeight: 700, fontStyle: "italic", lineHeight: 1.3, letterSpacing: 2, textAlign: "center", textTransform: "uppercase" };
+    const passedDown = Object.keys(stylesOfText(prepareTemplate(email([{ type: "Text", children: ["x"] }])).resolved!.root.text));
+    expect(Object.keys(outer).sort()).toEqual(passedDown.sort());
+    const inner = { fontSize: 13, color: "#abcdef", textTransform: "lowercase" };
+    const canvas = { type: "Canvas", props: { width: 300, height: 100, alt: "x" }, style: { backgroundColor: "#000000" }, children: [{ type: "Text", children: ["Hi"] }] };
+    const svg = { type: "Svg", props: { width: 40, height: 20, title: "A moon" }, children: [{ type: "Circle", props: { cx: 20, cy: 10, r: 8 } }] };
+    const photo = { type: "Image", props: { src: { src: "https://example.com/photo.png", width: 600, height: 300 }, alt: "" } };
+    const holder = (picture: unknown) => defineCustomComponent({ type: "acme.Holder", label: "Holder", props: {}, expand: () => ({ type: "Column", style: inner, children: [picture] }) as never });
+    const text = { type: "Text", children: ["y"] };
+    // Each place: the Email's children around the picture, and what's on its root.
+    const places: Record<string, (picture: unknown) => { children: unknown[]; root?: Record<string, unknown> }> = {
+      "the Email": (p) => ({ children: [p], root: { style: outer } }),
+      "a Section": (p) => ({ children: [{ type: "Section", style: outer, children: [p] }] }),
+      "a Column in a Section": (p) => ({ children: [{ type: "Section", style: outer, children: [{ type: "Column", style: inner, children: [p] }] }] }),
+      "a Row right to left": (p) => ({ children: [{ type: "Section", style: outer, children: [{ type: "Row", props: { dir: "rtl" }, children: [{ type: "Column", children: [p] }, { type: "Column", children: [text] }] }] }] }),
+      "a Grid": (p) => ({ children: [{ type: "Section", style: outer, children: [{ type: "Grid", props: { columns: 2 }, children: [p, text] }] }] }),
+      "a Layer": (p) => ({ children: [{ type: "Section", style: outer, children: [{ type: "Layer", children: [photo, p] }] }] }),
+      "a Link": (p) => ({ children: [{ type: "Section", style: outer, children: [{ type: "Link", props: { href: "https://example.com" }, children: [p] }] }] }),
+      "a custom element": () => ({ children: [{ type: "Section", style: outer, children: [{ type: "acme.Holder" }] }] }),
+      "a theme and a scope": (p) => ({ children: [{ type: "Section", tokens: { colors: { foreground: "#00aa00" }, fontSizes: { body: 19 } }, children: [p] }], root: { theme: { colors: { foreground: "#222222" } } } }),
+      "an Email right to left, in Arabic": (p) => ({ children: [{ type: "Section", style: inner, children: [p] }], root: { props: { width: 600, dir: "rtl", lang: "ar" } } }),
+    };
+    const at = (node: ResolvedNode, path: string): ResolvedNode | undefined => (node.path === path ? node : node.children.flatMap((c) => (typeof c === "string" ? [] : [at(c, path)])).find(Boolean));
+    const up = (path: string) => path.replace(/\.children\[\d+\]$/, "");
+    for (const [where, place] of Object.entries(places)) {
+      // An Svg goes in a Link in a Canvas (a Link takes a Canvas, not an Svg).
+      for (const picture of where === "a Link" ? [canvas] : [canvas, svg]) {
+        const label = `a ${picture.type} in ${where}`;
+        const { children, root } = place(picture);
+        const template = email(children, root);
+        const options = { assets: assets(), components: [holder(picture)] };
+        const prepared = prepareTemplate(template, options);
+        expect(prepared.diagnostics.filter((d) => d.severity === "error"), label).toEqual([]);
+        const cut = prepared.pictures![0]!;
+        // What the layout gives its place: its Image's parent's text (a Link gives a picture what it's given).
+        const given = where === "a Link" ? up(up(cut.laidOut)) : up(cut.laidOut);
+        const drawn: Record<string, unknown> = { ...(cut.document.root.style as Record<string, unknown>) };
+        if (picture === canvas) delete drawn.backgroundColor;
+        expect(drawn, label).toEqual(stylesOfText(at(prepared.resolved!.root, given)!.text));
+        // Its direction and language: those the Email writes around its Image.
+        const img = images(renderTemplate(template, options).html)[0]!;
+        expect(cut.document.root.props!.dir ?? null, label).toBe(img.closest("[dir]")?.getAttribute("dir") ?? null);
+        expect(cut.document.root.props!.lang ?? null, label).toBe(img.closest("[lang]")?.getAttribute("lang") ?? null);
+      }
+    }
   });
 
   it("names its file by what's drawn and what draws it, the same however it was written", () => {
