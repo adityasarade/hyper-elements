@@ -579,6 +579,33 @@ describe("registerTools", () => {
     });
   });
 
+  it("has a field for each of prop's helpers: one added later fails here till it's given one", () => {
+    // One prop of each helper. A helper this doesn't know is new: give it a field in editorOf(), then a line here.
+    const made: Record<string, () => unknown> = {
+      text: () => prop.text({ label: "Text" }),
+      number: () => prop.number({ label: "Number" }),
+      length: () => prop.length({ label: "Length" }),
+      color: () => prop.color({ label: "Color" }),
+      image: () => prop.image({ label: "Image" }),
+      link: () => prop.link({ label: "Link" }),
+      boolean: () => prop.boolean({ label: "Boolean" }),
+      fontFamily: () => prop.fontFamily({ label: "Font" }),
+      fontWeight: () => prop.fontWeight({ label: "Weight" }),
+      date: () => prop.date({ label: "Date" }),
+      choice: () => prop.choice(["a", "b"], { label: "Choice" }),
+      list: () => prop.list(prop.text({ label: "Item" }), { label: "List" }),
+      object: () => prop.object({ name: prop.text({ label: "Name" }) }, { label: "Object" }),
+      blocks: () => prop.blocks({ note: prop.object({ text: prop.text({ label: "Text" }) }, { label: "Note" }) }, { label: "Blocks" }),
+    };
+    expect(Object.keys(prop).filter((helper) => !made[helper])).toEqual([]);
+    const Every = defineElement({ type: "acme.Every", label: "Every", props: Object.fromEntries(Object.entries(made).map(([helper, make]) => [helper, make()])) as any, render: () => <Text>Every</Text> });
+    const { builder, tools, editors } = fakeBuilder();
+    registerTools(builder, [Every]);
+    expect(Object.keys(tools[0].options.acme_every.options).sort()).toEqual(Object.keys(made).sort());
+    // Each field registerTools() draws itself gives the builder's AI its value's schema.
+    expect(editors.filter((editor) => !editor.Widget.schema).map((editor) => editor.name)).toEqual([]);
+  });
+
   it("edits a prop with the builder's editor for its kind, given what its kind gives it and nothing else", () => {
     const Order = defineElement({
       type: "acme.Order",
@@ -1259,6 +1286,318 @@ describe("a tool's fields", () => {
     widget.mount(node, "-5", (value: unknown) => kept.push(value));
     expect(given).toEqual([7.5, undefined]);
     expect(node.querySelector<HTMLElement>("[data-elements-field-error]")!.textContent).toBe("Price: expected a number from 0, not -5");
+  });
+});
+
+describe("a list's field", () => {
+  // An FAQ: a list of objects, a list of texts, an object, and a list of blocks of two types.
+  const Faq = defineElement({
+    type: "acme.Faq",
+    label: "FAQ",
+    props: {
+      entries: prop.list(prop.object({ question: prop.text({ label: "Question", required: true }), answer: prop.text({ label: "Answer", required: true }), open: prop.boolean({ label: "Open", default: false }) }, { label: "Entry" }), { label: "Questions", max: 3 }),
+      tags: prop.list(prop.text({ label: "Tag", required: true }), { label: "Tags" }),
+      contact: prop.object({ name: prop.text({ label: "Name" }), link: prop.link({ label: "Link" }) }, { label: "Contact" }),
+      parts: prop.blocks({ note: prop.object({ text: prop.text({ label: "Text", required: true }) }, { label: "Note" }), size: prop.object({ level: prop.choice([1, 2, 3], { label: "Level", default: 1 }) }, { label: "Size" }) }, { label: "Parts" }),
+    },
+    render: (p) => <Text>{`${(p.entries ?? []).map((entry) => entry.question).join("|")} ${(p.tags ?? []).join(",")} ${p.contact?.name ?? ""} ${(p.parts ?? []).length}`}</Text>,
+  });
+  const last = (list: unknown[]) => list[list.length - 1];
+  const ENTRIES = [
+    { question: "How long is shipping?", answer: "3 to 5 days.", open: false },
+    { question: "Can I return it?", answer: "Within 30 days.", open: true },
+  ];
+  function field(key: string, value: unknown) {
+    const { builder, editors, tools } = fakeBuilder();
+    registerTools(builder, [Faq]);
+    const widget = editors.find((editor) => editor.name === `elements_list__acme_faq__${key}`)!.Widget;
+    const kept: unknown[] = [];
+    const update = (next: unknown) => void kept.push(next);
+    const node = document.createElement("div");
+    document.body.append(node);
+    // As the builder draws it: its markup in the panel, then mounted there with the block's value.
+    const draw = (shown: unknown, into = node) => {
+      into.innerHTML = widget.render(shown, update);
+      widget.mount(into, shown, update);
+      return into;
+    };
+    draw(value);
+    const part = (path: string) => node.querySelector<HTMLInputElement>(`input[data-path="${path}"], select[data-path="${path}"]:not([data-act])`)!;
+    const button = (act: string, path: string) => node.querySelector<HTMLButtonElement>(`[data-act="${act}"][data-path="${path}"]`)!;
+    const rows = () => [...node.querySelectorAll<HTMLElement>("[data-row]")].map((row) => row.getAttribute("data-row")!);
+    const error = () => node.querySelector<HTMLElement>("[data-elements-field-error]")!;
+    return { widget, kept, update, node, draw, part, button, rows, error, tool: tools[0] };
+  }
+  const type = (input: HTMLInputElement, text: string) => {
+    input.value = text;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  afterEach(() => {
+    vi.useRealTimers();
+    document.body.innerHTML = "";
+  });
+
+  it("is registered for a list, an object and a list of blocks, as a list's value the prop has it, with its kind's schema", () => {
+    const { builder, editors, tools } = fakeBuilder();
+    registerTools(builder, [Faq]);
+    const properties = tools[0].options.acme_faq.options;
+    // A list starts empty; an object with none of its parts.
+    expect(properties.entries).toEqual({ label: "Questions", defaultValue: [], widget: "elements_list__acme_faq__entries" });
+    expect(properties.tags).toEqual({ label: "Tags", defaultValue: [], widget: "elements_list__acme_faq__tags" });
+    expect(properties.contact).toEqual({ label: "Contact", widget: "elements_list__acme_faq__contact" });
+    expect(properties.parts).toEqual({ label: "Parts", defaultValue: [], widget: "elements_list__acme_faq__parts" });
+    // The builder's AI fills a field by its schema: the prop's own.
+    expect(editors.find((editor) => editor.name === "elements_list__acme_faq__entries")!.Widget.schema).toEqual(Faq.definition.props.entries.kind.jsonSchema());
+  });
+
+  it("draws an item for each of the list's, with a field for each part, and keeps an edit once its user leaves the text", () => {
+    vi.useFakeTimers();
+    const { kept, part, rows } = field("entries", ENTRIES);
+    const [first, second] = rows();
+    expect(rows()).toHaveLength(2);
+    expect(part(`${first}/question`).value).toBe("How long is shipping?");
+    expect(part(`${second}/open`).checked).toBe(true);
+    expect(part(`${second}/answer`).getAttribute("aria-label")).toBe("Questions, item 2, Answer");
+    type(part(`${first}/answer`), "2 days.");
+    // Given once its user's focus has moved, not on each key.
+    expect(kept).toEqual([]);
+    vi.advanceTimersByTime(1);
+    expect(kept).toEqual([[{ ...ENTRIES[0], answer: "2 days." }, ENTRIES[1]]]);
+    // A box ticked is given at once.
+    const open = part(`${first}/open`);
+    open.checked = true;
+    open.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(last(kept)).toEqual([{ ...ENTRIES[0], answer: "2 days.", open: true }, ENTRIES[1]]);
+  });
+
+  it("keeps none of a list its prop doesn't take, and says which item and which part, as an export does", () => {
+    vi.useFakeTimers();
+    const { kept, part, rows, error, tool } = field("entries", ENTRIES);
+    const second = rows()[1];
+    type(part(`${second}/answer`), "");
+    vi.advanceTimersByTime(1);
+    expect(kept).toEqual([]);
+    expect(error().textContent).toBe("Questions: item 2, Answer: is needed");
+    expect(part(`${second}/answer`).style.borderColor).not.toBe("");
+    // Only the part it's about is said to be invalid, to a screen reader too.
+    expect(part(`${second}/answer`).getAttribute("aria-invalid")).toBe("true");
+    expect(part(`${rows()[0]}/question`).hasAttribute("aria-invalid")).toBe(false);
+    const block = { entries: ENTRIES, tags: [], parts: [] };
+    expect(() => tool.renderer.exporters.email(block)).toThrow(`[Elements] FAQ's Questions holds "", which isn't kept (item 2, Answer: is needed): correct it to export`);
+    // Corrected: kept, and the export is of it.
+    type(part(`${second}/answer`), "Within 14 days.");
+    vi.advanceTimersByTime(1);
+    expect(error().style.display).toBe("none");
+    expect(kept).toEqual([[ENTRIES[0], { ...ENTRIES[1], answer: "Within 14 days." }]]);
+    expect(tool.renderer.exporters.email({ ...block, entries: kept[0] })).toContain("How long is shipping?|Can I return it?");
+  });
+
+  it("fails an export while its user is typing, and keeps nothing when they put the text back as it was", () => {
+    vi.useFakeTimers();
+    const { kept, part, rows, tool } = field("entries", ENTRIES);
+    const input = part(`${rows()[0]}/question`);
+    const block = { entries: ENTRIES, tags: [], parts: [] };
+    input.value = "How long?";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    expect(() => tool.renderer.exporters.email(block)).toThrow(`FAQ's Questions holds "How long?", which isn't kept (it's being typed)`);
+    input.value = "How long is shipping?";
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    vi.advanceTimersByTime(1);
+    expect(kept).toEqual([]);
+    expect(tool.renderer.exporters.email(block)).toContain("How long is shipping?");
+  });
+
+  it("adds an item, which is kept once its parts are filled, and adds none past the list's max", () => {
+    vi.useFakeTimers();
+    const { kept, part, button, rows, error } = field("entries", ENTRIES);
+    button("add", "").click();
+    expect(rows()).toHaveLength(3);
+    const third = rows()[2];
+    // Its parts start at their defaults, or empty: not kept till it's filled.
+    expect(kept).toEqual([]);
+    expect(error().textContent).toBe("Questions: item 3, Question: is needed");
+    expect(document.activeElement).toBe(button("remove", third));
+    // The list takes 3 at most.
+    expect(button("add", "").disabled).toBe(true);
+    type(part(`${third}/question`), "Do you ship abroad?");
+    vi.advanceTimersByTime(1);
+    expect(kept).toEqual([]);
+    type(part(`${third}/answer`), "Yes.");
+    vi.advanceTimersByTime(1);
+    expect(kept).toEqual([[...ENTRIES, { question: "Do you ship abroad?", answer: "Yes.", open: false }]]);
+  });
+
+  it("moves an item up or down and removes one, each kept at once, its user staying on the same item's button", () => {
+    const { kept, button, rows, node, draw } = field("entries", ENTRIES);
+    const [first, second] = rows();
+    button("up", second).click();
+    expect(last(kept)).toEqual([ENTRIES[1], ENTRIES[0]]);
+    // The builder draws the field again with the value: the items keep their ids, and focus stays on the item moved.
+    draw(last(kept));
+    expect(rows()).toEqual([second, first]);
+    expect(document.activeElement).toBe(button("down", second));
+    button("remove", second).click();
+    expect(last(kept)).toEqual([ENTRIES[0]]);
+    draw(last(kept));
+    expect(rows()).toEqual([first]);
+    expect(node.contains(document.activeElement)).toBe(true);
+  });
+
+  it("puts its user back where they'd gone once the builder draws the field again with a value they gave", () => {
+    vi.useFakeTimers();
+    const { kept, part, rows, draw } = field("entries", ENTRIES);
+    const first = rows()[0];
+    const question = part(`${first}/question`);
+    question.focus();
+    question.value = "Shipping?";
+    question.dispatchEvent(new Event("input", { bubbles: true }));
+    question.dispatchEvent(new Event("change", { bubbles: true }));
+    // Its user tabs on to the answer, then the value is given and the field drawn again.
+    part(`${first}/answer`).focus();
+    vi.advanceTimersByTime(1);
+    expect(kept).toEqual([[{ ...ENTRIES[0], question: "Shipping?" }, ENTRIES[1]]]);
+    draw(kept[0]);
+    expect(document.activeElement).toBe(part(`${first}/answer`));
+  });
+
+  it("puts a list of texts' focus and error on the text, not its item's box", () => {
+    const { button, rows, error, node } = field("tags", ["new"]);
+    button("add", "").click();
+    const added = rows()[1];
+    // Added: its text is focused at once (it's the item's one part), and said to be needed.
+    expect(document.activeElement).toBe(node.querySelector(`input[data-path="${added}"]`));
+    expect(error().textContent).toBe("Tags: item 2: is needed");
+    expect(node.querySelector<HTMLElement>(`input[data-path="${added}"]`)!.style.borderColor).not.toBe("");
+  });
+
+  it("edits a list of texts, an object, and a list of blocks, whose type starts its parts again", () => {
+    vi.useFakeTimers();
+    const tags = field("tags", ["new"]);
+    tags.button("add", "").click();
+    type(tags.part(tags.rows()[1]), "sale");
+    vi.advanceTimersByTime(1);
+    expect(last(tags.kept)).toEqual(["new", "sale"]);
+    document.body.innerHTML = "";
+    // An object keeps what its user didn't edit as it was saved: a link's target too.
+    const contact = field("contact", { name: "Ada", link: { href: "https://example.com", target: "_blank" } });
+    type(contact.part("/name"), "Grace");
+    vi.advanceTimersByTime(1);
+    expect(last(contact.kept)).toEqual({ name: "Grace", link: { href: "https://example.com", target: "_blank" } });
+    document.body.innerHTML = "";
+    const parts = field("parts", [{ type: "note", text: "Hello" }]);
+    const block = parts.rows()[0];
+    const select = parts.node.querySelector<HTMLSelectElement>(`select[data-act="type"][data-path="${block}"]`)!;
+    select.value = "size";
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(last(parts.kept)).toEqual([{ type: "size", level: 1 }]);
+    const level = parts.part(`${block}/level`) as unknown as HTMLSelectElement;
+    level.value = "2";
+    level.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(last(parts.kept)).toEqual([{ type: "size", level: 3 }]);
+  });
+
+  it("drops what its user did once the field's drawn somewhere else, as a text field does", () => {
+    vi.useFakeTimers();
+    const { part, rows, draw, tool, error } = field("entries", ENTRIES);
+    type(part(`${rows()[1]}/answer`), "");
+    vi.advanceTimersByTime(1);
+    expect(error().textContent).toBe("Questions: item 2, Answer: is needed");
+    const block = { entries: ENTRIES, tags: [], parts: [] };
+    expect(() => tool.renderer.exporters.email(block)).toThrow("which isn't kept");
+    // The block's fields closed and opened again: the saved value, and nothing held.
+    const again = document.createElement("div");
+    document.body.append(again);
+    draw(ENTRIES, again);
+    expect(again.querySelector<HTMLInputElement>(`[data-path="${again.querySelectorAll("[data-row]")[1].getAttribute("data-row")}/answer"]`)!.value).toBe("Within 30 days.");
+    expect(tool.renderer.exporters.email(block)).toContain("Can I return it?");
+  });
+
+  it("says what an object was saved with that it has no part for, till its user edits it", () => {
+    vi.useFakeTimers();
+    const { error, part, kept } = field("contact", { name: "Ada", department: "Finance" });
+    expect(error().textContent).toBe(`Contact: "department" isn't one of its fields (name, link)`);
+    type(part("/name"), "Grace");
+    vi.advanceTimersByTime(1);
+    expect(kept).toEqual([{ name: "Grace" }]);
+    expect(error().style.display).toBe("none");
+  });
+
+  it("keeps a part's place by its own name, a \"/\" in it too; draws no part that isn't editable; and leaves out a list left out", () => {
+    vi.useFakeTimers();
+    const Odd = defineElement({
+      type: "acme.Odd",
+      label: "Odd",
+      props: {
+        info: prop.object({ "a/b": prop.text({ label: "Flat" }), a: prop.object({ b: prop.text({ label: "Nested" }) }, { label: "A" }) }, { label: "Info" }),
+        account: prop.object({ name: prop.text({ label: "Name" }), id: prop.text({ label: "Id", editable: false }), enabled: prop.boolean({ label: "On" }), tags: prop.list(prop.text({ label: "Tag" }), { label: "Tags", min: 1 }) }, { label: "Account" }),
+      },
+      render: () => <Text>Odd</Text>,
+    });
+    const { builder, editors } = fakeBuilder();
+    registerTools(builder, [Odd]);
+    const draw = (key: string, value: unknown) => {
+      const widget = editors.find((editor) => editor.name === `elements_list__acme_odd__${key}`)!.Widget;
+      const kept: unknown[] = [];
+      const node = document.createElement("div");
+      document.body.append(node);
+      node.innerHTML = widget.render(value, (next: unknown) => kept.push(next));
+      widget.mount(node, value, (next: unknown) => kept.push(next));
+      return { node, kept };
+    };
+    // "a/b" is one part, not b inside a.
+    const info = draw("info", { "a/b": "flat", a: { b: "nested" } });
+    const flat = info.node.querySelector<HTMLInputElement>('input[aria-label="Info, Flat"]')!;
+    type(flat, "changed");
+    vi.advanceTimersByTime(1);
+    expect(info.kept).toEqual([{ "a/b": "changed", a: { b: "nested" } }]);
+    // The id isn't editable: no field for it, and it keeps its value. Tags, left out with a min of 1, stay out when
+    // another part changes.
+    const account = draw("account", { name: "Ada", id: "42", enabled: false });
+    expect(account.node.querySelector('[aria-label="Account, Id"]')).toBeNull();
+    const on = account.node.querySelector<HTMLInputElement>('input[aria-label="Account, On"]')!;
+    on.checked = true;
+    on.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(account.kept).toEqual([{ name: "Ada", id: "42", enabled: true }]);
+  });
+
+  it("leaves an object out of its own where it was left out and nothing's done in it, and says a saved part its prop doesn't take at that part", () => {
+    vi.useFakeTimers();
+    const Profile = defineElement({
+      type: "acme.Profile",
+      label: "Profile",
+      props: {
+        info: prop.object({ name: prop.text({ label: "Name" }), crm: prop.object({ id: prop.text({ label: "ID", required: true, editable: false }) }, { label: "CRM" }) }, { label: "Info" }),
+        amounts: prop.list(prop.number({ label: "Amount", min: 0 }), { label: "Amounts" }),
+      },
+      render: () => <Text>Profile</Text>,
+    });
+    const { builder, editors } = fakeBuilder();
+    registerTools(builder, [Profile]);
+    const draw = (key: string, value: unknown) => {
+      const widget = editors.find((editor) => editor.name === `elements_list__acme_profile__${key}`)!.Widget;
+      const kept: unknown[] = [];
+      const node = document.createElement("div");
+      document.body.append(node);
+      node.innerHTML = widget.render(value, (next: unknown) => kept.push(next));
+      widget.mount(node, value, (next: unknown) => kept.push(next));
+      return { node, kept };
+    };
+    // The CRM object was left out: its ID isn't needed to change the name.
+    const info = draw("info", { name: "Ada" });
+    type(info.node.querySelector<HTMLInputElement>('input[aria-label="Info, Name"]')!, "Grace");
+    vi.advanceTimersByTime(1);
+    expect(info.kept).toEqual([{ name: "Grace" }]);
+    // A number saved below its min: said, at its input.
+    const amounts = draw("amounts", [-1]);
+    expect(amounts.node.querySelector("[data-elements-field-error]")!.textContent).toBe("Amounts: item 1: expected a number from 0, not -1");
+    expect(amounts.node.querySelector('input[aria-label="Amounts, item 1"]')!.getAttribute("aria-invalid")).toBe("true");
+  });
+
+  it("shows a list a design was saved with that its prop doesn't take, with why", () => {
+    const { error } = field("entries", [{ question: "Only a question" }]);
+    expect(error().textContent).toBe("Questions: item 1, Answer: is needed");
   });
 });
 

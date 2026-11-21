@@ -12,6 +12,7 @@ import { listsEmpty } from "../primitives/properties/check";
 import { link } from "./blocks";
 import { block, type Block, type Hiding } from "./design";
 import { checkedControl, textField, unkeptValues } from "./field";
+import { composed, listField } from "./list";
 import { font, fontWeight, givenId, hidden as hiddenOn, px, sides, TEMPLATE_ID, webLink, type Sides, type Values } from "./read-values";
 import { make, obj, placed, type Context } from "./reading";
 import { sayUnread } from "./unread";
@@ -64,6 +65,8 @@ interface PropertyEditor {
   widget: string;
   /** Edited with registerTools()'s own text field (`field.ts`) in its place, which keeps only a value the prop takes. */
   field?: true;
+  /** Edited with registerTools()'s own field for a list, an object or a list of blocks (`list.ts`). */
+  list?: true;
   data?: Values;
   store?(value: Json): unknown;
   read?(value: unknown, say: (message: string) => void): unknown;
@@ -113,6 +116,9 @@ function editorOf(spec: Spec): PropertyEditor | undefined {
       return { widget: "image", store: (value) => encode("asset", value), read: (value) => (obj(value).url ? decode("asset", value) : undefined) };
     case "fontFamily":
       return { widget: "font_family", store: (value) => builderFont(String(value)), read: font };
+    case "items":
+      // A list, an object or a list of blocks, which none of the builder's editors holds: registerTools()'s own.
+      return composed(spec) ? { widget: "elements_list", list: true } : undefined;
     default:
       return undefined;
   }
@@ -456,13 +462,27 @@ export function registerTools(builder: Builder, elements: readonly WithDefinitio
         if (typeof builder.registerPropertyEditor !== "function" || typeof builder.createWidget !== "function") throw new Error(`[Elements] registerTools: ${definition.type}'s ${key} is edited with a text field of its own, which takes a builder with registerPropertyEditor() and createWidget()`);
         widget = `elements_text__${name}__${key}`;
         builder.registerPropertyEditor({ name: widget, Widget: builder.createWidget(textField(spec, spec.label, definition.label, (value) => String(store(value)))) });
+      } else if (!theirs && editor?.list && composed(spec)) {
+        // A list, an object or a list of blocks: registerTools()'s own field (list.ts), its value the prop's as it is.
+        if (typeof builder.registerPropertyEditor !== "function" || typeof builder.createWidget !== "function") throw new Error(`[Elements] registerTools: ${definition.type}'s ${key} is edited with a field of its own, which takes a builder with registerPropertyEditor() and createWidget()`);
+        widget = `elements_list__${name}__${key}`;
+        builder.registerPropertyEditor({ name: widget, Widget: builder.createWidget(listField(spec, spec.label, definition.label)) });
       }
       // The builder's own editor takes what the prop's kind gives it (a number's limits); the options of a team's own
       // editor that isn't given here are that editor's alone.
       const data: Values = theirs ? theirOptions : { ...editor?.data };
       // What a block dragged in from the panel starts with: the prop's default, as the editor keeps it. With none, a
       // text is empty and a toggle is off; any other has no value, which each of the builder's editors shows as unset.
-      const initial = spec.default !== undefined ? (editor?.store?.(spec.default as Json) ?? spec.default) : spec.kind.editor === "text" ? "" : spec.kind.editor === "toggle" ? false : undefined;
+      const initial =
+        spec.default !== undefined
+          ? (editor?.store?.(spec.default as Json) ?? spec.default)
+          : spec.kind.editor === "text"
+            ? ""
+            : spec.kind.editor === "toggle"
+              ? false
+              : editor?.list && (spec as { fields?: unknown }).fields === undefined
+                ? []
+                : undefined;
       properties[key] = { label: spec.label, ...(initial !== undefined ? { defaultValue: initial } : {}), widget, ...(Object.keys(data).length ? { data } : {}) };
     }
     // What the builder exports: the element as that output's markup. Where its values can't be drawn, the export

@@ -18,15 +18,16 @@ export interface Widget {
   schema?: unknown;
 }
 
-const escape = (text: string) => text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+/** Text as HTML's: no markup. */
+export const escape = (text: string) => text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 const ERROR = "data-elements-field-error";
 const RED = "#c5221f";
 
 /** Where a field says why its value isn't kept: under it, hidden while there's nothing to say. */
-const errorLine = `<div ${ERROR} role="alert" style="display:none;margin-top:6px;color:${RED};font-size:12px;line-height:16px"></div>`;
+export const errorLine = `<div ${ERROR} role="alert" style="display:none;margin-top:6px;color:${RED};font-size:12px;line-height:16px"></div>`;
 
 /** Says at a field why what it holds isn't kept (`message`), or that it is (none). */
-function say(node: HTMLElement | null, label: string, message: string | undefined): void {
+export function say(node: HTMLElement | null, label: string, message: string | undefined): void {
   const line = node?.querySelector<HTMLElement>(`[${ERROR}]`);
   if (line) {
     line.textContent = message === undefined ? "" : `${label}: ${message}`;
@@ -41,7 +42,7 @@ function say(node: HTMLElement | null, label: string, message: string | undefine
 }
 
 /** A value a field holds that isn't kept: whose field it is, what it holds, why, and the field's markup. */
-interface Unkept {
+export interface Unkept {
   where: string;
   held: unknown;
   message: string;
@@ -54,6 +55,12 @@ interface Unkept {
  * isn't in the page any more (its block's fields closed, another block's open) holds nothing.
  */
 const unkept = new Map<object, Unkept>();
+
+/** A field (`field`, any object it's known by) as holding a value that isn't kept (`one`), or (none) as holding none. */
+export function holdUnkept(field: object, one?: Unkept): void {
+  if (one) unkept.set(field, one);
+  else unkept.delete(field);
+}
 
 /** Each value a field in the page holds that isn't kept, said ("Product's Price holds -5, which isn't kept (…)"). */
 export function unkeptValues(): string[] {

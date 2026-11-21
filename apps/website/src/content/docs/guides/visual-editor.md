@@ -180,6 +180,8 @@ A prop's kind says what its value is. The builder edits it with its own property
 | `prop.link()` | `link` |
 | `prop.image()` | `image` |
 | `prop.fontFamily()` | `font_family` |
+| `prop.date()` | `registerTools()`'s text field, a date as `YYYY-MM-DD` |
+| `prop.list()`, `prop.object()`, `prop.blocks()` | `registerTools()`'s list field: a box for each item, with a field for each of its parts (below) |
 
 There's no editor to name: what a prop says about its value is what its editor gets. A whole number's `min` and `max` are where the counter stops, and a text's `enum` is its dropdown's choices:
 
@@ -191,6 +193,12 @@ price: currency({ label: "Price", symbol: "€", min: 0 }),
 ```
 
 A color may be see-through unless its `transparency` is `false`, which takes an opaque color alone. The builder's color picker gives see-through colors in a page, not in an email. For a color that can't be see-through, `registerTools()` gives the picker `allowTransparent: false`, so it has no opacity to set there and no "transparent" to pick. A builder whose picker doesn't take that still offers see-through colors in a page, and shows none of your `colorPicker` colors for that prop: a see-through color picked there makes the block say why it can't be drawn, as a block saved with one does.
+
+A list, an object, or a list of blocks is edited in a field of `registerTools()`'s own. Each item is a box with a field for each of its parts. It can be moved up or down or removed, and **+ Add item** adds one with its parts at their defaults, up to the list's `max`. A block in a list of blocks has its type to pick, which starts its parts again. The builder's own editors can't be drawn inside another field, so a part that's a color, a link, an image, a date or a font is typed (`#FF5B1F`, a URL), a choice or a font weight is picked, and a boolean is ticked. A part saved with more than its field shows, like a link's target, keeps it until it's typed again. The field gives the block its value once its user leaves a text (or presses Enter), and at once for the rest. A value its prop doesn't take stays in the field, with the item and the part under it (`Questions: item 2, Answer: is needed`), as any field's does.
+
+```tsx
+entries: prop.list(prop.object({ question: prop.text({ label: "Question", required: true }), answer: prop.text({ label: "Answer", required: true }) }, { label: "Entry" }), { label: "Questions", max: 8 }),
+```
 
 For an editor of your own, a prop is a property you define once (`currency` here), and then give the builder a control for. Its value stays its kind's: a price is still a number, checked as one.
 
