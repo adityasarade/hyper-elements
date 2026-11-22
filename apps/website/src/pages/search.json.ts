@@ -2,6 +2,7 @@ import type { APIRoute } from "astro";
 import { docsInOrder, referenceInOrder } from "../lib/llms";
 import { docHref } from "../lib/site";
 import { emailTestingDescription } from "../lib/email-testing";
+import { ogDescription, ogPath, ogTitle } from "../lib/og-image";
 
 /** What the ⌘K search looks through: every docs page and its sections, and every element. */
 export const GET: APIRoute = async () => {
@@ -10,6 +11,7 @@ export const GET: APIRoute = async () => {
   const slugify = (s: string) => s.toLowerCase().replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "-");
   const items: { title: string; sub: string; href: string }[] = [
     { title: "Email testing playground", sub: emailTestingDescription, href: "/email-testing" },
+    { title: ogTitle, sub: ogDescription, href: ogPath },
   ];
   for (const d of docs) {
     const e = d.entry!;

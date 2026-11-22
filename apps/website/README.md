@@ -76,6 +76,23 @@ the size it was drawn at. Run it after `pnpm build`:
 `pnpm --filter @hyper-elements/website generate:core-concepts` (a folder's name after it draws only that page's
 pictures, without the docs check). Both scripts' drawing helpers are `scripts/pictures.mjs`.
 
+## The Open Graph image generator
+
+`/tools/open-graph-image-generator` makes a 1200 × 630 share image in the visitor's browser. Its six designs are
+templates in `examples/og-image/`, each one self-contained so the page can show it as code to copy. A worker draws them
+(`src/og-image/worker.ts`, with `engine.ts`): `scripts/og-image-runtime.mjs` bundles it from the packages' sources with
+the playground's shims, and `scripts/og-image-integration.mjs` serves it at `/tools/og-image/runtime.js`. The worker
+returns an SVG, which the page shows and turns into a PNG or a JPEG on a canvas (`src/og-image/main.ts`), so resvg's
+WebAssembly loads only in a browser that won't do that. The visitor's photo and logo are read on the page and sent only
+to the worker.
+
+The designs name their fonts and the sample photo at `https://hyperelements.dev/tools/og-image/…`, so a copied design
+works anywhere: the worker reads them from this site, and the files are `public/tools/og-image/`, written once by
+`node scripts/og-image-assets.mjs` (Google Fonts' TTFs with only Latin, Greek and Cyrillic, and the sample photo drawn
+from SVG) and committed. After changing a design, draw each one's picture for the page and its fields again
+(`public/generated/og-image/`, `src/generated/og-image.json`): `pnpm --filter @hyper-elements/website generate:og-image`.
+After `build`, `pnpm --filter @hyper-elements/website check:og-image` holds the page to what it says in Chromium.
+
 Images the examples use live in `public/img/` and are referenced as `https://hyperelements.dev/img/…`, so a copied example works anywhere. Previews load them from the site itself.
 
 ## Pages
@@ -145,6 +162,19 @@ HTML editing, live thumbnails, opening and returning from full previews, panel-o
 agent access, responsive layout, discovery links,
 and isolation of hostile HTML. `check:playground` also runs because these pages share the runtime.
 
+## Social cards
+
+A page that gives `Base.astro` no `image` of its own shares a generated card: a 1200×630 PNG at
+`/og/cards/<the page's path>.png` with the page's title and its section. The card is a template, `src/og/card.tsx`
+(the logo, colors and layout locked; the title fitted in three lines), with the Inter fonts in `src/og/fonts/`.
+`scripts/og-cards.mjs` draws one for each built page that links to one, from the packages' sources as the playground
+does, so it needs no `pnpm build`. A title the card can't hold fails the build with the template's diagnostic; shorten
+the title (or give the page its own `image`). `dev` draws a card when it's asked for.
+
+The home page, `/email-testing`, the alternatives pages with a visual of their own and blog posts with a `hero` keep
+their own images. After `build`, `pnpm --filter @hyper-elements/website check:og-cards` checks every page's social image
+is in the site, and each card is a 1200×630 PNG.
+
 ## Writing docs
 
 A page is Markdown with a quoted `title` and `description` in its frontmatter, no H1, and links as `/docs/<slug>`. Add it to `docsNav` in `src/lib/site.ts` to put it in the sidebar, llms.txt and the previous/next links. Every code sample should run against the engine: the pages here were checked that way.
@@ -157,7 +187,7 @@ On Vercel, only `main` deploys: `vercel.json` turns off deployments for every ot
 
 ## Blog articles
 
-Write Markdown in `src/content/blog/` with `title`, `description`, `slug`, `date`, `hero` and `heroAlt` frontmatter. `slug` is the URL segment, and `date` is the editorial date (set it to the intended publication day at review). Store article images under `public/img/blog/`. The index and article pages reuse the site layout, theme and code highlighting. Article pages set their own social image and canonical URL; the sitemap includes them at build time.
+Write Markdown in `src/content/blog/` with `title`, `description`, `slug`, `date`, `hero` and `heroAlt` frontmatter (a post without a `hero` shows none, and shares its generated card). `slug` is the URL segment, and `date` is the editorial date (set it to the intended publication day at review). Store article images under `public/img/blog/`. The index and article pages reuse the site layout, theme and code highlighting. Article pages set their own social image and canonical URL; the sitemap includes them at build time.
 
 Review articles and infrastructure through a pull request. Opening a PR does not publish the article; only merging to main can deploy it. Conceptual article artwork is an illustration, not an output preview.
 
