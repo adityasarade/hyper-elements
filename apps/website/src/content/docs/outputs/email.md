@@ -84,7 +84,12 @@ import { emailImages } from "@hyper-elements/react/image";
 const { html, files } = await render(<Launch />, {
   assets: {
     baseUrl: "https://cdn.example.com/email/",
-    draw: emailImages({ fonts: [{ family: "Inter", src: interRegular }] }),
+    draw: emailImages({
+      fonts: [
+        { family: "Inter", src: interRegular },
+        { family: "Inter", src: interBold, weight: 700 },
+      ],
+    }),
   },
 });
 for (const file of files ?? []) await upload(`email/${file.name}`, file.bytes, file.contentType);
@@ -93,7 +98,7 @@ for (const file of files ?? []) await upload(`email/${file.name}`, file.bytes, f
 ```tsx
 <Section>
   <Link href="https://example.com/launch">
-    <Canvas width={552} height={240} alt="Launch night: doors at 8" style={{ backgroundColor: "#1e1b4b", padding: 32 }}>
+    <Canvas width={552} height={240} alt="Launch night: doors at 8" style={{ backgroundColor: "#1e1b4b", color: "#ffffff", fontFamily: "Inter", padding: 32 }}>
       <Heading>Launch night</Heading>
       <Text>Doors at 8</Text>
     </Canvas>
