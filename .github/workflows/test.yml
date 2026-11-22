@@ -107,8 +107,8 @@ jobs:
       # that takes it, about 126KB), its writers (email, page, print HTML and plain text, about
       # 97KB), plugins (the contract, checking and merging what a plugin returns, the
       # frozen copy of the laid-out tree it's given, about 7KB; the email client checks
-      # moved to @hyper-elements/email-clients, a plugin), render()'s blockMap (marking each block as the email is
-      # written, then each one's offset, about 5KB), themes (reading a theme, its tokens,
+      # moved to @hyper-elements/email-clients, a plugin), render()'s blockMap (marking each block as the email or page is
+      # written, then each one's offset, about 6KB), themes (reading a theme, its tokens,
       # roles, scopes, component defaults, variants and named styles merged into each
       # node, a Page's custom properties, refusing names that reach JavaScript's own
       # objects, body text's size and line height as roles, and the hint to write token()
@@ -127,14 +127,15 @@ jobs:
       # (1,021 bytes measured, with the messages that say "element");
       # then main's templates (349,800 bytes there, from 317,000 before them and the `elements` key):
       # the list, object and date kinds, snapshots, the blocks kind, frozen kinds and definitions, and fitted text in a
-      # Canvas; 435,300 bytes for them and this branch's page styles together (434,633 measured).
+      # Canvas; 435,300 bytes for them and this branch's page styles together (434,633 measured);
+      # main's block map of every root (829 bytes more there, 350,800 bytes); 436,300 bytes with it (435,861 measured).
       - name: Check main entry bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
           test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=435300
+          MAX_SIZE=436300
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::Main entry bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -170,13 +171,14 @@ jobs:
       # 521,700 bytes for templates and the builder's table together (521,210 measured) on main;
       # main's templates being the same kinds, field key and
       # template hand-off, builder/template, the blocks kind, frozen kinds and definitions, refusing a snapshot, and the fit
-      # kind; 609,000 bytes for them and this branch's page styles together (608,241 measured).
+      # kind; 609,000 bytes for them and this branch's page styles together (608,241 measured);
+      # main's block map of every root (844 bytes more there, 522,500 bytes); 609,800 bytes with it (609,151 measured).
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=609000
+          MAX_SIZE=609800
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
