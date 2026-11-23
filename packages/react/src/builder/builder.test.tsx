@@ -673,6 +673,33 @@ describe("a Table", () => {
     }
   });
 
+  it("is the builder's table at its default width and max width of 100% where it has none, and comes back with none", () => {
+    for (const Root of [Email, Page]) {
+      const template = (
+        <Root>
+          <Table>
+            <TableRow>
+              <TableCell>A</TableCell>
+            </TableRow>
+          </Table>
+        </Root>
+      );
+      const { design, report } = toDesign(template);
+      expect(report).toEqual([]);
+      // What the builder fills in itself when it opens a table: written here, so its save changes nothing.
+      const [plain] = tables(design);
+      expect(plain.values.width).toBe("100%");
+      expect(plain.values.maxWidth).toBe("100%");
+      const back = fromDesign(JSON.parse(JSON.stringify(design)), { displayMode: Root === Email ? "email" : "web" });
+      expect(back.code).toContain("<Table>");
+      expect(back.code).not.toContain("width");
+      // One the builder narrowed keeps what it was given.
+      plain.values.width = "60%";
+      const narrowed = fromDesign(JSON.parse(JSON.stringify(design)), { displayMode: Root === Email ? "email" : "web" });
+      expect(narrowed.code).toContain('<Table style={{ width: "60%" }}>');
+    }
+  });
+
   it("stays an HTML block in a Page where its border and its cells' lines at its edges collapse into one line: the builder draws the two, as an Email's Table does", () => {
     const framed = (
       <Table style={{ border: "3px solid #111827", borderCollapse: "collapse" }}>

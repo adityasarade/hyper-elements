@@ -1276,6 +1276,8 @@
            },
            "columns": 4,
            "rows": 9,
+           "width": "100%",
+           "maxWidth": "100%",
            "border": {
             "borderTopWidth": "0px",
             "borderTopStyle": "solid",
@@ -4058,6 +4060,8 @@
            },
            "columns": 4,
            "rows": 4,
+           "width": "100%",
+           "maxWidth": "100%",
            "border": {
             "borderTopWidth": "0px",
             "borderTopStyle": "solid",

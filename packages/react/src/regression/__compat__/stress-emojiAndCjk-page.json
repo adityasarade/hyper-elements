@@ -367,6 +367,8 @@
            },
            "columns": 2,
            "rows": 2,
+           "width": "100%",
+           "maxWidth": "100%",
            "border": {
             "borderTopWidth": "0px",
             "borderTopStyle": "solid",
