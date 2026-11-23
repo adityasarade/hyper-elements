@@ -259,7 +259,7 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
     case "PageBreak":
       return place.put(block("page_break"));
     case "Table": {
-      const values = tableValues(node, path, place);
+      const values = tableValues(node, path, place, alignIn(parent));
       if (typeof values === "string") return place.locked(node, path, values, around);
       place.sayLeftOut("table", node, path, TABLE_FIELDS);
       return place.put(block("table", hiding), merge({ ...values, containerPadding: cssSides(around), ...id }, hiddenOf("table", node)));
