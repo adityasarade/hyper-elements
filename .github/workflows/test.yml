@@ -108,8 +108,8 @@ jobs:
       # that takes it, about 126KB), its writers (email, page, print HTML and plain text, about
       # 97KB), plugins (the contract, checking and merging what a plugin returns, the
       # frozen copy of the laid-out tree it's given, about 7KB; the email client checks
-      # moved to @hyper-elements/email-clients, a plugin), render()'s blockMap (marking each block as the email is
-      # written, then each one's offset, about 5KB), themes (reading a theme, its tokens,
+      # moved to @hyper-elements/email-clients, a plugin), render()'s blockMap (marking each block as the email or page is
+      # written, then each one's offset, about 6KB), themes (reading a theme, its tokens,
       # roles, scopes, component defaults, variants and named styles merged into each
       # node, a Page's custom properties, refusing names that reach JavaScript's own
       # objects, body text's size and line height as roles, and the hint to write token()
@@ -137,14 +137,15 @@ jobs:
       # defineProperty() in modules of their own, apart from defineElement()'s React and render (78 bytes more, each
       # module's path comment; 355,143 measured); 355,600 bytes with main's #266 merged in (a Document's page writer, the
       # collecting render and render(); 399 bytes more, 355,542 measured); 356,350 bytes for checkValue(), what a field
-      # holds checked as its prop checks it (758 bytes more, 356,300 measured).
+      # holds checked as its prop checks it (758 bytes more, 356,300 measured); 357,200 bytes with main's block map of
+      # every root merged in, the page writer marking its blocks as the email writer does (829 bytes more, 357,129 measured).
       - name: Check main entry bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
           test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=356350
+          MAX_SIZE=357200
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::Main entry bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -198,13 +199,14 @@ jobs:
       # what's kept for the builder's AI, and the tools in a document builder (19,004 bytes more, 569,327 measured); 571,600 for
       # the list field keeping what its user didn't change and giving an edit left as the panel moves, fromDesign()
       # leaving out a block its element can't render, and toDesign() refusing two elements that are one tool (2,207 bytes
-      # more, 571,534 measured).
+      # more, 571,534 measured); 572,450 with main's block map of every root merged in, in the writers it shares (845 bytes
+      # more, 572,379 measured).
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=571600
+          MAX_SIZE=572450
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -212,17 +214,18 @@ jobs:
           fi
           echo "✅ /builder bundle within budget"
 
-      # Templates (/template, dist/template.js): about 86.2KB unminified ESM (template(), reading
+      # Templates (/template, dist/template.js): about 98.3KB unminified ESM (template(), reading
       # values by their fields, the checks of a design built from them, describe(), values files and
       # versions, fitInside(), sniffImage() and formatDate(); slots and their preflight, blocks, rules
-      # over the result with lint's and core's, links and root props, and annotated templates). The
-      # main entry and /inspect are external. Set from that plus 10%. Raise it on purpose, with what grew.
+      # over the result with lint's and core's, links (their hosts read past a sending service's tags),
+      # the hosts images load from, root props, and annotated templates). The main entry and /inspect
+      # are external. Set from that plus 10%. Raise it on purpose, with what grew.
       - name: Check /template bundle size
         run: |
           BUNDLE="packages/react/dist/template.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/template.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=94800
+          MAX_SIZE=108200
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/template bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
