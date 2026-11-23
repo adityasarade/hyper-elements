@@ -15,6 +15,7 @@ import {
   Column,
   Divider,
   Email,
+  G,
   Grid,
   Heading,
   Html,
@@ -94,6 +95,25 @@ describe("renderImage", () => {
     // The viewBox's 20 units at 1 px each, centered (190 to 210): its x 60 to 80 is 250 to 270.
     expect(await pixel(image, 260, 10)).toEqual([0x12, 0x34, 0x56, 255]);
     expect((await pixel(image, 300, 10))[3]).toBe(0);
+  });
+
+  it("draws a group's transform over what it holds, and a shape's own", async () => {
+    // A 40x20 rect in a group moved to 50,50 and turned 90°: it covers x 30 to 50, y 50 to 90. A square moved to 85,5.
+    const turned = (
+      <Canvas width={100} height={100} style={{ backgroundColor: "#ffffff" }}>
+        <Svg width={100} height={100}>
+          <G transform="translate(50 50) rotate(90)">
+            <Rect width={40} height={20} style={{ fill: "#ff0000" }} />
+          </G>
+          <Rect width={10} height={10} transform="translate(85 5)" style={{ fill: "#0000ff" }} />
+        </Svg>
+      </Canvas>
+    );
+    const { image } = await renderImage(turned);
+    expect(await pixel(image, 40, 70)).toEqual([255, 0, 0, 255]);
+    expect(await pixel(image, 60, 55)).toEqual([255, 255, 255, 255]);
+    expect(await pixel(image, 90, 10)).toEqual([0, 0, 255, 255]);
+    expect(await pixel(image, 5, 5)).toEqual([255, 255, 255, 255]);
   });
 
   it("writes a PNG of the Canvas's size, sharper at a scale", async () => {

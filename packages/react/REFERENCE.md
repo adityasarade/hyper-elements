@@ -325,9 +325,9 @@ Content, stacked down whatever holds it.
 
 ### Svg
 
-Shapes (Rect, Circle, Ellipse, Line, Polygon, Path) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them. In an Email, a linked PNG (render()'s assets).
+Shapes (Rect, Circle, Ellipse, Line, Polygon, Path, and groups of them: G) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them. In an Email, a linked PNG (render()'s assets).
 
-Holds: Rect, Circle, Ellipse, Line, Polygon, Path.
+Holds: Rect, Circle, Ellipse, Line, Polygon, Path, G.
 
 Props:
 - `width`: a number from 0 (required)
@@ -854,6 +854,7 @@ Props:
 - `width`: a number from 0 (required)
 - `height`: a number from 0 (required)
 - `rx`: a number from 0
+- `transform`: text. Moves, turns, scales or skews it in its Svg, as SVG's transform ("translate(40 0) rotate(45 20 20)"): in its Svg's units, about its origin unless rotate names a center.
 
 `style`:
 - `fill`: *color* (default `"#000000"`, Background). Its inside ("transparent" for none).
@@ -871,6 +872,7 @@ Props:
 - `cx`: a number (default `0`)
 - `cy`: a number (default `0`)
 - `r`: a number from 0 (required)
+- `transform`: text. Moves, turns, scales or skews it in its Svg, as SVG's transform ("translate(40 0) rotate(45 20 20)"): in its Svg's units, about its origin unless rotate names a center.
 
 `style`:
 - `fill`: *color* (default `"#000000"`, Background). Its inside ("transparent" for none).
@@ -889,6 +891,7 @@ Props:
 - `cy`: a number (default `0`)
 - `rx`: a number from 0 (required)
 - `ry`: a number from 0 (required)
+- `transform`: text. Moves, turns, scales or skews it in its Svg, as SVG's transform ("translate(40 0) rotate(45 20 20)"): in its Svg's units, about its origin unless rotate names a center.
 
 `style`:
 - `fill`: *color* (default `"#000000"`, Background). Its inside ("transparent" for none).
@@ -907,6 +910,7 @@ Props:
 - `y1`: a number (default `0`)
 - `x2`: a number (default `0`)
 - `y2`: a number (default `0`)
+- `transform`: text. Moves, turns, scales or skews it in its Svg, as SVG's transform ("translate(40 0) rotate(45 20 20)"): in its Svg's units, about its origin unless rotate names a center.
 
 `style`:
 - `fill`: *color* (default `"#000000"`, Background). Its inside ("transparent" for none).
@@ -922,6 +926,7 @@ Holds: nothing.
 
 Props:
 - `points`: text (required)
+- `transform`: text. Moves, turns, scales or skews it in its Svg, as SVG's transform ("translate(40 0) rotate(45 20 20)"): in its Svg's units, about its origin unless rotate names a center.
 
 `style`:
 - `fill`: *color* (default `"#000000"`, Background). Its inside ("transparent" for none).
@@ -937,12 +942,22 @@ Holds: nothing.
 
 Props:
 - `d`: text (required). SVG path data ("M0 0 L40 0 L20 30 Z").
+- `transform`: text. Moves, turns, scales or skews it in its Svg, as SVG's transform ("translate(40 0) rotate(45 20 20)"): in its Svg's units, about its origin unless rotate names a center.
 
 `style`:
 - `fill`: *color* (default `"#000000"`, Background). Its inside ("transparent" for none).
 - `stroke`: *color* (Border). Its outline's color.
 - `strokeWidth`: a number from 0 (Border)
 - `opacity`: a number from 0 to 1 (Effects)
+
+### G
+
+Shapes (and groups) moved, turned or scaled together, in its Svg: its transform applies to all it holds, each shape's own inside it.
+
+Holds: Rect, Circle, Ellipse, Line, Polygon, Path, G.
+
+Props:
+- `transform`: text. Moves, turns, scales or skews it in its Svg, as SVG's transform ("translate(40 0) rotate(45 20 20)"): in its Svg's units, about its origin unless rotate names a center.
 
 ## For tools: where each block is in an Email's HTML
 

@@ -87,9 +87,9 @@ describe("GUIDE.md, REFERENCE.md and the skill", () => {
     // from (agents made one up, and the email showed broken images): 22,800 and 25,500 before. Then by the line
     // pointing to templates: 23,400 and 26,100 before. Then by what a Canvas and an Svg are in an email (a linked
     // PNG, render()'s assets: a Canvas's alt, a Link around one, an Image's background where it doesn't load): 23,520
-    // before.
-    expect(read("GUIDE.md").length).toBeLessThan(23_640);
-    expect(read(SKILL).length).toBeLessThan(26_220);
+    // before. Then by an Svg's groups and transforms (G, and each shape's transform): 23,640 and 26,220 before.
+    expect(read("GUIDE.md").length).toBeLessThan(24_000);
+    expect(read(SKILL).length).toBeLessThan(26_600);
   });
 });
 

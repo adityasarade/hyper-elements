@@ -14,6 +14,7 @@ Props:
 - `cy`: a number (default `0`)
 - `rx`: a number from 0 (required)
 - `ry`: a number from 0 (required)
+- `transform`: text. Moves, turns, scales or skews it in its Svg, as SVG's transform ("translate(40 0) rotate(45 20 20)"): in its Svg's units, about its origin unless rotate names a center.
 
 `style`:
 - `fill`: *color* (default `"#000000"`, Background). Its inside ("transparent" for none).

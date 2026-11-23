@@ -14,7 +14,7 @@ To test an email in Outlook, Gmail and other clients, a design or any HTML: the 
 ## Before you write a design
 
 - If the project's package.json doesn't list `@hyper-elements/react`, install it: `npm install @hyper-elements/react react react-dom`, or the same with the project's package manager (`pnpm add`, `yarn add`, `bun add`).
-- Once it's installed, its own guide is `node_modules/@hyper-elements/react/GUIDE.md`, written for the version installed. `grep "hyper-elements guide" node_modules/@hyper-elements/react/GUIDE.md` gives its id; this skill's is `hyper-elements guide 67400068`. The same id: this skill is that guide, so read on. Another id, or none: read GUIDE.md and follow it where it differs from this skill.
+- Once it's installed, its own guide is `node_modules/@hyper-elements/react/GUIDE.md`, written for the version installed. `grep "hyper-elements guide" node_modules/@hyper-elements/react/GUIDE.md` gives its id; this skill's is `hyper-elements guide 72b19e22`. The same id: this skill is that guide, so read on. Another id, or none: read GUIDE.md and follow it where it differs from this skill.
 
 ## Templates from Unlayer Elements
 
@@ -182,7 +182,7 @@ const { image, diagnostics } = await renderImage(
 
 ### Blocks
 
-- **Svg**: Shapes (Rect, Circle, Ellipse, Line, Polygon, Path) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them. In an Email, a linked PNG (render()'s assets). Holds shapes. Props: width* (a number from 0), height* (a number from 0), viewBox (text), title (text). Style: padding, backgroundColor, border, borderRadius, flex. Phones: padding, border.
+- **Svg**: Shapes (Rect, Circle, Ellipse, Line, Polygon, Path, and groups of them: G) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them. In an Email, a linked PNG (render()'s assets). Holds shapes. Props: width* (a number from 0), height* (a number from 0), viewBox (text), title (text). Style: padding, backgroundColor, border, borderRadius, flex. Phones: padding, border.
 - **Text**: A paragraph of text. Holds text, inline, Image. Props: dir (ltr|rtl|auto), fit ({ sizes, maxLines }). Style: text, box, textDecoration (none|underline|line-through), flex. Phones: text, width, maxWidth, padding, border.
 - **Heading**: A heading, from level 1 (the page's title) to 6. Holds text, inline. Props: level (1|2|3|4|5|6), dir (ltr|rtl|auto), fit ({ sizes, maxLines }). Style: text, box, textDecoration (none|underline|line-through), flex. Phones: text, width, maxWidth, padding, border.
 - **Button**: A link drawn as a button. Holds text, Span, MergeTag, LineBreak. Props: href* (link), title (text), aria-label (text), attrs (attributes). Style: text, box, textDecoration (none|underline|line-through), boxSizing (border-box|content-box), alignSelf (start|center|end), flex. Hover: color, backgroundColor. Phones: text, width, maxWidth, padding, border, alignSelf.
@@ -215,12 +215,13 @@ const { image, diagnostics } = await renderImage(
 
 ### Shapes
 
-- **Rect**: A rectangle at x, y in its Svg, rounded by rx. Props: x (a number), y (a number), width* (a number from 0), height* (a number from 0), rx (a number from 0). Style: fill, stroke, strokeWidth, opacity.
-- **Circle**: A circle centered at cx, cy in its Svg. Props: cx (a number), cy (a number), r* (a number from 0). Style: fill, stroke, strokeWidth, opacity.
-- **Ellipse**: An ellipse centered at cx, cy in its Svg. Props: cx (a number), cy (a number), rx* (a number from 0), ry* (a number from 0). Style: fill, stroke, strokeWidth, opacity.
-- **Line**: A straight line from x1, y1 to x2, y2 in its Svg (drawn by its stroke). Props: x1 (a number), y1 (a number), x2 (a number), y2 (a number). Style: fill, stroke, strokeWidth, opacity.
-- **Polygon**: A closed shape through its points ("0,0 40,0 20,30"), in its Svg. Props: points* (text). Style: fill, stroke, strokeWidth, opacity.
-- **Path**: A shape drawn by an SVG path (d), in its Svg. Props: d* (text). Style: fill, stroke, strokeWidth, opacity.
+- **Rect**: A rectangle at x, y in its Svg, rounded by rx. Props: x (a number), y (a number), width* (a number from 0), height* (a number from 0), rx (a number from 0), transform (text). Style: fill, stroke, strokeWidth, opacity.
+- **Circle**: A circle centered at cx, cy in its Svg. Props: cx (a number), cy (a number), r* (a number from 0), transform (text). Style: fill, stroke, strokeWidth, opacity.
+- **Ellipse**: An ellipse centered at cx, cy in its Svg. Props: cx (a number), cy (a number), rx* (a number from 0), ry* (a number from 0), transform (text). Style: fill, stroke, strokeWidth, opacity.
+- **Line**: A straight line from x1, y1 to x2, y2 in its Svg (drawn by its stroke). Props: x1 (a number), y1 (a number), x2 (a number), y2 (a number), transform (text). Style: fill, stroke, strokeWidth, opacity.
+- **Polygon**: A closed shape through its points ("0,0 40,0 20,30"), in its Svg. Props: points* (text), transform (text). Style: fill, stroke, strokeWidth, opacity.
+- **Path**: A shape drawn by an SVG path (d), in its Svg. Props: d* (text), transform (text). Style: fill, stroke, strokeWidth, opacity.
+- **G**: Shapes (and groups) moved, turned or scaled together, in its Svg: its transform applies to all it holds, each shape's own inside it. Holds shapes. Props: transform (text).
 
 ## Values
 

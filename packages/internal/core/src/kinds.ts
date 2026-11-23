@@ -409,6 +409,50 @@ export function text(given: { maxLength?: number; pattern?: RegExp; mismatch?: s
   });
 }
 
+// ─── SVG transforms ─────────────────────────────────────────────────────────
+
+/** A number in an SVG transform: 10, -2.5, .5, 1e3. */
+const TRANSFORM_NUMBER = String.raw`[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?`;
+/** Between a transform's numbers: a comma, white space, both, or nothing before a sign ("30-4"). */
+const TRANSFORM_COMMA = String.raw`(?:\s*,\s*|\s+|(?=[-+]))`;
+const transformCall = (names: string, counts: string) => String.raw`${names}\s*\(\s*${TRANSFORM_NUMBER}${counts}\s*\)`;
+/** One of SVG's transforms, with the numbers it takes. */
+const TRANSFORM_FUNCTION = `(?:${[
+  transformCall("(?:translate|scale)", `(?:${TRANSFORM_COMMA}${TRANSFORM_NUMBER})?`),
+  transformCall("rotate", `(?:${TRANSFORM_COMMA}${TRANSFORM_NUMBER}${TRANSFORM_COMMA}${TRANSFORM_NUMBER})?`),
+  transformCall("skew[XY]", ""),
+  transformCall("matrix", `(?:${TRANSFORM_COMMA}${TRANSFORM_NUMBER}){5}`),
+].join("|")})`;
+/** A list of SVG transforms, as SVG writes one. */
+const TRANSFORM_LIST = new RegExp(String.raw`^\s*${TRANSFORM_FUNCTION}(?:\s*(?:,\s*)?${TRANSFORM_FUNCTION})*\s*$`);
+const TRANSFORM_NUMBERS = new RegExp(TRANSFORM_NUMBER, "g");
+
+/**
+ * An SVG transform list ("translate(40 0) rotate(45 20 20)"), any way SVG spells one, kept in one spelling: each
+ * function with its numbers, one space apart ("rotate(+9e1, 30 30)" is "rotate(90 30 30)"), which every engine reads
+ * alike (react-pdf's doesn't read two spaces, a sign or an exponent).
+ */
+export function svgTransform(given: { maxLength?: number } = {}): Kind<string, string> {
+  const maxLength = given.maxLength ?? 1000;
+  return kind({
+    name: "text",
+    editor: "text",
+    accepts: "text",
+    parse(input) {
+      if (typeof input !== "string") return fail(`expected text, not ${show(input)}`);
+      if (input.length > maxLength) return fail(`is longer than ${maxLength} characters`);
+      if (!TRANSFORM_LIST.test(input)) {
+        return fail('isn\'t an SVG transform: give translate(x y), rotate(angle cx cy), scale(x y), skewX(angle), skewY(angle) or matrix(a b c d e f), one or more ("translate(40 0) rotate(45 20 20)")');
+      }
+      const calls = [...input.matchAll(/([A-Za-z]+)\s*\(([^)]*)\)/g)].map(([, name, args]) => ({ name: name!, numbers: args!.match(TRANSFORM_NUMBERS)!.map(Number) }));
+      if (calls.some((call) => call.numbers.some((n) => !(Math.abs(n) < 1e9)))) return fail("has a number past a billion, which no drawing takes");
+      // At most six decimals, written plainly (no exponent).
+      return ok(calls.map((call) => `${call.name}(${call.numbers.map((n) => String(Number(n.toFixed(6))).replace(/^-0$/, "0")).join(" ")})`).join(" "));
+    },
+    jsonSchema: () => ({ type: "string", maxLength, pattern: TRANSFORM_LIST.source }),
+  });
+}
+
 export function boolean(): Kind<boolean, boolean> {
   return kind({
     name: "boolean",

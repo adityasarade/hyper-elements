@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Canvas, Circle, defineElement, ElementsError, Email, Html, Image, Rect, Section, Svg, Text, render } from "@hyper-elements/react";
+import { Canvas, Circle, defineElement, ElementsError, Email, G, Html, Image, Rect, Section, Svg, Text, render } from "@hyper-elements/react";
 import { emailImages, renderImage, type ImageFont } from "../../src/image";
 import { pixel, pngSize } from "./png";
 
@@ -185,6 +185,22 @@ describe("an Email's Svg on its own", () => {
     const refused = await render(markup, { assets: { baseUrl: BASE, draw: emailImages({ fonts }) } }).catch((e: unknown) => e);
     expect(refused).toBeInstanceOf(ElementsError);
     expect((refused as ElementsError).diagnostics.filter((d) => d.severity === "error").map((d) => d.code)).toContain("image/font");
+  });
+
+  it("draws its groups' and shapes' transforms into its picture", async () => {
+    const turned = (
+      <Email>
+        <Svg width={100} height={100} title="Turned" style={{ backgroundColor: "#ffffff" }}>
+          <G transform="translate(50 50) rotate(90)">
+            <Rect width={40} height={20} style={{ fill: "#ff0000" }} />
+          </G>
+        </Svg>
+      </Email>
+    );
+    const [png] = (await render(turned, { assets: { baseUrl: BASE, draw: emailImages() } })).files!;
+    // At twice its size: the turned rect covers x 60 to 100, y 100 to 180; where it'd be unturned is empty.
+    expect(await pixel(png!.bytes, 80, 140)).toEqual([255, 0, 0, 255]);
+    expect(await pixel(png!.bytes, 120, 110)).toEqual([255, 255, 255, 255]);
   });
 
   it("is a PNG of its drawing at twice its size, with no font given", async () => {

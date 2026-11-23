@@ -1,11 +1,11 @@
 /**
  * Images: a Canvas is a fixed-size root, its children laid out in it as on a page, written as an
  * image by @hyper-elements/react/image (and as HTML by render(), to look at); an Svg draws shapes (Rect, Circle, Ellipse,
- * Line, Polygon, Path) in a box of its own, on a page, in a Canvas and in a PDF. In an Email, a Canvas (and an Svg on its
+ * Line, Polygon, Path, and groups of them: G) in a box of its own, on a page, in a Canvas and in a PDF. In an Email, a Canvas (and an Svg on its
  * own) is a picture: a PNG file the email links to, drawn by @hyper-elements/react/image (writers/email/pictures.ts).
  */
 import { defineComponent, prop, type PropSpecs, type SupportByTarget } from "./define";
-import { color, length, number, text } from "./kinds";
+import { color, length, number, svgTransform, text } from "./kinds";
 import { ROOT_DEFAULT_STYLE, ROOT_PROPS, ROOT_STYLE, SURFACE_ROLES, TEXT_EDITOR } from "./roots";
 import { boxStyle, css, layoutStyle, pick, placementStyle } from "./styles";
 
@@ -13,6 +13,13 @@ import { boxStyle, css, layoutStyle, pick, placementStyle } from "./styles";
 const DRAWN: SupportByTarget = { web: { level: "full", source: "writer" }, email: { level: "full", source: "writer" } };
 const coordinate = (label: string, description?: string) => prop(number(), { support: DRAWN, label, ...(description ? { description } : {}), default: 0 });
 const size = (label: string) => prop(number({ min: 0 }), { support: DRAWN, label, required: true });
+
+/** Moves, turns, scales or skews a shape or a group, as SVG's transform attribute. */
+const transform = prop(svgTransform(), {
+  support: DRAWN,
+  label: "Transform",
+  description: 'Moves, turns, scales or skews it in its Svg, as SVG\'s transform ("translate(40 0) rotate(45 20 20)"): in its Svg\'s units, about its origin unless rotate names a center.',
+});
 
 /** Styles with no phone value of their own. */
 const drawnOnce = <S extends Record<string, object>>(styles: S) =>
@@ -53,7 +60,7 @@ export const Svg = defineComponent({
   type: "Svg",
   label: "Vector drawing",
   description:
-    "Shapes (Rect, Circle, Ellipse, Line, Polygon, Path) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them. In an Email, a linked PNG (render()'s assets).",
+    "Shapes (Rect, Circle, Ellipse, Line, Polygon, Path, and groups of them: G) drawn in a box of its own: its width and height, and the coordinates its viewBox gives them. In an Email, a linked PNG (render()'s assets).",
   categories: ["block"],
   props: {
     width: size("Width"),
@@ -90,7 +97,7 @@ const PAINT = {
 const PAINT_DEFAULT = { fill: "#000000" } as const;
 
 const shape = <const P extends PropSpecs>(type: string, label: string, description: string, props: P) =>
-  defineComponent({ type, label, description, categories: ["shape"], props, style: PAINT, defaultStyle: PAINT_DEFAULT, children: {}, sizing: "none", targets: { web: {}, email: {} } });
+  defineComponent({ type, label, description, categories: ["shape"], props: { ...props, transform }, style: PAINT, defaultStyle: PAINT_DEFAULT, children: {}, sizing: "none", targets: { web: {}, email: {} } });
 
 export const Rect = shape("Rect", "Rectangle", "A rectangle at x, y in its Svg, rounded by rx.", {
   x: coordinate("X"),
@@ -114,6 +121,19 @@ export const Path = shape("Path", "Path", "A shape drawn by an SVG path (d), in 
   d: prop(text({ maxLength: 100000 }), { support: DRAWN, label: "Path", description: 'SVG path data ("M0 0 L40 0 L20 30 Z").', required: true }),
 });
 
-/** The shapes, by type. */
-export const SHAPES = [Rect, Circle, Ellipse, Line, Polygon, Path];
+/** Shapes moved, turned or scaled together: SVG's g. On a page, its id (as a shape's) is its element's, which CSS can find. */
+export const G = defineComponent({
+  type: "G",
+  label: "Group",
+  description: "Shapes (and groups) moved, turned or scaled together, in its Svg: its transform applies to all it holds, each shape's own inside it.",
+  categories: ["shape"],
+  props: { transform },
+  style: {},
+  children: { categories: ["shape"] },
+  sizing: "none",
+  targets: { web: {}, email: {} },
+});
+
+/** The shapes, and the group that holds them, by type. */
+export const SHAPES = [Rect, Circle, Ellipse, Line, Polygon, Path, G];
 

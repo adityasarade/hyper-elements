@@ -44,6 +44,13 @@ const { html, files } = await render(<Launch />, {
 - `toDesign(element, { assets })` takes the same `assets`: each picture goes to the Unlayer builder as an image of its
   file, linking the file `render()` returns.
 
+### Groups and transforms in an Svg
+
+A shape takes a `transform`, as SVG's (`"translate(40 0) rotate(45 20 20)"`), and `G` groups shapes (and groups) to
+move, turn or scale them together. A transform SVG doesn't take is an error, saying the forms it takes. They're drawn
+on a page, in an image, in a PDF and in an Email's pictures. On a page, a shape's or group's `id` is written as its
+element's id, so CSS can find it (to animate it) rather than matching its path data.
+
 ### A Canvas's Svg is drawn as a page draws it
 
 An `Svg` whose `viewBox` is another shape than its box is drawn at one scale, centered, as a browser draws it, in an

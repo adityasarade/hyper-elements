@@ -342,10 +342,15 @@ class Writer {
     const { width, height, viewBox } = node.props as { width: number; height: number; viewBox?: string };
     const paint = (value: unknown) => (value === "transparent" ? "none" : (value as string | undefined));
     const KINDS: Record<string, Shape["kind"]> = { Rect: "rect", Circle: "circle", Ellipse: "ellipse", Line: "line", Polygon: "polygon", Path: "path" };
-    const shapes = nodes(node).map((shape): Shape => ({
-      kind: KINDS[shape.type],
-      attributes: { ...shape.props, fill: paint(shape.style.fill), stroke: paint(shape.style.stroke), strokeWidth: shape.style.strokeWidth, opacity: shape.style.opacity },
-    }));
+    // A group with what it holds; a shape with its geometry, transform and paint.
+    const drawn = (shape: ResolvedNode): Shape =>
+      shape.type === "G"
+        ? { kind: "g", attributes: { transform: shape.props.transform }, children: nodes(shape).map(drawn) }
+        : {
+            kind: KINDS[shape.type]!,
+            attributes: { ...shape.props, fill: paint(shape.style.fill), stroke: paint(shape.style.stroke), strokeWidth: shape.style.strokeWidth, opacity: shape.style.opacity },
+          };
+    const shapes = nodes(node).map(drawn);
     return { kind: "box", style: { display: "flex", ...this.box(node), ...placed, width: undefined }, children: [{ kind: "drawing", key: `${node.path}/drawing`, width, height, viewBox: fitted(viewBox, width, height), shapes }] };
   }
 }

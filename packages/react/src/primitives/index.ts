@@ -39,6 +39,7 @@ export {
   Line,
   Polygon,
   Path,
+  G,
   Video,
   Html,
 } from "./components";
@@ -82,6 +83,7 @@ export type {
   LineProps,
   PolygonProps,
   PathProps,
+  GProps,
   VideoProps,
   HtmlProps,
 } from "./components";
