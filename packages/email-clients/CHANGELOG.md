@@ -4,6 +4,10 @@ Each release records the models package it was tested with.
 
 ## Unreleased
 
+- **A Page, a Document or a Canvas is still refused by `renderInEmailClients()`** (`email-clients/not-an-email`) now that
+  core gives every root a block map: it reads the root from the map's first entry, where it went by there being no
+  map. An earlier 0.5.x of this package with the core that maps every root would preview such a design as an email
+  instead of refusing it: update both together.
 - **An image whose file is in the email, as a `data:` URI, is a warning** (`email/image-data`): every Gmail drops it,
   HEY, SFR and La Poste too, classic Outlook shows no GIF so, and GMX and WEB.DE only a PNG (caniemail's image-base64).
   On an Image's `src` and a Video's `thumbnail`, and on each `<img>` of HTML given as a string. A Canvas or an Svg in

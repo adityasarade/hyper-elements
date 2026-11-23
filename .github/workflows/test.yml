@@ -107,8 +107,8 @@ jobs:
       # that takes it, about 126KB), its writers (email, page, print HTML and plain text, about
       # 97KB), plugins (the contract, checking and merging what a plugin returns, the
       # frozen copy of the laid-out tree it's given, about 7KB; the email client checks
-      # moved to @hyper-elements/email-clients, a plugin), render()'s blockMap (marking each block as the email is
-      # written, then each one's offset, about 5KB), themes (reading a theme, its tokens,
+      # moved to @hyper-elements/email-clients, a plugin), render()'s blockMap (marking each block as the email or page is
+      # written, then each one's offset, about 6KB), themes (reading a theme, its tokens,
       # roles, scopes, component defaults, variants and named styles merged into each
       # node, a Page's custom properties, refusing names that reach JavaScript's own
       # objects, body text's size and line height as roles, and the hint to write token()
@@ -128,21 +128,22 @@ jobs:
       # once as inert data (snapshot(), slotMark(), captureFragment() and readFragment(), with their plain-data
       # grammar and limits), the blocks kind, and frozen kinds and definitions; 348,700 bytes (3,554 more) for fitted
       # text in a Canvas: the fit kind and prop, style/fit, and a fitted node laid out at its largest size; 349,800
-      # bytes for the two together, templates and the `elements` key (349,212 measured); 374,700 bytes (24,924 more:
-      # 374,136 measured) for a Canvas (and an Svg) in an Email as a picture: cut out of the Email and checked as a
+      # bytes for the two together, templates and the `elements` key (349,212 measured); 350,800 bytes for a block
+      # map of every root, the page writer marking its blocks as the email writer does (829 bytes more, 350,381
+      # measured); 374,700 bytes (24,924 more: 374,136 measured) for a Canvas (and an Svg) in an Email as a picture: cut out of the Email and checked as a
       # Canvas, an Image of its PNG in its place, named by a SHA-256 written in (the package has no dependencies),
       # render()'s assets option and files, and what it says of a picture (a merge tag or a link in one, text with no
       # alt or no background, one wider than its column), with an Image's background and alt where it doesn't load (in
       # a color that reads on it, the CSS names' values for it). 377,600 bytes (2,817 more: 377,075 measured) for an
       # Svg's groups and transforms: G, each shape's transform, checked and kept in one spelling, drawn by the page
-      # writer.
+      # writer. 378,500 bytes (377,904 measured) for the two together, the block map and the pictures.
       - name: Check main entry bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
           test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=377600
+          MAX_SIZE=378500
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::Main entry bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -175,17 +176,19 @@ jobs:
       # it as it is, an HTML block with the reason said where it doesn't (3,431 bytes measured);
       # 511,000 for its columns' percentages as given, a header's or a footer's background shared only where all its rows
       # have it, its words read at the page's line height, and a row below a footer row said (1,927 bytes measured).
-      # 521,700 bytes for templates and the builder's table together (521,210 measured). 548,700 bytes (26,897 more:
+      # 521,700 bytes for templates and the builder's table together (521,210 measured); 522,500 bytes for a block map of
+      # every root, in the writers it shares (844 bytes more, 522,115 measured). 548,700 bytes (26,897 more:
       # 548,107 measured) for a Canvas (and an Svg) in an Email as a picture, which the builder's copy of core writes
       # too, and toDesign()'s assets option, each picture an image of its file. 549,800 bytes (1,072 more: 549,179
       # measured) for the pictures in a block drawn as HTML matched to their files by their places. 552,600 bytes (2,882
-      # more: 552,061 measured) for an Svg's groups and transforms, which the builder's copy of core writes too.
+      # more: 552,061 measured) for an Svg's groups and transforms, which the builder's copy of core writes too. 553,500
+      # bytes (552,905 measured) for the two together, the block map and the pictures.
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=552600
+          MAX_SIZE=553500
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -193,17 +196,18 @@ jobs:
           fi
           echo "✅ /builder bundle within budget"
 
-      # Templates (/template, dist/template.js): about 86.2KB unminified ESM (template(), reading
+      # Templates (/template, dist/template.js): about 98.3KB unminified ESM (template(), reading
       # values by their fields, the checks of a design built from them, describe(), values files and
       # versions, fitInside(), sniffImage() and formatDate(); slots and their preflight, blocks, rules
-      # over the result with lint's and core's, links and root props, and annotated templates). The
-      # main entry and /inspect are external. Set from that plus 10%. Raise it on purpose, with what grew.
+      # over the result with lint's and core's, links (their hosts read past a sending service's tags),
+      # the hosts images load from, root props, and annotated templates). The main entry and /inspect
+      # are external. Set from that plus 10%. Raise it on purpose, with what grew.
       - name: Check /template bundle size
         run: |
           BUNDLE="packages/react/dist/template.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/template.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=94800
+          MAX_SIZE=108200
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/template bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
