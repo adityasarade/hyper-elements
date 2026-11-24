@@ -1,4 +1,5 @@
 /** toDesign(): a template as the builder's design JSON, every block a tool where one shows it, and what it can't hold said. */
+import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
 import { Button, Canvas, Column, component, Document, Email, Grid, Heading, Html, Image, Layer, LineBreak, Link, List, ListItem, Page, PageBreak, PageFooter, PageHeader, PageNumber, Text, prop, Rect, Row, Span, Section, Svg, Table, TableCell, TableRow } from "../primitives";
 import { airbnb, stripe } from "../primitives/testing/codemod-examples";
@@ -11,6 +12,37 @@ import { TableDefaults } from "./tool-defaults";
 
 type Values = Record<string, any>;
 const blocks = (design: any): Array<{ type: string; values: Values }> => design.body.rows.flatMap((row: any) => row.columns.flatMap((column: any) => column.contents));
+
+/** Each `@media` rule's query and the display it gives elements of a class. */
+function mediaDisplays(html: string, className: string): Array<[string, string]> {
+  const out: Array<[string, string]> = [];
+  for (const [, query, rules] of html.matchAll(/@media \(([^)]*)\)\{((?:[^{}]*\{[^{}]*\})*)\}/g)) {
+    const display = new RegExp(`\\.${className}\\{display:([\\w-]+)!important\\}`).exec(rules)?.[1];
+    if (display) out.push([query, display]);
+  }
+  return out;
+}
+
+/**
+ * Whether markup hides some words on a device, as Elements writes it, with phones up to `phone` px wide: an element
+ * they're in, by its class, is `display:none` up to that width, or `display:none` and shown up to it (or hidden above
+ * it, in a Page).
+ */
+function hidesOn(html: string, words: string, device: "mobile" | "desktop", phone: number): boolean {
+  const { document } = new JSDOM(html).window;
+  // The innermost element holding them: in document order, the last of those whose text does.
+  const holder = [...document.body.querySelectorAll("*")].filter((element) => element.textContent?.includes(words)).pop();
+  const onPhones = ([query]: [string, string]) => query === `max-width: ${phone}px`;
+  for (let element = holder; element; element = element.parentElement ?? undefined) {
+    const hiddenFirst = /display:\s*none/.test(element.getAttribute("style") ?? "");
+    for (const name of element.classList) {
+      const rules = mediaDisplays(html, name);
+      if (device === "mobile" && !hiddenFirst && rules.some((rule) => onPhones(rule) && rule[1] === "none")) return true;
+      if (device === "desktop" && ((hiddenFirst && rules.some((rule) => onPhones(rule) && rule[1] !== "none")) || rules.some((rule) => rule[0] === `min-width: ${phone + 1}px` && rule[1] === "none"))) return true;
+    }
+  }
+  return false;
+}
 
 describe("toDesign", () => {
   for (const [name, template] of [["StripeReceipt", <stripe.StripeReceipt key="s" />], ["AirbnbConfirmation", <airbnb.AirbnbConfirmation key="a" />]] as const) {
@@ -927,6 +959,47 @@ describe("what the builder can't hold", () => {
     const { design, report } = toDesign(<Email><Text>Rated <Image src={{ src: "https://x.test/s.png", width: 80, height: 16 }} alt="five stars" /> by customers</Text></Email>);
     expect(report.join("\n")).toContain("an Image in a run of text");
     expect(JSON.stringify(design)).toContain("five stars");
+  });
+
+  it("keeps a text, a heading, a list, a link or a button with part of it hidden on phones or on desktops as an HTML block that still hides it, and says so", () => {
+    const html = (design: any) => String(blocks(design)[0].values.html);
+    const why = (tool: "text" | "button") => (tool === "button" ? "part of a button's label hidden on phones or on desktops isn't something the builder's button holds" : "part of a text hidden on phones or on desktops (words, a link, a list item) isn't something the builder's text holds");
+    for (const [device, other] of [["mobile", "desktops"], ["desktop", "phones"]] as const) {
+      const hidden = { [device]: true };
+      const words = `on ${other} only`;
+      const parts: Array<[string, React.ReactElement, "text" | "button"]> = [
+        ["words in a Text", <Text key="t">Shown <Span hidden={hidden}>{words}</Span></Text>, "text"],
+        ["a link in a Text", <Text key="t">Shown <Link href="https://x.test" hidden={hidden}>{words}</Link></Text>, "text"],
+        ["words in a Heading", <Heading key="t">Shown <Span hidden={hidden}>{words}</Span></Heading>, "text"],
+        ["a list item", <List key="t"><ListItem>Shown</ListItem><ListItem hidden={hidden}>{words}</ListItem></List>, "text"],
+        ["words in a list item", <List key="t"><ListItem>Shown <Span hidden={hidden}>{words}</Span></ListItem></List>, "text"],
+        ["words in a Link of its own", <Link key="t" href="https://x.test">Shown <Span hidden={hidden}>{words}</Span></Link>, "text"],
+        ["words in a Button's label", <Button key="t" href="https://x.test">Shown <Span hidden={hidden}>{words}</Span></Button>, "button"],
+      ];
+      for (const [name, part, tool] of parts) {
+        const places: Array<[string, (block: React.ReactElement) => React.ReactElement, string]> = [["", (block) => block, "root.children[0]"]];
+        for (const [where, placed, path] of places) {
+          for (const [root, rootName, phone] of [[<Email key="e">{placed(part)}</Email>, "Email", 620], [<Page key="p">{placed(part)}</Page>, "Page", 480]] as const) {
+            const at = `${name} hidden on ${device}${where}, in a ${rootName}`;
+            const { design, report } = toDesign(root);
+            expect(blocks(design)[0].type, at).toEqual("html");
+            expect(hidesOn(html(design), words, device, phone), at).toBe(true);
+            expect(report, at).toEqual([`${path}: ${why(tool)}: it's an HTML block of its own markup in the builder (it can be moved, not edited)`]);
+          }
+        }
+      }
+    }
+    // The check reads where words are hidden: an HTML block's words shown everywhere aren't hidden anywhere.
+    const shown = toDesign(<Email><Text>Rated <Image src={{ src: "https://x.test/s.png", width: 80, height: 16 }} alt="five stars" /> by customers</Text></Email>).design;
+    expect([hidesOn(html(shown), "by customers", "mobile", 620), hidesOn(html(shown), "by customers", "desktop", 620)]).toEqual([false, false]);
+    // And what's hidden is what holds them, not something before them.
+    expect(hidesOn('<style>@media (max-width: 620px){.ehide1{display:none!important}}</style><p><span class="ehide1"></span>secret</p>', "secret", "mobile", 620)).toBe(false);
+  });
+
+  it("keeps a text hidden on phones or on desktops as a whole as the builder's text, hidden there", () => {
+    const { design, report } = toDesign(<Email><Text hidden={{ mobile: true }}>Shown <Span style={{ fontWeight: 700 }}>on desktops</Span></Text></Email>);
+    expect(blocks(design).map((content) => [content.type, content.values._override?.mobile?.hideMobile])).toEqual([["paragraph", true]]);
+    expect(report).toEqual([]);
   });
 
   it("says what it leaves out of text", () => {

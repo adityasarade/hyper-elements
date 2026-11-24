@@ -8,6 +8,10 @@ Versions before 0.3.0 were published as `@unlayer/react-elements`.
 
 - A `Grid` with `hidden` hides each of the builder's rows it's written as, there. Before, `toDesign()` wrote its rows
   shown everywhere, with nothing in `report`, and `fromDesign()` read them back shown.
+- A `Text`, `Heading`, `List`, `Link` or `Button` with part of it hidden on phones or desktops (a `Span`, a `Link` or
+  a `ListItem` with `hidden`) is an HTML block, which keeps those words hidden there, and `report` says why: the
+  builder hides whole blocks only. Before, its words were written as plain text and showed everywhere, with nothing in
+  `report`. An editor user can move the block, not edit it. A block hidden as a whole is still the builder's own.
 
 ### A block map for every root
 
