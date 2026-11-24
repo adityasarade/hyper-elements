@@ -201,17 +201,18 @@ describe("toDesign", () => {
     expect(fromDesign(other).report.join("\n")).toContain("Lora: web fonts the builder loads from a stylesheet");
   });
 
-  it("says what a Document's HTML blocks lose, which the builder's document mode doesn't draw", () => {
-    const missing = "the builder's document mode keeps it but doesn't draw or export it, so what's in it isn't in the builder's PDF";
+  it("says a Document's HTML blocks can be moved, not edited, and that editors before 1.544.0 don't draw them", () => {
+    const locked = "it's an HTML block of its own markup in the builder (it can be moved, not edited)";
+    const older = "editor versions before 1.544.0 keep it in a document but don't draw or export it";
     const layer = (
       <Layer>
         <Image src={{ src: "https://x.test/a.png", width: 600, height: 200 }} alt="" />
         <Text>Over</Text>
       </Layer>
     );
-    expect(toDesign(<Document>{layer}</Document>).report.join("\n")).toContain(missing);
-    expect(toDesign(<Document><Html html="<p>Words</p>" /></Document>).report.join("\n")).toContain(missing);
-    expect(toDesign(<Email>{layer}</Email>).report.join("\n")).toContain("it can be moved, not edited");
+    expect(toDesign(<Document>{layer}</Document>).report).toEqual([`root.children[0]: a Layer isn't a tool of the builder's: ${locked}; ${older}`]);
+    expect(toDesign(<Document><Html html="<p>Words</p>" /></Document>).report).toEqual([`root.children[0]: an Html block: ${older}`]);
+    expect(toDesign(<Email>{layer}</Email>).report).toEqual([`root.children[0]: a Layer isn't a tool of the builder's: ${locked}`]);
     expect(toDesign(<Email><Html html="<p>Words</p>" /></Email>).report).toEqual([]);
   });
 

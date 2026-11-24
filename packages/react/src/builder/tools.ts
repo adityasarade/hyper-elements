@@ -15,10 +15,12 @@ import { builderBorder, builderFont, builderLink, cssLineHeight, cssPx, cssSides
 type Sides = { top: number; right: number; bottom: number; left: number };
 type TextAlign = "left" | "center" | "right" | "justify";
 
-/** What a block needs from the template it's in. */
-/** What the builder's document mode does with an HTML block. */
-export const NOT_IN_DOCUMENTS = "the builder's document mode keeps it but doesn't draw or export it, so what's in it isn't in the builder's PDF";
+/** What an HTML block is in the builder. */
+export const LOCKED = "it's an HTML block of its own markup in the builder (it can be moved, not edited)";
+/** What an HTML block in a Document needs said: the builder's document mode draws and exports one from editor 1.544.0. */
+export const NOT_DRAWN_BY_OLDER_EDITORS = "editor versions before 1.544.0 keep it in a document but don't draw or export it";
 
+/** What a block needs from the template it's in. */
 export interface Place {
   at(path: string): ResolvedNode;
   report: string[];
@@ -254,7 +256,7 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
     }
     case "Html":
       place.sayLeftOut("html", node, path, ["props.html"]);
-      if (place.at("root").type === "Document") place.report.push(`${path}: an Html block: ${NOT_IN_DOCUMENTS}`);
+      if (place.at("root").type === "Document") place.report.push(`${path}: an Html block: ${NOT_DRAWN_BY_OLDER_EDITORS}`);
       return place.put(block("html", hiding), merge({ html: inText(withParagraphMargin(String(node.props?.html ?? ""), "margin-top:1em;margin-bottom:1em"), place.textAround(path)), containerPadding: cssSides(around), ...id }, hiddenOf("html", node)));
     case "PageBreak":
       return place.put(block("page_break"));
