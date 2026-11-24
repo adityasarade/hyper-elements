@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import React, { createContext, useContext } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { Button, Column, component, defineElement, defineProperty, ElementsError, Email, Heading, Image, Page, prop, render, Row, Section, Text, validate, type Token } from "./index";
+import { Button, Canvas, Column, component, defineElement, defineProperty, Document, ElementsError, Email, Heading, Image, Page, prop, render, Row, Section, Text, validate, type RootName, type Token } from "./index";
 import { describeComponent, type ExpandProps, type Kind, type PropSpec } from "@hyper-elements/core";
 import type { ComponentSpec, ComponentTheme, CustomComponent, CustomElement, ElementSpec, ElementTheme } from "./index";
 import { collectTemplate } from "./collect";
@@ -131,6 +131,44 @@ describe("component()", () => {
       </Page>
     );
     expect(body.match(/<h3 /g)).toHaveLength(2);
+  });
+
+  it("goes only in the roots it names: under another, it's element/not-supported at its place, in validate() and render()", async () => {
+    const Promo = defineElement({ type: "acme.Promo", label: "Promo", roots: ["Email", "Page"], props: {}, render: () => <Text>Sale</Text> });
+    const errors = (element: React.ReactElement) => validate(element).diagnostics.filter((d) => d.severity === "error");
+    expect(errors(<Email><Promo /></Email>)).toEqual([]);
+    expect((await render(<Page><Promo /></Page>)).body).toContain("Sale");
+    for (const [element, root] of [[<Document key="d"><Promo /></Document>, "a Document"], [<Canvas key="c"><Promo /></Canvas>, "a Canvas"]] as const) {
+      expect(errors(element)).toEqual([expect.objectContaining({ code: "element/not-supported", path: "root.children[0]", message: `A acme.Promo goes in an Email or a Page, not in ${root}` })]);
+      await expect(render(element)).rejects.toThrow("element/not-supported");
+    }
+    // Inside another element, it's checked under the template's root too.
+    const Pair = defineElement({ type: "acme.PromoPair", label: "Pair", props: {}, render: () => <Column><Promo /><Promo /></Column> });
+    expect(errors(<Page><Pair /></Page>)).toEqual([]);
+    expect(errors(<Document><Pair /></Document>).map((d) => [d.code, d.path])).toEqual([
+      ["element/not-supported", "root.children[0](acme.PromoPair).children[0]"],
+      ["element/not-supported", "root.children[0](acme.PromoPair).children[1]"],
+    ]);
+    // Its own copy, frozen: changing the list it was given changes nothing.
+    const given: RootName[] = ["Document"];
+    const Invoice = defineElement({ type: "acme.InvoiceLine", label: "Invoice line", roots: given, props: {}, render: () => <Text>Line</Text> });
+    given.push("Email");
+    expect(Invoice.definition.roots).toEqual(["Document"]);
+    expect(Object.isFrozen(Invoice.definition.roots)).toBe(true);
+    expect(errors(<Email><Invoice /></Email>).map((d) => d.message)).toEqual(["A acme.InvoiceLine goes in a Document, not in an Email"]);
+    // Left out, it goes in every root, as before.
+    expect(ProductCard.definition.roots).toBeUndefined();
+  });
+
+  it("refuses roots that name no root, a root that isn't one, or one twice", () => {
+    const made = (roots: unknown) => () => defineElement({ type: "acme.Rooted", label: "Rooted", props: {}, roots: roots as never, render: () => <Text>r</Text> });
+    const said = (roots: string) => `acme.Rooted: roots names the roots it goes in, each once ("Email", "Page", "Document", "Canvas"), not ${roots}`;
+    expect(made([])).toThrow(said("[]"));
+    expect(made(["Web"])).toThrow(said('["Web"]'));
+    expect(made(["Email", "Email"])).toThrow(said('["Email","Email"]'));
+    expect(made("Email")).toThrow(said('"Email"'));
+    // @ts-expect-error -- "Web" is no root's name.
+    expect(() => defineElement({ type: "acme.Rooted", label: "Rooted", props: {}, roots: ["Web"], render: () => <Text>r</Text> })).toThrow(said('["Web"]'));
   });
 
   it("reports wrong props, children, and what it renders that doesn't fit", async () => {

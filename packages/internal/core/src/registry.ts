@@ -4,7 +4,7 @@
  * built-in ones, plus `expand`: what it is, as primitives.
  */
 import { COMPONENTS } from "./components";
-import { TARGETS, type ComponentDefinition, type PropSpec, type PropSpecs, type Target, type TargetSupport } from "./define";
+import { ROOT_NAMES, TARGETS, type ComponentDefinition, type PropSpec, type PropSpecs, type RootName, type Target, type TargetSupport } from "./define";
 import { deepFrozen, type OutputOf } from "./kinds";
 import type { Diagnostic } from "./diagnostics";
 import type { Json } from "./model";
@@ -55,6 +55,8 @@ export interface CustomComponentSpec<P extends PropSpecs> {
   props: P;
   /** Where it goes: where a block goes (default), or where a Section goes. */
   placement?: "block" | "section";
+  /** The roots it goes in (default: every one). Under another, it's an `element/not-supported` error naming these. */
+  roots?: readonly RootName[];
   expand(props: ExpandProps<P>, context: ExpandContext): unknown;
 }
 
@@ -78,6 +80,11 @@ export function defineCustomComponent<const P extends PropSpecs>(spec: CustomCom
       if (edits !== prop.kind.editor) throw new Error(`[Elements] ${spec.type}: the editor ${String(name)} edits a ${String(edits)}, and ${key} is a ${prop.kind.editor}`);
     }
   }
+  // Some of the roots, each named once: none would be an element that goes nowhere.
+  const roots: unknown = spec.roots;
+  if (roots !== undefined && (!Array.isArray(roots) || !roots.length || roots.some((root) => !ROOT_NAMES.includes(root)) || new Set(roots).size !== roots.length)) {
+    throw new Error(`[Elements] ${spec.type}: roots names the roots it goes in, each once (${ROOT_NAMES.map((root) => JSON.stringify(root)).join(", ")}), not ${JSON.stringify(roots)}`);
+  }
   const section = spec.placement === "section";
   const props = ownSpecs(spec.props);
   const paths = Object.keys(props).map((key) => `props.${key}`);
@@ -93,6 +100,7 @@ export function defineCustomComponent<const P extends PropSpecs>(spec: CustomCom
     sizing: "stretch",
     // Rendered as the primitives it expands to, which are checked for each target themselves.
     targets: Object.fromEntries(TARGETS.map((target) => [target, {}])) as Record<Target, TargetSupport>,
+    ...(spec.roots !== undefined ? { roots: Object.freeze([...spec.roots]) } : {}),
     editor: paths.length ? { groups: [{ title: spec.label, paths }] } : undefined,
     custom: true,
     expand: spec.expand,

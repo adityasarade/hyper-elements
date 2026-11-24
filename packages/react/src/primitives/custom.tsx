@@ -5,7 +5,7 @@
  * team's own (`./properties`), which need neither React nor this render.
  */
 import type React from "react";
-import { defineCustomComponent, formatDiagnostics, type CustomDefinition, type ExpandProps, type PropSpecs, type PropsInput } from "@hyper-elements/core";
+import { defineCustomComponent, formatDiagnostics, type CustomDefinition, type ExpandProps, type PropSpecs, type PropsInput, type RootName } from "@hyper-elements/core";
 import { collectingPrimitives, collectNodes, recordPrimitive, registerUsed } from "./collect";
 import type { TakesToken } from "./properties/prop";
 import type { Token } from "./theme";
@@ -32,6 +32,11 @@ export interface ElementSpec<P extends PropSpecs> {
   props: P;
   /** Where it goes: where a block goes (default), or where a Section goes (and it renders a Section). */
   placement?: "block" | "section";
+  /**
+   * The roots it goes in, so the formats it's for: `["Email", "Page"]`. Left out, every root. Under another root it's
+   * an `element/not-supported` error, from `validate()` and `render()`.
+   */
+  roots?: readonly RootName[];
   /**
    * The element as primitives, from its props (normalized, defaults applied), and the theme's tokens where the
    * instance is (its scopes' over the theme's, as values), for values a render derives. Pure: no hooks or data, so it
@@ -75,6 +80,7 @@ export function defineElement<const P extends PropSpecs>(spec: ElementSpec<P>): 
     description: spec.description,
     props: spec.props,
     placement: spec.placement,
+    roots: spec.roots,
     expand(props, context) {
       const { nodes, components, diagnostics } = collectNodes(render(props, { theme: ((context as { theme?: unknown }).theme ?? {}) as ThemeValues }));
       for (const used of components) context.register(used);

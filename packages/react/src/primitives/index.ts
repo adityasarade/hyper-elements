@@ -108,4 +108,4 @@ export type { Alias, ComponentTheme, ElementTheme, Register, StyleName, Theme, T
 export { captureFragment, readFragment, slotMark, snapshot, type CapturedNode, type FragmentCapture, type Snapshot, type SnapshotOptions } from "./snapshot";
 export { outline, prepare, render, validate, type RenderOptions, type RenderResult, type ResolvedNode, type TemplateUsed, type ValidateOptions, type ValidationResult } from "./render";
 export { BLOCK_MAP_VERSION, ElementsError, formatDiagnostics, PLUGIN_API } from "@hyper-elements/core";
-export type { BlockMap, BlockMapEntry, Diagnostic, ElementsPlugin, PluginDiagnostic, PluginInput, PluginNode, PluginOutput, PluginsOption, Severity } from "@hyper-elements/core";
+export type { BlockMap, BlockMapEntry, Diagnostic, ElementsPlugin, PluginDiagnostic, PluginInput, PluginNode, PluginOutput, PluginsOption, RootName, Severity } from "@hyper-elements/core";
