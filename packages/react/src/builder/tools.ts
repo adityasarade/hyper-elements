@@ -6,7 +6,7 @@
 import { linkParts, Menu as MenuDefinition, Social as SocialDefinition, videoParts, type Json, type LinkValue, type Node, type ResolvedNode } from "@hyper-elements/core";
 import { block, type Block } from "./design";
 import { hiddenOf, merge } from "./hide";
-import { listJson, paragraphJson, runsHtml } from "./runs";
+import { holdsImage, listJson, paragraphJson, runsHtml } from "./runs";
 import { intoMarkup } from "./paint";
 import { TABLE_FIELDS, tableValues } from "./table";
 import { withParagraphMargin } from "./text";
@@ -40,7 +40,6 @@ const length = (value: Json | undefined) => (value === undefined ? undefined : t
 
 /** A text block with a box of its own: its padding is inside the box, apart from its place's spacing. */
 const TEXT_BOX = ["backgroundColor", "border", "borderRadius", "width", "maxWidth"];
-const holdsImage = (node: Node): boolean => (node.children ?? []).some((child) => typeof child !== "string" && (child.type === "Image" || holdsImage(child)));
 const boxed = (node: Node) => TEXT_BOX.some((key) => node.style?.[key] !== undefined);
 
 /** A block's text styles as the builder's fields, from its node as resolved (inherited ones too). */
