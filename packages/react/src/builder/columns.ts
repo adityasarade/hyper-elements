@@ -26,6 +26,8 @@ export const linesOf = (border: unknown): { top?: Json; bottom?: Json } | undefi
 };
 /** A builder row's hiding, from the node it's made of. */
 export const hiding = (node: Node) => ({ hideOnMobile: node.hidden?.mobile || undefined, hideOnDesktop: node.hidden?.desktop || undefined });
+/** Only where a node is hidden, for the rows inside it: one shown everywhere leaves their own hiding as it is. */
+export const hiddenWhere = (node: Node) => Object.fromEntries(Object.entries(hiding(node)).filter(([, hidden]) => hidden));
 
 /** What a row needs from the template it's in (raise.tsx). */
 export interface Writer {

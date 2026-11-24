@@ -4,6 +4,11 @@ Versions before 0.3.0 were published as `@unlayer/react-elements`.
 
 ## Unreleased
 
+### The builder keeps what's hidden on phones or desktops
+
+- A `Grid` with `hidden` hides each of the builder's rows it's written as, there. Before, `toDesign()` wrote its rows
+  shown everywhere, with nothing in `report`, and `fromDesign()` read them back shown.
+
 ### A block map for every root
 
 `render(design, { blockMap: true })` now returns `blocks` for a Page, a Document (its print HTML) and a Canvas (as HTML),

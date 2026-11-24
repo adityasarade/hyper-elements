@@ -12,7 +12,7 @@
 import { prepareTemplate, type Json, type Node, type ResolvedNode } from "@hyper-elements/core";
 import type React from "react";
 import { collectTemplate, snapshotData } from "../primitives/collect";
-import { add, boxRowOf, builderId, gapOf, hasBox, hiding, linesOf, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";
+import { add, boxRowOf, builderId, gapOf, hasBox, hiddenWhere, hiding, linesOf, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";
 import { block, columnWith, rowWith, type Block, type Body, type BodyFields, type Row } from "./design";
 import { hiddenOf, leftOut, merge } from "./hide";
 import { lockedHtml } from "./locked";
@@ -161,8 +161,7 @@ export function raise(element: React.ReactElement): Raised {
     // A Section's border, as the part of it around each of its rows; its hiding, each row's.
     const border = (section?.style?.border ?? {}) as Record<string, Json>;
     const count = Math.max(1, countRows(children));
-    // Only where it's hidden: a Section shown everywhere leaves its rows' own hiding as it is.
-    const sectionHiding = section ? Object.fromEntries(Object.entries(hiding(section)).filter(([, hidden]) => hidden)) : {};
+    const sectionHiding = section ? hiddenWhere(section) : {};
     const bandHidden = (r: number): Values => {
       const lines = { left: border.left, right: border.right, ...(r === 0 ? { top: border.top } : {}), ...(r === count - 1 ? { bottom: border.bottom } : {}) };
       const own = Object.fromEntries(Object.entries(lines).filter(([, line]) => line !== undefined));
@@ -212,15 +211,17 @@ export function raise(element: React.ReactElement): Raised {
         const arranged = at(path);
         const gridGap = gapOf(arranged);
         sayLeftOut("row", child, path, ["props.columns", "props.stackOnMobile", "style.gap", "style.rowGap", "style.alignItems", ...TEXT_FOLDED]);
-        // Each cell holds the Grid's child there, as the template has it.
+        // Each cell holds the Grid's child there, as the template has it. Its rows are hidden where it is (its arranged
+        // Rows don't carry its hiding: the Column they're in does).
         const items = (child.children ?? []).filter((item): item is Node => typeof item !== "string");
+        const gridHiding = hiddenWhere(child);
         let next = 0;
         arranged.children.forEach((gridRow, r) => {
           if (typeof gridRow === "string") return;
           const shape = nodeOf(gridRow);
           const cells = (shape.children ?? []).map((cell) => (typeof cell !== "string" && cell.children?.length ? { ...cell, children: [items[next++]] } : cell));
           const space = { ...pad, top: r === 0 ? (out.length === 0 ? pad.top : gap) : gridGap, bottom: last && r === arranged.children.length - 1 ? pad.bottom : 0 };
-          out.push(row({ ...shape, children: cells }, gridRow.path, { ...band, ...sectionHiding }, space, bandHidden(out.length), gridRow));
+          out.push(row({ ...shape, children: cells }, gridRow.path, { ...band, ...sectionHiding, ...gridHiding }, space, bandHidden(out.length), gridRow));
         });
       } else if (child.type === "Column" && (hasBox(child) || !childrenOf(child, path).length) && !hasLayout(child)) {
         flush(false);

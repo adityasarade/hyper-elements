@@ -6,7 +6,7 @@
 import type { Node } from "@hyper-elements/core";
 import React from "react";
 import { describe, expect, it } from "vitest";
-import { Button, Column, Document, Email, Heading, Html, Image, List, ListItem, Menu, Page, Text, Row, Section, Table, TableCell, TableRow, Video } from "../primitives";
+import { Button, Column, Document, Email, Grid, Heading, Html, Image, List, ListItem, Menu, Page, Text, Row, Section, Table, TableCell, TableRow, Video } from "../primitives";
 import { collectTemplate } from "../primitives/collect";
 import { fromDesign, toDesign } from "./index";
 import { BUILDER_KEYS, BUILDER_PHONE_KEYS, HIDDEN } from "./manifest";
@@ -43,6 +43,48 @@ describe("a Row hidden somewhere, in a Section", () => {
     expect(rows(<Email><Section hidden={{ desktop: true }}><Row>{cells}</Row></Section></Email>)).toEqual([{ desktop: { hideDesktop: true } }]);
     const kept = back(designOf(<Email><Section style={{ backgroundColor: "#eeeeee" }}><Row hidden={{ mobile: true }}>{cells}</Row></Section></Email>), "email");
     expect(JSON.stringify(kept)).toContain('"hidden":{"mobile":true}');
+  });
+});
+
+/** Where a template hides some words: each device a node around them is hidden on. */
+function hiddenAround(node: Node, words: string, around: { mobile?: true; desktop?: true } = {}): { mobile?: true; desktop?: true } | undefined {
+  const here = { ...around, ...(node.hidden?.mobile ? { mobile: true as const } : {}), ...(node.hidden?.desktop ? { desktop: true as const } : {}) };
+  for (const child of node.children ?? []) {
+    const found = typeof child === "string" ? (child.includes(words) ? here : undefined) : hiddenAround(child, words, here);
+    if (found) return found;
+  }
+  return undefined;
+}
+
+describe("a Grid hidden somewhere", () => {
+  const words = ["First", "Second", "Third"];
+  const cells = words.map((word) => <Text key={word}>{word}</Text>);
+  const rows = (design: any) => design.body.rows.map((row: any) => row.values._override ?? {});
+
+  for (const [device, key, name] of [["mobile", "hideMobile", "phones"], ["desktop", "hideDesktop", "desktops"]] as const) {
+    for (const [Root, displayMode] of [[Email, "email"], [Page, "web"]] as const) {
+      it(`hides each of its rows on ${name} in ${displayMode === "email" ? "an Email" : "a Page"}, and comes back hidden there`, () => {
+        // Three cells in two columns: two rows of the builder's, both hidden.
+        const { design, report } = toDesign(<Root><Grid columns={2} hidden={{ [device]: true }}>{cells}</Grid></Root>);
+        const written = JSON.parse(JSON.stringify(design));
+        expect(rows(written)).toEqual([{ [device]: { [key]: true } }, { [device]: { [key]: true } }]);
+        expect(report).toEqual([]);
+        const kept = back(written, displayMode);
+        for (const word of words) expect(hiddenAround(kept, word), word).toEqual({ [device]: true });
+      });
+    }
+  }
+
+  it("keeps its hiding in a Section, and adds its Section's", () => {
+    const shown = designOf(<Email><Section style={{ backgroundColor: "#eeeeee" }}><Grid columns={3} hidden={{ mobile: true }}>{cells}</Grid></Section></Email>);
+    expect(rows(shown)).toEqual([{ mobile: { hideMobile: true } }]);
+    for (const word of words) expect(hiddenAround(back(shown, "email"), word), word).toEqual({ mobile: true });
+    const hidden = designOf(<Email><Section hidden={{ desktop: true }}><Grid columns={3} hidden={{ mobile: true }}>{cells}</Grid></Section></Email>);
+    expect(rows(hidden)).toEqual([{ mobile: { hideMobile: true }, desktop: { hideDesktop: true } }]);
+  });
+
+  it("leaves its rows shown where it is", () => {
+    expect(rows(designOf(<Email><Grid columns={3}>{cells}</Grid></Email>))).toEqual([{}]);
   });
 });
 
