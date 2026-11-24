@@ -13,6 +13,7 @@ import { pageBreakpoints, renderPage, type PageOptions } from "./page";
 import { renderText } from "./plain-text";
 import { prettyHtml } from "./shared/pretty";
 import type { BlockMap } from "./shared/block-map";
+import { drawnInCell, type PartOptions } from "./shared/part";
 
 export { renderEmail, EMAIL_PHONE_MARGIN, type EmailHtml, type EmailOptions } from "./email";
 export { renderPage, PAGE_PHONE_WIDTH, pagePhoneWidth, type PageHtml, type PageOptions } from "./page";
@@ -22,6 +23,7 @@ export { support } from "./shared/support";
 export { overflow, pagedSupport } from "./shared/paged";
 export { Stylesheet, CLASS_PREFIX, type Media } from "./shared/classes";
 export { BLOCK_MAP_VERSION, type BlockMap, type BlockMapEntry } from "./shared/block-map";
+export { CELL_SIZES, type PartOptions } from "./shared/part";
 
 export interface RenderOptions extends PageOptions, EmailOptions, PluginsOption {
   /** The HTML indented, for reading it; for sending, the compact HTML (white space may change how some email clients show it). */
@@ -77,7 +79,7 @@ export interface Prepared {
  * what the plugins find on the laid-out tree (their `check`). What needs the
  * written output is left to rendering (their `checkOutput`).
  */
-export function prepareTemplate(input: unknown, options: ComponentsOption & PluginsOption = {}): Prepared {
+export function prepareTemplate(input: unknown, options: ComponentsOption & PluginsOption & PartOptions = {}): Prepared {
   const accepted = acceptPlugins(options.plugins);
   const registry = registryOf(options);
   const checked = checkDocument(input, registry);
@@ -95,9 +97,11 @@ export function prepareTemplate(input: unknown, options: ComponentsOption & Plug
   const expanded = expandDocument(checked.document, registry, output.target);
   diagnostics.push(...expanded.diagnostics);
   if (failed()) return done(null, output.target);
-  diagnostics.push(...checkTargetExpanded(expanded.document, output.target, registry, expanded.paths));
+  // A part drawn as a Row's cell (the builder's HTML blocks): what's there fills it, as a Row's child does, once expanded.
+  const laidOut = options.cell ? drawnInCell(expanded.document, expanded.paths, options.cell) : expanded.document;
+  diagnostics.push(...checkTargetExpanded(laidOut, output.target, registry, expanded.paths));
   if (failed()) return done(null, output.target);
-  const resolved = resolveExpanded(expanded.document, registry, expanded.paths);
+  const resolved = resolveExpanded(laidOut, registry, expanded.paths);
   diagnostics.push(...resolved.diagnostics);
   const found = output.target === "email" ? emailSupport(resolved.root) : support(resolved.root, output.target);
   // A Document's page and a Canvas are a fixed size: content that can't fit is cut off.
@@ -131,7 +135,7 @@ export function validateTemplate(input: unknown, options: ComponentsOption & Plu
  * rendered to the output its root says: prepared (`prepareTemplate`), then
  * written. Throws an `ElementsError` listing the errors if there are any.
  */
-export function renderTemplate(input: unknown, options: RenderOptions & ComponentsOption = {}): RenderResult {
+export function renderTemplate(input: unknown, options: RenderOptions & ComponentsOption & PartOptions = {}): RenderResult {
   // Indenting rewrites the HTML after it's written, which would move every offset.
   if (options.blockMap && options.pretty) throw new ElementsError([{ code: "render/block-map-pretty", severity: "error", message: "blockMap gives offsets in the compact HTML; leave pretty off", path: "root" }]);
   const { resolved, target, diagnostics, plugins } = prepareTemplate(input, options);

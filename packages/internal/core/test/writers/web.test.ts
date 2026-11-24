@@ -107,6 +107,23 @@ describe("web HTML", () => {
     expect(() => web(page([]), { classPrefix: "1x" })).toThrow(/class prefix/);
   });
 
+  it("is on a phone where a wider page is when it's drawn as part of one (phoneBelow), and fills the window there past its width", () => {
+    const words = [{ type: "Text", hidden: { mobile: true }, mobile: { fontSize: 20 }, children: ["Words"] }];
+    const part = (children: unknown[], width: number) => ({ root: { type: "Page", props: { width, breakpoints: { mobile: 360 } }, children } });
+    // Its phone styles and hiding at the wider page's phone width, not its own breakpoint.
+    const { head, body } = web(part(words, 300), { phoneBelow: 480 });
+    expect(head).toMatch(/@media \(max-width: 480px\)\{[^@]*font-size:20px!important[^@]*display:none!important/);
+    expect(head).not.toContain("360px");
+    const main = /<main class="(\w+)"[^>]*style="max-width:300px;/.exec(body)?.[1];
+    expect(head).toMatch(new RegExp(`@media \\(max-width: 480px\\)\\{[^@]*\\.${main}\\{max-width:none!important\\}`));
+    // Its runs between Sections too.
+    const sections = web(part([...words, { type: "Section", children: [{ type: "Text", children: ["Band"] }] }], 300), { phoneBelow: 480 });
+    const run = /<div class="(?:\w+ )?(\w+)" style="width:100%;max-width:300px;/.exec(sections.body)?.[1];
+    expect(sections.head).toContain(`.${run}{max-width:none!important}`);
+    // As wide as a phone's window or wider, or not told: nothing to fill.
+    for (const [width, options] of [[480, { phoneBelow: 480 }], [300, {}]] as const) expect(web(part(words, width), options).head).not.toContain("max-width:none");
+  });
+
   it("writes links, images, dividers, line breaks and merge tags", () => {
     const { body } = web(
       page([

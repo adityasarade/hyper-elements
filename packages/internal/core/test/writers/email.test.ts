@@ -831,6 +831,63 @@ describe("email HTML", () => {
     expect(body).toContain("<!--[if !mso]><!--><tr");
   });
 
+  describe("drawn as part of a wider email (phoneBelow)", () => {
+    /** Each @media query's rules, those of the same query together. */
+    const media = (head: string) => {
+      const out: Record<string, string> = {};
+      for (const [, query, rules] of head.matchAll(/@media \(([^)]*)\)\{((?:[^{}]*\{[^{}]*\})*)\}/g)) out[query] = (out[query] ?? "") + rules;
+      return out;
+    };
+    // A 300px part, its words hidden on phones and larger there, with a Section of its own.
+    const part = {
+      root: {
+        type: "Email",
+        props: { width: 300 },
+        children: [
+          { type: "Text", hidden: { mobile: true }, mobile: { fontSize: 20 }, children: ["Words"] },
+          { type: "Section", style: { padding: { top: 0, right: 10, bottom: 0, left: 10 } }, children: [{ type: "Text", children: ["Band"] }] },
+          { type: "Section", children: [{ type: "Text", children: ["Plain band"] }] },
+        ],
+      },
+    };
+
+    it("is on a phone where the wider email is: its phone styles and hiding switch there, its desktop styles above it", () => {
+      const { head } = render(part, { phoneBelow: 620 });
+      const rules = media(head);
+      expect(Object.keys(rules).sort()).toEqual(["max-width: 620px"]);
+      expect(rules["max-width: 620px"]).toMatch(/\{font-size:20px!important[^}]*\}/);
+      expect(rules["max-width: 620px"]).toContain("{display:none!important}");
+      // Without it, where its own width puts it.
+      expect(Object.keys(media(render(part).head))).toEqual(["max-width: 320px"]);
+    });
+
+    it("fills the window there, past its own width, each run of content and each Section's content, and only there", () => {
+      const { head, body } = render(part, { phoneBelow: 620 });
+      const fills = [...body.matchAll(/class="(\w+)"[^>]*style="max-width:300px"/g)].map(([, name]) => name);
+      expect(fills).toHaveLength(3);
+      for (const name of fills) expect(media(head)["max-width: 620px"]).toContain(`.${name}{max-width:none!important}`);
+      // Where it's on a phone at its own width, or isn't told, its content is as wide as it is.
+      for (const options of [{ phoneBelow: 320 }, {}]) expect(render(part, options).head).not.toContain("max-width:none");
+    });
+
+    it("draws a Row's child as its cell, filling it (cell): its sizes the Row's, and its phone sizes where told", () => {
+      // A 300px part, a Row's only child in it, half as wide as the Row and a quarter on phones, at most 280px.
+      const cell = { root: { type: "Email", props: { width: 300 }, children: [{ type: "Row", children: [{ type: "Text", style: { width: "50%", maxWidth: 280 }, mobile: { width: "25%" }, children: ["Words"] }] }] } };
+      const path = "root.children[0].children[0]";
+      // Not told: half of its 300px, as any Row's child.
+      expect(render(cell).body).toContain("max-width:150px");
+      // Told: it fills its cell, its limit in px its own, its phone width its own where its Row stacks.
+      const own = render(cell, { cell: { path, phoneSizes: true } });
+      expect(own.body).not.toContain("max-width:150px");
+      expect(own.body).toContain("max-width:280px");
+      expect(own.head).toContain("width:25%!important");
+      // Its phone sizes too, where they were its cell's.
+      expect(render(cell, { cell: { path, phoneSizes: false } }).head).not.toContain("25%");
+      // Nothing at that place: nothing changes.
+      expect(render(cell, { cell: { path: "root.children[1]", phoneSizes: false } }).html).toBe(render(cell).html);
+    });
+  });
+
   describe("an Html block", () => {
     const block = (html: string, extra: Record<string, unknown> = {}) => ({ type: "Html", props: { html }, ...extra });
 
