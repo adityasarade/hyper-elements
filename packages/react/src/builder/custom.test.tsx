@@ -3,7 +3,7 @@ import * as jsxRuntime from "react/jsx-runtime";
 import ts from "typescript";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as primitives from "../primitives";
-import { Button, Column, defineElement, defineProperty, defineTheme, Document, Email, Heading, Image, Layer, Page, PageBreak, prop, render, Row, Section, Text, token } from "../primitives/index";
+import { Button, Column, defineElement, defineProperty, defineTheme, Document, Email, Heading, Image, Layer, Page, PageBreak, PageNumber, prop, render, Row, Section, Text, token, type RootName } from "../primitives/index";
 import { fromDesign, registerTools, toDesign, toolName, type Builder, type EditorWidget } from "./index";
 
 type Values = Record<string, any>;
@@ -563,6 +563,19 @@ describe("fromDesign with elements", () => {
     expect(back.code).toContain(`<Card caption="Hello" />`);
   });
 
+  it("writes and reads a Document's own element (its roots) as its tool's block in a document, and leaves it out where the design is read as another root", () => {
+    const Line = defineElement({ type: "acme.InvoiceLine", label: "Invoice line", roots: ["Document"], props: { item: prop.text({ label: "Item", default: "Mug" }) }, render: (p) => <Text>{p.item}</Text> });
+    const { design, report } = toDesign(<Document><Line item="Cup" /></Document>, { customTools: true });
+    expect(report).toEqual([]);
+    expect(blocks(design).map((content) => content.slug)).toEqual(["acme_invoice_line"]);
+    const back = fromDesign(design, { displayMode: "document", elements: [Line] });
+    expect(back.report).toEqual([]);
+    expect(back.code).toContain(`<InvoiceLine item="Cup" />`);
+    const email = fromDesign(design, { displayMode: "email", elements: [Line] });
+    expect(email.report.join("\n")).toContain(`the custom tool "acme_invoice_line" can't be drawn with its values (A acme.InvoiceLine goes in a Document, not in an Email): left out`);
+    expect(email.code).not.toContain("<InvoiceLine");
+  });
+
   it("leaves out a block whose element draws what can't be where the block is placed: a page break in its padding's Column", async () => {
     const Chapter = defineElement({ type: "acme.Chapter", label: "Chapter", props: { title: prop.text({ label: "Title", default: "One" }), newPage: prop.boolean({ label: "New page", default: false }) }, render: (p) => (p.newPage ? <PageBreak /> : <Heading>{p.title}</Heading>) });
     const { design } = toDesign(<Document><Chapter title="One" /><Text>After</Text></Document>, { customTools: true });
@@ -893,6 +906,69 @@ describe("registerTools", () => {
     // A page's markup, with none of a Document's own page size or margins: the builder's are the document's.
     expect(tool.renderer.exporters.document(values)).toBe(tool.renderer.exporters.web(values));
     expect(tool.renderer.exporters.document(values)).not.toContain("@page");
+  });
+
+  it("offers a tool in the display modes of the roots its element goes in, and refuses one that goes only in a Canvas", () => {
+    const modes = (roots?: readonly RootName[]) => {
+      const Moded = defineElement({ type: "acme.Moded", label: "Moded", props: {}, ...(roots ? { roots } : {}), render: () => <Text>m</Text> });
+      const { builder, tools } = fakeBuilder();
+      registerTools(builder, [Moded]);
+      return tools[0].supportedDisplayModes;
+    };
+    expect(modes()).toEqual(["web", "email", "document"]);
+    expect(modes(["Email"])).toEqual(["email"]);
+    expect(modes(["Page", "Email"])).toEqual(["web", "email"]);
+    expect(modes(["Document", "Canvas"])).toEqual(["document"]);
+    const Social = defineElement({ type: "acme.SocialCard", label: "Social card", roots: ["Canvas"], props: {}, render: () => <Text>s</Text> });
+    expect(() => registerTools(fakeBuilder().builder, [Social])).toThrow("registerTools: acme.SocialCard goes only in a Canvas, which the builder has no display mode for: it can't be a tool");
+  });
+
+  it("draws a Document's own element in a document, its roots and its props' checked as a Document's: in the canvas, the export and the audit", () => {
+    const Line = defineElement({
+      type: "acme.InvoiceLine",
+      label: "Invoice line",
+      roots: ["Document"],
+      props: { item: prop.text({ label: "Item", default: "Mug" }), note: prop.text({ label: "Note", roots: ["Document"] }) },
+      render: (p) => <Text>{p.note ? `${p.item}: ${p.note}` : p.item}</Text>,
+    });
+    // Inside another Document-only element, it's checked as a Document's too.
+    const Lines = defineElement({ type: "acme.InvoiceLines", label: "Invoice lines", roots: ["Document"], props: {}, render: () => <Column><Line item="Cup" note="Red" /></Column> });
+    const { builder, tools } = fakeBuilder();
+    registerTools(builder, [Line, Lines], { displayMode: "document" });
+    const [line, lines] = tools;
+    expect(line.supportedDisplayModes).toEqual(["document"]);
+    const values = { item: "Mug", note: "Blue" };
+    expect(line.renderer.Viewer.render(values)).toContain("Mug: Blue");
+    expect(line.renderer.exporters.document(values)).toContain("Mug: Blue");
+    expect(line.renderer.exporters.document(values)).not.toContain("@page");
+    expect(line.validator({ values })).toEqual([]);
+    expect(lines.renderer.Viewer.render({})).toContain("Cup: Red");
+    expect(lines.validator({ values: {} })).toEqual([]);
+  });
+
+  it("checks a block in a document as a Document's alone: an element for pages alone isn't drawn there, as fromDesign() wouldn't read it", () => {
+    const PageOnly = defineElement({ type: "acme.PageOnly", label: "Page only", roots: ["Page"], props: {}, render: () => <Text>p</Text> });
+    const { builder, tools } = fakeBuilder();
+    registerTools(builder, [PageOnly], { displayMode: "document" });
+    const [tool] = tools;
+    expect(tool.renderer.Viewer.render({})).toContain("A acme.PageOnly goes in a Page, not in a Document");
+    expect(() => tool.renderer.exporters.document({})).toThrow("A acme.PageOnly goes in a Page, not in a Document");
+    expect(tool.validator({ values: {} })).toMatchObject([{ id: "HYPER_ELEMENTS_TOOL_VALUES", description: "A acme.PageOnly goes in a Page, not in a Document" }]);
+    // In a page, it's drawn.
+    expect(tool.renderer.exporters.web({})).toContain(">p<");
+    // A built-in's roots are its own root's still: a page number has no page to be the number of where a block is drawn as a page's.
+    const Numbered = defineElement({ type: "acme.Numbered", label: "Numbered", roots: ["Document"], props: {}, render: () => <Text>Page <PageNumber /></Text> });
+    const numbered = fakeBuilder();
+    registerTools(numbered.builder, [Numbered], { displayMode: "document" });
+    expect(numbered.tools[0].renderer.Viewer.render({})).toContain("A PageNumber is a page's number in a Document; this Page has no pages");
+  });
+
+  it("says a prop given where its roots don't take it, in a page's canvas", () => {
+    const Card = defineElement({ type: "acme.Card", label: "Card", props: { note: prop.text({ label: "Note", roots: ["Document"] }) }, render: (p) => <Text>{p.note ?? "card"}</Text> });
+    const { builder, tools } = fakeBuilder();
+    registerTools(builder, [Card], { displayMode: "web" });
+    expect(tools[0].renderer.Viewer.render({ note: "x" })).toContain(`A acme.Card's &#34;note&#34; is for a Document, not a Page`);
+    expect(tools[0].renderer.Viewer.render({})).toContain("card");
   });
 
   it("draws at its column's share of the content width", () => {

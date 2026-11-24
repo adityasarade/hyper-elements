@@ -6,7 +6,7 @@
  * tool's block, its props the block's values (`customTools`); fromDesign() reads the block back as the element
  * (`elements`); registerTools() gives a builder the tools, each drawn by Elements itself.
  */
-import { checkDocument, ElementsError, expandDocument, propertyOf, registryOf, renderTemplate, type CustomDefinition, type Json, type LinkValue, type Node } from "@hyper-elements/core";
+import { checkDocument, ElementsError, expandDocument, propertyOf, registryOf, renderTemplate, type CustomDefinition, type Json, type LinkValue, type Node, type RootName } from "@hyper-elements/core";
 import type { PropertyDefinition } from "../primitives/properties";
 import { DECIMAL, listsEmpty } from "../primitives/properties/check";
 import { link } from "./blocks";
@@ -351,12 +351,35 @@ function roomOf(values: Values, content: number, cells: number[] | undefined, in
   return Math.max(1, Math.floor(content * share - taken));
 }
 
+/** The root a block's template has: an Email, a Page, or a Document, whose blocks the builder draws as a page's. */
+type BlockRoot = "Email" | "Page" | "Document";
+
+/** The builder's display mode for a design of each root. A Canvas has none. */
+const MODE_OF: Partial<Record<RootName, "email" | "web" | "document">> = { Email: "email", Page: "web", Document: "document" };
+
 /**
- * An element drawn on its own from its tool's values, as an Email's markup or a Page's, with its stylesheet: at the
- * room its block has, which is its column's share (`cells`, `index`) of the builder's content width (`body`), less
- * what's around it there (`column`).
+ * The display modes an element's tool is offered in: those of the roots it goes in (its `roots`), every one where it
+ * names none. None for an element that goes only in a Canvas.
  */
-function draw(definition: CustomDefinition<any>, tools: readonly CustomDefinition<any>[], root: "Email" | "Page", values: Values, body: Values | undefined, cells: number[] | undefined, index: number | undefined, column: Values = {}): string {
+function displayModesOf(definition: CustomDefinition<any>): Array<"web" | "email" | "document"> {
+  const { roots } = definition;
+  return (["web", "email", "document"] as const).filter((mode) => !roots || roots.some((root) => MODE_OF[root] === mode));
+}
+
+/**
+ * How a block is drawn under its template's root: a Document's as a page's (the builder prints what it exports, with
+ * its own page size and margins, which a Document's markup would set again), its elements' `roots` and their props'
+ * checked as a Document's, where it is.
+ */
+const drawnAs = (root: BlockRoot): { root: "Email" | "Page"; customRootsAs?: "Document" } => (root === "Document" ? { root: "Page", customRootsAs: "Document" } : { root });
+
+/**
+ * An element drawn on its own from its tool's values, as an Email's markup or a Page's (a Document's block too), with
+ * its stylesheet: at the room its block has, which is its column's share (`cells`, `index`) of the builder's content
+ * width (`body`), less what's around it there (`column`).
+ */
+function draw(definition: CustomDefinition<any>, tools: readonly CustomDefinition<any>[], under: BlockRoot, values: Values, body: Values | undefined, cells: number[] | undefined, index: number | undefined, column: Values = {}): string {
+  const { root, customRootsAs } = drawnAs(under);
   const content = px(obj(body).contentWidth) ?? 600;
   const room = roomOf(values, content, cells, index, column);
   // A root is 200px wide at least: in less room than that, the element is in a Column of the room's width.
@@ -371,7 +394,7 @@ function draw(definition: CustomDefinition<any>, tools: readonly CustomDefinitio
   if (refused.length) throw new Error(refused.map((one) => `its ${one.key} ${JSON.stringify(one.kept)} isn't one it takes (${one.reason})`).join("; "));
   const own: Node = make(definition.type, { id: given && TEMPLATE_ID.test(given) ? given : undefined, props });
   const node: Node = room < width ? { type: "Column", style: { width: room }, children: [own] } : own;
-  const written = renderTemplate({ root: { type: root, props: { width }, children: [node] } }, { components: tools });
+  const written = renderTemplate({ root: { type: root, props: { width }, children: [node] } }, { components: tools, customRootsAs });
   const style = /<style>[\s\S]*?<\/style>/.exec(written.head)?.[0] ?? "";
   // An Email is on a phone below its own width, which here is its block's: its styles for phones start where the
   // whole email's do, which is also where the builder stacks its columns.
@@ -395,9 +418,9 @@ const plain = (text: string): string => text.replace(/[<>&]/g, (c) => `\\u${c.ch
  * What stops an element's tool from drawing its block (`values`, as toDesign() writes them) as the builder exports it:
  * on its own, at the room its column leaves it (`body`'s content width, the row's `cells`, the column's `index` and
  * values), with no template around it, so with no theme (a theme's token in its render is none there). None where it
- * draws.
+ * draws. `root` is its template's (a Document's block is drawn as a page's).
  */
-export function toolProblem(definition: CustomDefinition<any>, tools: readonly CustomDefinition<any>[], root: "Email" | "Page", values: Values, body: Values, cells: number[], index: number, column: Values): string | undefined {
+export function toolProblem(definition: CustomDefinition<any>, tools: readonly CustomDefinition<any>[], root: BlockRoot, values: Values, body: Values, cells: number[], index: number, column: Values): string | undefined {
   try {
     draw(definition, tools, root, values, body, cells, index, column);
     return undefined;
@@ -412,22 +435,24 @@ export function toolProblem(definition: CustomDefinition<any>, tools: readonly C
  * a theme's token, which the builder has no theme for). Checked and expanded, not laid out: what depends on the room
  * a block has (an image wider than it) isn't said, as the builder gives a validator no place to draw the block at.
  */
-function auditProblem(definition: CustomDefinition<any>, tools: readonly CustomDefinition<any>[], root: "Email" | "Page", values: Values): string | undefined {
+function auditProblem(definition: CustomDefinition<any>, tools: readonly CustomDefinition<any>[], under: BlockRoot, values: Values): string | undefined {
   const refused: Refused[] = [];
   const props = toolProps(definition, values, undefined, (one) => refused.push(one));
   if (refused.length) return refused.map((one) => `its ${one.key} ${JSON.stringify(one.kept)} isn't one it takes (${one.reason})`).join("; ");
   const missing = Object.keys(definition.props).filter((key) => definition.props[key].required && !Object.hasOwn(props, key));
   if (missing.length) return `it has no ${missing.join(" or ")}, which it needs`;
-  return renderProblem(tools, root, make(definition.type, { props }));
+  // As the block is drawn (a Document's as a page's).
+  const { root, customRootsAs } = drawnAs(under);
+  return renderProblem(tools, root, make(definition.type, { props }), customRootsAs);
 }
 
 /**
  * What stops an element (`child`, as it's placed) from rendering under a root: what its render does with its props (an
  * error it throws for two that don't go together, a theme's token), or what it draws that can't be where it's placed.
- * None where it renders.
+ * None where it renders. `customRootsAs`: the root its elements' `roots` are checked as, where it's drawn as another's.
  */
-function renderProblem(tools: readonly CustomDefinition<any>[], root: "Email" | "Page" | "Document", child: Node): string | undefined {
-  const registry = registryOf({ components: [...tools] });
+function renderProblem(tools: readonly CustomDefinition<any>[], root: BlockRoot, child: Node, customRootsAs?: "Document"): string | undefined {
+  const registry = registryOf({ components: [...tools], customRootsAs });
   // Under the root it's read in: a prop may be one some roots alone take. A Document has no width of its own.
   const checked = checkDocument({ root: { type: root, props: root === "Document" ? {} : { width: 600 }, children: [child] } }, registry);
   const found = [...checked.diagnostics];
@@ -448,17 +473,18 @@ interface AuditError {
  * Registers each element as a custom tool in a builder (in its custom JavaScript, where `unlayer.registerTool` is):
  * the tool's name is its type's (`toolName()`), its properties its props, each with the builder's editor for its kind
  * or the control of the property of the team's own it is (`editors`), and it's drawn by Elements, in the
- * canvas and in what the builder exports. An element placed where a Section goes is no tool (toDesign() writes it as
- * an HTML block). Returns the tools' names.
+ * canvas and in what the builder exports. A tool is offered in the display modes of the roots its element goes in
+ * (its `roots`: `email` for an Email, `web` for a Page, `document` for a Document; all three where it names none), and
+ * an element that goes only in a Canvas is refused. An element placed where a Section goes is no tool (toDesign()
+ * writes it as an HTML block). Returns the tools' names.
  */
 export function registerTools(builder: Builder, elements: readonly WithDefinition[], options: RegisterToolsOptions = {}): string[] {
   const tools = toolsOf(elements);
   // Every element given, for the ones a tool's own renders.
   const all = [...tools.values()];
   for (const [name, definition] of tools) if (inSection(definition)) tools.delete(name);
-  // A document's blocks are drawn as a page's: the builder prints what it exports, with its own page size and margins,
-  // which a Document's markup would set again.
-  const canvas = options.displayMode === "web" || options.displayMode === "document" ? "Page" : "Email";
+  // The root the canvas's blocks are in (a document's are drawn as a page's: drawnAs()).
+  const canvas: BlockRoot = options.displayMode === "document" ? "Document" : options.displayMode === "web" ? "Page" : "Email";
   const editors = options.editors ?? {};
   // An editor given for no prop is a name mistyped: its prop would be edited with its kind's, without a word. A name
   // of the builder's own editors is none of these: those are its kinds'.
@@ -478,6 +504,8 @@ export function registerTools(builder: Builder, elements: readonly WithDefinitio
     }
     const given = GIVEN.find((key) => Object.hasOwn(settings, key));
     if (given) throw new Error(`[Elements] registerTools: tools sets ${given} for ${definition.type}, which its element gives the tool: its label and props are the element's, a block starts with each prop's default, and its icon is in icons`);
+    const modes = displayModesOf(definition);
+    if (!modes.length) throw new Error(`[Elements] registerTools: ${definition.type} goes only in a Canvas, which the builder has no display mode for: it can't be a tool`);
     const properties: Record<string, unknown> = { ...own };
     for (const [key, spec] of Object.entries(definition.props) as Array<[string, Spec]>) {
       const editor = editorOf(spec);
@@ -528,7 +556,7 @@ export function registerTools(builder: Builder, elements: readonly WithDefinitio
     // fails, saying which block and why (the builder writes that in place of the HTML): left out, the block would be
     // missing from an export that looks whole. It fails too while a field holds a value that isn't kept: the block
     // has the value it had, not the one its user sees. What it says is plain text (plain()).
-    const written = (root: "Email" | "Page") => (values: Values, ...rest: unknown[]) => {
+    const written = (root: BlockRoot) => (values: Values, ...rest: unknown[]) => {
       const held = unkeptValues();
       if (held.length) throw new Error(plain(`[Elements] ${held.join("; ")}: correct it to export`));
       const meta = obj(rest[rest.length - 1]);
@@ -545,7 +573,7 @@ export function registerTools(builder: Builder, elements: readonly WithDefinitio
       name,
       label: definition.label,
       icon: options.icons?.[definition.type] ?? "fa-cube",
-      supportedDisplayModes: ["web", "email", "document"],
+      supportedDisplayModes: modes,
       options: Object.keys(properties).length ? { [name]: { title: definition.label, position: 1, options: properties } } : {},
       values: {},
       renderer: {
@@ -560,7 +588,7 @@ export function registerTools(builder: Builder, elements: readonly WithDefinitio
             }
           },
         }),
-        exporters: { email: written("Email"), web: written("Page"), document: written("Page") },
+        exporters: { email: written("Email"), web: written("Page"), document: written("Document") },
         head: { css: () => "", js: () => "" },
       },
       // The builder's audit (its Audit tab, unlayer.audit()): a block that can't be drawn at any room, which the

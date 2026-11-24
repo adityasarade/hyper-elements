@@ -132,7 +132,11 @@ export function isCustom(definition: ComponentDefinition): definition is CustomD
 export class Registry {
   private readonly custom = new Map<string, CustomDefinition>();
 
-  constructor(components: readonly CustomDefinition<any>[] = []) {
+  /** See ComponentsOption.customRootsAs. */
+  readonly customRootsAs: RootName | undefined;
+
+  constructor(components: readonly CustomDefinition<any>[] = [], customRootsAs?: RootName) {
+    this.customRootsAs = customRootsAs;
     for (const definition of components) this.add(definition);
   }
 
@@ -169,8 +173,14 @@ export function propsWithDefaults(definition: ComponentDefinition, props: Record
 export interface ComponentsOption {
   /** Custom elements (made with `defineElement()`) the document may use. */
   components?: readonly CustomDefinition<any>[];
+  /**
+   * The root a custom element's `roots`, and its props', are checked against, in place of the document's: for an
+   * output drawn as another root's (a builder of documents draws each block as a page's, and the block is in a
+   * Document). A built-in's are checked against the document's root still: its root's writer is what writes it.
+   */
+  customRootsAs?: RootName;
 }
 
 export function registryOf(options: ComponentsOption | Registry | undefined): Registry {
-  return options instanceof Registry ? options : new Registry(options?.components);
+  return options instanceof Registry ? options : new Registry(options?.components, options?.customRootsAs);
 }

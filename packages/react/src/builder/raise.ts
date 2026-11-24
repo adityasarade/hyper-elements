@@ -335,7 +335,7 @@ export function raise(element: React.ReactElement, options: { customTools?: bool
       column.contents = column.contents.map((made) => {
         const tool = tools.get(made);
         if (!tool) return made;
-        const problem = toolProblem(tool.definition, components, root.type === "Email" ? "Email" : "Page", made.values, { contentWidth: common.contentWidth }, row.cells, index, { ...column.fields, ...column.values });
+        const problem = toolProblem(tool.definition, components, root.type === "Email" ? "Email" : root.type === "Document" ? "Document" : "Page", made.values, { contentWidth: common.contentWidth }, row.cells, index, { ...column.fields, ...column.values });
         return problem ? place.locked(tool.node, tool.path, `its custom tool draws a ${tool.node.type} on its own, at the room its column leaves it and without the template's theme, and can't draw it so (${problem})`, tool.around) : made;
       });
     });
