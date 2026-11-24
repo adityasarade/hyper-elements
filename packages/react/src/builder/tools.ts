@@ -7,6 +7,7 @@ import { linkParts, Menu as MenuDefinition, Social as SocialDefinition, videoPar
 import { block, type Block } from "./design";
 import { hiddenOf, merge } from "./hide";
 import { listJson, paragraphJson, runsHtml } from "./runs";
+import { thumbnailOf } from "./locked";
 import { intoMarkup } from "./paint";
 import { TABLE_FIELDS, tableValues } from "./table";
 import { withParagraphMargin } from "./text";
@@ -26,7 +27,11 @@ export interface Place {
   report: string[];
   put<T extends { values: Values }>(made: T, values?: Values): T;
   sayLeftOut(tool: string, node: Node, path: string, fields: readonly string[]): void;
-  locked(node: Node, path: string, why: string, around: Sides): Block;
+  /**
+   * An HTML block of the node's own markup, as wide as the node. With `parent`, as wide as its place there: a Row's
+   * child fills its column (its width and share spent on it), a stack's is aligned in it as `parent` aligns it.
+   */
+  locked(node: Node, path: string, why: string, around: Sides, parent?: ResolvedNode): Block;
   stack(node: Node, path: string, around: Sides): Block[];
   /** The text styles a block takes from its parents that the root's don't give it. */
   textAround(path: string): Record<string, Json>;
@@ -204,6 +209,7 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
       return place.put(block("divider", hiding), merge(merge(values, Object.keys(phone).length ? { _override: { mobile: phone } } : {}), hiddenOf("divider", node)));
     }
     case "Menu": {
+      if (place.at("root").type === "Document") return place.locked(node, path, "a Menu isn't a tool of the builder's document mode", around);
       // A Menu's own style over its definition's.
       const style = { ...(MenuDefinition.defaultStyle as Record<string, Json>), ...node.style };
       const text = own.text;
@@ -244,6 +250,11 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
     case "Video": {
       const url = String(node.props?.src);
       const parts = videoParts(url);
+      if (place.at("root").type === "Document") {
+        // A PDF can't play one: it's drawn as Elements' PDF prints it (locked.ts), where the builder's video was.
+        const drawn = thumbnailOf(node) ? "its thumbnail, linked to it" : "a link with its title (it has no thumbnail)";
+        return place.locked(node, path, `a Video isn't a tool of the builder's document mode: ${drawn}`, around, parent);
+      }
       place.sayLeftOut("video", node, path, ["props.src"]);
       const values: Values = {
         video: parts ? { type: parts.provider, videoId: parts.id, ...(parts.thumbnail ? { thumbnail: parts.thumbnail } : {}), loading: false } : { url },

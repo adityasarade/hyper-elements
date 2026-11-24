@@ -1,6 +1,6 @@
 /** toDesign(): a template as the builder's design JSON, every block a tool where one shows it, and what it can't hold said. */
 import { describe, expect, it } from "vitest";
-import { Button, Canvas, Column, component, Document, Email, Grid, Heading, Html, Image, Layer, LineBreak, Link, List, ListItem, Page, PageBreak, PageFooter, PageHeader, PageNumber, Text, prop, Rect, Row, Span, Section, Svg, Table, TableCell, TableRow } from "../primitives";
+import { Button, Canvas, Column, component, defineTheme, Document, Email, Grid, Heading, Html, Image, Layer, LineBreak, Link, List, ListItem, Menu, Page, PageBreak, PageFooter, PageHeader, PageNumber, Text, prop, Rect, Row, Span, Section, Svg, Table, TableCell, TableRow, token, Video } from "../primitives";
 import { airbnb, stripe } from "../primitives/testing/codemod-examples";
 import { collectTemplate } from "../primitives/collect";
 import { withParagraphMargin } from "./text";
@@ -214,6 +214,104 @@ describe("toDesign", () => {
     expect(toDesign(<Document><Html html="<p>Words</p>" /></Document>).report).toEqual([`root.children[0]: an Html block: ${older}`]);
     expect(toDesign(<Email>{layer}</Email>).report).toEqual([`root.children[0]: a Layer isn't a tool of the builder's: ${locked}`]);
     expect(toDesign(<Email><Html html="<p>Words</p>" /></Email>).report).toEqual([]);
+  });
+
+  it("writes a Document's Menu and Video, which the builder's document mode has no tool for, as HTML blocks of their own markup, and says so", () => {
+    const menu = <Menu items={[{ text: "Pricing", href: "https://a.test/pricing" }, { text: "Docs", href: "https://a.test/docs" }]} />;
+    const youtube = <Video src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" title="Launch" />;
+    const vimeo = <Video src="https://vimeo.com/76979871" title="Tour" />;
+    const { design, report } = toDesign(<Document>{menu}{youtube}{vimeo}</Document>);
+    const [links, thumbnail, link] = blocks(design);
+    expect(blocks(design).map((content) => content.type)).toEqual(["html", "html", "html"]);
+    expect(links.values.html).toMatch(/<a href="https:\/\/a\.test\/pricing"[^>]*>Pricing<\/a>[\s\S]*<a href="https:\/\/a\.test\/docs"[^>]*>Docs<\/a>/);
+    // A PDF can't play a video: its thumbnail linked to it, as Elements' PDF prints it, else a link with its title.
+    expect(thumbnail.values.html).not.toContain("<iframe");
+    expect(thumbnail.values.html).toMatch(/<a [^>]*href="https:\/\/www\.youtube\.com\/watch\?v=dQw4w9WgXcQ"[^>]*><img [^>]*src="https:\/\/img\.youtube\.com\/vi\/dQw4w9WgXcQ\/0\.jpg"[^>]*alt="Launch"/);
+    // As wide as the Video: its link fills its place, not shrunk to the image's own size.
+    expect(thumbnail.values.html).not.toMatch(/<a [^>]*align-self/);
+    expect(link.values.html).not.toContain("<iframe");
+    expect(link.values.html).toMatch(/<a [^>]*href="https:\/\/vimeo\.com\/76979871"[^>]*>Tour<\/a>/);
+    const said = ": it's an HTML block of its own markup in the builder (it can be moved, not edited); editor versions before 1.544.0 keep it in a document but don't draw or export it";
+    expect(report).toEqual([
+      `root.children[0]: a Menu isn't a tool of the builder's document mode${said}`,
+      `root.children[1]: a Video isn't a tool of the builder's document mode: its thumbnail, linked to it${said}`,
+      `root.children[2]: a Video isn't a tool of the builder's document mode: a link with its title (it has no thumbnail)${said}`,
+    ]);
+    // Read back, they're Html blocks, as the builder's own HTML blocks are.
+    const back = fromDesign(design, { displayMode: "document" });
+    expect(back.code).toContain("<Html");
+    expect(back.code).not.toMatch(/<(Menu|Video)\b/);
+    // An Email's and a Page's are the builder's menu and video, as before.
+    for (const root of [<Email key="e">{menu}{youtube}</Email>, <Page key="p">{menu}{youtube}</Page>]) {
+      const out = toDesign(root);
+      expect(blocks(out.design).map((content) => content.type)).toEqual(["menu", "video"]);
+      expect(out.report).toEqual([]);
+    }
+  });
+
+  it("places a Document's Video of its own width as its parent aligns it, as the builder's video did, a link with its title too", () => {
+    for (const src of ["https://www.youtube.com/watch?v=dQw4w9WgXcQ", "https://vimeo.com/76979871"]) {
+      const placedAt = (alignItems: "start" | "center" | "end") => {
+        const [video] = blocks(toDesign(<Document><Column style={{ alignItems }}><Video src={src} style={{ width: 300 }} /></Column></Document>).design);
+        // The block is as wide as the Video's place, and the Video's 300px in it, where its parent puts it.
+        expect(video.values.html, src).toMatch(/max-width:698px/);
+        return /<div style="align-self:([\w-]+);[^"]*width:300px">/.exec(video.values.html)?.[1];
+      };
+      expect([placedAt("start"), placedAt("center"), placedAt("end")], src).toEqual(["flex-start", "center", "flex-end"]);
+    }
+  });
+
+  it("draws a Document's Video in a Row as its column, its width and share spent there", () => {
+    const youtube = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+    for (const row of [
+      <Row key="p"><Video src={youtube} style={{ width: "50%" }} /><Text>Beside</Text></Row>,
+      <Row key="w"><Video src={youtube} style={{ width: 600 }} /><Video src={youtube} style={{ width: 600 }} /></Row>,
+    ]) {
+      const videos = blocks(toDesign(<Document>{row}</Document>).design).filter((content) => content.type === "html");
+      for (const video of videos) {
+        // The block is as wide as its column (349px of the 698px Row), and nothing in it sets the Video's width again.
+        expect(video.values.html).toMatch(/max-width:349px/);
+        expect(video.values.html).not.toMatch(/width:(50%|600px)/);
+      }
+    }
+  });
+
+  it("draws a themed Document's Video, in the root's theme and a Section's tokens, at its variant's width", () => {
+    const video = <Video src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" title="Launch" />;
+    for (const element of [
+      <Document key="t" theme={defineTheme({ colors: { primary: "#ff0000" } })}>{video}</Document>,
+      <Document key="s" theme={defineTheme({ colors: { primary: "#ff0000" } })}><Section tokens={{ colors: { primary: "#00ff00" } }}><Text style={{ color: token("colors.primary") }}>A</Text>{video}</Section></Document>,
+    ]) {
+      const html = blocks(toDesign(element).design).find((content) => content.type === "html")?.values.html;
+      expect(html).toMatch(/<a [^>]*href="https:\/\/www\.youtube\.com\/watch\?v=dQw4w9WgXcQ"[^>]*><img [^>]*alt="Launch"/);
+    }
+    const small = defineTheme({ components: { Video: { variants: { small: { width: 200 } } } } } as never);
+    const [sized] = blocks(toDesign(<Document theme={small}><Video variant={"small" as never} src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" /></Document>).design);
+    expect(sized.values.html).toMatch(/<div style="[^"]*width:200px">\s*<a /);
+  });
+
+  it("converts a Document's custom elements nested in each other as before, a Video one renders its player there", () => {
+    const Inner = component({ type: "acme.Inner", label: "Inner", props: {}, render: () => <Video src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" /> });
+    const Outer = component({ type: "acme.Outer", label: "Outer", props: {}, render: () => <Column style={{ padding: 8 }}><Inner /></Column> });
+    const { design } = toDesign(<Document><Outer /><Inner /></Document>);
+    const html = blocks(design).map((content) => String(content.values.html)).join("");
+    // Core expands a custom element when it draws it, after toDesign() has printed the template's own Videos.
+    expect(html.match(/<iframe/g)?.length).toBe(2);
+  });
+
+  it("draws a Document's Video inside another HTML block as its thumbnail too, not a player; a Page's stays its player", () => {
+    const video = <Video src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" title="Launch" />;
+    const inside = [
+      ["a box in a column", <Row key="r"><Column><Text>A</Text></Column><Column><Column style={{ backgroundColor: "#eeeeee", padding: 8 }}>{video}</Column></Column></Row>],
+      ["a Layer", <Layer key="l"><Image src={{ src: "https://x.test/a.png", width: 600, height: 200 }} alt="" />{video}</Layer>],
+    ] as const;
+    const thumbnail = /<a [^>]*href="https:\/\/www\.youtube\.com\/watch\?v=dQw4w9WgXcQ"[^>]*><img [^>]*src="https:\/\/img\.youtube\.com\/vi\/dQw4w9WgXcQ\/0\.jpg"[^>]*alt="Launch"/;
+    for (const [where, element] of inside) {
+      const html = blocks(toDesign(<Document>{element}</Document>).design).filter((content) => content.type === "html").map((content) => content.values.html).join("");
+      expect(html, where).not.toContain("<iframe");
+      expect(html, where).toMatch(thumbnail);
+      expect(blocks(toDesign(<Page>{element}</Page>).design).find((content) => content.type === "html")?.values.html, where).toContain("<iframe");
+    }
   });
 
   it("writes a Text as the builder's paragraph, its rich text holding its runs: their styles, a link's target, title and label", () => {

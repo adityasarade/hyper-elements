@@ -1,9 +1,9 @@
 /**
- * What no tool shows (a Layer, an Svg, a Table, a box in a column, a custom element): the new engine's own
- * markup for it, in an HTML block of the builder's. It can be moved, duplicated or deleted there, not edited; it
- * comes back as an `Html` block.
+ * What no tool shows (a Layer, an Svg, a Table, a box in a column, a custom element, a Document's Menu or Video):
+ * the new engine's own markup for it, in an HTML block of the builder's. It can be moved, duplicated or deleted there,
+ * not edited; it comes back as an `Html` block. The builder's document mode draws one from editor 1.544.0.
  */
-import { renderTemplate, type Json, type Node } from "@hyper-elements/core";
+import { renderTemplate, videoParts, type Json, type Node } from "@hyper-elements/core";
 import { block, type Block } from "./design";
 import { withParagraphMargin } from "./text";
 import { cssSides } from "./values";
@@ -43,9 +43,33 @@ function renderSubtree(node: Node, width: number, root: Node, components: unknow
   // the block, so the block painting the body's over them would hide a Section's own.
   const { backgroundColor: _, ...rootStyle } = root.style ?? {};
   const page: Node = { type: root.type === "Email" ? "Email" : "Page", props: { width: Math.max(200, drawn), ...breakpoints }, style: rootStyle, children: [placed] };
-  const { head, body } = renderTemplate(theme ? { root: page, theme, merged: true } : { root: page }, { components: components as never });
+  // A Document's PDF can't play a video: each Video in the block as the PDF prints it. (Its theme is merged in already;
+  // one a custom element renders is its player, as before: core expands it, after this.)
+  const shown = root.type === "Document" ? printVideos(page) : page;
+  const { head, body } = renderTemplate(theme ? { root: shown, theme, merged: true } : { root: shown }, { components: components as never });
   const style = /<style>[\s\S]*?<\/style>/.exec(head)?.[0] ?? "";
   // A page's <main> is centered by its margins: in a flex box, which the builder may draw a block in, those shrink it to its words. It fills its block.
   const filled = body.replace(/^<main style="/, '<main style="width:100%;');
   return withParagraphMargin(style + filled, "margin-top:1em;margin-bottom:1em");
+}
+
+/** A Video's thumbnail: its own, else a YouTube video's (a Vimeo video's can't be found without the network). */
+export const thumbnailOf = (video: Node): Json | undefined => video.props?.thumbnail ?? videoParts(String(video.props?.src))?.thumbnail;
+
+/** Each Video in a node as a PDF prints it. */
+const printVideos = (node: Node): Node =>
+  node.type === "Video" ? printedVideo(node) : node.children ? { ...node, children: node.children.map((child) => (typeof child === "string" ? child : printVideos(child))) } : node;
+
+/**
+ * A Video as a PDF prints it: its thumbnail linked to it, else a link with its title, as an Email draws it too. A
+ * Column takes the Video's place, with its size, and what's in it fills it.
+ */
+function printedVideo(video: Node): Node {
+  const href = String(video.props?.src);
+  const title = String(video.props?.title ?? "Video");
+  const thumbnail = thumbnailOf(video);
+  const shown: Node = thumbnail
+    ? { type: "Link", props: { href, title }, children: [{ type: "Image", props: { src: thumbnail, alt: title }, style: { width: "100%" } }] }
+    : { type: "Text", children: [{ type: "Link", props: { href }, children: [title] }] };
+  return { type: "Column", ...(video.id ? { id: video.id } : {}), style: { ...video.style, alignItems: "stretch" }, ...(video.mobile ? { mobile: video.mobile } : {}), children: [shown] };
 }
