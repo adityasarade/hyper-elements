@@ -251,8 +251,8 @@ skip it):
 
 - **Tests** (Node 20 and Bun 1.3): `pnpm build`; typechecks of react, core, migrate, email-clients, cli, lint and the
   template loader; the release script's tests
-  (`node --test scripts/release.test.mjs`); bundle budgets (`dist/primitives.js` 357,200 bytes, `dist/builder.js`
-  572,450 bytes, `dist/template.js` 108,200 bytes, email-clients' `dist/index.js` 62,800 bytes, lint's `dist/index.js` 41,500 bytes and `dist/html.js` 22,700 bytes, unminified ESM; raise one on purpose and say what grew);
+  (`node --test scripts/release.test.mjs`); bundle budgets (`dist/primitives.js` 358,100 bytes, `dist/builder.js`
+  573,600 bytes, `dist/template.js` 108,200 bytes, email-clients' `dist/index.js` 62,800 bytes, lint's `dist/index.js` 41,500 bytes and `dist/html.js` 22,700 bytes, unminified ESM; raise one on purpose and say what grew);
   no bundle imports `@unlayer/exporters`; unit tests with coverage; the CSP gates (react and email-clients);
   email-clients packed and installed beside the packed core and the models package from npm (`test:pack`); the CLI's
   tests on Node and Bun, and its consumer app (`tests/cli-integration`).

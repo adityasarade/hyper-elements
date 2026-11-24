@@ -161,6 +161,14 @@ so the two can't differ, and rejects a template as they do (with errors, or anot
   already required by `prop`'s types.
 - **An option a prop's helper doesn't take is refused** where it's written (`prop.number({ label: "Stars", mn: 1 })`),
   as it was a type error already: a JavaScript caller's mistyped option was dropped without a word.
+- **The formats an element is for.** `defineElement({ …, roots: ["Email", "Page"] })` names the roots an element goes
+  in; without `roots`, it goes in every one, as before. Under another root, `validate()` and `render()` give an
+  `element/not-supported` error at its place (`A acme.InvoiceLine goes in a Document, not in an Email`), inside
+  another element too, and `describeElements()` lists it under those roots alone. A list with no root, one that isn't
+  a root's name, or a root twice is refused where the element is defined. In Unlayer's builder, its tool is offered in
+  the display modes of its roots (`email` for an Email, `web` for a Page, `document` for a Document), and
+  `registerTools()` refuses an element that goes only in a Canvas. In a document builder, which draws a block as a
+  page's, an element's `roots` and its props' are checked as a Document's. `RootName` is exported from the main entry.
 
 ### Fixed
 

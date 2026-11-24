@@ -138,14 +138,16 @@ jobs:
       # module's path comment; 355,143 measured); 355,600 bytes with main's #266 merged in (a Document's page writer, the
       # collecting render and render(); 399 bytes more, 355,542 measured); 356,350 bytes for checkValue(), what a field
       # holds checked as its prop checks it (758 bytes more, 356,300 measured); 357,200 bytes with main's block map of
-      # every root merged in, the page writer marking its blocks as the email writer does (829 bytes more, 357,129 measured).
+      # every root merged in, the page writer marking its blocks as the email writer does (829 bytes more, 357,129 measured);
+      # 358,100 bytes for defineElement()'s roots, the formats an element is for (checked where it's defined, kept frozen,
+      # and a custom element's roots and its props' checkable as another root's; 887 bytes more, 358,016 measured).
       - name: Check main entry bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
           test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=357200
+          MAX_SIZE=358100
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::Main entry bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -200,13 +202,15 @@ jobs:
       # the list field keeping what its user didn't change and giving an edit left as the panel moves, fromDesign()
       # leaving out a block its element can't render, and toDesign() refusing two elements that are one tool (2,207 bytes
       # more, 571,534 measured); 572,450 with main's block map of every root merged in, in the writers it shares (845 bytes
-      # more, 572,379 measured).
+      # more, 572,379 measured); 573,600 for a tool offered in the display modes of its element's roots, an element that
+      # goes only in a Canvas refused, and a block in a document drawn as a page's with its element's roots checked as a
+      # Document's (1,117 bytes more, 573,496 measured).
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=572450
+          MAX_SIZE=573600
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
