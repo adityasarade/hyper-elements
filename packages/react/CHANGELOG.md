@@ -13,6 +13,30 @@ Versions before 0.3.0 were published as `@unlayer/react-elements`.
   builder hides whole blocks only. Before, its words were written as plain text and showed everywhere, with nothing in
   `report`. An editor user can move the block, not edit it. A block hidden as a whole is still the builder's own.
 
+Every HTML block `toDesign()` writes (a Table the builder's table can't hold, a Layer, an Svg, your own
+`defineElement()`, and the blocks above) is now drawn closer to the way the design draws it, wherever it sits:
+
+- It's on a phone where its root is, an `Email`'s width and 20px or a `Page`'s breakpoint: its phone styles apply and
+  what it hides on phones or desktops switches there, and, narrower than that (in a column), it fills its column
+  there, as the column does when the columns stack. Before, an HTML block in a 300px column of a 600px Email switched
+  below 320px instead of 620px, so on most phones it showed what the Email hides there, kept its desktop styles, and
+  stayed 300px wide.
+- It's drawn as wide as the stack it's in gives it (its Section's or Column's width inside their padding), and placed
+  across it by the stack's `alignItems`, as Elements places it. A Row's own child fills its column, as it fills its
+  cell in Elements (a Button too, and what your own element renders): its width and flex, and a limit that's a share
+  of the Row, are the Row's, taken already. Where its Row stays side by side on phones, so are its phone sizes, which
+  a builder column has none of: `report` says they're left out. Before, it was drawn at its own width and centered: a
+  320px Svg in a Section that starts what it holds was in the middle, and a Text half as wide as its Email or its Row
+  was a quarter as wide. One case still differs: in a Page, a Row's child with a share of the Row as its `maxWidth`,
+  which Elements keeps on phones and the HTML block doesn't.
+- It runs in its root's direction: in an Email or a Page with `dir="rtl"`, its text is aligned and ordered right to
+  left. Before, it was drawn left to right.
+- Where what it's drawn from is hidden on phones or desktops, the builder's block is hidden there too, so the space
+  around it goes with it. Before, only its markup was hidden, and the space showed.
+
+This changes the builder design of an HTML block in a column, narrower than the stack it's in, hidden on a device, or
+in a right-to-left design. What Elements renders from the design is the same.
+
 ### A block map for every root
 
 `render(design, { blockMap: true })` now returns `blocks` for a Page, a Document (its print HTML) and a Canvas (as HTML),

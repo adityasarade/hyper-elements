@@ -9,13 +9,13 @@
  * the builder's table doesn't draw as it is in an Email or a Page, is an HTML block of the new engine's own markup,
  * and said.
  */
-import { prepareTemplate, type Json, type Node, type ResolvedNode } from "@hyper-elements/core";
+import { CELL_SIZES, EMAIL_PHONE_MARGIN, pagePhoneWidth, prepareTemplate, type Json, type Node, type ResolvedNode } from "@hyper-elements/core";
 import type React from "react";
 import { collectTemplate, snapshotData } from "../primitives/collect";
 import { add, boxRowOf, builderId, gapOf, hasBox, hiddenWhere, hiding, linesOf, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";
 import { block, columnWith, rowWith, type Block, type Body, type BodyFields, type Row } from "./design";
 import { hiddenOf, leftOut, merge } from "./hide";
-import { lockedHtml } from "./locked";
+import { lockedHtml, type Where } from "./locked";
 import { blockTool, NOT_IN_DOCUMENTS, type Place } from "./tools";
 import { builderBorder, builderFont, cssPx, cssSides, type Values } from "./values";
 
@@ -32,6 +32,12 @@ const holdsPageNumber = (node: Node): boolean => node.type === "PageNumber" || (
 
 /** What shows a box's edges: where these are set, space around it can't move inside it. */
 const PAINT = ["backgroundColor", "border", "borderRadius"];
+
+/** What stacks its children one under another, which its alignItems places across. */
+const STACKS = new Set(["Email", "Page", "Document", "DocumentPage", "PageHeader", "PageFooter", "Section", "Column"]);
+
+/** The window's width at and below which a root is on a phone: an Email's width and 20px, a Page's breakpoint (a Document has no phones). */
+const phoneWidthOf = (root: ResolvedNode): number | undefined => (root.type === "Email" ? Number(root.width ?? 600) + EMAIL_PHONE_MARGIN : root.type === "Page" ? pagePhoneWidth(root) : undefined);
 
 /** What a browser gives text where nothing says otherwise. */
 const BROWSER_TEXT: Record<string, unknown> = { fontSize: 16, fontStyle: "normal", letterSpacing: 0, textAlign: "left", textTransform: "none" };
@@ -84,16 +90,18 @@ export function raise(element: React.ReactElement): Raised {
   const childrenOf = (node: Node, path: string): Child[] =>
     (node.children ?? []).map((child, i) => ({ child, path: `${path}.children[${i}]` })).filter((c): c is Child => typeof c.child !== "string");
 
+  /** A node's parent, as resolved. */
+  const parentOf = (path: string) => resolved.get(path.replace(/\.children\[\d+\]$/, ""));
   /** The text styles a node inherits from its ancestors (its parent's, as resolved) that the root's don't give it. */
   const inheritedText = (path: string): Record<string, Json> => {
-    const parent = resolved.get(path.replace(/\.children\[\d+\]$/, ""));
+    const parent = parentOf(path);
     if (!parent) return {};
     const { lineHeightPx: _px, ...text } = parent.text;
     return Object.fromEntries(Object.entries(text).filter(([key, value]) => JSON.stringify(value) !== JSON.stringify(resolvedRoot.text[key as keyof typeof text]))) as Record<string, Json>;
   };
   /** The text styles markup takes from around it that it wouldn't get in the builder: the body holds the root's color, font and weight, and nothing else takes a browser's defaults' place. */
   const textAround = (path: string): Record<string, Json> => {
-    const parent = resolved.get(path.replace(/\.children\[\d+\]$/, ""));
+    const parent = parentOf(path);
     if (!parent) return {};
     const { lineHeightPx: _px, ...text } = parent.text;
     const given: Record<string, unknown> = { ...BROWSER_TEXT, color: resolvedRoot.text.color, fontFamily: resolvedRoot.text.fontFamily, fontWeight: resolvedRoot.text.fontWeight };
@@ -107,7 +115,25 @@ export function raise(element: React.ReactElement): Raised {
     locked: (node, path, why, around) => {
       report.push(`${path}: ${why}: ${root.type === "Document" ? `it's an HTML block of its own markup in the design: ${NOT_IN_DOCUMENTS}` : "it's an HTML block of its own markup in the builder (it can be moved, not edited)"}`);
       const own = at(path);
-      return put(lockedHtml(node, own.width ?? own.available ?? Number(resolvedRoot.width), root, components, around, inheritedText(path), { theme: document.theme, scopes: enclosing.get(node) }));
+      // In a stack, it's drawn as wide as the stack gives it, its block's width in the builder, and placed across it by
+      // the stack's alignItems: its own width (a share of it, a Button's) is then its own, once. In a Row, its column is
+      // its cell, as wide as it is, which it fills as Elements draws a Row's child (`cell`): its sizes there are the
+      // Row's, taken already (a Row's alignItems is up and down, which its column already gives it). Where its Row stays
+      // side by side on phones, so are its phone sizes, which a builder column has none of: left out, and said (what a
+      // custom element renders is laid out as `own`, its sizes those).
+      const parent = parentOf(path);
+      const stacked = parent !== undefined && STACKS.has(parent.type);
+      const sideBySide = parent?.type === "Row" && parent.props.stackOnMobile === false;
+      const width = (stacked ? (own.available ?? own.width) : (own.width ?? own.available)) ?? Number(resolvedRoot.width);
+      // A Section (your own element's too, laid out as one) spans the window, with no place across its root: it's drawn
+      // directly in the root, where it goes, not in a Column.
+      const across = stacked && own.type !== "Section" ? parent.style.alignItems : undefined;
+      const where: Where = { theme: document.theme, scopes: enclosing.get(node), alignItems: across, phoneWidth: phoneWidthOf(resolvedRoot), ...(stacked ? {} : { cell: { phoneSizes: !sideBySide } }) };
+      const leftOut = !stacked && sideBySide ? CELL_SIZES.filter((key) => own.mobile?.[key] !== undefined) : [];
+      if (leftOut.length) report.push(`${path}: the builder's column has no place for ${leftOut.map((key) => `mobile.${key}`).join(", ")}: left out`);
+      // Hidden where it is as the builder's block too, so the space around it goes with it (its markup hides it as well):
+      // as laid out, where what a custom element renders is hidden too.
+      return put({ ...lockedHtml(node, width, root, components, around, inheritedText(path), where), hiding: hiding({ ...node, hidden: own.hidden ?? node.hidden }) });
     },
     stack: (node, path, around) => stack(node, path, at(path), around),
     textAround,
