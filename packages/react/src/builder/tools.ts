@@ -251,8 +251,8 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
       const url = String(node.props?.src);
       const parts = videoParts(url);
       if (place.at("root").type === "Document") {
-        // A PDF can't play one: it's drawn as Elements' PDF prints it (locked.ts), where the builder's video was.
-        const drawn = thumbnailOf(node) ? "its thumbnail, linked to it" : "a link with its title (it has no thumbnail)";
+        // A PDF can't play one: it's drawn as its linked thumbnail with a play icon (locked.ts), where the builder's video was.
+        const drawn = thumbnailOf(node) ? "its thumbnail with a play icon, linked to it" : "a link with its title (it has no thumbnail)";
         return place.locked(node, path, `a Video isn't a tool of the builder's document mode: ${drawn}`, around, parent);
       }
       place.sayLeftOut("video", node, path, ["props.src"]);

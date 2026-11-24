@@ -229,12 +229,19 @@ describe("toDesign", () => {
     expect(thumbnail.values.html).toMatch(/<a [^>]*href="https:\/\/www\.youtube\.com\/watch\?v=dQw4w9WgXcQ"[^>]*><img [^>]*src="https:\/\/img\.youtube\.com\/vi\/dQw4w9WgXcQ\/0\.jpg"[^>]*alt="Launch"/);
     // As wide as the Video: its link fills its place, not shrunk to the image's own size.
     expect(thumbnail.values.html).not.toMatch(/<a [^>]*align-self/);
+    // A play icon over the thumbnail, in its middle: the link and the icon share a grid's one cell, centered in it. The
+    // icon is only drawn (no alternate text, so screen readers read the link), 64px but no wider than a quarter of the
+    // thumbnail, so a small video isn't covered by it.
+    expect(thumbnail.values.html).toMatch(/<div style="display:grid;[^"]*align-items:center;justify-items:center">/);
+    expect(thumbnail.values.html).toMatch(/<\/a><\/div><img src="data:image\/svg\+xml,[^"]*" alt="" [^>]*style="grid-area:1 \/ 1;[^"]*max-width:25%;width:64px;/);
     expect(link.values.html).not.toContain("<iframe");
     expect(link.values.html).toMatch(/<a [^>]*href="https:\/\/vimeo\.com\/76979871"[^>]*>Tour<\/a>/);
+    // No thumbnail, no icon: a link with the title is all there is.
+    expect(link.values.html).not.toContain("data:image/svg+xml");
     const said = ": it's an HTML block of its own markup in the builder (it can be moved, not edited); editor versions before 1.544.0 keep it in a document but don't draw or export it";
     expect(report).toEqual([
       `root.children[0]: a Menu isn't a tool of the builder's document mode${said}`,
-      `root.children[1]: a Video isn't a tool of the builder's document mode: its thumbnail, linked to it${said}`,
+      `root.children[1]: a Video isn't a tool of the builder's document mode: its thumbnail with a play icon, linked to it${said}`,
       `root.children[2]: a Video isn't a tool of the builder's document mode: a link with its title (it has no thumbnail)${said}`,
     ]);
     // Read back, they're Html blocks, as the builder's own HTML blocks are.
@@ -287,7 +294,8 @@ describe("toDesign", () => {
     }
     const small = defineTheme({ components: { Video: { variants: { small: { width: 200 } } } } } as never);
     const [sized] = blocks(toDesign(<Document theme={small}><Video variant={"small" as never} src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" /></Document>).design);
-    expect(sized.values.html).toMatch(/<div style="[^"]*width:200px">\s*<a /);
+    // The variant's 200px holds the thumbnail and its icon (a grid), and the link in it.
+    expect(sized.values.html).toMatch(/<div style="[^"]*width:200px"><div style="display:grid;[^"]*"><div [^>]*><a /);
   });
 
   it("converts a Document's custom elements nested in each other as before, a Video one renders its player there", () => {
@@ -310,6 +318,7 @@ describe("toDesign", () => {
       const html = blocks(toDesign(<Document>{element}</Document>).design).filter((content) => content.type === "html").map((content) => content.values.html).join("");
       expect(html, where).not.toContain("<iframe");
       expect(html, where).toMatch(thumbnail);
+      expect(html, where).toMatch(/<\/a><\/div><img src="data:image\/svg\+xml,[^"]*" alt=""/);
       expect(blocks(toDesign(<Page>{element}</Page>).design).find((content) => content.type === "html")?.values.html, where).toContain("<iframe");
     }
   });

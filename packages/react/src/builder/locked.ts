@@ -43,7 +43,7 @@ function renderSubtree(node: Node, width: number, root: Node, components: unknow
   // the block, so the block painting the body's over them would hide a Section's own.
   const { backgroundColor: _, ...rootStyle } = root.style ?? {};
   const page: Node = { type: root.type === "Email" ? "Email" : "Page", props: { width: Math.max(200, drawn), ...breakpoints }, style: rootStyle, children: [placed] };
-  // A Document's PDF can't play a video: each Video in the block as the PDF prints it. (Its theme is merged in already;
+  // A Document's PDF can't play a video: each Video in the block as a PDF can show it. (Its theme is merged in already;
   // one a custom element renders is its player, as before: core expands it, after this.)
   const shown = root.type === "Document" ? printVideos(page) : page;
   const { head, body } = renderTemplate(theme ? { root: shown, theme, merged: true } : { root: shown }, { components: components as never });
@@ -56,20 +56,41 @@ function renderSubtree(node: Node, width: number, root: Node, components: unknow
 /** A Video's thumbnail: its own, else a YouTube video's (a Vimeo video's can't be found without the network). */
 export const thumbnailOf = (video: Node): Json | undefined => video.props?.thumbnail ?? videoParts(String(video.props?.src))?.thumbnail;
 
-/** Each Video in a node as a PDF prints it. */
+/** Each Video in a node as a PDF can show it. */
 const printVideos = (node: Node): Node =>
   node.type === "Video" ? printedVideo(node) : node.children ? { ...node, children: node.children.map((child) => (typeof child === "string" ? child : printVideos(child))) } : node;
 
 /**
- * A Video as a PDF prints it: its thumbnail linked to it, else a link with its title, as an Email draws it too. A
- * Column takes the Video's place, with its size, and what's in it fills it.
+ * A play icon, as the builder's own video draws one on its thumbnail: here a dark round button with a white triangle,
+ * 64px wide but no wider than a quarter of the thumbnail, so a small video's isn't covered by it. It's only drawn (an
+ * image with no alternate text is hidden from screen readers); the link under it is what's read and followed.
+ */
+const PLAY_ICON_SVG =
+  '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="32" fill-opacity="0.6"/><path d="M26 20v24l20-12z" fill="#fff"/></svg>';
+const PLAY_ICON: Node = { type: "Image", props: { src: `data:image/svg+xml,${encodeURIComponent(PLAY_ICON_SVG)}`, alt: "" }, style: { width: 64, maxWidth: "25%" } };
+
+/**
+ * A Video as a PDF can show it: its thumbnail linked to it, with a play icon in its middle, else a link with its title.
+ * (Elements' own PDF and Email draw the thumbnail without the icon.) A Column takes the Video's place, with its size,
+ * and what's in it fills it.
  */
 function printedVideo(video: Node): Node {
   const href = String(video.props?.src);
   const title = String(video.props?.title ?? "Video");
   const thumbnail = thumbnailOf(video);
   const shown: Node = thumbnail
-    ? { type: "Link", props: { href, title }, children: [{ type: "Image", props: { src: thumbnail, alt: title }, style: { width: "100%" } }] }
+    ? thumbnailWithIcon({ type: "Link", props: { href, title }, children: [{ type: "Image", props: { src: thumbnail, alt: title }, style: { width: "100%" } }] })
     : { type: "Text", children: [{ type: "Link", props: { href }, children: [title] }] };
   return { type: "Column", ...(video.id ? { id: video.id } : {}), style: { ...video.style, alignItems: "stretch" }, ...(video.mobile ? { mobile: video.mobile } : {}), children: [shown] };
 }
+
+/**
+ * A linked thumbnail with the play icon in its middle. A Link holds only text or an Image, so the icon is over it in a
+ * Layer: the link fills the Layer (in a Column, which a Layer stretches to its width), and the icon, of its own size, is
+ * centered on it.
+ */
+const thumbnailWithIcon = (link: Node): Node => ({
+  type: "Layer",
+  style: { alignItems: "center", justifyItems: "center" },
+  children: [{ type: "Column", style: { alignItems: "stretch" }, children: [link] }, PLAY_ICON],
+});
