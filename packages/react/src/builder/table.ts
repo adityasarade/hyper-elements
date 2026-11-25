@@ -12,8 +12,8 @@
  *
  * An Email's or a Page's Table is the builder's table only where the builder draws it as it is: an HTML block of its
  * markup draws it exactly there, so a table the builder would draw otherwise stays one, and the report says why. A
- * Document's is the builder's table even where the builder draws it otherwise, what changes said (`exact`, in
- * tableValues). In any root, a table with no rows or an image in a cell is an HTML block.
+ * Document's is always the builder's table (editors before 1.544.0 don't draw an HTML block in a document), what
+ * it draws otherwise said.
  */
 import type { Border, BorderSide, Json, Node, ResolvedNode } from "@hyper-elements/core";
 import { leftOut } from "./hide";
@@ -113,11 +113,6 @@ function unheld(node: Node, fields: readonly string[]): string[] {
  */
 export function tableValues(node: Node, path: string, place: TablePlace): Values | string {
   const own = place.at(path);
-  // A Document's table is the builder's table even where the builder draws it otherwise (a line between rows only, a
-  // cell spanning columns, a border around it), and the report says what changes. Its HTML block would draw it exactly
-  // from editor 1.544.0, but a Document is mostly tables (an invoice, a report), and most styled ones would then be
-  // blocks nobody can edit. A choice, not a limit: revisit when the builder's table draws lines between rows only and
-  // cells across columns.
   const exact = place.at("root").type !== "Document";
   const partsOf = (parent: Node, at: string): Part[] =>
     (parent.children ?? []).flatMap((child, i) => (typeof child === "string" ? [] : [{ node: child, own: place.at(`${at}.children[${i}]`), path: `${at}.children[${i}]` }]));

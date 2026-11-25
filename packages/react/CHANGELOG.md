@@ -95,8 +95,9 @@ the table's fields and each cell's own styles. A table with an image in a cell, 
 hidden on phones or desktops, is still an HTML block.
 
 - In a `Document`, the builder's document mode before editor 1.544.0 keeps an HTML block but doesn't draw or export
-  it, so a Document's tables were missing from the builder's page and its PDF. A Document's `Table` is the builder's
-  table all the same, so an invoice or a report stays editable, and `report` says what it draws otherwise: the builder draws one border around every cell, so a line between rows
+  it, so a Document's
+  tables were missing from the builder's page and its PDF. A Document's `Table` is the builder's table all the same,
+  and `report` says what it draws otherwise: the builder draws one border around every cell, so a line between rows
   is drawn above the first row and below the last too, a cell spanning columns is a cell for each column, a header
   row below the table's first rows is a row in bold, and other borders are left out.
 - In an `Email` or a `Page`, an HTML block draws a table exactly, so a `Table` is the builder's table only where the
