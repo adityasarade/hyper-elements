@@ -107,7 +107,10 @@ describe("toDesign", () => {
     expect(body.headers[0].values._meta).toEqual({ htmlID: "u_header_1", htmlClassNames: "u_header" });
     expect(blocks(design).map((content) => content.type)).toEqual(["heading", "paragraph", "page_break", "paragraph", "page_break", "paragraph", "page_break", "paragraph"]);
     expect(textJsonHtml(blocks(design)[1].values.textJson).html).toContain(">Page {{page_number}} of {{page_count}}<");
-    expect(report).toEqual([expect.stringContaining("the builder has no page numbers yet"), expect.stringContaining("root: the page (A5 landscape, margin 40px)")]);
+    expect(report).toEqual([
+      expect.stringContaining("the builder has no page numbers yet"),
+      expect.stringContaining("root: the page (A5 landscape, margin 40px)"),
+    ]);
     // A margin that differs from side to side: the widest, the sides hidden.
     const sides = toDesign(<Document margin={[10, 20, 30, 40]}><Text>A</Text><PageBreak /><Text>B</Text></Document>).design.body.values;
     expect([sides.documentMargin, sides.margin]).toEqual(["40px", "10px 20px 30px 40px"]);
@@ -124,24 +127,47 @@ describe("toDesign", () => {
     }
   });
 
-  it("says what a plan without page format controls makes a Document's page: A4 portrait, its margin the builder's A4 margin unless it's 0", () => {
+  it("says how the builder draws a Document's page with and without page format controls, where either isn't as the template has it", () => {
     const said = (root: Parameters<typeof toDesign>[0]) => toDesign(root).report;
-    const plans = "the builder keeps a document's page size, orientation and margin only on plans with page format controls; on other plans it becomes";
+    const asItIs = (other: string) => `the builder draws it as it is on plans with page format controls, and as A4 portrait, margin ${other} on other plans`;
     // A Document's own margin, 48px, is not the builder's A4 margin, 96px.
-    expect(said(<Document><Text>a</Text></Document>)).toEqual([`root: the page (A4 portrait, margin 48px): ${plans} A4 portrait, margin 96px`]);
-    expect(said(<Document size="Letter" orientation="landscape"><Text>a</Text></Document>)).toEqual([`root: the page (Letter landscape, margin 48px): ${plans} A4 portrait, margin 96px`]);
-    expect(said(<Document size="Letter" margin={0}><Text>a</Text></Document>)).toEqual([`root: the page (Letter portrait, margin 0px): ${plans} A4 portrait, margin 0px`]);
-    expect(said(<Document orientation="landscape" margin={96}><Text>a</Text></Document>)).toEqual([`root: the page (A4 landscape, margin 96px): ${plans} A4 portrait, margin 96px`]);
-    expect(said(<Document margin={[10, 20, 30, 40]}><Text>a</Text></Document>)).toEqual([`root: the page (A4 portrait, margin 10px 20px 30px 40px): ${plans} A4 portrait, margin 96px`]);
+    expect(said(<Document><Text>a</Text></Document>)).toEqual([`root: the page (A4 portrait, margin 48px): ${asItIs("96px")}`]);
+    expect(said(<Document size="Letter" orientation="landscape"><Text>a</Text></Document>)).toEqual([`root: the page (Letter landscape, margin 48px): ${asItIs("96px")}`]);
+    expect(said(<Document size="Letter" margin={0}><Text>a</Text></Document>)).toEqual([`root: the page (Letter portrait, margin 0px): ${asItIs("0px")}`]);
+    expect(said(<Document orientation="landscape" margin={96}><Text>a</Text></Document>)).toEqual([`root: the page (A4 landscape, margin 96px): ${asItIs("96px")}`]);
+    // One margin for every side, the widest, on every plan: only the plan's page differs.
+    expect(said(<Document margin={[10, 20, 30, 40]}><Text>a</Text></Document>)).toEqual([
+      "root: the page (A4 portrait, margin 10px 20px 30px 40px): the builder draws it as A4 portrait, margin 40px on plans with page format controls (one margin for every side: the widest), and as A4 portrait, margin 96px on other plans",
+    ]);
+    expect(said(<Document margin={[0, 0, 0, 96]}><Text>a</Text></Document>)).toEqual([
+      "root: the page (A4 portrait, margin 0px 0px 0px 96px): the builder draws it as A4 portrait, margin 96px on every plan (one margin for every side: the widest)",
+    ]);
+    // At most a quarter of the page's shorter side in whole px, and 250px.
+    expect(said(<Document margin={200}><Text>a</Text></Document>)).toEqual([
+      "root: the page (A4 portrait, margin 200px): the builder draws it as A4 portrait, margin 198px on plans with page format controls (198px at most on A4), and as A4 portrait, margin 96px on other plans",
+    ]);
+    expect(said(<Document margin={[10, 10, 10, 300]}><Text>a</Text></Document>)).toEqual([
+      "root: the page (A4 portrait, margin 10px 10px 10px 300px): the builder draws it as A4 portrait, margin 198px on plans with page format controls (one margin for every side: the widest; 198px at most on A4), and as A4 portrait, margin 96px on other plans",
+    ]);
+    const most = (size: string, orientation: string, margin: number) => said(<Document size={size as "A4"} orientation={orientation as "portrait"} margin={margin}><Text>a</Text></Document>)[0];
+    expect(most("A5", "landscape", 150)).toContain("as A5 landscape, margin 139px on plans with page format controls (139px at most on A5)");
+    expect(most("Letter", "portrait", 210)).toContain("as Letter portrait, margin 204px on plans with page format controls (204px at most on Letter)");
+    expect(most("A3", "portrait", 260)).toContain("as A3 portrait, margin 250px on plans with page format controls (250px at most on A3)");
+    expect(most("Tabloid", "landscape", 260)).toContain("as Tabloid landscape, margin 250px on plans with page format controls (250px at most on Tabloid)");
+    expect(most("Letter", "portrait", 204)).toBe(`root: the page (Letter portrait, margin 204px): ${asItIs("96px")}`);
     // A4 portrait with a margin the builder keeps on every plan.
     expect(said(<Document margin={96}><Text>a</Text></Document>)).toEqual([]);
     expect(said(<Document margin={0}><Text>a</Text></Document>)).toEqual([]);
-    // The builder reads the margin written, to the hundredth, in whole px: 0.3px is 0, and 96.4px and 95.5px are 96.
+    // The builder reads the margin written, to the hundredth, in whole px: 0.3px is 0, 96.4px and 95.5px are 96, and
+    // 198.4px is 198, A4's widest, where 198.6px is 199.
     expect(said(<Document margin={0.3}><Text>a</Text></Document>)).toEqual([]);
     expect(said(<Document margin={96.4}><Text>a</Text></Document>)).toEqual([]);
     expect(said(<Document margin={95.496}><Text>a</Text></Document>)).toEqual([]);
+    expect(said(<Document margin={[96, 96, 96, 96.4]}><Text>a</Text></Document>)).toEqual([]);
+    expect(said(<Document margin={198.4}><Text>a</Text></Document>)).toEqual([`root: the page (A4 portrait, margin 198.4px): ${asItIs("96px")}`]);
+    expect(said(<Document margin={198.6}><Text>a</Text></Document>)[0]).toContain("margin 198px on plans with page format controls (198px at most on A4)");
     // 0.496px is written as 0.5px, which it reads as 1px.
-    expect(said(<Document margin={0.496}><Text>a</Text></Document>)).toEqual([`root: the page (A4 portrait, margin 0.5px): ${plans} A4 portrait, margin 96px`]);
+    expect(said(<Document margin={0.496}><Text>a</Text></Document>)).toEqual([`root: the page (A4 portrait, margin 0.5px): ${asItIs("96px")}`]);
   });
 
   it("writes a link's target only where the template gives one: a Button's, a link in text, an image's", () => {

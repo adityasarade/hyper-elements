@@ -9,7 +9,7 @@
  * the builder's table doesn't draw as it is in an Email or a Page, is an HTML block of the new engine's own markup,
  * and said.
  */
-import { prepareTemplate, type Json, type Node, type ResolvedNode } from "@hyper-elements/core";
+import { pageBox, prepareTemplate, type Json, type Node, type ResolvedNode } from "@hyper-elements/core";
 import type React from "react";
 import { collectTemplate, snapshotData } from "../primitives/collect";
 import { add, boxRowOf, builderId, gapOf, hasBox, hiding, linesOf, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";
@@ -17,7 +17,7 @@ import { block, columnWith, rowWith, type Block, type Body, type BodyFields, typ
 import { hiddenOf, leftOut, merge } from "./hide";
 import { lockedHtml } from "./locked";
 import { blockTool, NOT_IN_DOCUMENTS, type Place } from "./tools";
-import { MAX_EMAIL_WIDTH, PageMargins } from "./tool-defaults";
+import { MAX_EMAIL_WIDTH, MAX_PAGE_MARGIN, PageMargins } from "./tool-defaults";
 import { builderBorder, builderFont, cssPx, cssSides, writtenPx, type Values } from "./values";
 
 export interface Raised {
@@ -35,18 +35,33 @@ const holdsPageNumber = (node: Node): boolean => node.type === "PageNumber" || (
 const DOCUMENT_MARGIN: Sides = { top: 48, right: 48, bottom: 48, left: 48 };
 
 /**
- * What a plan without page format controls does to a Document's page when the builder loads it: A4 portrait with the
- * builder's A4 margin. A margin of 0 it keeps, and one as wide as its A4 margin draws the same.
+ * How the builder draws a Document's page, where that isn't as the template has it. It has one margin for every side,
+ * the widest as written (design.ts), which it reads in whole px and draws at most a quarter of the page's shorter side
+ * wide, and 250px at most. A plan without page format controls draws the page A4 portrait with the builder's A4 margin,
+ * or with none where the margin is 0.
  */
-function pageFormatReset(props: Node["props"]): string | undefined {
+function pageAsDrawn(props: Node["props"]): string | undefined {
   const size = (props?.size as string | undefined) ?? "A4";
   const orientation = (props?.orientation as string | undefined) ?? "portrait";
   const sides = (props?.margin as Sides | undefined) ?? DOCUMENT_MARGIN;
-  // The builder's one margin: the widest side as written (design.ts), which it reads in whole px.
-  const margin = Math.round(writtenPx(Math.max(sides.top, sides.right, sides.bottom, sides.left)));
-  const kept = margin === 0 || margin === PageMargins.A4;
-  if (size === "A4" && orientation === "portrait" && kept) return undefined;
-  return `root: the page (${size} ${orientation}, margin ${cssSides(sides)}): the builder keeps a document's page size, orientation and margin only on plans with page format controls; on other plans it becomes A4 portrait, margin ${cssPx(kept ? margin : PageMargins.A4)}`;
+  const read = [sides.top, sides.right, sides.bottom, sides.left].map((side) => Math.round(writtenPx(side)));
+  const { width, height } = pageBox({ size, orientation });
+  const most = Math.min(MAX_PAGE_MARGIN, Math.floor(Math.min(width, height) / 4));
+  const widest = Math.max(...read);
+  const margin = Math.min(widest, most);
+  const plain = widest === 0 ? 0 : PageMargins.A4;
+  const even = read.every((side) => side === widest);
+  const said = `root: the page (${size} ${orientation}, margin ${cssSides(sides)}): the builder draws it as`;
+  const other = `A4 portrait, margin ${cssPx(plain)}`;
+  // With page format controls: as the template has it where its sides are the same and no wider than the page allows.
+  if (even && widest <= most) {
+    if (size === "A4" && orientation === "portrait" && widest === plain) return undefined;
+    return `${said} it is on plans with page format controls, and as ${other} on other plans`;
+  }
+  const why = ` (${[...(even ? [] : ["one margin for every side: the widest"]), ...(widest > most ? [`${cssPx(most)} at most on ${size}`] : [])].join("; ")})`;
+  const drawn = `${size} ${orientation}, margin ${cssPx(margin)}`;
+  if (drawn === other) return `${said} ${drawn} on every plan${why}`;
+  return `${said} ${drawn} on plans with page format controls${why}, and as ${other} on other plans`;
 }
 
 /** What shows a box's edges: where these are set, space around it can't move inside it. */
@@ -318,8 +333,10 @@ export function raise(element: React.ReactElement): Raised {
   // What the builder changes when it loads the design.
   const width = Number(resolvedRoot.width);
   if (root.type === "Email" && writtenPx(width) > MAX_EMAIL_WIDTH) report.push(`root: an email ${cssPx(width)} wide: the builder makes an email ${MAX_EMAIL_WIDTH}px wide at most, so it becomes ${MAX_EMAIL_WIDTH}px`);
-  const reset = root.type === "Document" ? pageFormatReset(root.props) : undefined;
-  if (reset) report.push(reset);
+  if (root.type === "Document") {
+    const page = pageAsDrawn(root.props);
+    if (page) report.push(page);
+  }
   const common: BodyFields = {
     contentWidth: cssPx(width),
     textColor: text.color,
