@@ -110,6 +110,7 @@ describe("toDesign", () => {
     expect(report).toEqual([
       expect.stringContaining("the builder has no page numbers yet"),
       expect.stringContaining("root: the page (A5 landscape, margin 40px)"),
+      expect.stringContaining("root: its header and footer:"),
     ]);
     // A margin that differs from side to side: the widest, the sides hidden.
     const sides = toDesign(<Document margin={[10, 20, 30, 40]}><Text>A</Text><PageBreak /><Text>B</Text></Document>).design.body.values;
@@ -168,6 +169,16 @@ describe("toDesign", () => {
     expect(said(<Document margin={198.6}><Text>a</Text></Document>)[0]).toContain("margin 198px on plans with page format controls (198px at most on A4)");
     // 0.496px is written as 0.5px, which it reads as 1px.
     expect(said(<Document margin={0.496}><Text>a</Text></Document>)).toEqual([`root: the page (A4 portrait, margin 0.5px): ${asItIs("96px")}`]);
+  });
+
+  it("says the builder draws and exports a Document's header and footer only on plans with headers and footers", () => {
+    const said = (root: Parameters<typeof toDesign>[0]) => toDesign(root).report;
+    const plans = "the builder draws and exports a document's header and footer only on plans with headers and footers";
+    // margin={96}: A4 portrait, the page the same on every plan, so the header and footer are all it says.
+    expect(said(<Document margin={96}><PageHeader><Text>Acme Ltd</Text></PageHeader><Text>Body</Text><PageFooter><Text>Paid within 30 days</Text></PageFooter></Document>)).toEqual([`root: its header and footer: ${plans}`]);
+    expect(said(<Document margin={96}><PageHeader><Text>Acme Ltd</Text></PageHeader><Text>Body</Text></Document>)).toEqual([`root: its header: ${plans}`]);
+    expect(said(<Document margin={96}><Text>Body</Text><PageFooter><Text>Paid within 30 days</Text></PageFooter></Document>)).toEqual([`root: its footer: ${plans}`]);
+    expect(said(<Document margin={96}><Text>Body</Text></Document>)).toEqual([]);
   });
 
   it("writes a link's target only where the template gives one: a Button's, a link in text, an image's", () => {

@@ -336,6 +336,8 @@ export function raise(element: React.ReactElement): Raised {
   if (root.type === "Document") {
     const page = pageAsDrawn(root.props);
     if (page) report.push(page);
+    const bands = [...(headers.length ? ["header"] : []), ...(footers.length ? ["footer"] : [])];
+    if (bands.length) report.push(`root: its ${bands.join(" and ")}: the builder draws and exports a document's header and footer only on plans with headers and footers`);
   }
   const common: BodyFields = {
     contentWidth: cssPx(width),
