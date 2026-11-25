@@ -1,6 +1,6 @@
 /**
  * A page's content flowed onto as many pages as it needs: from its blocks as written (what can split, and how) and as
- * measured at full height (plan.ts's MeasuredPage), a Plan of which part of which block goes on which page. Pure.
+ * measured at full height (../plan.ts's MeasuredPage), a Plan of which part of which block goes on which page. Pure.
  *
  * - A block of text is split between its lines, keeping at least two on each side (orphans and widows), never after a
  *   line that ends in a word broken by a hyphen.
@@ -15,7 +15,7 @@
  * then keeping a heading with what follows.
  */
 import type { Block, Page, Style } from "./model";
-import type { MeasuredBlock, MeasuredPage, PlannedPage, PlannedPart } from "./plan";
+import type { MeasuredBlock, MeasuredLine, MeasuredPage, PlannedLine, PlannedPage, PlannedPart } from "../plan";
 
 /** How far past the room a block may end and still fit: the engine lays out in 32-bit floats. */
 const SLACK = 0.01;
@@ -80,11 +80,14 @@ function heightOf(piece: Piece): number {
   return children.reduce((sum, child) => sum + heightOf(child), 0) + gapOf(style) * Math.max(0, children.length - 1) + edgeBottom(style);
 }
 
+/** A measured line as a plan's: what painting it takes. */
+const planned = ({ start, end, hyphenated, wordSpacing, height }: MeasuredLine): PlannedLine => ({ start, end, hyphenated, wordSpacing, height });
+
 /** What's left of a piece, as its last part: whole as written, or the part of it left. */
 function rest(piece: Piece): PlannedPart {
   const { path } = piece.measured;
   if (piece.whole) return { path, part: 0, first: true, last: true };
-  if (piece.text) return { path, part: piece.parts, first: false, last: true, lines: [piece.text.from, piece.measured.lines!.length] };
+  if (piece.text) return { path, part: piece.parts, first: false, last: true, lines: piece.measured.lines!.slice(piece.text.from).map(planned) };
   return { path, part: piece.parts, first: false, last: true, children: (piece.children ?? []).map(rest) };
 }
 
@@ -135,7 +138,7 @@ class Planner {
     }
     if (to < 0) return undefined;
     return {
-      part: { path: measured.path, part: piece.parts, first: from === 0, last: false, lines: [from, to] },
+      part: { path: measured.path, part: piece.parts, first: from === 0, last: false, lines: lines.slice(from, to).map(planned) },
       height: bottom(to),
       rest: { ...piece, whole: false, parts: piece.parts + 1, text: { from: to } },
     };

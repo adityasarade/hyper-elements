@@ -8,7 +8,8 @@
 import { assetParts, documentPages, htmlText, linkParts, pageBox, videoParts, type Asset, type BorderSide, type LinkValue, type ResolvedNode } from "../index";
 import { flowPage } from "./flow";
 import { Painter } from "./paint";
-import { blocksOf, measure, type MeasuredPage, type Plan, type PlannedPage } from "./plan";
+import type { MeasuredPage, Plan, PlannedPage } from "../plan";
+import { blocksOf, measure } from "./measure";
 import type { Block, DrawnDocument, Font, Page, Picture, PlacedPage, Run, Shape, Style } from "./model";
 import { alignSelf, borderStyle, boxStyle, flex, pt, runStyle, textStyle } from "./styles";
 
@@ -82,7 +83,7 @@ export function flowDocument(root: ResolvedNode, context: WriteContext, document
   const write = new Writer(context);
   const pages = planned.map(({ from, parts }, index): Page => {
     const page = document.pages[from];
-    const painter = new Painter(blocksOf(page), new Map((measured[from]?.blocks ?? []).map((block) => [block.path, block])));
+    const painter = new Painter(blocksOf(page));
     const content = parts.map((part) => painter.part(part));
     write.page = { number: index + 1, total: planned.length };
     return { ...page, content, header: header && write.block(header, root), footer: footer && write.block(footer, root) };
@@ -152,7 +153,8 @@ class Writer {
         return this.video(node, placed);
       case "Html":
         // A PDF can't draw markup: its plain text (validate() says so).
-        return { kind: "text", splits: "lines", style: { ...textStyle(node, families), ...placed }, runs: [htmlText(node)] };
+        // Its markup, in the print HTML, can't be cut between lines: it stays whole.
+        return { kind: "text", style: { ...textStyle(node, families), ...placed }, runs: [htmlText(node)] };
       case "Svg":
         return this.svg(node, placed);
       case "Section":

@@ -10,14 +10,15 @@
  * given in `fonts`. A template that needs one it isn't given is an error (an image) or drawn in a standard PDF font (a
  * font), and says so. templateAssets() lists the fonts and images a template names, for a tool that loads them.
  */
-import { assetParts, flowDocument, LAYOUT_VERSION, pdfFamily, reactPdf, thumbnailOf, writeDocument, type Asset, type Font, type MeasuredPage, type Plan } from "@hyper-elements/core/pdf";
-import type { FontFace } from "@hyper-elements/core";
+import { assetParts, flowDocument, LAYOUT_VERSION, pdfFamily, reactPdf, thumbnailOf, writeDocument, type Asset, type Font } from "@hyper-elements/core/pdf";
+import type { FontFace, Plan } from "@hyper-elements/core";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode, type Snapshot } from "@hyper-elements/react";
 import type { ReactElement } from "react";
 import { documentLayout, measuredOverflow, type DocumentLayout } from "./layout";
 import { overflows } from "./flow";
 
 export type { DocumentLayout, DocumentNode, DocumentPage } from "./layout";
+export type { Plan, PlannedLine, PlannedPage, PlannedPart } from "@hyper-elements/core";
 
 export interface PdfFont {
   /** The family a template names in its fontFamily stacks ("Inter"). */
@@ -42,6 +43,15 @@ export interface PdfResult {
   pdf: Uint8Array;
   /** Warnings and notes (errors are thrown). */
   diagnostics: Diagnostic[];
+  /** Its pages as planned: give it to `render(design, { plan })` for print HTML with the same pages. */
+  plan: Plan;
+}
+
+export interface PaginateResult {
+  /** The Document's pages as planned: what goes on each, what doesn't fit one gone on to the next. */
+  plan: Plan;
+  /** renderPdf()'s diagnostics: what can't go on to another page and is cut off, measured. */
+  diagnostics: Diagnostic[];
 }
 
 /** The date a PDF says it was made by default: fixed, so the same template makes the same bytes. */
@@ -49,8 +59,18 @@ const FIXED_DATE = new Date(Date.UTC(2026, 0, 1));
 
 /** A Document written as a PDF. Rejects with an `ElementsError` listing the problems if it has errors. */
 export async function renderPdf(element: ReactElement | Snapshot, options: PdfOptions = {}): Promise<PdfResult> {
-  const { pdf, diagnostics } = await draw(element, options);
-  return { pdf, diagnostics };
+  const { pdf, diagnostics, plan } = await draw(element, options);
+  return { pdf, diagnostics, plan };
+}
+
+/**
+ * A Document's pages as planned, measured with its fonts as its PDF is drawn: for print HTML with the same pages as
+ * its PDF, `render(design, { plan })`. Takes renderPdf()'s options (it draws the PDF to measure it). Rejects as
+ * renderPdf() does.
+ */
+export async function paginate(element: ReactElement | Snapshot, options: PdfOptions = {}): Promise<PaginateResult> {
+  const { plan, diagnostics } = await draw(element, options);
+  return { plan, diagnostics };
 }
 
 /**
@@ -59,11 +79,11 @@ export async function renderPdf(element: ReactElement | Snapshot, options: PdfOp
  * does.
  */
 export async function layoutDocument(element: ReactElement | Snapshot, options: PdfOptions = {}): Promise<DocumentLayout> {
-  const { root, pages, placed, plan, measured, diagnostics } = await draw(element, options);
+  const { root, pages, placed, plan, diagnostics } = await draw(element, options);
   if (!placed) {
     throw new ElementsError([...diagnostics, { code: "pdf/layout", severity: "error", message: "The installed @react-pdf/renderer doesn't say where it laid the PDF out: update it", path: "root" }]);
   }
-  return documentLayout(root, pages.pages, placed, diagnostics, plan && measured ? { plan, measured } : undefined);
+  return documentLayout(root, pages.pages, placed, diagnostics, plan);
 }
 
 /**
@@ -81,8 +101,8 @@ async function draw(element: ReactElement | Snapshot, options: PdfOptions) {
   const written = writeDocument(root, context);
   const first = await reactPdf(written);
   let pages = written;
-  let plan: Plan | undefined;
-  let measured: MeasuredPage[] | undefined;
+  // A Document that fits: each page as written, each block whole on it.
+  let plan: Plan = { pages: written.pages.map((page, from) => ({ from, parts: page.content.map((block) => ({ path: block.path!, part: 0, first: true, last: true })) })) };
   let { pdf, placed } = first;
   // Content that doesn't fit its page goes on to the next: planned from where this render laid it out (measured), and
   // drawn again, a split text's lines as they were laid out (paint.ts). What still doesn't fit is said, measured.
@@ -90,10 +110,10 @@ async function draw(element: ReactElement | Snapshot, options: PdfOptions) {
     const flowed = flowDocument(root, context, written, first.placed);
     ({ pdf, placed } = await reactPdf(flowed.document));
     pages = flowed.document;
-    ({ plan, measured } = flowed);
+    plan = flowed.plan;
   }
   const said = placed ? [...diagnostics.filter((d) => d.code !== "document/overflow"), ...measuredOverflow(root, pages.pages, placed)] : diagnostics;
-  return { root, pages, placed, plan, measured, pdf, diagnostics: [...said, ...found] };
+  return { root, pages, placed, plan, pdf, diagnostics: [...said, ...found] };
 }
 
 export interface TemplateAssets {

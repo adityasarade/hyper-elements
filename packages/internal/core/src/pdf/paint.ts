@@ -6,7 +6,7 @@
  * draws it where it was and can't break its lines otherwise.
  */
 import type { Block, Run, Style } from "./model";
-import { isWhole, type MeasuredBlock, type PlannedPart } from "./plan";
+import { isWhole, type PlannedPart } from "../plan";
 import { splitRuns } from "./runs";
 
 const TOP = ["paddingTop", "borderTopWidth", "borderTopStyle", "borderTopColor", "borderTopLeftRadius", "borderTopRightRadius"];
@@ -88,17 +88,14 @@ function trimEnd(runs: Run[]): Run[] {
 }
 
 export class Painter {
-  /** `blocks` and `measured`: the page as written, and as measured, each block by its path. */
-  constructor(
-    private readonly blocks: ReadonlyMap<string, Block>,
-    private readonly measured: ReadonlyMap<string, MeasuredBlock>
-  ) {}
+  /** `blocks`: the page as written, each block by its path. */
+  constructor(private readonly blocks: ReadonlyMap<string, Block>) {}
 
   part(part: PlannedPart): Block {
     const block = this.blocks.get(part.path)!;
     if (isWhole(part)) return block;
     if (part.lines && block.kind === "text") {
-      const lines = this.measured.get(part.path)!.lines!.slice(part.lines[0], part.lines[1]);
+      const { lines } = part;
       // Its lines one under another, each as measured. Its text style is the box's, which they take; a justified
       // block's lines are as wide as its spacing makes them, each set from its start.
       const align = block.style.textAlign === "justify" ? "left" : block.style.textAlign;

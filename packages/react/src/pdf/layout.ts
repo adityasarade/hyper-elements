@@ -3,7 +3,8 @@
  * off), measured with the fonts the PDF is drawn in. What `layoutDocument()` returns, and what turns renderPdf's
  * `document/overflow` from an estimate (validate()'s, which has no fonts) into a measurement.
  */
-import type { MeasuredPage, Page, PlacedBlock, PlacedPage, Plan, PlannedPart } from "@hyper-elements/core/pdf";
+import type { Plan, PlannedPart } from "@hyper-elements/core";
+import type { Page, PlacedBlock, PlacedPage } from "@hyper-elements/core/pdf";
 import type { Diagnostic, ResolvedNode } from "@hyper-elements/react";
 
 /** A block on a page of a Document, as the PDF draws it. Lengths are in px (96 to the inch), from its page's top left. */
@@ -90,21 +91,19 @@ function partsOf(parts: PlannedPart[], out = new Map<string, PlannedPart>()): Ma
 }
 
 /** The Document as laid out: its pages, and each block on each; with the plan it was flowed by, where it was. */
-export function documentLayout(root: ResolvedNode, pages: Page[], placed: PlacedPage[], diagnostics: Diagnostic[], flowed?: { plan: Plan; measured: MeasuredPage[] }): DocumentLayout {
+export function documentLayout(root: ResolvedNode, pages: Page[], placed: PlacedPage[], diagnostics: Diagnostic[], plan?: Plan): DocumentLayout {
   const nodes = byPath(root);
   return {
     pages: pages.map((page, i) => ({ page: i + 1, width: px(page.width), height: px(page.height), room: { top: px(placed[i].room.top), bottom: px(placed[i].room.bottom) } })),
     nodes: placed.flatMap(({ room, blocks }, i) => {
       const outside = chrome(pages[i]);
-      const planned = flowed?.plan.pages[i];
+      const planned = plan?.pages[i];
       const parts = planned ? partsOf(planned.parts) : new Map<string, PlannedPart>();
-      const lines = new Map((planned ? flowed!.measured[planned.from].blocks : []).map((block) => [block.path, block.lines]));
       return blocks.map((block): DocumentNode => {
         const node = nodes.get(block.path);
         const cut = outside.some((path) => inside(block.path, path)) ? undefined : cutOf(block, room);
         const part = parts.get(block.path);
-        const shown = part?.lines && lines.get(block.path);
-        const count = block.lines?.length ?? (part?.lines ? part.lines[1] - part.lines[0] : undefined);
+        const count = block.lines?.length ?? part?.lines?.length;
         return {
           path: block.path,
           ...(node?.id ? { id: node.id } : {}),
@@ -112,7 +111,7 @@ export function documentLayout(root: ResolvedNode, pages: Page[], placed: Placed
           type: node?.type ?? "",
           page: i + 1,
           part: part?.part ?? 0,
-          ...(shown && part?.lines ? { chars: { start: shown[part.lines[0]].start, end: shown[part.lines[1] - 1].end } } : {}),
+          ...(part?.lines?.length ? { chars: { start: part.lines[0].start, end: part.lines[part.lines.length - 1].end } } : {}),
           x: px(block.x),
           y: px(block.y),
           width: px(block.width),

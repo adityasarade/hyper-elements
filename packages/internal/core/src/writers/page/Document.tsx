@@ -10,6 +10,7 @@ import { markBlock } from "../shared/block-map";
 import { px, textDeclarations } from "../shared/css";
 import { isNode, type Component } from "./context";
 import { alignSelf, stackOf } from "./layout";
+import { flowedPages } from "./flowed";
 import { numbering } from "./PageNumber";
 
 /**
@@ -25,10 +26,13 @@ export function documentCss(root: ResolvedNode): string {
   );
 }
 
-export const Document: Component = ({ node: root, style, rtl, render }) => {
+export const Document: Component = ({ node: root, style, rtl, render, options }) => {
   const box = pageBox(root.props);
   const { margin } = box;
-  const { pages, header, footer } = documentPages(root);
+  const written = documentPages(root);
+  const { header, footer } = written;
+  // Its pages as written, or as its plan places its blocks (the same pages as its PDF).
+  const pages = options.plan ? flowedPages(root, options.plan).map(({ from, content }) => ({ page: written.pages[from]?.page, children: content })) : written.pages;
   return (
     <main style={textDeclarations(root.text, undefined)}>
       {pages.map(({ page, children }, index) =>

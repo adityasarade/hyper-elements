@@ -1,0 +1,109 @@
+/**
+ * The print HTML drawn from a Document's plan (`render(design, { plan })`) has its PDF's pages: as many sheets when
+ * Chromium prints it, each with the same words, nothing cut off its content's room. Chromium lays out the HTML; pdf.js
+ * reads the PDF. Arial, the HTML's font, has Helvetica's widths, the PDF's.
+ */
+import { chromium, type Browser } from "playwright";
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import type { ReactElement } from "react";
+import { Document, Heading, PageFooter, PageHeader, PageNumber, Section, Span, Table, TableCell, TableRow, Text, render } from "@hyper-elements/react";
+import { renderPdf } from "../../../src/pdf";
+
+let browser: Browser;
+beforeAll(async () => {
+  browser = await chromium.launch();
+});
+afterAll(async () => browser?.close());
+
+const font = { fontFamily: "Arial, Helvetica, sans-serif" };
+const words = (text: string) => text.replace(/\s+/g, "");
+
+/** Each PDF page's words. */
+async function pdfPages(pdf: Uint8Array): Promise<string[]> {
+  const document = await getDocument({ data: pdf.slice(), useSystemFonts: false, disableFontFace: true, verbosity: 0 }).promise;
+  const pages: string[] = [];
+  for (let n = 1; n <= document.numPages; n++) {
+    const items = (await (await document.getPage(n)).getTextContent()).items.filter((item): item is { str: string } & typeof item => "str" in item);
+    pages.push(words(items.map((item) => item.str).join("")));
+  }
+  return pages;
+}
+
+const designs: Record<string, ReactElement> = {
+  "long text, a header and a footer": (
+    <Document style={font}>
+      <PageHeader>
+        <Text style={{ fontSize: 10 }}>Quarterly report</Text>
+      </PageHeader>
+      <PageFooter>
+        <Text style={{ fontSize: 10, textAlign: "right" }}>
+          Page <PageNumber /> of <PageNumber total />
+        </Text>
+      </PageFooter>
+      <Heading level={1}>Results</Heading>
+      {Array.from({ length: 50 }, (_, i) => (
+        <Text key={i}>{`Paragraph ${i + 1}: Elements writes the same design to email, the web, print and PDF, so this stands in for a section of a report.`}</Text>
+      ))}
+    </Document>
+  ),
+  "a justified paragraph with bold runs": (
+    <Document style={font}>
+      <Text style={{ textAlign: "justify" }}>
+        {Array.from({ length: 200 }, (_, i) => (i % 7 === 3 ? <Span key={i} style={{ fontWeight: 700 }}>{`Sentence ${i + 1} in bold. `}</Span> : `Sentence ${i + 1} of one long paragraph. `))}
+      </Text>
+    </Document>
+  ),
+  "a table with a header row, in a padded Section": (
+    <Document style={font}>
+      <Section style={{ padding: 24, backgroundColor: "#f3f4f6" }}>
+        <Table>
+          <TableRow header>
+            <TableCell>Item</TableCell>
+            <TableCell>Amount</TableCell>
+          </TableRow>
+          {Array.from({ length: 70 }, (_, i) => (
+            <TableRow key={i}>
+              <TableCell>{`Row ${i + 1}`}</TableCell>
+              <TableCell>$1.00</TableCell>
+            </TableRow>
+          ))}
+        </Table>
+      </Section>
+    </Document>
+  ),
+};
+
+describe("a Document's print HTML drawn from its plan", () => {
+  for (const [name, design] of Object.entries(designs)) {
+    it(`has its PDF's pages, each with the same words, nothing cut off: ${name}`, async () => {
+      const { pdf, plan, diagnostics } = await renderPdf(design);
+      expect(diagnostics).toEqual([]);
+      const expected = await pdfPages(pdf);
+      expect(expected.length).toBeGreaterThan(1);
+      const { html } = await render(design, { plan });
+      const page = await browser.newPage();
+      await page.setContent(html);
+      const sheets = await page.evaluate(() =>
+        [...document.querySelectorAll(".elements-page")].map((sheet) => {
+          const room = sheet.querySelector(":scope > div") as HTMLElement;
+          return { words: (sheet as HTMLElement).innerText, overflow: room.scrollHeight - room.clientHeight };
+        })
+      );
+      const printed = (await page.pdf({ preferCSSPageSize: true, printBackground: true })).toString("latin1").match(/\/Type\s*\/Page\b/g)?.length;
+      await page.close();
+      expect(sheets).toHaveLength(expected.length);
+      expect(printed).toBe(expected.length);
+      sheets.forEach((sheet, i) => {
+        expect(words(sheet.words), `page ${i + 1}'s words`).toBe(expected[i]);
+        expect(sheet.overflow, `page ${i + 1}'s content past its room`).toBeLessThanOrEqual(1);
+      });
+    });
+  }
+
+  it("is drawn as before without a plan: its content cut off its page, which says so", async () => {
+    const design = designs["long text, a header and a footer"];
+    const { html, diagnostics } = await render(design);
+    expect(diagnostics.map((d) => d.code)).toContain("document/overflow");
+    expect(html.match(/class="elements-page"/g)).toHaveLength(1);
+  });
+});

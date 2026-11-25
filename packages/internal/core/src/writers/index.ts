@@ -134,8 +134,12 @@ export function validateTemplate(input: unknown, options: ComponentsOption & Plu
 export function renderTemplate(input: unknown, options: RenderOptions & ComponentsOption = {}): RenderResult {
   // Indenting rewrites the HTML after it's written, which would move every offset.
   if (options.blockMap && options.pretty) throw new ElementsError([{ code: "render/block-map-pretty", severity: "error", message: "blockMap gives offsets in the compact HTML; leave pretty off", path: "root" }]);
-  const { resolved, target, diagnostics, plugins } = prepareTemplate(input, options);
-  if (!resolved) throw new ElementsError(diagnostics);
+  const prepared = prepareTemplate(input, options);
+  const { resolved, target, plugins } = prepared;
+  if (!resolved) throw new ElementsError(prepared.diagnostics);
+  // A Document drawn from its plan has its pages planned: what doesn't fit one goes on to the next, and what can't is said
+  // by the plan's maker, measured (paginate(), renderPdf()), not estimated here.
+  const diagnostics = options.plan && resolved.root.type === "Document" ? prepared.diagnostics.filter((d) => d.code !== "document/overflow") : prepared.diagnostics;
   const text = renderText(resolved, options);
   const written = target === "email" ? renderEmail(resolved, options) : { ...renderPage(resolved, options), stylesheet: "", diagnostics: [] };
   // The plugins' checks on the written output, compact (what `pretty` would change isn't what an email client receives).

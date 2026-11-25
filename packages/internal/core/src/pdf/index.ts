@@ -9,4 +9,4 @@ export { assetParts, LAYOUT_VERSION, type Asset, type FontFace } from "../index"
 export { pdfFamily } from "./styles";
 export { reactPdf } from "./react-pdf";
 export { flowDocument, thumbnailOf, writeDocument, type WriteContext } from "./write";
-export * from "./plan";
+export { blocksOf, measure } from "./measure";
