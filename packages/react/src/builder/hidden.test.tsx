@@ -227,6 +227,18 @@ describe("what's hidden on a device in a Section: the space around what shows th
     expect(spacing(<Email><Section style={band}><Text>Welcome</Text><Text hidden={{ desktop: true }} style={{ mobile: { padding: 8 } }}>Phones only</Text></Section></Email>)).toEqual([{ row: "0px", blocks: ["48px 24px / 48px 24px 0px", "16px 24px 48px / 24px 32px 56px"] }]);
   });
 
+  it("comes back with a column's padding around its blocks where one is hidden on a device, on phones too", () => {
+    // Folded into the blocks, the Column's 8px would be A's on top, which phones don't show, and B's phone padding
+    // would drop it at the sides: a Column around them keeps it.
+    const kept = back(designOf(<Email><Row><Column style={{ padding: 8, gap: 16 }}><Text hidden={{ mobile: true }}>A</Text><Text>B</Text></Column></Row></Email>), "email");
+    const column = (kept.children ?? []).find((child): child is Node => typeof child !== "string")!;
+    expect(column).toMatchObject({ type: "Column", style: { padding: { top: 8, right: 8, bottom: 8, left: 8 } } });
+    expect(column.children).toMatchObject([
+      { type: "Text", hidden: { mobile: true }, children: ["A"] },
+      { type: "Text", style: { padding: { top: 16 } }, mobile: { padding: { top: 0, right: 0, bottom: 0, left: 0 } }, children: ["B"] },
+    ]);
+  });
+
   it("keeps the root's space on phones where all it holds there is hidden: a row of its own holds it, on phones only", () => {
     const rows = designOf(<Email><Column style={{ padding: 10 }}><Row hidden={{ mobile: true }}><Text>L</Text><Text>R</Text></Row></Column></Email>).body.rows;
     expect(rows.map((row: any) => [row.values.padding, row.values._override])).toEqual([
