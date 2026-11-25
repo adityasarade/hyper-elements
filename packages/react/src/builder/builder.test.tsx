@@ -977,6 +977,12 @@ describe("a design read back", () => {
     expect(read("text", { text: "a" }, { minWidth: "120px" }).tree).toContain('"minWidth":120');
     expect(read("text", { text: "a" }, { maxWidth: "200px", _override: { mobile: { maxWidth: "120px" } } }).tree).toContain('"mobile":{"maxWidth":120');
   });
+  it("reads a document's margin of auto as its page size's, and a size it doesn't know as A4's, even one named like an object's own key", () => {
+    const margin = (documentSize: string) => collectTemplate(fromDesign({ body: { values: { documentSize, documentMargin: "auto" }, rows: [] } }, { displayMode: "document" }).element).document!.root.props?.margin;
+    // A5's margin is 48px, a Document's own: it sets none.
+    expect(margin("A5")).toBeUndefined();
+    for (const size of ["Letter", "B5", "constructor", "toString"]) expect(margin(size)).toEqual({ top: 96, right: 96, bottom: 96, left: 96 });
+  });
 });
 
 describe("a page number", () => {
