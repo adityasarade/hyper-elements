@@ -33,7 +33,9 @@ export const Document: Component = ({ node: root, style, rtl, render }) => {
     <main style={textDeclarations(root.text, undefined)}>
       {pages.map(({ page, children }, index) =>
         numbering({ page: index + 1, total: pages.length }, () => {
-          // A Document.Page's element is its box: in the block map, where the design has one.
+          // A Document.Page's element is its box: in the block map, where the design has one. Its content goes in the room
+          // between the header and the footer, which it never leaves: what doesn't fit is cut there, as in the PDF, not
+          // drawn over the footer and the bottom margin.
           const sheet = (
             <section
               id={page?.id}
@@ -52,7 +54,7 @@ export const Document: Component = ({ node: root, style, rtl, render }) => {
               }}
             >
               {header && render(header, [])}
-              <div style={[{ flex: "1 1 auto", minHeight: 0 }, stackOf(page ?? root), page ? textDeclarations(page.text, root.text) : {}]}>
+              <div style={[{ flex: "1 1 auto", minHeight: 0, overflow: "hidden" }, stackOf(page ?? root), page ? textDeclarations(page.text, root.text) : {}]}>
                 {children.filter(isNode).map((child) => render(child, alignSelf(child, page ?? root, rtl)))}
               </div>
               {footer && render(footer, [])}
