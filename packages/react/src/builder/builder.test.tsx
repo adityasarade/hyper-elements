@@ -397,12 +397,16 @@ describe("toDesign", () => {
 
   it("draws a themed Document's Video, in the root's theme and a Section's tokens, at its variant's width", () => {
     const video = <Video src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" title="Launch" />;
-    for (const element of [
-      <Document key="t" theme={defineTheme({ colors: { primary: "#ff0000" } })}>{video}</Document>,
-      <Document key="s" theme={defineTheme({ colors: { primary: "#ff0000" } })}><Section tokens={{ colors: { primary: "#00ff00" } }}><Text style={{ color: token("colors.primary") }}>A</Text>{video}</Section></Document>,
-    ]) {
-      const html = blocks(toDesign(element).design).find((content) => content.type === "html")?.values.html;
-      expect(html).toMatch(/<a [^>]*href="https:\/\/www\.youtube\.com\/watch\?v=dQw4w9WgXcQ"[^>]*><img [^>]*alt="Launch"/);
+    // A Video takes its size from a theme (it has no colors): here a maximum width, a token a Section can change.
+    const theme = defineTheme({ spacing: { video: 320 }, components: { Video: { maxWidth: token("spacing.video") } } });
+    for (const [element, maxWidth] of [
+      [<Document key="t" theme={theme}>{video}</Document>, 320],
+      [<Document key="s" theme={theme}><Section tokens={{ spacing: { video: 240 } }}><Text>A</Text>{video}</Section></Document>, 240],
+    ] as const) {
+      const block = blocks(toDesign(element).design).find((content) => content.type === "html")!;
+      expect(block.values.html).toMatch(new RegExp(`<div style="[^"]*max-width:${maxWidth}px[^"]*"><div style="display:grid;[^"]*"><div [^>]*><a [^>]*href="https:\\/\\/www\\.youtube\\.com\\/watch\\?v=dQw4w9WgXcQ"[^>]*><img [^>]*alt="Launch"`));
+      // And it comes back at that width.
+      expect(block.values._drawnFrom.values.maxWidth).toBe(`${maxWidth}px`);
     }
     const small = defineTheme({ components: { Video: { variants: { small: { width: 200 } } } } } as never);
     const [sized] = blocks(toDesign(<Document theme={small}><Video variant={"small" as never} src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" /></Document>).design);
