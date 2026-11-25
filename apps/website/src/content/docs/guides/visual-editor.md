@@ -98,7 +98,7 @@ const { html, text } = await render(element);
 - `code` is the same design as JSX in the new elements.
 - `report` lists what the design can't hold.
 
-Pass the `displayMode` the builder design was made in: `email` gives an `Email`, `web` a `Page`, `document` a `Document`. Without one, a builder design with a header, a footer or a page break becomes a `Document`, any other an `Email`. `name` sets the component's name in `code`. `fromDesign()` reads builder designs made by `toDesign()`, edited in the builder, or made there from scratch. The builder's own HTML blocks come back as `Html` blocks.
+Pass the `displayMode` the builder design was made in: `email` gives an `Email`, `web` a `Page`, `document` a `Document`. Without one, a builder design with a header, a footer or a page break becomes a `Document`, any other an `Email`. `name` sets the component's name in `code`. `fromDesign()` reads builder designs made by `toDesign()`, edited in the builder, or made there from scratch. The builder's own HTML blocks come back as `Html` blocks. A `Document`'s `Menu` and `Video` come back as themselves: their HTML block holds the values the builder's menu or video tool would, and `fromDesign()` reads it by them while its markup is the one `toDesign()` drew. Once its markup is edited, it comes back as an `Html` block, and the report says so.
 
 ### What comes back
 
@@ -121,7 +121,7 @@ The space between blocks comes back as padding too. A `Column` with `gap: 16` co
 
 ### Untrusted builder designs: `toSafeHtml`
 
-A builder design's markup comes back as it is. If your builder designs can hold content you don't trust, pass your sanitizer as `toSafeHtml`, a function from an HTML string to a safe one. Every builder HTML block's markup, and every text's before it's read, goes through it:
+A builder design's markup comes back as it is. If your builder designs can hold content you don't trust, pass your sanitizer as `toSafeHtml`, a function from an HTML string to a safe one. Every builder HTML block's markup, and every text's before it's read, goes through it. A `Document`'s `Menu` or `Video` that comes back as itself is read from the builder's values, as a menu or video block is, not from its markup:
 
 ```tsx
 const { element } = fromDesign(saved, { displayMode: "email", toSafeHtml });

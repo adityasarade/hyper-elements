@@ -14,9 +14,16 @@ it says only the second. Code that matches `report`'s lines needs the new wordin
 The editor's document mode has no menu or video tool, so a `Document`'s `Menu` and `Video` were blocks the editor kept
 but didn't show, and `report` said nothing. They're now HTML blocks of their own markup, and `report` says so: a `Menu`
 its links, and a `Video` its thumbnail linked to it with a play icon over it (a link with its title where it has no
-thumbnail), with its width and alignment. Elements' own PDF of a `Document` draws the thumbnail without the icon. A `Video` inside another HTML block of a `Document` (a box in a column, a
-`Layer`) is its thumbnail too, not a player; one your own `defineElement()` renders is still its player there.
-`fromDesign()` reads them back as `Html` blocks. An `Email`'s and a `Page`'s are unchanged.
+thumbnail), with its width and alignment. Elements' own PDF of a `Document` draws the thumbnail without the icon. A
+`Video` inside another HTML block of a `Document` (a box in a column, a `Layer`) is its thumbnail too, not a player;
+one your own `defineElement()` renders is still its player there. An `Email`'s and a `Page`'s are unchanged.
+
+`fromDesign()` reads a `Document`'s `Menu` and `Video` back as a `Menu` and a `Video`, as before: their HTML block
+holds the values the builder's menu or video would (`_drawnFrom`), which the editor keeps, and they're read while its
+markup is the one `toDesign()` drew. Once its markup is edited, it's an `Html` block, and `report` says so.
+
+A `Video` whose title is empty is named "Video", as one without a title is: its link's words, its thumbnail's alternate
+text and its player's title, in an `Email`, a `Page`, a PDF and the builder.
 
 ### A block map for every root
 
