@@ -1355,6 +1355,16 @@ describe("a Table", () => {
     expect(blocks(toDesign(back.element).design)[0].type).toBe("table");
   });
 
+  it("reads a row's or a cell's id that starts with u_, as the builder's own do, as no id: the builder doesn't write it", () => {
+    const { code, report } = fromDesign(builders([{ id: "u_row_9", cells: [cellOf("A", { width: 50, id: "u_content_x" }), cellOf("B", { width: 50, id: "total" })], height: 30 }]), { displayMode: "email" });
+    expect(report).toEqual([]);
+    expect(code).not.toContain("u_");
+    expect(code).toContain('id="total"');
+    const again = toDesign(fromDesign(builders([{ id: "u_row_9", cells: [cellOf("A", { width: 100, id: "u_content_x" })], height: 30 }]), { displayMode: "email" }).element);
+    expect(again.report).toEqual([]);
+    expect(blocks(again.design)[0].type).toBe("table");
+  });
+
   it("says a Page's or a Document's Table draws the builder's border around the table and its edge cells' lines as one line, where its borders collapse", () => {
     const sides = (width: string, color: string) => Object.fromEntries(["Top", "Left", "Right", "Bottom"].flatMap((side) => [[`border${side}Width`, width], [`border${side}Style`, "solid"], [`border${side}Color`, color]]));
     const none = sides("0px", "#000000");

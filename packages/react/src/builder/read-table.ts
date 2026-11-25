@@ -12,7 +12,7 @@ import type { Json, Node } from "@hyper-elements/core";
 import { readHidden } from "./hide";
 import { border as readBorderSides, color, font, fontWeight, givenId, hidden as hiddenOn, px, sides, type Sides, type Values } from "./read-values";
 import { defined, lineHeight, make, obj, placed, same, str, textStyle, unless, ZERO, type Context } from "./reading";
-import { holdsWords, opaque } from "./table";
+import { holdsWords, opaque, writtenId } from "./table";
 import { readText } from "./text";
 import { textJsonHtml } from "./text-json";
 
@@ -47,6 +47,11 @@ const emptyParagraph = (json: string): boolean => {
 };
 /** How many columns a cell of the builder's is across. */
 const spanOf = (cell: Values) => (typeof cell.colSpan === "number" && Number.isInteger(cell.colSpan) && cell.colSpan > 1 ? Math.min(cell.colSpan, 1000) : 1);
+/** A row's or a cell's id as the builder writes it: none that starts with `u_`, as its own ids do (only the API gives one). */
+const idOf = (value: unknown) => {
+  const id = str(value);
+  return id !== undefined && writtenId(id) ? id : undefined;
+};
 /** A text color: any given one, transparent too (words drawn invisible are still words drawn so). */
 const textColor = (value: unknown) => (typeof value === "string" && value.trim() ? value : undefined);
 
@@ -145,7 +150,7 @@ export function readTable(values: Values, context: Context): Node[] {
     const least = Math.max(0, ...cells.map((cell, i) => (holdsWords(cell.node) ? cell.line : 0) + pads[i]));
     const height = px(row.height);
     if (height !== undefined && height > Math.max(1, Math.ceil(least))) style.height = height;
-    return make("TableRow", { id: str(row.id), props: defined({ header: kind === "header" || undefined, footer: kind === "footer" || undefined }), style, children: cells.map((cell) => cell.node) });
+    return make("TableRow", { id: idOf(row.id), props: defined({ header: kind === "header" || undefined, footer: kind === "footer" || undefined }), style, children: cells.map((cell) => cell.node) });
   };
 
   /** A cell as a TableCell (its words, and its own fields and line height where they aren't its row's), and its line's height. */
@@ -194,7 +199,7 @@ export function readTable(values: Values, context: Context): Node[] {
       backgroundColor: opaque(cell.backgroundColor),
       border: borderOf(cell, last, textColor(cell.color) ?? part.text.color),
     });
-    return { node: make("TableCell", { id: str(cell.id), props: defined({ dir, colSpan: spanOf(cell) > 1 ? spanOf(cell) : undefined }), style, children }), line: linePx, unset };
+    return { node: make("TableCell", { id: idOf(cell.id), props: defined({ dir, colSpan: spanOf(cell) > 1 ? spanOf(cell) : undefined }), style, children }), line: linePx, unset };
   };
 
   // The table's border, around every cell, as the builder draws it with its line between rows. (A border above and

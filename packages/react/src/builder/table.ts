@@ -110,7 +110,7 @@ function unheld(node: Node, fields: readonly string[]): string[] {
 }
 
 /** An id the builder's table writes in its HTML: one that isn't like the builder's own, which start with `u_`. */
-const written = (id: string) => !id.startsWith("u_");
+export const writtenId = (id: string) => !id.startsWith("u_");
 
 /** A width or a max width the builder's table draws: px, or a percentage of its place. */
 const drawn = (value: Json | undefined) => (typeof value === "number" ? value > 0 : typeof value === "string" && /^\d+(\.\d+)?(px|%)$/.test(value.trim()) && parseFloat(value) > 0);
@@ -214,7 +214,7 @@ export function tableValues(node: Node, path: string, place: TablePlace, align: 
   const idOf = (part: Part, what: string): Values => {
     const id = part.node.id;
     if (id === undefined) return {};
-    if (!written(id)) say(part.path, `the builder's table writes no id that starts with u_, as its own ids do: ${what}'s is kept in the design, and isn't in the builder's HTML`, `${what}'s id the builder doesn't write`);
+    if (!writtenId(id)) say(part.path, `the builder's table writes no id that starts with u_, as its own ids do: ${what}'s is kept in the design, and isn't in the builder's HTML`, `${what}'s id the builder doesn't write`);
     return { id };
   };
 
