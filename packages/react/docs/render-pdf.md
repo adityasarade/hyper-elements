@@ -93,7 +93,7 @@ Each page is drawn once: a Document whose pages fit is drawn as it always was, a
 `layoutDocument(design, options)` takes `renderPdf`'s options and gives the Document as its PDF lays it out, in px:
 
 - `pages`: each page's `width` and `height`, and its `room` (`top` and `bottom`: below its header, above its footer).
-- `nodes`: each block of the design on each `page` it's on, with `path`, `id`, `field`, `type`, its box (`x`, `y`, `width`, `height` from the page's top left) and a block of text's `lines`. `cut` is `"some"` or `"all"` where the page's room ends before it does. A PageHeader's and a PageFooter's blocks are on every page.
+- `nodes`: each block of the design on each `page` it's on, with `path`, `id`, `field`, `type`, its box (`x`, `y`, `width`, `height` from the page's top left) and a block of text's `lines`. A block that goes on to the next page has a node on each, numbered by `part` (from 0); a block of text's says which characters of its text it shows (`chars`). `cut` is `"some"` or `"all"` where the page's room ends before it does. A PageHeader's and a PageFooter's blocks are on every page.
 - `diagnostics`: `renderPdf`'s.
 
 It draws the PDF to measure it.
@@ -105,7 +105,6 @@ It draws the PDF to measure it.
 - **The standard PDF fonts draw Western European characters only.** For any other script, give a font file that has it. Whether a file given has every character isn't checked.
 - **What stays whole**: a Row of Columns, an image, an `Svg`, a Button and a block with a set height don't split between pages. One taller than a page is cut off where it is, with `document/overflow`.
 - **The print HTML doesn't flow yet**: its pages hold what they're given and cut the rest. Only the PDF goes on to the next page.
-- **A justified paragraph split between pages** ends its first part with a line that isn't justified.
 - **No hover, no video player**: a Button shows its own colors, a Video its thumbnail or title.
 
 ## License

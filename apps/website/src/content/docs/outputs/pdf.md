@@ -167,7 +167,7 @@ A Document whose pages fit is drawn as it always was. One that doesn't is drawn 
 `layoutDocument(design, { fonts, images })` takes `renderPdf()`'s options and gives the Document as its PDF lays it out:
 
 - `pages`: each page's paper, and its room, the part below its header and above its footer, in px from its top.
-- `nodes`: each block of the design on each page, with its box in px from the page's top left and a block of text's `lines`. A PageHeader's and a PageFooter's blocks are on every page. `cut` is `"some"` where a cut goes through it and `"all"` where it's past the room: neither is drawn whole.
+- `nodes`: each block of the design on each page, with its box in px from the page's top left and a block of text's `lines`. A block that goes on to the next page has a node on each page, its `part` (from 0) and, for text, the `chars` of its text it shows. A PageHeader's and a PageFooter's blocks are on every page. `cut` is `"some"` where a cut goes through it and `"all"` where it's past the room: neither is drawn whole.
 - `diagnostics`: `renderPdf()`'s.
 
 ```tsx
@@ -184,7 +184,6 @@ It draws the PDF to measure it, so it takes as long as `renderPdf()`.
 
 - **Some blocks stay whole.** A Row of Columns, an image, an `Svg`, a Button and a block with a set height don't split between pages. One taller than a page is cut off where it is, and you get `document/overflow`, measured.
 - **The print HTML doesn't flow yet.** Only the PDF goes on to the next page.
-- **A justified paragraph split between pages** ends its first part with a line that isn't justified.
 - **WOFF2 isn't drawn.** react-pdf would embed its letters blank. Give TTF, OTF or WOFF.
 - **SVG images aren't drawn.** Give a PNG or JPEG. An `Svg` element is drawn as vectors.
 - **The standard PDF fonts draw Western European characters only.** Whether a font file you give has every character isn't checked.
