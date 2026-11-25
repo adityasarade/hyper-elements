@@ -7,6 +7,9 @@
 /** The version of the editor's design schema these values are from. */
 export const schemaVersion = 27;
 
+/** The widest an email's content is in the editor: it makes a wider one this wide when it loads the design. */
+export const MAX_EMAIL_WIDTH = 900;
+
 /** The editor's margin for each page size: what a document's `documentMargin` of "auto" is. */
 export const PageMargins: Record<string, number> = { A3: 96, A4: 96, A5: 48, Legal: 96, Letter: 96, Tabloid: 96 };
 

@@ -113,6 +113,17 @@ describe("toDesign", () => {
     expect([sides.documentMargin, sides.margin]).toEqual(["40px", "10px 20px 30px 40px"]);
   });
 
+  it("says an email wider than 900px becomes 900px in the builder; one 900px or narrower, and a wider Page, say nothing", () => {
+    const wide = toDesign(<Email width={1000}><Text>a</Text></Email>);
+    expect(wide.report).toEqual(["root: an email 1000px wide: the builder makes an email 900px wide at most, so it becomes 900px"]);
+    // The design keeps the template's width: it's the builder that narrows it.
+    expect(wide.design.body.values.contentWidth).toBe("1000px");
+    // 900.001px is written as 900px, which the builder leaves as it is.
+    for (const root of [<Email key="900" width={900}><Text>a</Text></Email>, <Email key="written" width={900.001}><Text>a</Text></Email>, <Email key="default"><Text>a</Text></Email>, <Page key="page" width={1200}><Text>a</Text></Page>]) {
+      expect(toDesign(root).report).toEqual([]);
+    }
+  });
+
   it("writes a link's target only where the template gives one: a Button's, a link in text, an image's", () => {
     const { design } = toDesign(
       <Email>

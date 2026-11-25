@@ -17,7 +17,8 @@ import { block, columnWith, rowWith, type Block, type Body, type BodyFields, typ
 import { hiddenOf, leftOut, merge } from "./hide";
 import { lockedHtml } from "./locked";
 import { blockTool, NOT_IN_DOCUMENTS, type Place } from "./tools";
-import { builderBorder, builderFont, cssPx, cssSides, type Values } from "./values";
+import { MAX_EMAIL_WIDTH } from "./tool-defaults";
+import { builderBorder, builderFont, cssPx, cssSides, writtenPx, type Values } from "./values";
 
 export interface Raised {
   /** The template as the builder's parts, each with its hidden properties in its values. */
@@ -296,8 +297,11 @@ export function raise(element: React.ReactElement): Raised {
     "props.width", "props.previewText", "props.dir", "props.title", "props.size", "props.orientation",
     "style.backgroundColor", "style.color", "style.fontFamily", "style.fontWeight", "style.gap", "style.alignItems", ...TEXT_FOLDED,
   ]);
+  // What the builder changes when it loads the design.
+  const width = Number(resolvedRoot.width);
+  if (root.type === "Email" && writtenPx(width) > MAX_EMAIL_WIDTH) report.push(`root: an email ${cssPx(width)} wide: the builder makes an email ${MAX_EMAIL_WIDTH}px wide at most, so it becomes ${MAX_EMAIL_WIDTH}px`);
   const common: BodyFields = {
-    contentWidth: cssPx(Number(resolvedRoot.width)),
+    contentWidth: cssPx(width),
     textColor: text.color,
     fontFamily: builderFont(String(text.fontFamily)),
     ...(text.fontWeight !== 400 ? { fontWeight: text.fontWeight } : {}),
