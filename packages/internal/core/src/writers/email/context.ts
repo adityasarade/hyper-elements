@@ -23,8 +23,11 @@ export interface EmailOptions {
 /** An email is on a phone below its content width plus this. */
 export const EMAIL_PHONE_MARGIN = 20;
 
+/** An email's content width: its root's, or 600. */
+export const emailWidth = (root: ResolvedNode) => root.width ?? 600;
+
 /** The window's width in px at and below which an email of a content width is on a phone: `phoneBelow`, or its width and the margin. */
-export const emailPhoneWidth = (width: number, options: PartOptions) => options.phoneBelow ?? width + EMAIL_PHONE_MARGIN;
+export const emailPhoneWidth = (width: number, options: PartOptions = {}) => options.phoneBelow ?? width + EMAIL_PHONE_MARGIN;
 
 /** On phones, past its content width: an email on a phone where a wider one is (`phoneBelow`) fills the window there. */
 export const phoneFill = (width: number, options: PartOptions) => (emailPhoneWidth(width, options) > width + EMAIL_PHONE_MARGIN ? { maxWidth: "none" } : undefined);

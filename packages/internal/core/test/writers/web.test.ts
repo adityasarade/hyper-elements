@@ -1,6 +1,6 @@
 import { JSDOM } from "jsdom";
 import { ElementsError } from "../../src";
-import { renderTemplate, validateTemplate } from "../../src/writers";
+import { phoneWidth, prepareTemplate, renderTemplate, validateTemplate } from "../../src/writers";
 
 const page = (children: unknown[], extra: Record<string, unknown> = {}) => ({ root: { type: "Page", props: { width: 600 }, children, ...extra } });
 const web = (input: unknown, options: Record<string, unknown> = {}) => renderTemplate(input, options);
@@ -122,6 +122,19 @@ describe("web HTML", () => {
     expect(sections.head).toContain(`.${run}{max-width:none!important}`);
     // As wide as a phone's window or wider, or not told: nothing to fill.
     for (const [width, options] of [[480, { phoneBelow: 480 }], [300, {}]] as const) expect(web(part(words, width), options).head).not.toContain("max-width:none");
+  });
+
+  it("says where each root is on a phone (phoneWidth), as its writer puts its phone styles", () => {
+    const rootOf = (type: string, props: Record<string, unknown> = {}) => prepareTemplate({ root: { type, props, children: [{ type: "Text", children: ["Words"] }] } }).resolved!.root;
+    // An Email's width and 20px, a Page's breakpoint, none for a Document.
+    expect(phoneWidth(rootOf("Email"))).toBe(620);
+    expect(phoneWidth(rootOf("Email", { width: 480 }))).toBe(500);
+    expect(phoneWidth(rootOf("Page"))).toBe(480);
+    expect(phoneWidth(rootOf("Page", { breakpoints: { mobile: 360 } }))).toBe(360);
+    expect(phoneWidth(rootOf("Document"))).toBeUndefined();
+    // Where the writers put them.
+    expect(renderTemplate({ root: { type: "Email", props: { width: 480 }, children: [{ type: "Text", hidden: { mobile: true }, children: ["x"] }] } }).html).toContain("@media (max-width: 500px)");
+    expect(renderTemplate({ root: { type: "Page", props: { breakpoints: { mobile: 360 } }, children: [{ type: "Text", hidden: { mobile: true }, children: ["x"] }] } }).html).toContain("@media (max-width: 360px)");
   });
 
   it("writes links, images, dividers, line breaks and merge tags", () => {

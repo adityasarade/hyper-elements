@@ -36,7 +36,7 @@ import { utf8Bytes } from "../shared/bytes";
 import { Stylesheet } from "../shared/classes";
 import { attrs, css, escapeText, styleAttr } from "../shared/css";
 import { fontFaces } from "../shared/fonts";
-import { emailPhoneWidth, shown, type EmailOptions, type Props, type Component } from "./context";
+import { emailPhoneWidth, emailWidth, shown, type EmailOptions, type Props, type Component } from "./context";
 import type { PartOptions } from "../shared/part";
 import { Button } from "./Button";
 import { Column } from "./Column";
@@ -166,7 +166,7 @@ export function renderEmail(resolved: ResolvedDocument, options: EmailOptions & 
   // email (nothing today: email clients' size limits are the email-clients plugin's checkOutput).
   const d = new Diagnostics();
   const fonts = fontFaces(root, { swap: false });
-  const width = root.width ?? 600;
+  const width = emailWidth(root);
   const write = (marks: BlockMarks | null) => {
     const sheet = new Stylesheet(options.classPrefix);
     const markup = withStylesheet(sheet, () => withBlockMarks(marks, () => String(markBlock(Email(propsOf(root, { parent: root, fill: false, mobile: {}, inline: false, rtl: false }, options)), root))));

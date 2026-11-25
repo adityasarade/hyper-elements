@@ -9,7 +9,7 @@
  * the builder's table doesn't draw as it is in an Email or a Page, is an HTML block of the new engine's own markup,
  * and said.
  */
-import { CELL_SIZES, EMAIL_PHONE_MARGIN, pagePhoneWidth, prepareTemplate, type Json, type Node, type ResolvedNode } from "@hyper-elements/core";
+import { CELL_SIZES, phoneWidth, prepareTemplate, type Json, type Node, type ResolvedNode } from "@hyper-elements/core";
 import type React from "react";
 import { collectTemplate, snapshotData } from "../primitives/collect";
 import { add, boxRowOf, builderId, gapOf, hasBox, hiddenWhere, hiding, linesOf, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";
@@ -35,9 +35,6 @@ const PAINT = ["backgroundColor", "border", "borderRadius"];
 
 /** What stacks its children one under another, which its alignItems places across. */
 const STACKS = new Set(["Email", "Page", "Document", "DocumentPage", "PageHeader", "PageFooter", "Section", "Column"]);
-
-/** The window's width at and below which a root is on a phone: an Email's width and 20px, a Page's breakpoint (a Document has no phones). */
-const phoneWidthOf = (root: ResolvedNode): number | undefined => (root.type === "Email" ? Number(root.width ?? 600) + EMAIL_PHONE_MARGIN : root.type === "Page" ? pagePhoneWidth(root) : undefined);
 
 /** What a browser gives text where nothing says otherwise. */
 const BROWSER_TEXT: Record<string, unknown> = { fontSize: 16, fontStyle: "normal", letterSpacing: 0, textAlign: "left", textTransform: "none" };
@@ -128,7 +125,7 @@ export function raise(element: React.ReactElement): Raised {
       // A Section (your own element's too, laid out as one) spans the window, with no place across its root: it's drawn
       // directly in the root, where it goes, not in a Column.
       const across = stacked && own.type !== "Section" ? parent.style.alignItems : undefined;
-      const where: Where = { theme: document.theme, scopes: enclosing.get(node), alignItems: across, phoneWidth: phoneWidthOf(resolvedRoot), ...(stacked ? {} : { cell: { phoneSizes: !sideBySide } }) };
+      const where: Where = { theme: document.theme, scopes: enclosing.get(node), alignItems: across, phoneWidth: phoneWidth(resolvedRoot), ...(stacked ? {} : { cell: { phoneSizes: !sideBySide } }) };
       const leftOut = !stacked && sideBySide ? CELL_SIZES.filter((key) => own.mobile?.[key] !== undefined) : [];
       if (leftOut.length) report.push(`${path}: the builder's column has no place for ${leftOut.map((key) => `mobile.${key}`).join(", ")}: left out`);
       // Hidden where it is as the builder's block too, so the space around it goes with it (its markup hides it as well):

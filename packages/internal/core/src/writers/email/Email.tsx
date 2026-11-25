@@ -6,13 +6,13 @@
 import type { ResolvedNode } from "../../resolve";
 import { Fragment, h } from "../jsx";
 import { gapsBefore, gapShown, runHidden } from "../shared/gaps";
-import { isNode, phoneFill, shown, type Component } from "./context";
+import { emailWidth, isNode, phoneFill, shown, type Component } from "./context";
 import { Stack } from "./layout";
 import { bgcolor, OutlookWidth, ownBorders, Table } from "./markup";
 import { spacerRow } from "./spacers";
 
 export const Email: Component = ({ node: root, style, mobile, rtl, render, options }) => {
-  const width = root.width ?? 600;
+  const width = emailWidth(root);
   const gap = typeof style.gap === "number" ? style.gap : 0;
   const phoneGap = typeof mobile.gap === "number" ? mobile.gap : gap;
 

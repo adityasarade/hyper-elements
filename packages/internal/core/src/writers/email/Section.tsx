@@ -5,7 +5,7 @@
  */
 import { h, NotOutlook } from "../jsx";
 import { px } from "../shared/css";
-import { phoneFill, type Component } from "./context";
+import { emailWidth, phoneFill, type Component } from "./context";
 import { Stack } from "./layout";
 import { bgcolor, OutlookWidth, Table } from "./markup";
 import { hiding } from "./styles";
@@ -13,7 +13,7 @@ import { hiding } from "./styles";
 type Sides = { top: number; right: number; bottom: number; left: number };
 
 export const Section: Component = ({ node, style, mobile, parent: root, rtl, render, options }) => {
-  const width = root.width ?? 600;
+  const width = emailWidth(root);
   const fill = phoneFill(width, options);
   const padding = (style.padding as Sides | undefined) ?? { top: 0, right: 0, bottom: 0, left: 0 };
   const phonePadding = mobile.padding as Sides | undefined;
