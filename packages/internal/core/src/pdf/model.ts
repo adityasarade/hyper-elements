@@ -16,6 +16,8 @@ export type Run = string | { kind: "span"; style: Style; runs: Run[] } | { kind:
 
 export interface Picture {
   kind: "image";
+  /** The design node it draws (an Image's path), where it's a block of its own. */
+  path?: string;
   /** The image's file, as a data URI (nothing is fetched). */
   src: string;
   style: Style;
@@ -27,13 +29,13 @@ export interface Shape {
   attributes: Record<string, string | number | undefined>;
 }
 
-/** A block on a page. */
+/** A block on a page; `path` is the design node it draws (its path in the laid-out tree), where it draws one. */
 export type Block =
-  | { kind: "box"; style: Style; children: Block[] }
-  | { kind: "text"; style: Style; runs: Run[] }
+  | { kind: "box"; path?: string; style: Style; children: Block[] }
+  | { kind: "text"; path?: string; style: Style; runs: Run[] }
   | Picture
-  | { kind: "link"; href: string; style: Style; children: Block[] }
-  | { kind: "drawing"; width: number; height: number; viewBox: string; style: Style; shapes: Shape[] };
+  | { kind: "link"; path?: string; href: string; style: Style; children: Block[] }
+  | { kind: "drawing"; path?: string; width: number; height: number; viewBox: string; style: Style; shapes: Shape[] };
 
 export interface Page {
   /** The paper, in points. */
@@ -68,5 +70,30 @@ export interface DrawnDocument {
   pages: Page[];
 }
 
+/** Where an engine drew a block with a `path`, in points from its page's top left corner. */
+export interface PlacedBlock {
+  path: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** A block of text's lines, each one's top and height (from the page's top), as drawn. */
+  lines?: Array<{ top: number; height: number }>;
+}
+
+/** Where an engine drew a page's blocks, and the content's room on it: what's past the room's bottom is cut off. */
+export interface PlacedPage {
+  /** Below the header and above the footer, from the page's top. */
+  room: { top: number; bottom: number };
+  /** Each block with a `path`, in the order drawn (a block before the blocks inside it). */
+  blocks: PlacedBlock[];
+}
+
+/** What an engine drew: the PDF file, and where it placed each block, where it can say. */
+export interface Drawn {
+  pdf: Uint8Array;
+  placed?: PlacedPage[];
+}
+
 /** An engine that writes a PDF file from a Document's pages. */
-export type Engine = (document: DrawnDocument) => Promise<Uint8Array>;
+export type Engine = (document: DrawnDocument) => Promise<Drawn>;

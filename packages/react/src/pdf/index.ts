@@ -52,7 +52,7 @@ export async function renderPdf(element: ReactElement | Snapshot, options: PdfOp
   if (found.some((d) => d.severity === "error")) throw new ElementsError([...diagnostics, ...found]);
   found.push(...missingFaces(root, fonts, options.fonts ?? []), ...beyondStandard(root, new Set(fonts.map((font) => font.family))));
   const pages = writeDocument(root, { families: new Set(fonts.map((font) => font.family)), fonts, image: (src) => images.get(src), date: options.date ?? FIXED_DATE });
-  return { pdf: await reactPdf(pages), diagnostics: [...diagnostics, ...found] };
+  return { pdf: (await reactPdf(pages)).pdf, diagnostics: [...diagnostics, ...found] };
 }
 
 export interface TemplateAssets {

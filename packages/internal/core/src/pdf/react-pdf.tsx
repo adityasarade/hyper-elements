@@ -2,12 +2,13 @@
  * The page model (model.ts) drawn by react-pdf: the only file that imports an engine. Another engine is another file
  * like this one, drawing the same pages; the writer doesn't change.
  *
- * react-pdf lays out the boxes (Yoga's flexbox) at the widths the writer gives them and breaks the lines.
+ * react-pdf lays out the boxes (Yoga's flexbox) at the widths the writer gives them and breaks the lines, and says
+ * where it laid each block out (placed(), from the layout its render hands a Document's onRender).
  */
 import { createHash } from "node:crypto";
 import { Circle, Document, Ellipse, Font, Image, Line, Link, Page, Path, Polygon, Rect, Svg, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { createElement, type ReactElement, type ReactNode } from "react";
-import type { Block, Engine, Font as FontFile, Run, Shape, Style } from "./model";
+import type { Block, Engine, Font as FontFile, PlacedBlock, PlacedPage, Run, Shape, Style } from "./model";
 
 /** The names fonts are registered under with react-pdf (whose registry is the process's, shared by every render). */
 const registered = new Set<string>();
@@ -98,19 +99,21 @@ export const reactPdf: Engine = async (document) => {
     }
   };
   const block = (item: Block, key?: number): ReactElement => {
+    // A block that draws a design node carries its path, so where it's laid out can be read back (placed(), below).
+    const path = item.path !== undefined ? { [PATH]: item.path } : {};
     switch (item.kind) {
       case "box":
-        return el(View, { key, style: styled(item.style) }, item.children.map(block));
+        return el(View, { key, ...path, style: styled(item.style) }, item.children.map(block));
       case "text":
-        return el(Text, { key, style: styled(item.style) }, item.runs.map(run));
+        return el(Text, { key, ...path, style: styled(item.style) }, item.runs.map(run));
       case "image":
-        return el(Image, { key, src: item.src, style: item.style });
+        return el(Image, { key, ...path, src: item.src, style: item.style });
       case "link":
-        return el(Link, { key, src: item.href, style: styled(item.style) }, item.children.map(block));
+        return el(Link, { key, ...path, src: item.href, style: styled(item.style) }, item.children.map(block));
       case "drawing":
         return el(
           Svg,
-          { key, width: item.width, height: item.height, viewBox: item.viewBox },
+          { key, ...path, width: item.width, height: item.height, viewBox: item.viewBox },
           item.shapes.map((shape, i) => el(SHAPES[shape.kind], { key: i, ...shape.attributes }))
         );
     }
@@ -132,13 +135,68 @@ export const reactPdf: Engine = async (document) => {
         // height (lines drawn over each other), not into one placed on its own.
         el(
           View,
-          { style: { flexGrow: 1, flexShrink: 1, overflow: "hidden", position: "relative" } },
+          { [ROOM]: true, style: { flexGrow: 1, flexShrink: 1, overflow: "hidden", position: "relative" } },
           el(View, { style: { position: "absolute", top: 0, left: 0, right: 0, flexDirection: "column", ...(page.gap !== undefined ? { gap: page.gap } : {}) } }, page.content.map(block))
         ),
         page.footer && block(page.footer)
       )
     )
   );
-  const element = el(Document, { title: document.title, language: document.lang, creationDate: document.date, modificationDate: document.date, producer: "Hyper Elements", creator: "Hyper Elements" }, pages);
-  return new Uint8Array(await renderToBuffer(element as never));
+  let layout: LaidOut | undefined;
+  const onRender = (rendered?: { _INTERNAL__LAYOUT__DATA_?: LaidOut }) => {
+    layout = rendered?._INTERNAL__LAYOUT__DATA_;
+  };
+  const element = el(Document, { title: document.title, language: document.lang, creationDate: document.date, modificationDate: document.date, producer: "Hyper Elements", creator: "Hyper Elements", onRender }, pages);
+  const pdf = new Uint8Array(await renderToBuffer(element as never));
+  return { pdf, placed: layout && placed(layout) };
 };
+
+/** The props that mark a block's path and the content's room on a page, read back from the layout. */
+const PATH = "elementsPath";
+const ROOM = "elementsRoom";
+
+/**
+ * A node as react-pdf lays it out (what its render hands a Document's onRender, as `_INTERNAL__LAYOUT__DATA_`): its box
+ * from its parent's top left, the parent's padding inside it, in points; a block of text's lines, from its first.
+ */
+interface LaidOut {
+  type: string;
+  props?: Record<string, unknown>;
+  box?: { top: number; left: number; width: number; height: number; paddingTop?: number };
+  lines?: Array<{ box: { y: number; height: number } }>;
+  children?: LaidOut[];
+}
+
+/**
+ * Where each page's blocks were laid out, from react-pdf's layout: undefined where it has none or another shape (a
+ * react-pdf that hands its onRender another layout), so the caller says what it can without it.
+ */
+function placed(document: LaidOut): PlacedPage[] | undefined {
+  if (!Array.isArray(document.children)) return undefined;
+  const pages: PlacedPage[] = [];
+  for (const page of document.children) {
+    let room: PlacedPage["room"] | undefined;
+    const blocks: PlacedBlock[] = [];
+    const visit = (node: LaidOut, top: number, left: number) => {
+      if (!node.box) return;
+      const y = top + node.box.top;
+      const x = left + node.box.left;
+      if (node.props?.[ROOM]) room = { top: y, bottom: y + node.box.height };
+      const path = node.props?.[PATH];
+      if (typeof path === "string") {
+        const placedBlock: PlacedBlock = { path, x, y, width: node.box.width, height: node.box.height };
+        if (node.lines?.length) {
+          // react-pdf draws a text's lines from its top, inside its padding, from its first line's y (renderText).
+          const first = node.lines[0].box.y;
+          placedBlock.lines = node.lines.map((line) => ({ top: y + (node.box!.paddingTop ?? 0) + line.box.y - first, height: line.box.height }));
+        }
+        blocks.push(placedBlock);
+      }
+      for (const child of node.children ?? []) visit(child, y, x);
+    };
+    visit(page, 0, 0);
+    if (!room) return undefined;
+    pages.push({ room, blocks });
+  }
+  return pages;
+}

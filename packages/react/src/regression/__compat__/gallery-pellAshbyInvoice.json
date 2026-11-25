@@ -4373,7 +4373,8 @@
           },
           "runs": [
            "Pell & Ashby"
-          ]
+          ],
+          "path": "root.children[0].children[0].children[0].children[0]"
          },
          {
           "kind": "text",
@@ -4390,9 +4391,11 @@
           },
           "runs": [
            "Architects"
-          ]
+          ],
+          "path": "root.children[0].children[0].children[0].children[1]"
          }
-        ]
+        ],
+        "path": "root.children[0].children[0].children[0]"
        },
        {
         "kind": "box",
@@ -4418,11 +4421,14 @@
            "14 Calvert Mews, London E2 7LL",
            "\n",
            "+44 20 7946 0321 · studio@pellashby.example"
-          ]
+          ],
+          "path": "root.children[0].children[0].children[1].children[0]"
          }
-        ]
+        ],
+        "path": "root.children[0].children[0].children[1]"
        }
-      ]
+      ],
+      "path": "root.children[0].children[0]"
      },
      {
       "kind": "box",
@@ -4456,7 +4462,8 @@
           },
           "runs": [
            "Invoice"
-          ]
+          ],
+          "path": "root.children[0].children[1].children[0].children[0]"
          },
          {
           "kind": "text",
@@ -4473,9 +4480,11 @@
            "Hawthorn Lane House, Stage 4",
            "\n",
            "1 September to 31 October 2026"
-          ]
+          ],
+          "path": "root.children[0].children[1].children[0].children[1]"
          }
-        ]
+        ],
+        "path": "root.children[0].children[1].children[0]"
        },
        {
         "kind": "box",
@@ -4508,7 +4517,8 @@
             },
             "runs": [
              "Billed to"
-            ]
+            ],
+            "path": "root.children[0].children[1].children[1].children[0].children[0]"
            },
            {
             "kind": "text",
@@ -4525,13 +4535,17 @@
              "Clara Wendt, Wendt Family Trust",
              "\n",
              "3 Hawthorn Lane, Saffron Walden CB11 4QE"
-            ]
+            ],
+            "path": "root.children[0].children[1].children[1].children[0].children[1]"
            }
-          ]
+          ],
+          "path": "root.children[0].children[1].children[1].children[0]"
          }
-        ]
+        ],
+        "path": "root.children[0].children[1].children[1]"
        }
-      ]
+      ],
+      "path": "root.children[0].children[1]"
      },
      {
       "kind": "box",
@@ -4586,7 +4600,8 @@
               },
               "runs": [
                "Invoice"
-              ]
+              ],
+              "path": "root.children[0].children[2].children[0].children[0].children[0].children[0]"
              },
              {
               "kind": "text",
@@ -4601,11 +4616,14 @@
               },
               "runs": [
                "PA-0114"
-              ]
+              ],
+              "path": "root.children[0].children[2].children[0].children[0].children[0].children[1]"
              }
-            ]
+            ],
+            "path": "root.children[0].children[2].children[0].children[0].children[0]"
            }
-          ]
+          ],
+          "path": "root.children[0].children[2].children[0].children[0]"
          },
          {
           "kind": "box",
@@ -4638,7 +4656,8 @@
               },
               "runs": [
                "Issued"
-              ]
+              ],
+              "path": "root.children[0].children[2].children[0].children[1].children[0].children[0]"
              },
              {
               "kind": "text",
@@ -4653,11 +4672,14 @@
               },
               "runs": [
                "4 November 2026"
-              ]
+              ],
+              "path": "root.children[0].children[2].children[0].children[1].children[0].children[1]"
              }
-            ]
+            ],
+            "path": "root.children[0].children[2].children[0].children[1].children[0]"
            }
-          ]
+          ],
+          "path": "root.children[0].children[2].children[0].children[1]"
          },
          {
           "kind": "box",
@@ -4690,7 +4712,8 @@
               },
               "runs": [
                "Due"
-              ]
+              ],
+              "path": "root.children[0].children[2].children[0].children[2].children[0].children[0]"
              },
              {
               "kind": "text",
@@ -4705,11 +4728,14 @@
               },
               "runs": [
                "4 December 2026"
-              ]
+              ],
+              "path": "root.children[0].children[2].children[0].children[2].children[0].children[1]"
              }
-            ]
+            ],
+            "path": "root.children[0].children[2].children[0].children[2].children[0]"
            }
-          ]
+          ],
+          "path": "root.children[0].children[2].children[0].children[2]"
          },
          {
           "kind": "box",
@@ -4742,7 +4768,8 @@
               },
               "runs": [
                "Amount due"
-              ]
+              ],
+              "path": "root.children[0].children[2].children[0].children[3].children[0].children[0]"
              },
              {
               "kind": "text",
@@ -4757,15 +4784,20 @@
               },
               "runs": [
                "£17,731.20"
-              ]
+              ],
+              "path": "root.children[0].children[2].children[0].children[3].children[0].children[1]"
              }
-            ]
+            ],
+            "path": "root.children[0].children[2].children[0].children[3].children[0]"
            }
-          ]
+          ],
+          "path": "root.children[0].children[2].children[0].children[3]"
          }
-        ]
+        ],
+        "path": "root.children[0].children[2].children[0]"
        }
-      ]
+      ],
+      "path": "root.children[0].children[2]"
      },
      {
       "kind": "box",
@@ -4775,12 +4807,14 @@
       "children": [
        {
         "kind": "box",
+        "path": "root.children[0].children[3].children[0]",
         "style": {
          "flexDirection": "row"
         },
         "children": [
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[0].children[0]",
           "style": {
            "paddingTop": 0,
            "paddingRight": 0,
@@ -4814,6 +4848,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[0].children[1]",
           "style": {
            "paddingTop": 0,
            "paddingRight": 0,
@@ -4847,6 +4882,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[0].children[2]",
           "style": {
            "paddingTop": 0,
            "paddingRight": 0,
@@ -4880,6 +4916,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[0].children[3]",
           "style": {
            "paddingTop": 0,
            "paddingRight": 0,
@@ -4915,12 +4952,14 @@
        },
        {
         "kind": "box",
+        "path": "root.children[0].children[3].children[1]",
         "style": {
          "flexDirection": "row"
         },
         "children": [
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[1].children[0]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 12,
@@ -4967,6 +5006,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[1].children[1]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 0,
@@ -4998,6 +5038,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[1].children[2]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 0,
@@ -5029,6 +5070,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[1].children[3]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 0,
@@ -5062,12 +5104,14 @@
        },
        {
         "kind": "box",
+        "path": "root.children[0].children[3].children[2]",
         "style": {
          "flexDirection": "row"
         },
         "children": [
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[2].children[0]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 12,
@@ -5114,6 +5158,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[2].children[1]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 0,
@@ -5145,6 +5190,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[2].children[2]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 0,
@@ -5176,6 +5222,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[2].children[3]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 0,
@@ -5209,12 +5256,14 @@
        },
        {
         "kind": "box",
+        "path": "root.children[0].children[3].children[3]",
         "style": {
          "flexDirection": "row"
         },
         "children": [
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[3].children[0]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 12,
@@ -5261,6 +5310,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[3].children[1]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 0,
@@ -5292,6 +5342,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[3].children[2]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 0,
@@ -5323,6 +5374,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[3].children[3]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 0,
@@ -5356,12 +5408,14 @@
        },
        {
         "kind": "box",
+        "path": "root.children[0].children[3].children[4]",
         "style": {
          "flexDirection": "row"
         },
         "children": [
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[4].children[0]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 12,
@@ -5408,6 +5462,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[4].children[1]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 0,
@@ -5439,6 +5494,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[4].children[2]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 0,
@@ -5470,6 +5526,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[4].children[3]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 0,
@@ -5503,12 +5560,14 @@
        },
        {
         "kind": "box",
+        "path": "root.children[0].children[3].children[5]",
         "style": {
          "flexDirection": "row"
         },
         "children": [
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[5].children[0]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 12,
@@ -5555,6 +5614,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[5].children[1]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 0,
@@ -5586,6 +5646,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[5].children[2]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 0,
@@ -5617,6 +5678,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[5].children[3]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 0,
@@ -5650,12 +5712,14 @@
        },
        {
         "kind": "box",
+        "path": "root.children[0].children[3].children[6]",
         "style": {
          "flexDirection": "row"
         },
         "children": [
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[6].children[0]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 12,
@@ -5702,6 +5766,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[6].children[1]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 0,
@@ -5733,6 +5798,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[6].children[2]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 0,
@@ -5764,6 +5830,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[6].children[3]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 0,
@@ -5797,12 +5864,14 @@
        },
        {
         "kind": "box",
+        "path": "root.children[0].children[3].children[7]",
         "style": {
          "flexDirection": "row"
         },
         "children": [
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[7].children[0]",
           "style": {
            "width": 295.5,
            "flexGrow": 0
@@ -5825,6 +5894,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[7].children[1]",
           "style": {
            "paddingTop": 6,
            "paddingRight": 0,
@@ -5853,6 +5923,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[7].children[2]",
           "style": {
            "paddingTop": 6,
            "paddingRight": 0,
@@ -5883,12 +5954,14 @@
        },
        {
         "kind": "box",
+        "path": "root.children[0].children[3].children[8]",
         "style": {
          "flexDirection": "row"
         },
         "children": [
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[8].children[0]",
           "style": {
            "width": 295.5,
            "flexGrow": 0
@@ -5911,6 +5984,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[8].children[1]",
           "style": {
            "paddingTop": 6,
            "paddingRight": 0,
@@ -5939,6 +6013,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[8].children[2]",
           "style": {
            "paddingTop": 6,
            "paddingRight": 0,
@@ -5969,12 +6044,14 @@
        },
        {
         "kind": "box",
+        "path": "root.children[0].children[3].children[9]",
         "style": {
          "flexDirection": "row"
         },
         "children": [
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[9].children[0]",
           "style": {
            "width": 295.5,
            "flexGrow": 0
@@ -5997,6 +6074,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[9].children[1]",
           "style": {
            "paddingTop": 9,
            "paddingRight": 0,
@@ -6028,6 +6106,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[0].children[3].children[9].children[2]",
           "style": {
            "paddingTop": 7.5,
            "paddingRight": 0,
@@ -6060,7 +6139,8 @@
          }
         ]
        }
-      ]
+      ],
+      "path": "root.children[0].children[3]"
      },
      {
       "kind": "box",
@@ -6115,7 +6195,8 @@
               },
               "runs": [
                "Pay by transfer"
-              ]
+              ],
+              "path": "root.children[0].children[4].children[0].children[0].children[0].children[0]"
              },
              {
               "kind": "text",
@@ -6130,11 +6211,14 @@
               },
               "runs": [
                "Within 30 days, please"
-              ]
+              ],
+              "path": "root.children[0].children[4].children[0].children[0].children[0].children[1]"
              }
-            ]
+            ],
+            "path": "root.children[0].children[4].children[0].children[0].children[0]"
            }
-          ]
+          ],
+          "path": "root.children[0].children[4].children[0].children[0]"
          },
          {
           "kind": "box",
@@ -6167,7 +6251,8 @@
               },
               "runs": [
                "Account name"
-              ]
+              ],
+              "path": "root.children[0].children[4].children[0].children[1].children[0].children[0]"
              },
              {
               "kind": "text",
@@ -6182,11 +6267,14 @@
               },
               "runs": [
                "Pell & Ashby Ltd"
-              ]
+              ],
+              "path": "root.children[0].children[4].children[0].children[1].children[0].children[1]"
              }
-            ]
+            ],
+            "path": "root.children[0].children[4].children[0].children[1].children[0]"
            }
-          ]
+          ],
+          "path": "root.children[0].children[4].children[0].children[1]"
          },
          {
           "kind": "box",
@@ -6219,7 +6307,8 @@
               },
               "runs": [
                "Sort code · Account"
-              ]
+              ],
+              "path": "root.children[0].children[4].children[0].children[2].children[0].children[0]"
              },
              {
               "kind": "text",
@@ -6234,11 +6323,14 @@
               },
               "runs": [
                "20-45-77 · 63418820"
-              ]
+              ],
+              "path": "root.children[0].children[4].children[0].children[2].children[0].children[1]"
              }
-            ]
+            ],
+            "path": "root.children[0].children[4].children[0].children[2].children[0]"
            }
-          ]
+          ],
+          "path": "root.children[0].children[4].children[0].children[2]"
          },
          {
           "kind": "box",
@@ -6271,7 +6363,8 @@
               },
               "runs": [
                "Reference"
-              ]
+              ],
+              "path": "root.children[0].children[4].children[0].children[3].children[0].children[0]"
              },
              {
               "kind": "text",
@@ -6286,15 +6379,20 @@
               },
               "runs": [
                "PA-0114"
-              ]
+              ],
+              "path": "root.children[0].children[4].children[0].children[3].children[0].children[1]"
              }
-            ]
+            ],
+            "path": "root.children[0].children[4].children[0].children[3].children[0]"
            }
-          ]
+          ],
+          "path": "root.children[0].children[4].children[0].children[3]"
          }
-        ]
+        ],
+        "path": "root.children[0].children[4].children[0]"
        }
-      ]
+      ],
+      "path": "root.children[0].children[4]"
      }
     ],
     "gap": 30,
@@ -6341,9 +6439,11 @@
            },
            "runs": [
             "Pell & Ashby Architects Ltd · Registered in England and Wales, 09412873 · VAT GB 318 4471 02"
-           ]
+           ],
+           "path": "root.children[2].children[0].children[0].children[0]"
           }
-         ]
+         ],
+         "path": "root.children[2].children[0].children[0]"
         },
         {
          "kind": "box",
@@ -6369,13 +6469,17 @@
             "1",
             " of ",
             "2"
-           ]
+           ],
+           "path": "root.children[2].children[0].children[1].children[0]"
           }
-         ]
+         ],
+         "path": "root.children[2].children[0].children[1]"
         }
-       ]
+       ],
+       "path": "root.children[2].children[0]"
       }
-     ]
+     ],
+     "path": "root.children[2]"
     }
    },
    {
@@ -6428,9 +6532,11 @@
           },
           "runs": [
            "Pell & Ashby"
-          ]
+          ],
+          "path": "root.children[1].children[0].children[0].children[0]"
          }
-        ]
+        ],
+        "path": "root.children[1].children[0].children[0]"
        },
        {
         "kind": "box",
@@ -6456,11 +6562,14 @@
           },
           "runs": [
            "Invoice PA-0114 · Time summary"
-          ]
+          ],
+          "path": "root.children[1].children[0].children[1].children[0]"
          }
-        ]
+        ],
+        "path": "root.children[1].children[0].children[1]"
        }
-      ]
+      ],
+      "path": "root.children[1].children[0]"
      },
      {
       "kind": "box",
@@ -6483,7 +6592,8 @@
         },
         "runs": [
          "Where the hours went"
-        ]
+        ],
+        "path": "root.children[1].children[1].children[0]"
        },
        {
         "kind": "text",
@@ -6500,9 +6610,11 @@
         },
         "runs": [
          "Stage 4 took 156 hours between 1 September and 31 October. Here they are by phase, by week and by the people who worked them."
-        ]
+        ],
+        "path": "root.children[1].children[1].children[1]"
        }
-      ]
+      ],
+      "path": "root.children[1].children[1]"
      },
      {
       "kind": "box",
@@ -6533,7 +6645,8 @@
         },
         "runs": [
          "By phase"
-        ]
+        ],
+        "path": "root.children[1].children[2].children[0]"
        },
        {
         "kind": "box",
@@ -6572,9 +6685,11 @@
               },
               "runs": [
                "Technical design drawings"
-              ]
+              ],
+              "path": "root.children[1].children[2].children[1].children[0].children[0].children[0]"
              }
-            ]
+            ],
+            "path": "root.children[1].children[2].children[1].children[0].children[0]"
            },
            {
             "kind": "box",
@@ -6603,7 +6718,8 @@
                }
               ]
              }
-            ]
+            ],
+            "path": "root.children[1].children[2].children[1].children[0].children[1]"
            },
            {
             "kind": "box",
@@ -6641,11 +6757,14 @@
                  "· 41%"
                 ]
                }
-              ]
+              ],
+              "path": "root.children[1].children[2].children[1].children[0].children[2].children[0]"
              }
-            ]
+            ],
+            "path": "root.children[1].children[2].children[1].children[0].children[2]"
            }
-          ]
+          ],
+          "path": "root.children[1].children[2].children[1].children[0]"
          },
          {
           "kind": "box",
@@ -6677,9 +6796,11 @@
               },
               "runs": [
                "Specification and schedules"
-              ]
+              ],
+              "path": "root.children[1].children[2].children[1].children[1].children[0].children[0]"
              }
-            ]
+            ],
+            "path": "root.children[1].children[2].children[1].children[1].children[0]"
            },
            {
             "kind": "box",
@@ -6708,7 +6829,8 @@
                }
               ]
              }
-            ]
+            ],
+            "path": "root.children[1].children[2].children[1].children[1].children[1]"
            },
            {
             "kind": "box",
@@ -6746,11 +6868,14 @@
                  "· 23%"
                 ]
                }
-              ]
+              ],
+              "path": "root.children[1].children[2].children[1].children[1].children[2].children[0]"
              }
-            ]
+            ],
+            "path": "root.children[1].children[2].children[1].children[1].children[2]"
            }
-          ]
+          ],
+          "path": "root.children[1].children[2].children[1].children[1]"
          },
          {
           "kind": "box",
@@ -6782,9 +6907,11 @@
               },
               "runs": [
                "Structural coordination"
-              ]
+              ],
+              "path": "root.children[1].children[2].children[1].children[2].children[0].children[0]"
              }
-            ]
+            ],
+            "path": "root.children[1].children[2].children[1].children[2].children[0]"
            },
            {
             "kind": "box",
@@ -6813,7 +6940,8 @@
                }
               ]
              }
-            ]
+            ],
+            "path": "root.children[1].children[2].children[1].children[2].children[1]"
            },
            {
             "kind": "box",
@@ -6851,11 +6979,14 @@
                  "· 14%"
                 ]
                }
-              ]
+              ],
+              "path": "root.children[1].children[2].children[1].children[2].children[2].children[0]"
              }
-            ]
+            ],
+            "path": "root.children[1].children[2].children[1].children[2].children[2]"
            }
-          ]
+          ],
+          "path": "root.children[1].children[2].children[1].children[2]"
          },
          {
           "kind": "box",
@@ -6887,9 +7018,11 @@
               },
               "runs": [
                "Planning conditions"
-              ]
+              ],
+              "path": "root.children[1].children[2].children[1].children[3].children[0].children[0]"
              }
-            ]
+            ],
+            "path": "root.children[1].children[2].children[1].children[3].children[0]"
            },
            {
             "kind": "box",
@@ -6918,7 +7051,8 @@
                }
               ]
              }
-            ]
+            ],
+            "path": "root.children[1].children[2].children[1].children[3].children[1]"
            },
            {
             "kind": "box",
@@ -6956,11 +7090,14 @@
                  "· 12%"
                 ]
                }
-              ]
+              ],
+              "path": "root.children[1].children[2].children[1].children[3].children[2].children[0]"
              }
-            ]
+            ],
+            "path": "root.children[1].children[2].children[1].children[3].children[2]"
            }
-          ]
+          ],
+          "path": "root.children[1].children[2].children[1].children[3]"
          },
          {
           "kind": "box",
@@ -6992,9 +7129,11 @@
               },
               "runs": [
                "Site visits and minutes"
-              ]
+              ],
+              "path": "root.children[1].children[2].children[1].children[4].children[0].children[0]"
              }
-            ]
+            ],
+            "path": "root.children[1].children[2].children[1].children[4].children[0]"
            },
            {
             "kind": "box",
@@ -7023,7 +7162,8 @@
                }
               ]
              }
-            ]
+            ],
+            "path": "root.children[1].children[2].children[1].children[4].children[1]"
            },
            {
             "kind": "box",
@@ -7061,15 +7201,20 @@
                  "· 10%"
                 ]
                }
-              ]
+              ],
+              "path": "root.children[1].children[2].children[1].children[4].children[2].children[0]"
              }
-            ]
+            ],
+            "path": "root.children[1].children[2].children[1].children[4].children[2]"
            }
-          ]
+          ],
+          "path": "root.children[1].children[2].children[1].children[4]"
          }
-        ]
+        ],
+        "path": "root.children[1].children[2].children[1]"
        }
-      ]
+      ],
+      "path": "root.children[1].children[2]"
      },
      {
       "kind": "box",
@@ -7100,7 +7245,8 @@
         },
         "runs": [
          "By week"
-        ]
+        ],
+        "path": "root.children[1].children[3].children[0]"
        },
        {
         "kind": "box",
@@ -7224,7 +7370,8 @@
              }
             ]
            }
-          ]
+          ],
+          "path": "root.children[1].children[3].children[1].children[0]"
          },
          {
           "kind": "box",
@@ -7278,9 +7425,11 @@
                    "31 Aug"
                   ]
                  }
-                ]
+                ],
+                "path": "root.children[1].children[3].children[1].children[1].children[0].children[0].children[0]"
                }
-              ]
+              ],
+              "path": "root.children[1].children[3].children[1].children[1].children[0].children[0]"
              },
              {
               "kind": "box",
@@ -7319,9 +7468,11 @@
                    "7 Sep"
                   ]
                  }
-                ]
+                ],
+                "path": "root.children[1].children[3].children[1].children[1].children[0].children[1].children[0]"
                }
-              ]
+              ],
+              "path": "root.children[1].children[3].children[1].children[1].children[0].children[1]"
              },
              {
               "kind": "box",
@@ -7360,9 +7511,11 @@
                    "14 Sep"
                   ]
                  }
-                ]
+                ],
+                "path": "root.children[1].children[3].children[1].children[1].children[0].children[2].children[0]"
                }
-              ]
+              ],
+              "path": "root.children[1].children[3].children[1].children[1].children[0].children[2]"
              },
              {
               "kind": "box",
@@ -7401,9 +7554,11 @@
                    "21 Sep"
                   ]
                  }
-                ]
+                ],
+                "path": "root.children[1].children[3].children[1].children[1].children[0].children[3].children[0]"
                }
-              ]
+              ],
+              "path": "root.children[1].children[3].children[1].children[1].children[0].children[3]"
              },
              {
               "kind": "box",
@@ -7442,9 +7597,11 @@
                    "28 Sep"
                   ]
                  }
-                ]
+                ],
+                "path": "root.children[1].children[3].children[1].children[1].children[0].children[4].children[0]"
                }
-              ]
+              ],
+              "path": "root.children[1].children[3].children[1].children[1].children[0].children[4]"
              },
              {
               "kind": "box",
@@ -7483,9 +7640,11 @@
                    "5 Oct"
                   ]
                  }
-                ]
+                ],
+                "path": "root.children[1].children[3].children[1].children[1].children[0].children[5].children[0]"
                }
-              ]
+              ],
+              "path": "root.children[1].children[3].children[1].children[1].children[0].children[5]"
              },
              {
               "kind": "box",
@@ -7524,9 +7683,11 @@
                    "12 Oct"
                   ]
                  }
-                ]
+                ],
+                "path": "root.children[1].children[3].children[1].children[1].children[0].children[6].children[0]"
                }
-              ]
+              ],
+              "path": "root.children[1].children[3].children[1].children[1].children[0].children[6]"
              },
              {
               "kind": "box",
@@ -7565,9 +7726,11 @@
                    "19 Oct"
                   ]
                  }
-                ]
+                ],
+                "path": "root.children[1].children[3].children[1].children[1].children[0].children[7].children[0]"
                }
-              ]
+              ],
+              "path": "root.children[1].children[3].children[1].children[1].children[0].children[7]"
              },
              {
               "kind": "box",
@@ -7606,17 +7769,23 @@
                    "26 Oct"
                   ]
                  }
-                ]
+                ],
+                "path": "root.children[1].children[3].children[1].children[1].children[0].children[8].children[0]"
                }
-              ]
+              ],
+              "path": "root.children[1].children[3].children[1].children[1].children[0].children[8]"
              }
-            ]
+            ],
+            "path": "root.children[1].children[3].children[1].children[1].children[0]"
            }
-          ]
+          ],
+          "path": "root.children[1].children[3].children[1].children[1]"
          }
-        ]
+        ],
+        "path": "root.children[1].children[3].children[1]"
        }
-      ]
+      ],
+      "path": "root.children[1].children[3]"
      },
      {
       "kind": "box",
@@ -7647,7 +7816,8 @@
         },
         "runs": [
          "By person"
-        ]
+        ],
+        "path": "root.children[1].children[4].children[0]"
        },
        {
         "kind": "box",
@@ -7657,6 +7827,7 @@
         "children": [
          {
           "kind": "box",
+          "path": "root.children[1].children[4].children[1].children[0]",
           "style": {
            "flexDirection": "row",
            "borderBottomWidth": 0.75,
@@ -7666,6 +7837,7 @@
           "children": [
            {
             "kind": "box",
+            "path": "root.children[1].children[4].children[1].children[0].children[0]",
             "style": {
              "paddingTop": 6.75,
              "paddingRight": 0,
@@ -7697,6 +7869,7 @@
            },
            {
             "kind": "box",
+            "path": "root.children[1].children[4].children[1].children[0].children[1]",
             "style": {
              "paddingTop": 6.75,
              "paddingRight": 0,
@@ -7728,6 +7901,7 @@
            },
            {
             "kind": "box",
+            "path": "root.children[1].children[4].children[1].children[0].children[2]",
             "style": {
              "paddingTop": 6.75,
              "paddingRight": 0,
@@ -7759,6 +7933,7 @@
            },
            {
             "kind": "box",
+            "path": "root.children[1].children[4].children[1].children[0].children[3]",
             "style": {
              "paddingTop": 6.75,
              "paddingRight": 0,
@@ -7792,6 +7967,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[1].children[4].children[1].children[1]",
           "style": {
            "flexDirection": "row",
            "borderBottomWidth": 0.75,
@@ -7801,6 +7977,7 @@
           "children": [
            {
             "kind": "box",
+            "path": "root.children[1].children[4].children[1].children[1].children[0]",
             "style": {
              "paddingTop": 6.75,
              "paddingRight": 0,
@@ -7832,6 +8009,7 @@
            },
            {
             "kind": "box",
+            "path": "root.children[1].children[4].children[1].children[1].children[1]",
             "style": {
              "paddingTop": 6.75,
              "paddingRight": 0,
@@ -7863,6 +8041,7 @@
            },
            {
             "kind": "box",
+            "path": "root.children[1].children[4].children[1].children[1].children[2]",
             "style": {
              "paddingTop": 6.75,
              "paddingRight": 0,
@@ -7894,6 +8073,7 @@
            },
            {
             "kind": "box",
+            "path": "root.children[1].children[4].children[1].children[1].children[3]",
             "style": {
              "paddingTop": 6.75,
              "paddingRight": 0,
@@ -7927,6 +8107,7 @@
          },
          {
           "kind": "box",
+          "path": "root.children[1].children[4].children[1].children[2]",
           "style": {
            "flexDirection": "row",
            "borderBottomWidth": 0.75,
@@ -7936,6 +8117,7 @@
           "children": [
            {
             "kind": "box",
+            "path": "root.children[1].children[4].children[1].children[2].children[0]",
             "style": {
              "paddingTop": 6.75,
              "paddingRight": 0,
@@ -7967,6 +8149,7 @@
            },
            {
             "kind": "box",
+            "path": "root.children[1].children[4].children[1].children[2].children[1]",
             "style": {
              "paddingTop": 6.75,
              "paddingRight": 0,
@@ -7998,6 +8181,7 @@
            },
            {
             "kind": "box",
+            "path": "root.children[1].children[4].children[1].children[2].children[2]",
             "style": {
              "paddingTop": 6.75,
              "paddingRight": 0,
@@ -8029,6 +8213,7 @@
            },
            {
             "kind": "box",
+            "path": "root.children[1].children[4].children[1].children[2].children[3]",
             "style": {
              "paddingTop": 6.75,
              "paddingRight": 0,
@@ -8062,12 +8247,14 @@
          },
          {
           "kind": "box",
+          "path": "root.children[1].children[4].children[1].children[3]",
           "style": {
            "flexDirection": "row"
           },
           "children": [
            {
             "kind": "box",
+            "path": "root.children[1].children[4].children[1].children[3].children[0]",
             "style": {
              "paddingTop": 6.75,
              "paddingRight": 0,
@@ -8096,6 +8283,7 @@
            },
            {
             "kind": "box",
+            "path": "root.children[1].children[4].children[1].children[3].children[1]",
             "style": {
              "paddingTop": 6.75,
              "paddingRight": 0,
@@ -8124,6 +8312,7 @@
            },
            {
             "kind": "box",
+            "path": "root.children[1].children[4].children[1].children[3].children[2]",
             "style": {
              "paddingTop": 6.75,
              "paddingRight": 0,
@@ -8152,6 +8341,7 @@
            },
            {
             "kind": "box",
+            "path": "root.children[1].children[4].children[1].children[3].children[3]",
             "style": {
              "paddingTop": 6.75,
              "paddingRight": 0,
@@ -8180,9 +8370,11 @@
            }
           ]
          }
-        ]
+        ],
+        "path": "root.children[1].children[4].children[1]"
        }
-      ]
+      ],
+      "path": "root.children[1].children[4]"
      },
      {
       "kind": "text",
@@ -8199,7 +8391,8 @@
       },
       "runs": [
        "Hours are recorded to the quarter hour and rounded here, so the phases add up to the total. The full timesheet is yours on request."
-      ]
+      ],
+      "path": "root.children[1].children[5]"
      }
     ],
     "gap": 27,
@@ -8246,9 +8439,11 @@
            },
            "runs": [
             "Pell & Ashby Architects Ltd · Registered in England and Wales, 09412873 · VAT GB 318 4471 02"
-           ]
+           ],
+           "path": "root.children[2].children[0].children[0].children[0]"
           }
-         ]
+         ],
+         "path": "root.children[2].children[0].children[0]"
         },
         {
          "kind": "box",
@@ -8274,13 +8469,17 @@
             "2",
             " of ",
             "2"
-           ]
+           ],
+           "path": "root.children[2].children[0].children[1].children[0]"
           }
-         ]
+         ],
+         "path": "root.children[2].children[0].children[1]"
         }
-       ]
+       ],
+       "path": "root.children[2].children[0]"
       }
-     ]
+     ],
+     "path": "root.children[2]"
     }
    }
   ]

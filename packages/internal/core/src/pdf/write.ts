@@ -68,8 +68,14 @@ class Writer {
 
   constructor(private readonly context: WriteContext) {}
 
-  /** A block in a stack (or a Row, `row`), at the width the resolver gave it. */
+  /** A block in a stack (or a Row, `row`), at the width the resolver gave it, with the node's path. */
   block(node: ResolvedNode, parent: ResolvedNode, row = false): Block | undefined {
+    const drawn = this.draw(node, parent, row);
+    if (drawn) drawn.path = node.path;
+    return drawn;
+  }
+
+  draw(node: ResolvedNode, parent: ResolvedNode, row: boolean): Block | undefined {
     const placed: Style = row
       ? { width: node.width !== null ? pt(node.width) : undefined, flexShrink: 0, flexGrow: 0, alignSelf: node.definition.sizing === "shrink" ? flex(parent.style.alignItems ?? "start") : undefined }
       : { alignSelf: alignSelf(node, parent), width: node.width !== null && (node.style.width !== undefined || node.style.maxWidth !== undefined || node.definition.sizing === "shrink") ? pt(node.width) : undefined };
@@ -198,6 +204,7 @@ class Writer {
       style: { ...boxStyle(node), ...placed, flexDirection: "column", ...gap(node) },
       children: nodes(node).map((item, i): Block => ({
         kind: "box",
+        path: item.path,
         style: { flexDirection: "row" },
         children: [
           { kind: "text", style: { ...textStyle(item, this.context.families), width: pt(indent), textAlign: "left" }, runs: [node.props.type === "number" ? `${start + i}.` : "•"] },
@@ -237,6 +244,7 @@ class Writer {
         let column = 0;
         return {
           kind: "box",
+          path: row.path,
           style: { flexDirection: "row", ...boxStyle(row), ...(r < rows.length - 1 && rowBorder ? borderStyle({ bottom: rowBorder }) : {}) },
           children: nodes(row).map((cell): Block => {
             const span = Math.max(1, Number(cell.props.colSpan ?? 1));
@@ -245,6 +253,7 @@ class Writer {
             const padding = cellPadding ? { paddingTop: pt(cellPadding.top), paddingRight: pt(cellPadding.right), paddingBottom: pt(cellPadding.bottom), paddingLeft: pt(cellPadding.left) } : {};
             return {
               kind: "box",
+              path: cell.path,
               style: { ...padding, ...boxStyle(cell), width: width !== undefined ? pt(width) : undefined, flexGrow: width === undefined ? 1 : 0 },
               children: [{ kind: "text", style: { ...textStyle(cell, this.context.families), ...(row.props.header ? { fontWeight: 700 } : {}) }, runs: this.runs(cell) }],
             };
