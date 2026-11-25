@@ -197,15 +197,13 @@ export function readTable(values: Values, context: Context): Node[] {
     return { node: make("TableCell", { id: str(cell.id), props: defined({ dir, colSpan: spanOf(cell) > 1 ? spanOf(cell) : undefined }), style, children }), line: linePx, unset };
   };
 
-  // The table's border, around every cell. One written before the builder drew the line between rows is that line
-  // above and below each row (and the hidden rowBorder it was): the line between rows, and no cell's border.
+  // The table's border, around every cell, as the builder draws it with its line between rows. (A border above and
+  // below each row that is the line between rows is drawn above the first row and below the last too, whoever wrote it.)
   const { rowBorder: rowLine, ...hiddenStyle } = hidden.style;
   // The builder's table fills its place unless told otherwise, and saves that as a width and a max width of 100% (its
   // defaults): no width of the Table's.
   for (const key of ["width", "maxWidth"]) if (hiddenStyle[key] === "100%") delete hiddenStyle[key];
-  const around = readBorderSides(obj(values.border), "#000000") as Record<string, Json> | undefined;
-  const before = rowLine !== undefined && around && !around.left && !around.right && same(around.top, rowLine) && same(around.bottom, rowLine);
-  const base = before ? undefined : around;
+  const base = readBorderSides(obj(values.border), "#000000") as Record<string, Json> | undefined;
   /**
    * A cell's lines as the builder draws them: the table's border, the line rowLine rows, its own border over both. A
    * side of its own counts where its width is one the builder reads (px): 0 takes the line away, and one with no color

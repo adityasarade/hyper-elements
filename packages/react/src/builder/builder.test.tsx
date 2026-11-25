@@ -1296,6 +1296,27 @@ describe("a Table", () => {
     expect(fromDesign(JSON.parse(JSON.stringify(first.design)), { displayMode: "email" }).report).toEqual([]);
   });
 
+  it("reads a border above and below each row that is the line between rows as the builder draws it: above the first row and below the last too", () => {
+    const sides = (top: string, side: string) => ({ ...Object.fromEntries(["Top", "Bottom"].flatMap((at) => [[`border${at}Width`, top], [`border${at}Style`, "solid"], [`border${at}Color`, "#cccccc"]])), ...Object.fromEntries(["Left", "Right"].flatMap((at) => [[`border${at}Width`, side], [`border${at}Style`, "solid"], [`border${at}Color`, "#cccccc"]])) });
+    const rowBorder = { borderTopWidth: "1px", borderTopStyle: "solid", borderTopColor: "#cccccc" };
+    const border = (code: string, text: string) => new RegExp(`border: (\\{[^}]*\\}|"[^"]*")[^>]*>${text}<`).exec(code)?.[1];
+    const three = ["A", "B", "C"].map((text) => ({ cells: [cellOf(text, { width: 100 })], height: 30 }));
+    const { code, report } = fromDesign(builders(three, { border: sides("1px", "0px"), rowBorder }), { displayMode: "email" });
+    expect(report).toEqual([]);
+    expect(code).toContain('rowBorder: "1px solid #cccccc"');
+    // The line between rows is the Table's; the first row's line above and the last's below are the cells'.
+    expect(border(code, "A")).toBe('{ top: "1px solid #cccccc" }');
+    expect(border(code, "B")).toBe('{ top: "1px solid #cccccc" }');
+    expect(border(code, "C")).toBe('{ top: "1px solid #cccccc", bottom: "1px solid #cccccc" }');
+    // One row: both lines.
+    const one = fromDesign(builders(three.slice(0, 1), { border: sides("1px", "0px"), rowBorder }), { displayMode: "email" }).code;
+    expect(border(one, "A")).toBe('{ top: "1px solid #cccccc", bottom: "1px solid #cccccc" }');
+    // A line between rows with no color takes the content's words' color, and still leaves the cells their lines.
+    const dark = { ...sides("1px", "0px"), borderTopColor: "#333333", borderBottomColor: "#333333" };
+    const colored = fromDesign(builders(three, { border: dark, rowBorder: { borderTopWidth: "1px", borderTopStyle: "solid" }, contentColor: "#333333" }), { displayMode: "email" }).code;
+    expect(border(colored, "A")).toBe('{ top: "1px solid #333333" }');
+  });
+
   it("says a Page's or a Document's Table draws the builder's border around the table and its edge cells' lines as one line, where its borders collapse", () => {
     const sides = (width: string, color: string) => Object.fromEntries(["Top", "Left", "Right", "Bottom"].flatMap((side) => [[`border${side}Width`, width], [`border${side}Style`, "solid"], [`border${side}Color`, color]]));
     const none = sides("0px", "#000000");
