@@ -10,6 +10,7 @@ import { flowPage } from "./flow";
 import { Painter } from "./paint";
 import type { MeasuredPage, Plan, PlannedPage } from "../plan";
 import { blocksOf, measure } from "./measure";
+import { RIGHT_TO_LEFT } from "./runs";
 import type { Block, DrawnDocument, Font, Page, Picture, PlacedPage, Run, Shape, Style } from "./model";
 import { alignSelf, borderStyle, boxStyle, flex, pt, runStyle, textStyle } from "./styles";
 
@@ -36,7 +37,7 @@ export function writeDocument(root: ResolvedNode, context: WriteContext): DrawnD
   const box = pageBox(root.props);
   const { pages, header, footer } = documentPages(root);
   const total = pages.length;
-  const write = new Writer(context);
+  const write = new Writer(context, root);
   return {
     title: root.props.title as string | undefined,
     lang: root.props.lang as string | undefined,
@@ -80,7 +81,7 @@ export function flowDocument(root: ResolvedNode, context: WriteContext, document
     return pages ?? [{ from: i, parts: page.content.map((block) => ({ path: block.path!, part: 0, first: true, last: true })) }];
   });
   const { header, footer } = documentPages(root);
-  const write = new Writer(context);
+  const write = new Writer(context, root);
   const pages = planned.map(({ from, parts }, index): Page => {
     const page = document.pages[from];
     const painter = new Painter(blocksOf(page));
@@ -93,10 +94,62 @@ export function flowDocument(root: ResolvedNode, context: WriteContext, document
 
 const gap = (node: ResolvedNode): Style => (typeof node.style.gap === "number" ? { gap: pt(node.style.gap) } : {});
 
+const LETTER = /\p{L}/u;
+
+/**
+ * The direction "auto" gives a node: its text's first letter's, as a browser finds it (passing over what has a
+ * direction of its own); undefined where it has no letter.
+ */
+function firstLetter(node: ResolvedNode): "ltr" | "rtl" | undefined {
+  for (const child of node.children) {
+    if (typeof child === "string") {
+      for (const char of child) if (LETTER.test(char)) return RIGHT_TO_LEFT.test(char) ? "rtl" : "ltr";
+    } else if (shown(child) && child.props.dir === undefined) {
+      const found = firstLetter(child);
+      if (found) return found;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The paths of the nodes whose text runs right to left: a direction of their own (a block's, a Row's, the root's), or
+ * their parent's; "auto", their text's first letter's.
+ */
+function rightToLeft(root: ResolvedNode): Set<string> {
+  const out = new Set<string>();
+  const visit = (node: ResolvedNode, inherited: "ltr" | "rtl") => {
+    const own = node.props.dir;
+    const direction = own === "rtl" || own === "ltr" ? own : own === "auto" ? (firstLetter(node) ?? "ltr") : inherited;
+    if (direction === "rtl") out.add(node.path);
+    for (const child of node.children) if (typeof child !== "string") visit(child, direction);
+  };
+  visit(root, "ltr");
+  return out;
+}
+
 class Writer {
   page = { number: 1, total: 1 };
+  private readonly rtl: Set<string>;
 
-  constructor(private readonly context: WriteContext) {}
+  constructor(
+    private readonly context: WriteContext,
+    root: ResolvedNode
+  ) {
+    this.rtl = rightToLeft(root);
+  }
+
+  /**
+   * A node's text styles, with its direction where it runs right to left. react-pdf takes a paragraph's direction from
+   * its first run and hands it down to nothing, so a block of text and each run in it carry it.
+   */
+  text(node: ResolvedNode): Style {
+    return { ...textStyle(node, this.context.families), ...this.direction(node) };
+  }
+
+  direction(node: ResolvedNode): Style {
+    return this.rtl.has(node.path) ? { direction: "rtl" } : {};
+  }
 
   /** A block in a stack (or a Row, `row`), at the width the resolver gave it, with the node's path. */
   block(node: ResolvedNode, parent: ResolvedNode, row = false): Block | undefined {
@@ -109,17 +162,16 @@ class Writer {
     const placed: Style = row
       ? { width: node.width !== null ? pt(node.width) : undefined, flexShrink: 0, flexGrow: 0, alignSelf: node.definition.sizing === "shrink" ? flex(parent.style.alignItems ?? "start") : undefined }
       : { alignSelf: alignSelf(node, parent), width: node.width !== null && (node.style.width !== undefined || node.style.maxWidth !== undefined || node.definition.sizing === "shrink") ? pt(node.width) : undefined };
-    const families = this.context.families;
     switch (node.type) {
       case "Text":
       case "Heading":
-        return { kind: "text", splits: "lines", ...(node.type === "Heading" ? { keepWithNext: true } : {}), style: { ...textStyle(node, families), ...boxStyle(node), ...placed }, runs: this.runs(node) };
+        return { kind: "text", splits: "lines", ...(node.type === "Heading" ? { keepWithNext: true } : {}), style: { ...this.text(node), ...boxStyle(node), ...placed }, runs: this.runs(node) };
       case "Button":
         return {
           kind: "link",
           href: linkParts(node.props.href as LinkValue).href,
           style: { ...placed, textDecoration: "none" },
-          children: [{ kind: "box", style: { ...boxStyle(node), width: node.width !== null ? pt(node.width) : undefined }, children: [{ kind: "text", style: { ...textStyle(node, families), textAlign: "center" }, runs: this.runs(node) }] }],
+          children: [{ kind: "box", style: { ...boxStyle(node), width: node.width !== null ? pt(node.width) : undefined }, children: [{ kind: "text", style: { ...this.text(node), textAlign: "center" }, runs: this.runs(node) }] }],
         };
       case "Image":
         return this.image(node, placed);
@@ -130,7 +182,7 @@ class Writer {
           kind: "link",
           href: linkParts(node.props.href as LinkValue).href,
           style: { ...placed, textDecoration: "none" },
-          children: words ? [{ kind: "text", style: textStyle(node, families), runs: this.runs(node) }] : present(nodes(node).map((child) => this.block(child, node))),
+          children: words ? [{ kind: "text", style: this.text(node), runs: this.runs(node) }] : present(nodes(node).map((child) => this.block(child, node))),
         };
       }
       case "Divider": {
@@ -154,7 +206,7 @@ class Writer {
       case "Html":
         // A PDF can't draw markup: its plain text (validate() says so).
         // Its markup, in the print HTML, can't be cut between lines: it stays whole.
-        return { kind: "text", style: { ...textStyle(node, families), ...placed }, runs: [htmlText(node)] };
+        return { kind: "text", style: { ...this.text(node), ...placed }, runs: [htmlText(node)] };
       case "Svg":
         return this.svg(node, placed);
       case "Section":
@@ -169,7 +221,7 @@ class Writer {
   }
 
   /** A block of text's children: its words and runs (Span, Link, a line break, a merge tag, a page number). */
-  runs(node: ResolvedNode): Run[] {
+  runs(node: ResolvedNode, direction: Style = this.direction(node)): Run[] {
     return present(
       node.children.map((child): Run | undefined => {
         if (typeof child === "string") return child;
@@ -182,14 +234,14 @@ class Writer {
           case "PageNumber":
             return String(child.props.total ? this.page.total : this.page.number);
           case "Link":
-            return { kind: "link", href: linkParts(child.props.href as LinkValue).href, style: runStyle(child, this.context.families), runs: this.runs(child) };
+            return { kind: "link", href: linkParts(child.props.href as LinkValue).href, style: { ...runStyle(child, this.context.families), ...direction }, runs: this.runs(child, direction) };
           case "Image": {
             // In a line, an image the PDF can't draw is its alt text.
             const image = this.image(child, {});
             return image.kind === "image" ? image : String(child.props.alt ?? "");
           }
           default:
-            return { kind: "span", style: runStyle(child, this.context.families), runs: this.runs(child) };
+            return { kind: "span", style: { ...runStyle(child, this.context.families), ...direction }, runs: this.runs(child, direction) };
         }
       })
     );
@@ -205,7 +257,7 @@ class Writer {
     const source = this.context.image(src);
     if (source) return { kind: "image", src: source, style };
     const alt = String(node.props.alt ?? "");
-    return { kind: "box", style: { ...style, objectFit: undefined, overflow: "hidden" }, children: alt ? [{ kind: "text", style: textStyle(node, this.context.families), runs: [alt] }] : [] };
+    return { kind: "box", style: { ...style, objectFit: undefined, overflow: "hidden" }, children: alt ? [{ kind: "text", style: this.text(node), runs: [alt] }] : [] };
   }
 
   /** A Layer: its first child in place, the others over it, each in the Layer's whole box, placed by its alignment. */
@@ -239,7 +291,7 @@ class Writer {
         path: item.path,
         style: { flexDirection: "row" },
         children: [
-          { kind: "text", style: { ...textStyle(item, this.context.families), width: pt(indent), textAlign: "left" }, runs: [node.props.type === "number" ? `${start + i}.` : "•"] },
+          { kind: "text", style: { ...this.text(item), width: pt(indent), textAlign: "left" }, runs: [node.props.type === "number" ? `${start + i}.` : "•"] },
           { kind: "box", style: { flexGrow: 1, flexShrink: 1, flexDirection: "column" }, children: this.itemParts(item) },
         ],
       })),
@@ -251,7 +303,7 @@ class Writer {
     const parts: Block[] = [];
     let text: ResolvedNode["children"] = [];
     const flush = () => {
-      if (text.some((child) => typeof child !== "string" || child.trim() !== "")) parts.push({ kind: "text", style: textStyle(item, this.context.families), runs: this.runs({ ...item, children: text }) });
+      if (text.some((child) => typeof child !== "string" || child.trim() !== "")) parts.push({ kind: "text", style: this.text(item), runs: this.runs({ ...item, children: text }) });
       text = [];
     };
     for (const child of item.children) {
@@ -289,7 +341,7 @@ class Writer {
               kind: "box",
               path: cell.path,
               style: { ...padding, ...boxStyle(cell), width: width !== undefined ? pt(width) : undefined, flexGrow: width === undefined ? 1 : 0 },
-              children: [{ kind: "text", style: { ...textStyle(cell, this.context.families), ...(row.props.header ? { fontWeight: 700 } : {}) }, runs: this.runs(cell) }],
+              children: [{ kind: "text", style: { ...this.text(cell), ...(row.props.header ? { fontWeight: 700 } : {}) }, runs: this.runs(cell) }],
             };
           }),
         };
@@ -324,7 +376,7 @@ class Writer {
       kind: "link",
       href: src,
       style: { ...placed, textDecoration: "none" },
-      children: [image ? { kind: "image", src: image, style: { width: node.width !== null ? pt(node.width) : undefined } } : { kind: "text", style: textStyle(node, this.context.families), runs: [String(node.props.title ?? "Video")] }],
+      children: [image ? { kind: "image", src: image, style: { width: node.width !== null ? pt(node.width) : undefined } } : { kind: "text", style: this.text(node), runs: [String(node.props.title ?? "Video")] }],
     };
   }
 }

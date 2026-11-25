@@ -3,7 +3,7 @@
  * arithmetic) as react-pdf lays it out when it draws it: every block's box and every line (its characters, its top, its
  * width and its glyphs' advances) within 0.05 points, over the gallery's, the stress set's and the templates' Documents
  * and designs made to stress it (every alignment, bold runs, letter spacing, a transform, a line's image, a font file
- * with its kerning, padding, borders and gaps, Rows, Lists, Tables). What the plan is made from before anything's drawn.
+ * with its kerning, text written right to left, padding, borders and gaps, Rows, Lists, Tables). What the plan is made from before anything's drawn.
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -14,6 +14,7 @@ import { Column, Document, Heading, Image, List, ListItem, PageFooter, PageHeade
 import { flowDocument, reactPdf, reactPdfLayout, writeDocument, type DrawnDocument, type PlacedPage } from "@hyper-elements/core/pdf";
 import { gallery } from "../../src/primitives/examples/gallery";
 import { stress } from "../../src/primitives/examples/stress";
+import { arabicFonts, arabicSentences } from "./arabic";
 const liberation = (name: string) => readFileSync(join(dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")), "standard_fonts", name));
 const PNG = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==`;
 const para = (i: number) => `Paragraph ${i}: Elements writes the same design to email, the web, print and PDF, so this stands in for a section.`;
@@ -48,8 +49,23 @@ const synthetic: Record<string, ReactElement> = {
     </Document>
   ),
   embedded: <Document style={{ fontFamily: "Liberation" }}>{Array.from({ length: 12 }, (_, i) => <Text key={i} style={{ textAlign: i % 2 ? "justify" : "left" }}>{`AVATAR WAVE Type ${i}: ` + para(i)}</Text>)}</Document>,
+  // Written right to left, in a font with Arabic letters: every alignment, a run of another color, English words in
+  // it, and an English paragraph with Arabic in it; long enough to flow.
+  arabic: (
+    <Document dir="rtl" style={{ fontFamily: "Noto Arabic" }}>
+      <Heading level={2}>عنوان التقرير</Heading>
+      {(["right", "center", "left", "justify"] as const).map((textAlign, n) => (
+        <Text key={textAlign} style={{ textAlign }}>
+          {Array.from({ length: 24 }, (_, i) => (i % 4 === 1 ? <Span key={i} style={{ color: "#b91c1c" }}>{`ملف PDF رقم ${n * 24 + i}، كلمة Elements هنا. `}</Span> : `${arabicSentences(1, n * 24 + i)} `))}
+        </Text>
+      ))}
+      <Text dir="ltr">{Array.from({ length: 12 }, (_, i) => `Sentence ${i} quotes «مرحبا بالعالم» in Arabic, then goes on. `)}</Text>
+    </Document>
+  ),
 };
 const fonts = [{ family: "liberation", data: new Uint8Array(liberation("LiberationSans-Regular.ttf")), weight: 400, style: "normal" as const }];
+/** The font files a design is drawn with: its own family's, for those that name one. */
+const given: Record<string, typeof fonts> = { embedded: fonts, arabic: arabicFonts };
 /** The templates' Document designs (templates/documents/<name>/designs/*.tsx), each its default export. */
 async function templateDesigns(): Promise<Array<[string, ReactElement]>> {
   const folder = join(dirname(fileURLToPath(import.meta.url)), "../../../../templates/documents");
@@ -74,8 +90,8 @@ it("measures each Document as react-pdf draws it, without drawing it", async () 
     const { root } = prepare(design as ReactElement);
     if (root?.type !== "Document") continue;
     docs++;
-    const families = new Set(name === "embedded" ? ["liberation"] : []);
-    const context = { families, fonts: name === "embedded" ? fonts : [], image: (src: string) => (src.startsWith("data:") ? src : undefined), date: new Date(0) };
+    const files = given[name] ?? [];
+    const context = { families: new Set(files.map((font) => font.family)), fonts: files, image: (src: string) => (src.startsWith("data:") ? src : undefined), date: new Date(0) };
     const written = writeDocument(root, context);
     const compare = async (document: DrawnDocument, label: string): Promise<PlacedPage[]> => {
       const drawless = await reactPdfLayout(document);

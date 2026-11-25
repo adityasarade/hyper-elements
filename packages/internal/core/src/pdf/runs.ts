@@ -9,6 +9,9 @@ import type { Run, Style } from "./model";
 /** What an image in a line counts as: one character, the object replacement character, as the engine lays it out. */
 const OBJECT = "￼";
 
+/** A letter of a script written right to left: Hebrew, Arabic, Syriac, Thaana, N'Ko and the rest to U+08FF, their presentation forms, and those past U+FFFF. */
+export const RIGHT_TO_LEFT = /[\u0590-\u08ff\ufb1d-\ufdff\ufe70-\ufeff\u{10800}-\u{10fff}\u{1e800}-\u{1efff}]/u;
+
 /** A run's text as the engine lays it out, with its transform (inherited from `transform`, the run's own over it). */
 function textOf(runs: Run[], transform: unknown, out: string[]): void {
   for (const run of runs) {

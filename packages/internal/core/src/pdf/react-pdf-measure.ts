@@ -104,16 +104,18 @@ class Measurer {
   attributes(style: Style, link?: string): Record<string, unknown> {
     const resolved = this.styled(style);
     const fontSize = number(resolved.fontSize) || 18;
+    // A run's own direction, which react-pdf hands down to nothing (its paragraph takes its first run's).
+    const direction = style.direction === "rtl" ? "rtl" : "ltr";
     return {
       font: descriptors(resolved).map(fontOf),
       color: resolved.color ?? "black",
       fontSize,
       lineHeight: resolved.lineHeight !== undefined ? number(resolved.lineHeight) * fontSize : undefined,
-      direction: "ltr",
+      direction,
       verticalAlign: resolved.verticalAlign,
       characterSpacing: resolved.letterSpacing,
       link,
-      align: resolved.textAlign ?? "left",
+      align: resolved.textAlign ?? (direction === "rtl" ? "right" : "left"),
     };
   }
 
@@ -125,7 +127,7 @@ class Measurer {
       else if (run.kind === "image") {
         const fontSize = number(attributes.fontSize);
         out.push({ string: "￼", attributes: { ...attributes, attachment: { width: set(run.style.width) ?? fontSize, height: set(run.style.height) ?? fontSize, image: {} } } } as unknown as Fragment);
-      } else this.fragments(run.runs, over(style, run.style), run.kind === "link" ? run.href : link, out);
+      } else this.fragments(run.runs, { ...over(style, run.style), direction: run.style.direction }, run.kind === "link" ? run.href : link, out);
     }
     return out;
   }

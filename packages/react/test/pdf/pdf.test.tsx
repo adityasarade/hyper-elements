@@ -44,8 +44,9 @@ import {
   validate,
   Video,
 } from "@hyper-elements/react";
-import { writeDocument } from "@hyper-elements/core/pdf";
+import { reactPdf, writeDocument, type Block } from "@hyper-elements/core/pdf";
 import { layoutDocument, renderPdf, templateAssets, type DocumentNode } from "../../src/pdf";
+import { arabicFonts, arabicSentences } from "./arabic";
 import { toWoff, toWoff2 } from "./woff";
 
 /** What prepare() gives, where a test gives another layout version (another copy of Elements, newer or older). */
@@ -456,6 +457,38 @@ describe("renderPdf", () => {
     // heading and 20 of them fit, and the other 6 go on to page 2 (two lines don't split: two stay on each side).
     const { pages } = await read(pdf);
     expect(pages.map((page) => page.words.match(/WIDE/g)?.length)).toEqual([20, 6]);
+  });
+
+  it("draws text written right to left from its right, as its direction says: the period that ends it on its left", async () => {
+    const design = (
+      <Document dir="rtl" style={{ fontFamily: "Noto Arabic" }}>
+        <Text>{arabicSentences(3)}</Text>
+        {/* A paragraph takes its direction from its first run (react-pdf's): one that starts with a Span too. */}
+        <Text>
+          <Span style={{ color: "#b91c1c" }}>مرحبا</Span> {arabicSentences(3)}
+        </Text>
+        <Text dir="ltr">{arabicSentences(3)}</Text>
+        {/* "auto": its first letter's. */}
+        <Text dir="auto">{arabicSentences(3)}</Text>
+        <Text dir="auto">An English sentence, then {arabicSentences(1)}</Text>
+      </Document>
+    );
+    const { root } = prepare(design);
+    const written = writeDocument(root!, { families: new Set(["noto arabic"]), fonts: arabicFonts, image: () => undefined, date: new Date(0) });
+    const { placed } = await reactPdf(written);
+    // Each paragraph's last line as drawn, from the left.
+    const last = (i: number) => {
+      const lines = placed![0].blocks.find((block) => block.path === `root.children[${i}]`)!.lines!;
+      return lines[lines.length - 1].text.trim();
+    };
+    expect(last(0)).toMatch(/^\./);
+    expect(last(1)).toMatch(/^\./);
+    expect(last(2)).toMatch(/\.$/);
+    expect(last(3)).toMatch(/^\./);
+    expect(last(4)).toMatch(/\.$/);
+    // Text left to right is written as before, with no direction of its own.
+    const direction = (block: Block) => ("style" in block ? block.style.direction : undefined);
+    expect(written.pages[0].content.map(direction)).toEqual(["rtl", "rtl", undefined, "rtl", undefined]);
   });
 
   it("places a Button by its own alignSelf, over its stack's alignItems", () => {
