@@ -39,14 +39,16 @@ export function measure(document: DrawnDocument, placed: PlacedPage[]): Measured
           if (ends && text !== undefined) {
             out.lines = ends.map((end, j) => {
               const line = lines[j];
-              // Its spaces between words, less one it ends in.
-              const between = (line.text.trimEnd().match(/ /g) ?? []).length;
+              const start = j === 0 ? 0 : ends[j - 1].next;
+              // Its spaces between words, less one it ends in (from its text: a line written right to left is reported
+              // in the order it's drawn, where the space it ends in comes first).
+              const between = (text.slice(start, end.end).trimEnd().match(/ /g) ?? []).length;
               // Squeezed where its glyphs are wider than its room; justified to fill it but at a paragraph's end.
               const last = j === ends.length - 1 || end.next > end.end;
               const spacing = !between ? 0 : line.natural > line.width + 0.01 || (justified && !last) ? (line.width - line.natural) / between : 0;
               // To a thousandth of a point: what's measured with or without drawing is the same (react-pdf's flexbox holds
               // a width in 32-bit floats), and a plan comes out the same wherever it's made.
-              return { start: j === 0 ? 0 : ends[j - 1].next, end: end.end, next: end.next, hyphenated: end.hyphenated, top: line.top, height: thousandth(line.height), wordSpacing: thousandth(spacing) };
+              return { start, end: end.end, next: end.next, hyphenated: end.hyphenated, top: line.top, height: thousandth(line.height), wordSpacing: thousandth(spacing) };
             });
           }
         }

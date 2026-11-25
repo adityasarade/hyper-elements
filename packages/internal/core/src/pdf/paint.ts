@@ -6,8 +6,8 @@
  * draws it where it was and can't break its lines otherwise.
  */
 import type { Block, Run, Style } from "./model";
-import { isWhole, type PlannedPart } from "../plan";
-import { splitRuns } from "./runs";
+import { isWhole, type PlannedLine, type PlannedPart } from "../plan";
+import { runsText, splitRuns } from "./runs";
 
 const TOP = ["paddingTop", "borderTopWidth", "borderTopStyle", "borderTopColor", "borderTopLeftRadius", "borderTopRightRadius"];
 const BOTTOM = ["paddingBottom", "borderBottomWidth", "borderBottomStyle", "borderBottomColor", "borderBottomLeftRadius", "borderBottomRightRadius"];
@@ -96,17 +96,25 @@ export class Painter {
     if (isWhole(part)) return block;
     if (part.lines && block.kind === "text") {
       const { lines } = part;
-      // Its lines one under another, each as measured. Its text style is the box's, which they take; a justified
-      // block's lines are as wide as its spacing makes them, each set from its start.
-      const align = block.style.textAlign === "justify" ? "left" : block.style.textAlign;
-      const style: Style = { ...unbounded(align), ...(block.style.textAlign === "justify" ? { textAlign: "left" } : {}) };
+      const justified = block.style.textAlign === "justify";
+      const rtl = block.style.direction === "rtl";
+      // Where a line written right to left is a paragraph's last (its block's, or one a line break ends).
+      const text = justified && rtl ? runsText(block.runs, block.style) : undefined;
+      // Its lines one under another, each as measured. Its text style is the box's, which they take, and its direction,
+      // which react-pdf hands down to nothing. A justified block's lines are as wide as its spacing makes them, each set
+      // from its start (its right, written right to left) but a paragraph's last, set from its left as react-pdf sets it.
+      const styleOf = (line: PlannedLine, i: number): Style => {
+        const last = (part.last && i === lines.length - 1) || text?.[line.end] === "\n";
+        const align = justified ? (rtl && !last ? "right" : "left") : block.style.textAlign;
+        return { ...unbounded(align), ...(justified ? { textAlign: align } : {}), ...(rtl ? { direction: "rtl" } : {}) };
+      };
       return {
         kind: "box",
         path: part.path,
         style: { ...slice(block.style, part.first, part.last), flexDirection: "column" },
-        children: lines.map((line): Block => {
+        children: lines.map((line, i): Block => {
           const runs = trimEnd(runsBetween(block.runs, line.start, line.end));
-          return { kind: "text", style, runs: spaced(line.hyphenated ? withHyphen(runs) : runs, line.wordSpacing) };
+          return { kind: "text", style: styleOf(line, i), runs: spaced(line.hyphenated ? withHyphen(runs) : runs, line.wordSpacing) };
         }),
       };
     }

@@ -6,6 +6,7 @@ import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { Document, Heading, List, ListItem, PageFooter, PageNumber, prepare, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
 import { reactPdf, writeDocument } from "@hyper-elements/core/pdf";
 import { layoutDocument, paginate, renderPdf } from "../../src/pdf";
+import { arabicFonts, arabicGiven, arabicSentences } from "./arabic";
 
 /** Each page's words, joined by spaces. */
 async function words(pdf: Uint8Array): Promise<string[]> {
@@ -45,17 +46,18 @@ describe("a Document's content that doesn't fit its page", () => {
     expect(nodes[1].chars).toEqual({ start: nodes[0].chars!.end, end: text.length });
   });
 
+  /** Page 1's lines, by their baselines: their words, and where they start and end. */
+  const lines = async (pdf: Uint8Array) => {
+    const document = await getDocument({ data: pdf.slice(), useSystemFonts: false, disableFontFace: true, verbosity: 0 }).promise;
+    const items = (await (await document.getPage(1)).getTextContent()).items.filter((item): item is { str: string; width: number; transform: number[] } & typeof item => "str" in item && item.str.trim() !== "");
+    const rows = new Map<number, typeof items>();
+    for (const item of items) rows.set(Math.round(item.transform[5] * 10) / 10, [...(rows.get(Math.round(item.transform[5] * 10) / 10) ?? []), item]);
+    return [...rows.entries()]
+      .sort((a, b) => b[0] - a[0])
+      .map(([y, row]) => ({ y, words: row.map((item) => item.str).join("").replace(/\s+/g, ""), start: Math.min(...row.map((item) => item.transform[4])), end: Math.max(...row.map((item) => item.transform[4] + item.width)) }));
+  };
+
   it("draws a split paragraph's lines where the paragraph set them, in every alignment: the same words, within 2 points", async () => {
-    /** Page 1's lines, by their baselines: their words, and where they start and end. */
-    const lines = async (pdf: Uint8Array) => {
-      const document = await getDocument({ data: pdf.slice(), useSystemFonts: false, disableFontFace: true, verbosity: 0 }).promise;
-      const items = (await (await document.getPage(1)).getTextContent()).items.filter((item): item is { str: string; width: number; transform: number[] } & typeof item => "str" in item && item.str.trim() !== "");
-      const rows = new Map<number, typeof items>();
-      for (const item of items) rows.set(Math.round(item.transform[5] * 10) / 10, [...(rows.get(Math.round(item.transform[5] * 10) / 10) ?? []), item]);
-      return [...rows.entries()]
-        .sort((a, b) => b[0] - a[0])
-        .map(([y, row]) => ({ y, words: row.map((item) => item.str).join("").replace(/\s+/g, ""), start: Math.min(...row.map((item) => item.transform[4])), end: Math.max(...row.map((item) => item.transform[4] + item.width)) }));
-    };
     for (const textAlign of ["left", "center", "right", "justify"] as const) {
       // Bold runs among plain ones, and lines its engine squeezes, stretches (justified) or breaks a word in.
       const design = (
@@ -78,6 +80,34 @@ describe("a Document's content that doesn't fit its page", () => {
         expect(Math.abs(line.start - whole[i].start), `${textAlign}, line ${i + 1}'s start`).toBeLessThan(2);
         expect(Math.abs(line.end - whole[i].end), `${textAlign}, line ${i + 1}'s end`).toBeLessThan(2);
       });
+    }
+  });
+
+  it("splits a paragraph written right to left between its lines, each drawn as the paragraph set it: the same words, within 2 points", async () => {
+    // A line of it is reported as drawn, its words reordered: it's matched to the paragraph's characters all the same.
+    for (const textAlign of ["right", "justify", "left"] as const) {
+      const design = (
+        <Document dir="rtl" style={{ fontFamily: "Noto Arabic" }}>
+          <Text style={{ textAlign }}>
+            {Array.from({ length: 90 }, (_, i) => (i % 5 === 2 ? <Span key={i} style={{ color: "#b91c1c" }}>{`ملف PDF رقم ${i + 1}، مع كلمة Elements هنا. `}</Span> : `${arabicSentences(1, i + 1)} `))}
+          </Text>
+        </Document>
+      );
+      const { root } = prepare(design);
+      const whole = await lines((await reactPdf(writeDocument(root!, { families: new Set(["noto arabic"]), fonts: arabicFonts, image: () => undefined, date: new Date(0) }))).pdf);
+      const { pdf, diagnostics, plan } = await renderPdf(design, { fonts: arabicGiven });
+      const painted = await lines(pdf);
+      expect(diagnostics).toEqual([]);
+      expect(plan.pages).toHaveLength(2);
+      expect(painted.length).toBeGreaterThan(30);
+      painted.forEach((line, i) => {
+        expect(line.words, `${textAlign}, line ${i + 1}`).toBe(whole[i].words);
+        expect(line.y).toBeCloseTo(whole[i].y, 1);
+        expect(Math.abs(line.start - whole[i].start), `${textAlign}, line ${i + 1}'s start`).toBeLessThan(2);
+        expect(Math.abs(line.end - whole[i].end), `${textAlign}, line ${i + 1}'s end`).toBeLessThan(2);
+      });
+      // Planned the same without drawing.
+      expect((await paginate(design, { fonts: arabicGiven })).plan).toEqual(plan);
     }
   });
 

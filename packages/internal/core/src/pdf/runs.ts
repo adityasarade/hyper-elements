@@ -2,7 +2,9 @@
  * A block of text split between two of its lines, where a page ends: its runs cut at a character, from the lines the
  * engine laid out. The engine reports each line's characters, less the block's line breaks and with a hyphen where a
  * word is broken; they're matched against the runs' own text, and where they don't match (a transform that changes the
- * text's length, a run the engine draws otherwise) the block isn't split.
+ * text's length, a run the engine draws otherwise) the block isn't split. A line with words written right to left is
+ * reported as it's drawn, its characters in the order they're seen and its brackets mirrored: it's matched by its
+ * characters, in any order.
  */
 import type { Run, Style } from "./model";
 
@@ -54,6 +56,23 @@ export interface LineEnd {
   hyphenated: boolean;
 }
 
+/** A bracket as one of its pair: a right-to-left run's are drawn mirrored. */
+const PAIRS: Record<string, string> = { ")": "(", "]": "[", "}": "{", ">": "<", "»": "«", "›": "‹", "⁆": "⁅", "〉": "〈", "》": "《", "」": "「", "』": "『" };
+
+/** Whether two texts have the same characters, in any order, a bracket as either of its pair. */
+function sameCharacters(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  const counts = new Map<string, number>();
+  for (const char of a) counts.set(PAIRS[char] ?? char, (counts.get(PAIRS[char] ?? char) ?? 0) + 1);
+  for (const char of b) {
+    const key = PAIRS[char] ?? char;
+    const count = counts.get(key);
+    if (!count) return false;
+    counts.set(key, count - 1);
+  }
+  return true;
+}
+
 /** Each line's end in `text`, from the lines' characters as laid out; undefined where they don't match it. */
 export function lineEnds(text: string, lines: readonly string[]): LineEnd[] | undefined {
   const ends: LineEnd[] = [];
@@ -64,6 +83,11 @@ export function lineEnds(text: string, lines: readonly string[]): LineEnd[] | un
     if (text.startsWith(line, at)) {
       // As laid out.
     } else if (line.endsWith("-") && text.startsWith(line.slice(0, -1), at)) {
+      hyphenated = true;
+      length -= 1;
+    } else if (RIGHT_TO_LEFT.test(text.slice(at, at + length)) && sameCharacters(line, text.slice(at, at + length))) {
+      // Its words reordered, as drawn.
+    } else if (line.includes("-") && RIGHT_TO_LEFT.test(text.slice(at, at + length - 1)) && sameCharacters(line.replace("-", ""), text.slice(at, at + length - 1))) {
       hyphenated = true;
       length -= 1;
     } else return undefined;
