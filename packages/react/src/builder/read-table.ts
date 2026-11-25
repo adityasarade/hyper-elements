@@ -201,8 +201,11 @@ export function readTable(values: Values, context: Context): Node[] {
   // below each row that is the line between rows is drawn above the first row and below the last too, whoever wrote it.)
   const { rowBorder: rowLine, ...hiddenStyle } = hidden.style;
   // The builder's table fills its place unless told otherwise, and saves that as a width and a max width of 100% (its
-  // defaults): no width of the Table's.
-  for (const key of ["width", "maxWidth"]) if (hiddenStyle[key] === "100%") delete hiddenStyle[key];
+  // defaults): no width of the Table's. A px width with a max width of 100% shrinks to fit a narrower place, so that
+  // max width is kept with it.
+  const fixed = typeof hiddenStyle.width === "number" || (typeof hiddenStyle.width === "string" && hiddenStyle.width.trim().endsWith("px"));
+  if (hiddenStyle.width === "100%") delete hiddenStyle.width;
+  if (hiddenStyle.maxWidth === "100%" && !fixed) delete hiddenStyle.maxWidth;
   const base = readBorderSides(obj(values.border), "#000000") as Record<string, Json> | undefined;
   /**
    * A cell's lines as the builder draws them: the table's border, the line rowLine rows, its own border over both. A

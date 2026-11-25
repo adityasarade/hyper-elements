@@ -733,8 +733,9 @@ describe("a Table", () => {
   });
 
   it("stays an HTML block where a table narrower than its place isn't at its left, where the builder's sits", () => {
+    // (A max width of 100%, so a Page's Table shrinks in a narrow window as the builder's does.)
     const narrow = (
-      <Table style={{ width: 300 }}>
+      <Table style={{ width: 300, maxWidth: "100%" }}>
         <TableRow>
           <TableCell>A</TableCell>
         </TableRow>
@@ -749,8 +750,8 @@ describe("a Table", () => {
       expect(toDesign(<Document><Column style={style}>{narrow}</Column></Document>).report).toEqual([`root.children[0].children[0]: a table narrower than its place is at its left in the builder's, not ${where}`]);
     }
     // One wider than its place runs out of it, where the builder's stops at its place's edge.
-    const wide = (width: number | string) => (
-      <Table style={{ width }}>
+    const wide = (width: number | string, more: Record<string, unknown> = {}) => (
+      <Table style={{ width, ...more }}>
         <TableRow>
           <TableCell>A</TableCell>
         </TableRow>
@@ -762,10 +763,34 @@ describe("a Table", () => {
       ]);
     }
     expect(toDesign(<Document>{wide("120%")}</Document>).report).toEqual(["root.children[0]: a table wider than its place is as wide as its place in the builder's, which doesn't let it run out of it"]);
-    expect(toDesign(<Page width={600}>{wide(600)}</Page>).report).toEqual([]);
+    expect(toDesign(<Page width={600}>{wide(600, { maxWidth: "100%" })}</Page>).report).toEqual([]);
     // At its left, and one that fills its place wherever it is, are drawn as they are.
     expect(toDesign(<Email><Column style={{ alignItems: "start" }}>{narrow}</Column></Email>).report).toEqual([]);
     expect(toDesign(<Email><Column style={{ alignItems: "center" }}>{table}</Column></Email>).report).toEqual([]);
+  });
+
+  it("stays an HTML block in a Page where its px width has no max width, which the builder's table shrinks in a narrow window", () => {
+    const sized = (style: Record<string, unknown>) => (
+      <Table style={style}>
+        <TableRow>
+          <TableCell>A</TableCell>
+        </TableRow>
+      </Table>
+    );
+    for (const width of [500, "500px"]) {
+      const { design, report } = toDesign(<Page width={600}>{sized({ width })}</Page>);
+      expect(report, String(width)).toEqual(["root.children[0]: the builder's table doesn't draw it as it is (a px width with no max width): it's an HTML block of its own markup in the builder (it can be moved, not edited)"]);
+      expect(blocks(design)[0].type).toBe("html");
+    }
+    // With a max width, or a percentage, it shrinks as the builder's does.
+    for (const style of [{ width: 500, maxWidth: "100%" }, { width: 500, maxWidth: "90%" }, { width: 500, maxWidth: 400 }, { width: "80%" }]) {
+      const { design, report } = toDesign(<Page width={600}>{sized(style)}</Page>);
+      expect(report, JSON.stringify(style)).toEqual([]);
+      expect(blocks(design)[0].type).toBe("table");
+    }
+    // An Email writes its width as a max width, and a Document's page doesn't narrow.
+    expect(toDesign(<Email>{sized({ width: 500 })}</Email>).report).toEqual([]);
+    expect(toDesign(<Document>{sized({ width: 500 })}</Document>).report).toEqual([]);
   });
 
   it("stays an HTML block in an Email or a Page where the builder's table doesn't draw it as it is, and says why", () => {
@@ -1315,6 +1340,19 @@ describe("a Table", () => {
     const dark = { ...sides("1px", "0px"), borderTopColor: "#333333", borderBottomColor: "#333333" };
     const colored = fromDesign(builders(three, { border: dark, rowBorder: { borderTopWidth: "1px", borderTopStyle: "solid" }, contentColor: "#333333" }), { displayMode: "email" }).code;
     expect(border(colored, "A")).toBe('{ top: "1px solid #333333" }');
+  });
+
+  it("reads a px width with the builder's max width of 100% as both, which shrink in a narrower place, and drops what fills its place", () => {
+    const one = [{ cells: [cellOf("A", { width: 100 })], height: 30 }];
+    const tableStyle = (more: Values) => /<Table style=\{\{([^}]*)\}\}>/.exec(fromDesign(builders(one, more), { displayMode: "web" }).code)?.[1] ?? "";
+    expect(tableStyle({ width: "500px", maxWidth: "100%" })).toContain('width: 500, maxWidth: "100%"');
+    expect(tableStyle({ width: "80%", maxWidth: "100%" })).toContain('width: "80%"');
+    expect(tableStyle({ width: "80%", maxWidth: "100%" })).not.toContain("maxWidth");
+    expect(tableStyle({ width: "100%", maxWidth: "100%" })).not.toMatch(/width/i);
+    // A Page's, so read, goes back to the builder as its table.
+    const page = toDesign(<Page width={600}><Table style={{ width: 500, maxWidth: "100%" }}><TableRow><TableCell>A</TableCell></TableRow></Table></Page>);
+    const back = fromDesign(JSON.parse(JSON.stringify(page.design)), { displayMode: "web" });
+    expect(blocks(toDesign(back.element).design)[0].type).toBe("table");
   });
 
   it("says a Page's or a Document's Table draws the builder's border around the table and its edge cells' lines as one line, where its borders collapse", () => {

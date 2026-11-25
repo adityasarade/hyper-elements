@@ -316,6 +316,10 @@ export function tableValues(node: Node, path: string, place: TablePlace, align: 
   const wide = node.style?.width;
   if (typeof wide === "number" ? own.available !== null && wide > own.available : typeof wide === "string" && wide.trim().endsWith("%") && parseFloat(wide) > 100) {
     say(path, "a table wider than its place is as wide as its place in the builder's, which doesn't let it run out of it", "a width wider than its place");
+  } else if (place.at("root").type === "Page" && (typeof wide === "number" || (typeof wide === "string" && wide.trim().endsWith("px"))) && node.style?.maxWidth === undefined) {
+    // A Page's Table keeps its px width in a narrower window, where the builder's, at most 100% wide, shrinks to fit. (An
+    // Email's writes its width as a max width, and a Document's page doesn't narrow.)
+    say(path, "a table of a px width shrinks to fit a narrower window in the builder's, and keeps its width in a Page's Table (a maxWidth of 100% makes them the same)", "a px width with no max width");
   }
   if (ragged) say(path, "a row with fewer cells than the table's columns has empty cells in the builder's table, to make up its columns", "a row with fewer cells than its columns");
   if (lost.length) say(path, `the builder's text holds no ${[...new Set(lost)].join(", ")}: left out`, [...new Set(lost)].join(", "));
