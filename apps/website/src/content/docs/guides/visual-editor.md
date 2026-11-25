@@ -35,7 +35,7 @@ await writeFile("output/design.json", JSON.stringify(design, null, 2));
 
 ## The report
 
-`report` lists what the builder can't hold as it is, one line each, with the path to the block. It's empty when everything maps to a builder tool. A `Table` in an `Email` with a line between its rows (`rowBorder`), which the builder's table can't draw, for example:
+`report` lists what the builder can't hold as it is, and what it changes when it loads the design, one line each, with the path to the block. It's empty when everything maps to a builder tool and the builder draws the design as it is on every plan. A `Table` in an `Email` with a line between its rows (`rowBorder`), which the builder's table can't draw, for example:
 
 ```text
 root.children[1]: the builder's table doesn't draw it as it is (a line between rows only): it's an HTML block of its own markup in the builder (it can be moved, not edited)
@@ -53,10 +53,11 @@ The builder holds what its tools can. Two things happen to the rest:
 
 Two smaller details: a line height goes into the builder's field as a whole percentage, as browsers draw it, so `24px` at 13px becomes `185%`, a twentieth of a pixel taller there. The builder has no page numbers yet, so a `PageNumber` goes in as its token, which the editor's PDF prints as it is. The report says so.
 
-The builder also changes two things when it loads a design, and the report says each:
+The builder also changes three things when it loads a design, and the report says each:
 
 - **An email's width.** An `Email` wider than 900px becomes 900px wide.
-- **A document's page.** On a plan without page format controls, a `Document`'s page becomes A4 portrait with the builder's 96px margin. A margin of 0 is kept. A `Document` that sets no margin has 48px, so this happens to it too: `margin={96}` or `margin={0}` on an A4 portrait `Document` keeps its page the same on every plan.
+- **A document's page.** The builder has one margin for every side, the widest of the `Document`'s, and draws it at most a quarter of the page's shorter side wide, and 250px at most: 198px on A4. On a plan without page format controls, the page also becomes A4 portrait with the builder's 96px margin. A margin of 0 is kept. The report says what each kind of plan draws. A `Document` that sets no margin has 48px, so this happens to it too: `margin={96}` or `margin={0}` on an A4 portrait `Document` keeps its page the same on every plan.
+- **A document's header and footer.** The builder draws and exports a `Document`'s `PageHeader` and `PageFooter` only on plans with headers and footers. Those aren't the same plans as the ones with page format controls.
 
 ## Load it in the builder
 
