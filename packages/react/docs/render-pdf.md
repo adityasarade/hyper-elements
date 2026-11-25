@@ -86,7 +86,19 @@ Content that doesn't fit its page goes on to the next, with the Document's `Page
 - **A Heading** isn't left last on a page: it goes on with what follows it.
 - **A `Document.Page`** that's too long goes on to pages after it, with its background. A `PageBreak` still starts a new page.
 
-Each page is drawn once: a Document whose pages fit is drawn as it always was, and one that doesn't is drawn again, flowed.
+A Document whose pages fit is drawn as it always was; one that doesn't is drawn a second time, flowed, a paragraph split between pages drawn line by line as it was laid out.
+
+The print HTML has the same pages when it's drawn from the PDF's plan:
+
+```tsx
+import { render } from "@hyper-elements/react";
+import { paginate, renderPdf } from "@hyper-elements/react/pdf";
+
+const { pdf, plan } = await renderPdf(design, { fonts });
+const { html } = await render(design, { plan }); // the same pages, the same words on each
+
+// Or the plan alone: const { plan } = await paginate(design, { fonts });
+```
 
 ## Where everything landed
 
@@ -104,7 +116,7 @@ It draws the PDF to measure it.
 - **SVG images aren't drawn**: give a PNG or JPEG. An `Svg` (the element) is drawn as vectors.
 - **The standard PDF fonts draw Western European characters only.** For any other script, give a font file that has it. Whether a file given has every character isn't checked.
 - **What stays whole**: a Row of Columns, an image, an `Svg`, a Button and a block with a set height don't split between pages. One taller than a page is cut off where it is, with `document/overflow`.
-- **The print HTML doesn't flow yet**: its pages hold what they're given and cut the rest. Only the PDF goes on to the next page.
+- **The print HTML flows only when it's drawn from a plan** (`render(design, { plan })`): plain `render()` has no font files to measure with, so its pages hold what they're given and cut the rest.
 - **No hover, no video player**: a Button shows its own colors, a Video its thumbnail or title.
 
 ## License

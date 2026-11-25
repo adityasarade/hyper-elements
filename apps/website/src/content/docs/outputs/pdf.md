@@ -162,6 +162,15 @@ Content that doesn't fit its page goes on to the next, with the `PageHeader` and
 
 A Document whose pages fit is drawn as it always was. One that doesn't is drawn a second time, flowed.
 
+For print HTML with the same pages, draw it from the PDF's plan:
+
+```tsx
+const { pdf, plan } = await renderPdf(design, { fonts });
+const { html } = await render(design, { plan });
+```
+
+`paginate(design, { fonts })` gives the plan alone.
+
 ### Where everything landed
 
 `layoutDocument(design, { fonts, images })` takes `renderPdf()`'s options and gives the Document as its PDF lays it out:
@@ -183,7 +192,7 @@ It draws the PDF to measure it, so it takes as long as `renderPdf()`.
 ## Limits
 
 - **Some blocks stay whole.** A Row of Columns, an image, an `Svg`, a Button and a block with a set height don't split between pages. One taller than a page is cut off where it is, and you get `document/overflow`, measured.
-- **The print HTML doesn't flow yet.** Only the PDF goes on to the next page.
+- **The print HTML flows only when it's drawn from a plan.** Plain `render()` has no font files to measure with, so its pages hold what they're given.
 - **WOFF2 isn't drawn.** react-pdf would embed its letters blank. Give TTF, OTF or WOFF.
 - **SVG images aren't drawn.** Give a PNG or JPEG. An `Svg` element is drawn as vectors.
 - **The standard PDF fonts draw Western European characters only.** Whether a font file you give has every character isn't checked.
