@@ -8,6 +8,7 @@ import { fromDesign, toDesign } from "./index";
 import { textJsonHtml } from "./text-json";
 import { invoice, lineItems } from "./testing/templates";
 import { TableDefaults } from "./tool-defaults";
+import { CONTENT } from "./manifest";
 
 type Values = Record<string, any>;
 const blocks = (design: any): Array<{ type: string; values: Values }> => design.body.rows.flatMap((row: any) => row.columns.flatMap((column: any) => column.contents));
@@ -244,16 +245,111 @@ describe("toDesign", () => {
       `root.children[1]: a Video isn't a tool of the builder's document mode: its thumbnail with a play icon, linked to it${said}`,
       `root.children[2]: a Video isn't a tool of the builder's document mode: a link with its title (it has no thumbnail)${said}`,
     ]);
-    // Read back, they're Html blocks, as the builder's own HTML blocks are.
-    const back = fromDesign(design, { displayMode: "document" });
-    expect(back.code).toContain("<Html");
-    expect(back.code).not.toMatch(/<(Menu|Video)\b/);
     // An Email's and a Page's are the builder's menu and video, as before.
     for (const root of [<Email key="e">{menu}{youtube}</Email>, <Page key="p">{menu}{youtube}</Page>]) {
       const out = toDesign(root);
       expect(blocks(out.design).map((content) => content.type)).toEqual(["menu", "video"]);
       expect(out.report).toEqual([]);
     }
+  });
+
+  it("reads a Document's Menu and Video back as a Menu and a Video, by the values their HTML block carries, while its markup is toDesign()'s", () => {
+    const template = (
+      <Document>
+        <Column style={{ alignItems: "end" }}>
+          <Video id="launch" src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" title="Launch" style={{ width: 300 }} />
+        </Column>
+        <Video src="https://vimeo.com/76979871" title="Tour" thumbnail="https://a.test/tour.png" />
+        <Menu items={[{ text: "Pricing", href: "https://a.test/pricing" }, { text: "Docs", href: { href: "https://a.test/docs", target: "_blank" } }]} separator="|" style={{ color: "#ff0000", textTransform: "uppercase" }} />
+      </Document>
+    );
+    const { design } = toDesign(template);
+    // Through the builder, which keeps values its tools don't show (as it keeps hidden properties).
+    const saved = () => JSON.parse(JSON.stringify(design));
+    const expected = [
+      `<Column style={{ alignItems: "end" }}>`,
+      `<Video id="launch" src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" title="Launch" style={{ width: 300 }} />`,
+      `<Video src="https://vimeo.com/76979871" thumbnail="https://a.test/tour.png" title="Tour" />`,
+      `<Menu items={[{ text: "Pricing", href: "https://a.test/pricing" }, { text: "Docs", href: { href: "https://a.test/docs", target: "_blank" } }]} separator="|" style={{ color: "#ff0000", textTransform: "uppercase" }} />`,
+    ];
+    const back = fromDesign(saved(), { displayMode: "document" });
+    expect(back.report).toEqual([]);
+    for (const line of expected) expect(back.code).toContain(line);
+    expect(back.code).not.toContain("<Html");
+    // As an Email's menu and video blocks come back: what each carries is the builder's tool's values.
+    const carried = blocks(design).map((content) => content.values._drawnFrom);
+    const asEmail = blocks(toDesign(<Email>{template.props.children}</Email>).design);
+    expect(carried.map((from) => from.tool)).toEqual(asEmail.map((content) => content.type));
+    carried.forEach((from, i) => expect(from.values).toEqual(Object.fromEntries(Object.entries(asEmail[i].values).filter(([key]) => key === "_override" || !CONTENT.includes(key)))));
+    // The id is the HTML block's own, so an edited block keeps it too.
+    expect(blocks(design)[0].values._meta).toEqual({ htmlID: "launch", htmlClassNames: "u_content_html" });
+    // A second trip writes the same design.
+    expect(toDesign(back.element).design).toEqual(design);
+    // Read from the builder's values, as a menu or video block is, not from its markup: a sanitizer has none to see.
+    const sanitized: string[] = [];
+    const safe = fromDesign(saved(), { displayMode: "document", toSafeHtml: (html) => (sanitized.push(html), "") });
+    for (const line of expected) expect(safe.code).toContain(line);
+    expect(sanitized).toEqual([]);
+
+    // What the builder holds for the block itself is read from the block, not from what it carries: its spacing here.
+    const spaced = saved();
+    blocks(spaced)[1].values.containerPadding = "24px";
+    blocks(spaced)[1].values._drawnFrom.values.containerPadding = "48px";
+    blocks(spaced)[1].values._drawnFrom.values.displayCondition = { type: "Carried", before: "{% if a %}", after: "{% endif %}" };
+    const spacedBack = fromDesign(spaced, { displayMode: "document" });
+    expect(spacedBack.code).toContain(`<Column style={{ padding: 24 }}>`);
+    expect(spacedBack.report).toEqual([]);
+
+    // Its markup edited, it's that markup: an Html block, and said. So is a block carrying what toDesign() doesn't write.
+    const edited = saved();
+    blocks(edited)[1].values.html = blocks(edited)[1].values.html.replace(">Tour<", ">Our tour<");
+    blocks(edited)[1].values.html = blocks(edited)[1].values.html.replace('alt="Tour"', 'alt="Our tour"');
+    blocks(edited)[2].values._drawnFrom.tool = "html";
+    const read = fromDesign(edited, { displayMode: "document" });
+    expect(read.code.match(/<(Html|Menu|Video)\b/g)).toEqual(["<Video", "<Html", "<Html"]);
+    expect(read.code).toContain("Our tour");
+    expect(read.report).toEqual([
+      "rows[0].columns[0].contents[1]: its markup, drawn for a Video, was edited: read as an Html block",
+      "rows[0].columns[0].contents[2]: its _drawnFrom isn't one toDesign() writes: read as an Html block",
+    ]);
+    // Nor what a hand-edited design carries that the tool can't be read by: its markup is all there is then.
+    const intact = blocks(saved())[2].values._drawnFrom;
+    const asVideo = (video: unknown) => ({ ...intact, tool: "video", values: { video } });
+    const items = (list: unknown) => ({ ...intact, values: { ...intact.values, menu: { items: list } } });
+    // A menu item as the builder holds it.
+    const item = (text: string, href = "https://a.test") => ({ key: "1", text, link: { name: "web", values: { href, target: "_self" } } });
+    for (const given of [
+      null, "video", [], { tool: "video", values: [], htmlHash: "0" }, { tool: "video", values: {} }, { ...intact, values: {} }, { ...intact, tool: "video" },
+      asVideo({ videoId: "76979871" }), asVideo({ type: "tiktok", videoId: "76979871" }), asVideo({ type: "vimeo", videoId: "" }), asVideo({ url: "" }), asVideo({ url: "https://a.test/launch.mp4" }),
+      items([1, 2]), items([{ link: item("").link }]), items([item("x".repeat(201))]),
+    ]) {
+      const odd = saved();
+      blocks(odd)[2].values._drawnFrom = given;
+      const oddBack = fromDesign(odd, { displayMode: "document" });
+      expect(oddBack.code).toMatch(/<Html\b[^]*<\/Document>/);
+      expect(oddBack.code).toContain("Pricing");
+    }
+    // What the Menu takes is read as it went: 200 characters of words, the most a menu item has.
+    const long = saved();
+    blocks(long)[2].values._drawnFrom = items([item("x".repeat(200))]);
+    expect(fromDesign(long, { displayMode: "document" }).code).toContain(`<Menu items={[{ text: "${"x".repeat(200)}", href: "https://a.test" }]}`);
+    // A link Elements won't write isn't read back: the markup toDesign() drew is, with its own links.
+    const hostile = saved();
+    blocks(hostile)[2].values._drawnFrom = items([item("Pricing", "javascript:alert(1)")]);
+    const hostileBack = fromDesign(hostile, { displayMode: "document" });
+    expect(hostileBack.code.match(/<(Html|Menu|Video)\b/g)).toEqual(["<Video", "<Video", "<Html"]);
+    expect(hostileBack.code).toContain("https://a.test/pricing");
+    expect(hostileBack.code).not.toContain("javascript:");
+    expect(hostileBack.report).toEqual(["rows[0].columns[0].contents[2]: its _drawnFrom isn't one toDesign() writes: read as an Html block"]);
+    // What the reader would say of values it isn't read by isn't said: only that its markup is read.
+    const quiet = saved();
+    blocks(quiet)[2].values._drawnFrom = items([item("x".repeat(201)), { key: "2", text: "No link" }]);
+    expect(fromDesign(quiet, { displayMode: "document" }).report).toEqual(["rows[0].columns[0].contents[2]: its _drawnFrom isn't one toDesign() writes: read as an Html block"]);
+    // A hand-edited block's phone values that aren't an object don't stop the read.
+    const nulled = saved();
+    blocks(nulled)[1].values._override = null;
+    blocks(nulled)[1].values._drawnFrom.values._override = {};
+    expect(fromDesign(nulled, { displayMode: "document" }).code).toContain(`<Video src="https://vimeo.com/76979871"`);
   });
 
   it("names a Video with an empty title \"Video\" in a Document's HTML block, so its link has words a screen reader can say", () => {

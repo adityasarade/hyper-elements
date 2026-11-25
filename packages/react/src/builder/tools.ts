@@ -5,6 +5,7 @@
  */
 import { linkParts, Menu as MenuDefinition, Social as SocialDefinition, videoParts, type Json, type LinkValue, type Node, type ResolvedNode } from "@hyper-elements/core";
 import { block, type Block } from "./design";
+import { drawnFrom } from "./drawn-from";
 import { hiddenOf, merge } from "./hide";
 import { listJson, paragraphJson, runsHtml } from "./runs";
 import { thumbnailOf } from "./locked";
@@ -209,7 +210,6 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
       return place.put(block("divider", hiding), merge(merge(values, Object.keys(phone).length ? { _override: { mobile: phone } } : {}), hiddenOf("divider", node)));
     }
     case "Menu": {
-      if (place.at("root").type === "Document") return place.locked(node, path, "a Menu isn't a tool of the builder's document mode", around);
       // A Menu's own style over its definition's.
       const style = { ...(MenuDefinition.defaultStyle as Record<string, Json>), ...node.style };
       const text = own.text;
@@ -230,7 +230,9 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
         containerPadding: cssSides(around),
         ...id,
       };
-      return place.put(block("menu", hiding), merge(values, hiddenOf("menu", node)));
+      const all = merge(values, hiddenOf("menu", node));
+      if (place.at("root").type === "Document") return drawnAs(place.locked(node, path, "a Menu isn't a tool of the builder's document mode", around), "menu", all, node.id, place);
+      return place.put(block("menu", hiding), all);
     }
     case "Social": {
       const style = { ...(SocialDefinition.defaultStyle as Record<string, Json>), ...node.style };
@@ -250,11 +252,6 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
     case "Video": {
       const url = String(node.props?.src);
       const parts = videoParts(url);
-      if (place.at("root").type === "Document") {
-        // A PDF can't play one: it's drawn as its linked thumbnail with a play icon (locked.ts), where the builder's video was.
-        const drawn = thumbnailOf(node) ? "its thumbnail with a play icon, linked to it" : "a link with its title (it has no thumbnail)";
-        return place.locked(node, path, `a Video isn't a tool of the builder's document mode: ${drawn}`, around, parent);
-      }
       place.sayLeftOut("video", node, path, ["props.src"]);
       const values: Values = {
         video: parts ? { type: parts.provider, videoId: parts.id, ...(parts.thumbnail ? { thumbnail: parts.thumbnail } : {}), loading: false } : { url },
@@ -263,7 +260,13 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
         containerPadding: cssSides(around),
         ...id,
       };
-      return place.put(block("video", hiding), merge(values, hiddenOf("video", node)));
+      const all = merge(values, hiddenOf("video", node));
+      if (place.at("root").type === "Document") {
+        // A PDF can't play one: it's drawn as its linked thumbnail with a play icon (locked.ts), where the builder's video was.
+        const drawn = thumbnailOf(node) ? "its thumbnail with a play icon, linked to it" : "a link with its title (it has no thumbnail)";
+        return drawnAs(place.locked(node, path, `a Video isn't a tool of the builder's document mode: ${drawn}`, around, parent), "video", all, node.id, place);
+      }
+      return place.put(block("video", hiding), all);
     }
     case "Html":
       place.sayLeftOut("html", node, path, ["props.html"]);
@@ -302,6 +305,10 @@ function inText(html: string, text: Record<string, Json>): string {
 }
 
 const TOOLS: Record<string, string> = { Heading: "heading", Text: "paragraph", List: "paragraph", Button: "button", Image: "image", Link: "image", Divider: "divider", Menu: "menu", Social: "social", Video: "video", Html: "html", Table: "table" };
+
+/** A Document's Menu or Video as its HTML block: with its id, and the tool's values, which fromDesign() reads it back by. */
+const drawnAs = (made: Block, tool: "menu" | "video", values: Values, id: string | undefined, place: Place): Block =>
+  place.put(made, { ...drawnFrom(tool, values, String(made.values.html)), ...meta(id) });
 
 /** An id the template gives a block, as the builder's (its element's id). */
 const meta = (id: string | undefined, tool = "html"): Values => (id ? { _meta: { htmlID: id, htmlClassNames: `u_content_${tool}` } } : {});
