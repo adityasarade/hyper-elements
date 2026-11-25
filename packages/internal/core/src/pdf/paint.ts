@@ -5,6 +5,8 @@
  * characters, and the room its spaces between words were given (squeezed into its box, or justified), so the engine
  * draws it where it was and can't break its lines otherwise.
  *
+ * A Row's column with nothing on a page (it has ended, or starts on the next) is drawn as its width, empty.
+ *
  * A part that goes on to the next page fills the rest of its page, as a box broken between pages does in a browser: its
  * background and side borders down to the room's foot (grown down its stack, or stretched across its Row). A table
  * doesn't: its rows would be stretched with it in the print HTML, which a browser draws as a table.
@@ -104,6 +106,8 @@ export class Painter {
   /** A part as it's drawn on its page; `inRow`, where it's in a Row's part, beside the others. */
   part(part: PlannedPart, inRow = false): Block {
     const block = this.blocks.get(part.path)!;
+    // A Row's column with nothing on this page: its width, so the others stay in their places, and nothing drawn.
+    if (part.empty) return { kind: "box", style: { width: "style" in block ? block.style.width : undefined, flexShrink: 0, flexGrow: 0 }, children: [] };
     if (isWhole(part)) return block;
     const painted = this.painted(part, block);
     return part.last || (block.kind === "box" && block.splits === "rows") ? painted : filling(painted, inRow);

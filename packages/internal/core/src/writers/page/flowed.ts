@@ -8,6 +8,8 @@
  *   (Text.tsx). A line's text is cut from the block's by character, counted as its PDF counts them (src/pdf/runs.ts):
  *   a line break, an image in a line and each character of a merge tag or a page number as written.
  * - The id of a block cut between pages is on its first part only.
+ * - A Row's column with nothing on a page (it has ended, or starts on the next) is a copy of it with its place across the
+ *   Row and nothing in it, so the others stay in their places.
  * - A part that goes on to the next page fills the rest of its page (`fills`), as its PDF's does (src/pdf/paint.ts): its
  *   background and side borders down to the room's foot. A table's doesn't, as its rows would be stretched with it.
  */
@@ -23,6 +25,9 @@ export interface FlowedPage {
 }
 
 const shown = (node: ResolvedNode) => !node.hidden?.desktop;
+
+/** A Row's column's styles that place it across the Row (writers/page/layout.tsx's rowPlacement), all an empty part keeps. */
+const PLACE = new Set(["width", "flex", "minWidth", "maxWidth"]);
 
 function byPath(root: ResolvedNode): Map<string, ResolvedNode> {
   const out = new Map<string, ResolvedNode>();
@@ -62,6 +67,8 @@ function sliced(style: Record<string, Json>, first: boolean, last: boolean): Rec
 function copy(part: PlannedPart, nodes: ReadonlyMap<string, ResolvedNode>, page: { number: number; total: number }): ResolvedNode | undefined {
   const node = nodes.get(part.path);
   if (!node || isWhole(part)) return node;
+  // A Row's column with nothing on this page: its place across the Row (its width or share), and nothing drawn.
+  if (part.empty) return { ...node, id: undefined, style: Object.fromEntries(Object.entries(node.style).filter(([key]) => PLACE.has(key))), children: [] };
   const base: ResolvedNode = { ...node, id: part.first ? node.id : undefined, style: sliced(node.style, part.first, part.last), ...(part.last || node.type === "Table" ? {} : { fills: true as const }) };
   if (part.lines) return { ...base, flowed: { lines: part.lines, page } };
   if (!part.children) return node;

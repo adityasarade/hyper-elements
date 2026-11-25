@@ -145,7 +145,7 @@ export function measuredOverflow(root: ResolvedNode, pages: Page[], placed: Plac
     out.push({
       code: "document/overflow",
       severity: "warning",
-      message: `Page ${i + 1}'s content is ${Math.round(((bottom - room.top) / height) * 100)}% as tall as its room, measured with its fonts, and what runs past it can't go on to the next page (a Row of Columns, an image and a block with a set height stay whole). What doesn't fit is cut off, from here on`,
+      message: `Page ${i + 1}'s content is ${Math.round(((bottom - room.top) / height) * 100)}% as tall as its room, measured with its fonts, and what runs past it can't go on to the next page (an image, a block with a set height and a Row whose columns sit at its middle or end stay whole). What doesn't fit is cut off, from here on`,
       path: first?.path ?? "root",
       ...(id ? { nodeId: id } : {}),
     });

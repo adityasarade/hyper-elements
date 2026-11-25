@@ -3,7 +3,8 @@
  * each page) and laid out with layoutDocument() (where each block landed).
  */
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { Column, Document, Heading, List, ListItem, PageFooter, PageNumber, prepare, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
+import { Column, Document, Heading, List, ListItem, PageFooter, PageNumber, prepare, Row, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
+import type { PlannedPart } from "@hyper-elements/core";
 import { reactPdf, writeDocument } from "@hyper-elements/core/pdf";
 import { layoutDocument, paginate, renderPdf } from "../../src/pdf";
 import { arabicFonts, arabicGiven, arabicSentences } from "./arabic";
@@ -266,6 +267,74 @@ describe("a Document's content that doesn't fit its page", () => {
     const part = table.nodes.find((node) => node.path === "root.children[0]" && node.page === 1)!;
     const rows = table.nodes.filter((node) => node.page === 1 && /^root\.children\[0\]\.children\[\d+\]$/.test(node.path));
     expect(part.y + part.height).toBeCloseTo(Math.max(...rows.map((row) => row.y + row.height)), 1);
+  });
+
+  it("splits a Row of Columns taller than a page by its columns: each goes on in its own place, one that has ended keeps its room", async () => {
+    // Centered: were a column that has ended left out, the one going on would move to the middle.
+    const design = (
+      <Document>
+        <Row style={{ gap: 16, justifyContent: "center" }}>
+          <Column style={{ width: 300, padding: 8, backgroundColor: "#f3f4f6" }}>
+            {Array.from({ length: 16 }, (_, i) => (
+              <Text key={i}>{sentences(12, `the long column's paragraph ${i + 1}`)}</Text>
+            ))}
+          </Column>
+          <Column style={{ width: 200 }}>
+            {Array.from({ length: 3 }, (_, i) => (
+              <Text key={i}>{sentences(4, `the short column's paragraph ${i + 1}`)}</Text>
+            ))}
+          </Column>
+        </Row>
+      </Document>
+    );
+    const { pdf, plan, diagnostics } = await renderPdf(design);
+    expect(diagnostics).toEqual([]);
+    expect(plan.pages.length).toBeGreaterThan(2);
+    // Every sentence of each column drawn once (a word broken across lines joined again).
+    const all = (await words(pdf)).join(" ").replace(/(\w)- (\w)/g, "$1$2");
+    expect(all.match(/of the long column's paragraph/g)).toHaveLength(16 * 12);
+    expect(all.match(/of the short column's paragraph/g)).toHaveLength(3 * 4);
+    const { nodes } = await layoutDocument(design);
+    const column = (i: number, page: number) => nodes.find((node) => node.path === `root.children[0].children[${i}]` && node.page === page);
+    for (let page = 2; page <= plan.pages.length; page++) {
+      expect(column(0, page)!.x, `the long column on page ${page}`).toBeCloseTo(column(0, 1)!.x, 1);
+      // The short one ended on page 1: its room is kept, with nothing drawn.
+      expect(column(1, page)).toBeUndefined();
+    }
+    // The plan: each column's last part is one, on a page where it has something; an empty part is neither its first nor its last.
+    const parts = plan.pages.flatMap((page) => page.parts).flatMap(function all(part: PlannedPart): PlannedPart[] {
+      return [part, ...(part.children ?? []).flatMap(all)];
+    });
+    for (const i of [0, 1]) {
+      const path = `root.children[0].children[${i}]`;
+      expect(parts.filter((part) => part.path === path && part.last)).toHaveLength(1);
+      expect(parts.filter((part) => part.path === path && part.first)).toHaveLength(1);
+    }
+    expect(parts.filter((part) => part.empty).length).toBe(plan.pages.length - 1);
+    expect(parts.filter((part) => part.empty).every((part) => !part.first && !part.last && !part.children)).toBe(true);
+  });
+
+  it("keeps a Row of Columns that fits on a page together: it goes on to the next page whole, with its heading", async () => {
+    const { nodes } = await layoutDocument(
+      <Document>
+        {Array.from({ length: 30 }, (_, i) => (
+          <Text key={i}>{`Paragraph ${i + 1}.`}</Text>
+        ))}
+        <Heading level={2}>Side by side</Heading>
+        <Row style={{ gap: 16 }}>
+          {[0, 1].map((n) => (
+            <Column key={n}>
+              {Array.from({ length: 10 }, (_, i) => (
+                <Text key={i}>{sentences(3, `column ${n + 1}'s paragraph ${i + 1}`)}</Text>
+              ))}
+            </Column>
+          ))}
+        </Row>
+      </Document>
+    );
+    const row = nodes.filter((node) => node.path === "root.children[31]");
+    expect(row.map((node) => [node.page, node.part, node.cut])).toEqual([[2, 0, undefined]]);
+    expect(nodes.find((node) => node.path === "root.children[30]")!.page).toBe(2);
   });
 
   it("goes on from a Document.Page to pages with its background, then the next page starts", async () => {

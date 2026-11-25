@@ -189,12 +189,18 @@ class Writer {
         const line = node.style.borderTop as BorderSide | undefined;
         return { kind: "box", style: { ...boxStyle(node), ...placed, width: node.width !== null ? pt(node.width) : undefined }, children: [{ kind: "box", style: borderStyle(line ? { top: line } : undefined), children: [] }] };
       }
-      case "Row":
+      case "Row": {
+        // A Row of Columns goes on to the next page by its columns, each in its own place (each its own width), where
+        // they sit at its top or are stretched down it and don't wrap.
+        const columns = nodes(node);
+        const splits = columns.length > 0 && columns.every((child) => child.type === "Column" && child.width !== null) && (node.style.alignItems ?? "start") !== "center" && node.style.alignItems !== "end" && node.style.flexWrap !== "wrap" && node.style.flexWrap !== "words";
         return {
           kind: "box",
+          ...(splits ? { splits: "columns" as const } : {}),
           style: { ...boxStyle(node), ...placed, flexDirection: "row", ...gap(node), alignItems: flex(node.style.alignItems ?? "start"), justifyContent: flex(node.style.justifyContent) },
-          children: present(nodes(node).map((child) => this.block(child, node, true))),
+          children: present(columns.map((child) => this.block(child, node, true))),
         };
+      }
       case "Layer":
         return this.layer(node, placed);
       case "List":

@@ -60,8 +60,14 @@ export interface PlannedPart {
   last: boolean;
   /** A block of text's lines on this page, each as it was measured: drawn line by line, they can't break otherwise. */
   lines?: PlannedLine[];
-  /** A stack's blocks (or a table's rows) on this page, each a part. */
+  /** A stack's blocks (or a table's rows, or a Row's columns) on this page, each a part. */
   children?: PlannedPart[];
+  /**
+   * A Row's column with nothing on this page (it has ended, or starts on the next): it keeps its room across the Row,
+   * so the others stay in their places, and draws nothing (no edge, no background). It isn't its block's first part or
+   * its last, and carries the number its block's next part has.
+   */
+  empty?: boolean;
 }
 
 /** A page as planned: the page as written it goes on from (its paper, margins, background), and the parts on it. */

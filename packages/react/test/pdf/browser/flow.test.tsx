@@ -7,7 +7,7 @@
 import { chromium, type Browser } from "playwright";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { ReactElement } from "react";
-import { Document, Heading, PageFooter, PageHeader, PageNumber, Section, Span, Table, TableCell, TableRow, Text, render } from "@hyper-elements/react";
+import { Column, Document, Heading, PageFooter, PageHeader, PageNumber, Row, Section, Span, Table, TableCell, TableRow, Text, render } from "@hyper-elements/react";
 import { renderPdf } from "../../../src/pdf";
 
 let browser: Browser;
@@ -72,10 +72,24 @@ const designs: Record<string, ReactElement> = {
       </Section>
     </Document>
   ),
+  "a Row of Columns taller than a page, centered": (
+    <Document style={font}>
+      <Row style={{ gap: 16, justifyContent: "center" }}>
+        <Column style={{ width: 360, padding: 8, backgroundColor: "#f3f4f6" }}>
+          {Array.from({ length: 30 }, (_, i) => (
+            <Text key={i}>{`Paragraph ${i + 1} of the long column, which goes on to the next pages in its own place.`}</Text>
+          ))}
+        </Column>
+        <Column style={{ width: 200 }}>
+          <Text>A short column beside it, which ends on the first page.</Text>
+        </Column>
+      </Row>
+    </Document>
+  ),
 };
 
-/** The designs whose pages end in a block that goes on to the next (a paragraph, a Section). */
-const continuing = new Set(["a justified paragraph with bold runs", "a table with a header row, in a padded Section"]);
+/** The designs whose pages end in a block that goes on to the next (a paragraph, a Section, a Row). */
+const continuing = new Set(["a justified paragraph with bold runs", "a table with a header row, in a padded Section", "a Row of Columns taller than a page, centered"]);
 
 describe("a Document's print HTML drawn from its plan", () => {
   for (const [name, design] of Object.entries(designs)) {

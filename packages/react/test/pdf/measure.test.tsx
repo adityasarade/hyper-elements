@@ -3,7 +3,7 @@
  * arithmetic) as react-pdf lays it out when it draws it: every block's box and every line (its characters, its top, its
  * width and its glyphs' advances) within 0.05 points, over the gallery's, the stress set's and the templates' Documents
  * and designs made to stress it (every alignment, bold runs, letter spacing, a transform, a line's image, a font file
- * with its kerning, text written right to left, padding, borders and gaps, Rows, Lists, Tables). What the plan is made from before anything's drawn.
+ * with its kerning, text written right to left, padding, borders and gaps, Rows (split by their columns too), Lists, Tables). What the plan is made from before anything's drawn.
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -49,6 +49,20 @@ const synthetic: Record<string, ReactElement> = {
     </Document>
   ),
   embedded: <Document style={{ fontFamily: "Liberation" }}>{Array.from({ length: 12 }, (_, i) => <Text key={i} style={{ textAlign: i % 2 ? "justify" : "left" }}>{`AVATAR WAVE Type ${i}: ` + para(i)}</Text>)}</Document>,
+  // Rows of Columns taller than a page, split by their columns: one centered across its page, with a column that ends
+  // early and keeps its room; one stretched down it, a column with a background going on beside one that ends.
+  rows: (
+    <Document style={{ gap: 12 }}>
+      <Row style={{ gap: 16, justifyContent: "center" }}>
+        <Column style={{ width: 300, padding: 8, backgroundColor: "#f3f4f6" }}>{Array.from({ length: 14 }, (_, i) => <Text key={i}>{para(i)}</Text>)}</Column>
+        <Column style={{ width: 160 }}>{Array.from({ length: 3 }, (_, i) => <Text key={i}>{para(i)}</Text>)}</Column>
+      </Row>
+      <Row style={{ gap: 12, alignItems: "stretch" }}>
+        <Column style={{ padding: 12, backgroundColor: "#e5e7eb" }}>{Array.from({ length: 4 }, (_, i) => <Text key={i}>{para(i)}</Text>)}</Column>
+        <Column style={{ padding: 12, backgroundColor: "#fef3c7", gap: 6 }}>{Array.from({ length: 30 }, (_, i) => <Text key={i}>{para(i)}</Text>)}</Column>
+      </Row>
+    </Document>
+  ),
   // Written right to left, in a font with Arabic letters: every alignment, a run of another color, English words in
   // it, and an English paragraph with Arabic in it; long enough to flow.
   arabic: (

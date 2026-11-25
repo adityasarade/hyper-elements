@@ -31,11 +31,11 @@ export interface Shape {
 
 /**
  * Where a block can be split when a page ends inside it (what the writer knows of it, which an engine doesn't read):
- * a block of text between its lines, a stack of blocks between and inside them, a table between its rows. A block
- * without one stays whole.
+ * a block of text between its lines, a stack of blocks between and inside them, a table between its rows, a Row of
+ * Columns by its columns (each going on in its own place). A block without one stays whole.
  */
 export interface Flow {
-  splits?: "lines" | "children" | "rows";
+  splits?: "lines" | "children" | "rows" | "columns";
   /** A table's header row: drawn again at the top of each page the table goes on to. */
   repeat?: boolean;
   /** A heading: not the last thing on a page, where what follows it goes on to the next. */

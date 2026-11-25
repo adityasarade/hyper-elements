@@ -1098,6 +1098,7 @@
      "children": [
       {
        "kind": "box",
+       "splits": "columns",
        "style": {
         "flexDirection": "row",
         "alignItems": "flex-start"
@@ -1670,6 +1671,7 @@
      "children": [
       {
        "kind": "box",
+       "splits": "columns",
        "style": {
         "flexDirection": "row",
         "alignItems": "flex-start"
@@ -1879,6 +1881,7 @@
      "children": [
       {
        "kind": "box",
+       "splits": "columns",
        "style": {
         "flexDirection": "row",
         "alignItems": "flex-start"

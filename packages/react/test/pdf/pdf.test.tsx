@@ -396,10 +396,10 @@ describe("renderPdf", () => {
     expect(validate(<Email><Button href="https://x.test" style={{ hover: { backgroundColor: "#333333" } }}>Go</Button></Email>).diagnostics.filter((d) => d.code.startsWith("pdf/"))).toEqual([]);
   });
 
-  it("says what can't go on to another page is cut off: a Row of Columns taller than its page, measured, at the first text cut (validate() estimates)", async () => {
+  it("says what can't go on to another page is cut off: a Row of Columns centered across it, taller than its page, measured, at the first text cut (validate() estimates)", async () => {
     const long = (
       <Document>
-        <Row>
+        <Row style={{ alignItems: "center" }}>
           <Column>
             {Array.from({ length: 60 }, (_, i) => (
               <Text key={i}>Text {i + 1} of a Column.</Text>
@@ -413,14 +413,14 @@ describe("renderPdf", () => {
     );
     const { diagnostics } = await renderPdf(long);
     const overflow = diagnostics.filter((d) => d.code === "document/overflow");
-    // A Row of Columns stays whole. A4 less its margins is 769.89 points; each text is a line of 18 (16px at 1.5), the
-    // Row 60 of them (1,080 points, 140% of the room): 42 fit, the 43rd is cut.
+    // A Row whose columns sit at its middle stays whole. A4 less its margins is 769.89 points; each text is a line of 18
+    // (16px at 1.5), the Row 60 of them (1,080 points, 140% of the room): 42 fit, the 43rd is cut.
     expect(overflow).toEqual([
       {
         code: "document/overflow",
         severity: "warning",
         message:
-          "Page 1's content is 140% as tall as its room, measured with its fonts, and what runs past it can't go on to the next page (a Row of Columns, an image and a block with a set height stay whole). What doesn't fit is cut off, from here on",
+          "Page 1's content is 140% as tall as its room, measured with its fonts, and what runs past it can't go on to the next page (an image, a block with a set height and a Row whose columns sit at its middle or end stay whole). What doesn't fit is cut off, from here on",
         path: "root.children[0].children[0].children[42]",
       },
     ]);
@@ -801,7 +801,7 @@ describe("layoutDocument", () => {
         <PageFooter>
           <Text>Footer</Text>
         </PageFooter>
-        <Row>
+        <Row style={{ alignItems: "center" }}>
           <Column>
             <Text>{Array.from({ length: 200 }, (_, i) => `Sentence ${i + 1} of a long paragraph in a Row.`).join(" ")}</Text>
             <Text>After it, in the same Column.</Text>
@@ -821,8 +821,9 @@ describe("layoutDocument", () => {
       "root.children[1].children[0]": "some",
       "root.children[1].children[0].children[0]": "some",
       "root.children[1].children[0].children[1]": "all",
-      "root.children[1].children[1]": undefined,
-      "root.children[1].children[1].children[0]": undefined,
+      // Beside it, at the middle of the Row, which is far taller than the page.
+      "root.children[1].children[1]": "all",
+      "root.children[1].children[1].children[0]": "all",
     });
     expect(diagnostics.filter((d) => d.code === "document/overflow").map((d) => d.path)).toEqual(["root.children[1].children[0].children[0]"]);
   });

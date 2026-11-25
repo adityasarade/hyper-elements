@@ -7,8 +7,11 @@
  * - A stack of blocks (a Section, a Column, a List) is split between and inside them; a table between its rows, with
  *   its header rows on top of each page it goes on to. A stack that's cut has its top edge on its first part only, its
  *   bottom edge on its last (paint.ts slices its style).
- * - Anything else stays whole: an image, a drawing, a Row of Columns, a Button, a block with a set height. One taller
- *   than a page stays where it starts and is cut off there (it would be on any page).
+ * - A Row of Columns taller than a page is split by its columns: each goes on to the next page in its own place, split
+ *   its own way; one that has ended, or can't start on a page, keeps its room there empty. One that fits on a page goes
+ *   on to the next whole, as side-by-side blocks read best together. A Row in a Row that's split stays whole.
+ * - Anything else stays whole: an image, a drawing, a Button, a block with a set height. One taller than a page stays
+ *   where it starts and is cut off there (it would be on any page).
  * - A heading isn't left last on a page: it goes on with what follows it.
  *
  * What's fitted first: the content (each page takes at least one block, or part of one), then orphans and widows,
@@ -36,6 +39,10 @@ interface Piece {
   /** A stack's blocks left (a table's rows), in order; and a table's header rows, which each page it goes on to repeats. */
   children?: Piece[];
   header?: Piece[];
+  /** A Row whose columns go on side by side, each its own way. */
+  row?: boolean;
+  /** A Row's column that has ended on a page before: it keeps its room, empty. */
+  ended?: boolean;
 }
 
 const number = (value: unknown): number => (typeof value === "number" ? value : 0);
@@ -44,23 +51,27 @@ const edgeBottom = (style: Style) => number(style.paddingBottom) + number(style.
 const gapOf = (style: Style) => number(style.gap);
 const styleOf = (block: Block) => ("style" in block ? block.style : {});
 
-/** A block as a piece to place, with what it can be split by; undefined where it wasn't measured (then the page isn't flowed). */
-function pieceOf(block: Block, measured: ReadonlyMap<string, MeasuredBlock>): Piece | undefined {
+/**
+ * A block as a piece to place, with what it can be split by; undefined where it wasn't measured (then the page isn't
+ * flowed). `inRow`: it's in a Row that's split by its columns, where a Row stays whole.
+ */
+function pieceOf(block: Block, measured: ReadonlyMap<string, MeasuredBlock>, inRow = false): Piece | undefined {
   const measures = block.path !== undefined ? measured.get(block.path) : undefined;
   if (!measures) return undefined;
   const piece: Piece = { block, measured: measures, whole: true, parts: 0 };
   const splits = (block.kind === "box" || block.kind === "text") && block.style.height === undefined ? block.splits : undefined;
   if (splits === "lines" && measures.lines && measures.lines.length >= ORPHANS + WIDOWS) {
     piece.text = { from: 0 };
-  } else if ((splits === "children" || splits === "rows") && block.kind === "box") {
+  } else if ((splits === "children" || splits === "rows" || (splits === "columns" && !inRow)) && block.kind === "box") {
     const children: Piece[] = [];
     for (const child of block.children) {
-      const childPiece = pieceOf(child, measured);
+      const childPiece = pieceOf(child, measured, inRow || splits === "columns");
       // A child that wasn't measured: the stack stays whole.
       if (!childPiece) return piece;
       children.push(childPiece);
     }
     piece.children = children;
+    if (splits === "columns") piece.row = true;
     if (splits === "rows") {
       // A table's header rows: those it starts with. A table of header rows only has nothing to repeat them over.
       const count = children.findIndex((child) => !(child.block.kind === "box" && child.block.repeat));
@@ -73,19 +84,28 @@ function pieceOf(block: Block, measured: ReadonlyMap<string, MeasuredBlock>): Pi
 /** How tall what's left of a piece is, drawn as it would be: whole as measured, else from its parts. */
 function heightOf(piece: Piece): number {
   const { measured } = piece;
+  if (piece.ended) return 0;
   if (piece.whole) return measured.height;
   if (piece.text) return measured.y + measured.height - measured.lines![piece.text.from].top;
   const children = piece.children ?? [];
   const style = styleOf(piece.block);
+  if (piece.row) return Math.max(0, ...children.map(heightOf)) + edgeBottom(style);
   return children.reduce((sum, child) => sum + heightOf(child), 0) + gapOf(style) * Math.max(0, children.length - 1) + edgeBottom(style);
 }
 
 /** A measured line as a plan's: what painting it takes. */
 const planned = ({ start, end, hyphenated, wordSpacing, height }: MeasuredLine): PlannedLine => ({ start, end, hyphenated, wordSpacing, height });
 
-/** What's left of a piece, as its last part: whole as written, or the part of it left. */
+/** A Row's column with nothing on a page: its room, empty. */
+const empty = (piece: Piece): PlannedPart => ({ path: piece.measured.path, part: piece.parts, first: false, last: false, empty: true });
+
+/** A Row's column once its last part is placed: it keeps its room on the pages its Row goes on to. */
+const ended = (piece: Piece): Piece => ({ ...piece, whole: false, ended: true, parts: piece.parts + 1 });
+
+/** What's left of a piece, as its last part: whole as written, or the part of it left (a Row's column that's ended, empty). */
 function rest(piece: Piece): PlannedPart {
   const { path } = piece.measured;
+  if (piece.ended) return empty(piece);
   if (piece.whole) return { path, part: 0, first: true, last: true };
   if (piece.text) return { path, part: piece.parts, first: false, last: true, lines: piece.measured.lines!.slice(piece.text.from).map(planned) };
   return { path, part: piece.parts, first: false, last: true, children: (piece.children ?? []).map(rest) };
@@ -110,10 +130,47 @@ class Planner {
    * As much of a piece as fits in `room`, which isn't all of it (the caller places a piece that fits whole). Undefined
    * where none of it fits, unless `force` (the top of an empty page), where some of it is placed even if it can't fit.
    */
-  take(piece: Piece, room: number, force: boolean): Taken | undefined {
+  take(piece: Piece, room: number, force: boolean, fresh = force): Taken | undefined {
     if (piece.text) return this.lines(piece, room, force);
+    if (piece.row) return this.row(piece, room, force, fresh);
     if (piece.children) return this.stack(piece, room, force);
     return force ? { part: rest(piece), height: heightOf(piece) } : undefined;
+  }
+
+  /**
+   * A Row's columns side by side, each as much of it as fits in `room` (split its own way), a column that has ended or
+   * can't start here keeping its room empty. A Row that would fit on a page of its own goes on to the next whole, unless
+   * this page holds nothing before it but headings kept with it (`fresh`), where it would leave them alone.
+   */
+  row(piece: Piece, room: number, force: boolean, fresh: boolean): Taken | undefined {
+    if (piece.whole && !fresh && heightOf(piece) <= this.room + SLACK) return undefined;
+    const style = styleOf(piece.block);
+    const top = piece.whole ? edgeTop(style) : 0;
+    const space = room - top;
+    const parts: PlannedPart[] = [];
+    const left: Piece[] = [];
+    let tallest = 0;
+    const place = (part: PlannedPart, height: number, next: Piece) => {
+      parts.push(part);
+      tallest = Math.max(tallest, height);
+      left.push(next);
+    };
+    for (const child of piece.children!) {
+      const height = heightOf(child);
+      if (child.ended) place(empty(child), 0, child);
+      else if (height <= space + SLACK) place(rest(child), height, ended(child));
+      else {
+        const taken = this.take(child, space, force);
+        if (taken) place(taken.part, taken.height, taken.rest ?? ended(child));
+        // A block that can't be split and is taller than any page: it's cut off wherever it goes, so it stays here.
+        else if (!child.text && !child.children && height > this.room + SLACK) place(rest(child), height, ended(child));
+        else place(empty(child), 0, child);
+      }
+    }
+    if (parts.every((part) => part.empty)) return undefined;
+    const { path } = piece.measured;
+    if (left.every((child) => child.ended)) return { part: { path, part: piece.parts, first: piece.whole, last: true, children: parts }, height: top + tallest + edgeBottom(style) };
+    return { part: { path, part: piece.parts, first: piece.whole, last: false, children: parts }, height: top + tallest, rest: { ...piece, whole: false, parts: piece.parts + 1, children: left } };
   }
 
   /** A block of text's lines that fit: two at least, leaving two at least, not after a hyphen; with `force`, one at least. */
@@ -162,7 +219,9 @@ class Planner {
         placed.push({ part: rest(child), height, whole: child });
         continue;
       }
-      const part = this.take(child, space, force && placed.length === 0);
+      // Fresh: nothing's placed before it on this page but headings kept with what follows.
+      const fresh = force && placed.every((entry) => entry.whole !== undefined && keptWithNext(entry.whole));
+      const part = this.take(child, space, force && placed.length === 0, fresh);
       if (part) {
         placed.push({ part: part.part, height: part.height });
         left = part.rest ? [part.rest, ...children.slice(i + 1)] : children.slice(i + 1);
