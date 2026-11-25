@@ -29,10 +29,23 @@ export interface Shape {
   attributes: Record<string, string | number | undefined>;
 }
 
+/**
+ * Where a block can be split when a page ends inside it (what the writer knows of it, which an engine doesn't read):
+ * a block of text between its lines, a stack of blocks between and inside them, a table between its rows. A block
+ * without one stays whole.
+ */
+export interface Flow {
+  splits?: "lines" | "children" | "rows";
+  /** A table's header row: drawn again at the top of each page the table goes on to. */
+  repeat?: boolean;
+  /** A heading: not the last thing on a page, where what follows it goes on to the next. */
+  keepWithNext?: boolean;
+}
+
 /** A block on a page; `path` is the design node it draws (its path in the laid-out tree), where it draws one. */
 export type Block =
-  | { kind: "box"; path?: string; style: Style; children: Block[] }
-  | { kind: "text"; path?: string; style: Style; runs: Run[] }
+  | ({ kind: "box"; path?: string; style: Style; children: Block[] } & Flow)
+  | ({ kind: "text"; path?: string; style: Style; runs: Run[] } & Flow)
   | Picture
   | { kind: "link"; path?: string; href: string; style: Style; children: Block[] }
   | { kind: "drawing"; path?: string; width: number; height: number; viewBox: string; style: Style; shapes: Shape[] };
@@ -43,7 +56,7 @@ export interface Page {
   height: number;
   margin: { top: number; right: number; bottom: number; left: number };
   background: string;
-  /** The height inside the margins: what goes past it is cut, never moved onto another page. */
+  /** The height inside the margins: what goes past it is cut (the writer moves what can go on to pages after it first: flow.ts). */
   contentHeight: number;
   header?: Block;
   /** The page's content, one under another with `gap` between. */
@@ -77,8 +90,11 @@ export interface PlacedBlock {
   y: number;
   width: number;
   height: number;
-  /** A block of text's lines, each one's top and height (from the page's top), as drawn. */
-  lines?: Array<{ top: number; height: number }>;
+  /**
+   * A block of text's lines, each one's top and height (from the page's top), as drawn, with its characters as laid
+   * out: the block's text in order, less its line breaks, a hyphen added where a word is broken across lines.
+   */
+  lines?: Array<{ top: number; height: number; text: string }>;
 }
 
 /** Where an engine drew a page's blocks, and the content's room on it: what's past the room's bottom is cut off. */

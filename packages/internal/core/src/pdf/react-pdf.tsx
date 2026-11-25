@@ -163,7 +163,7 @@ interface LaidOut {
   type: string;
   props?: Record<string, unknown>;
   box?: { top: number; left: number; width: number; height: number; paddingTop?: number };
-  lines?: Array<{ box: { y: number; height: number } }>;
+  lines?: Array<{ box: { y: number; height: number }; string?: string }>;
   children?: LaidOut[];
 }
 
@@ -188,7 +188,7 @@ function placed(document: LaidOut): PlacedPage[] | undefined {
         if (node.lines?.length) {
           // react-pdf draws a text's lines from its top, inside its padding, from its first line's y (renderText).
           const first = node.lines[0].box.y;
-          placedBlock.lines = node.lines.map((line) => ({ top: y + (node.box!.paddingTop ?? 0) + line.box.y - first, height: line.box.height }));
+          placedBlock.lines = node.lines.map((line) => ({ top: y + (node.box!.paddingTop ?? 0) + line.box.y - first, height: line.box.height, text: line.string ?? "" }));
         }
         blocks.push(placedBlock);
       }

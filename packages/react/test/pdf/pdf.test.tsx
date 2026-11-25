@@ -395,23 +395,32 @@ describe("renderPdf", () => {
     expect(validate(<Email><Button href="https://x.test" style={{ hover: { backgroundColor: "#333333" } }}>Go</Button></Email>).diagnostics.filter((d) => d.code.startsWith("pdf/"))).toEqual([]);
   });
 
-  it("says a page whose content can't fit is cut off, measured with its fonts, from the first text cut (validate(), without them, estimates)", async () => {
+  it("says what can't go on to another page is cut off: a Row of Columns taller than its page, measured, at the first text cut (validate() estimates)", async () => {
     const long = (
       <Document>
-        {Array.from({ length: 120 }, (_, i) => (
-          <Text key={i}>Text {i + 1} of a page that goes on for longer than an A4 page can hold.</Text>
-        ))}
+        <Row>
+          <Column>
+            {Array.from({ length: 60 }, (_, i) => (
+              <Text key={i}>Text {i + 1} of a Column.</Text>
+            ))}
+          </Column>
+          <Column>
+            <Text>Beside it.</Text>
+          </Column>
+        </Row>
       </Document>
     );
     const { diagnostics } = await renderPdf(long);
     const overflow = diagnostics.filter((d) => d.code === "document/overflow");
-    // A4 less its margins is 769.89 points; each text is a line of 18 (16px at 1.5): 42 lines fit, the 43rd is cut.
+    // A Row of Columns stays whole. A4 less its margins is 769.89 points; each text is a line of 18 (16px at 1.5), the
+    // Row 60 of them (1,080 points, 140% of the room): 42 fit, the 43rd is cut.
     expect(overflow).toEqual([
       {
         code: "document/overflow",
         severity: "warning",
-        message: "Page 1's content (split it with a PageBreak, or into pages) is 281% as tall as its room, measured with its fonts. What doesn't fit is cut off, from here on",
-        path: "root.children[42]",
+        message:
+          "Page 1's content is 140% as tall as its room, measured with its fonts, and what runs past it can't go on to the next page (a Row of Columns, an image and a block with a set height stay whole). What doesn't fit is cut off, from here on",
+        path: "root.children[0].children[0].children[42]",
       },
     ]);
     expect(validate(long).diagnostics.find((d) => d.code === "document/overflow")?.message).toMatch(/\(an estimate: text isn't measured yet\)/);
@@ -431,7 +440,7 @@ describe("renderPdf", () => {
     expect((await renderPdf(split)).diagnostics.map((d) => d.code)).not.toContain("document/overflow");
   });
 
-  it("says what the estimate misses: capitals, wider than it reckons, cut off with no warning from validate()", async () => {
+  it("flows what the estimate thinks fits: capitals, wider than it reckons, go on to a second page", async () => {
     const capitals = (
       <Document>
         <Heading level={1}>Capitals</Heading>
@@ -441,10 +450,12 @@ describe("renderPdf", () => {
       </Document>
     );
     expect(validate(capitals).diagnostics.map((d) => d.code)).not.toContain("document/overflow");
-    const overflow = (await renderPdf(capitals)).diagnostics.find((d) => d.code === "document/overflow");
+    const { pdf, diagnostics } = await renderPdf(capitals);
+    expect(diagnostics.map((d) => d.code)).not.toContain("document/overflow");
     // The heading is a line of 30 points (32px at 1.25), each of them two lines of 18: in the room's 769.89 points the
-    // heading and 20 of them fit, and the 21st is cut.
-    expect(overflow).toMatchObject({ severity: "warning", path: "root.children[21]" });
+    // heading and 20 of them fit, and the other 6 go on to page 2 (two lines don't split: two stay on each side).
+    const { pages } = await read(pdf);
+    expect(pages.map((page) => page.words.match(/WIDE/g)?.length)).toEqual([20, 6]);
   });
 
   it("places a Button by its own alignSelf, over its stack's alignItems", () => {
@@ -532,7 +543,7 @@ describe("renderPdf", () => {
     expect(urls).toEqual(["https://acme.test/report", "https://acme.test/", "https://acme.test/blog"]);
   });
 
-  it("cuts a page's content where the page ends, its lines as far apart as laid out (not drawn over each other)", async () => {
+  it("flows a page's content onto the pages it needs, its lines as far apart as laid out on each (not drawn over each other)", async () => {
     const lines = Array.from({ length: 100 }, (_, i) => `Line ${i + 1}`);
     const { pdf } = await renderPdf(
       <Document size="A4" margin={48}>
@@ -544,13 +555,18 @@ describe("renderPdf", () => {
       </Document>
     );
     const document = await getDocument({ data: pdf.slice(), useSystemFonts: false, disableFontFace: true, verbosity: 0 }).promise;
-    expect(document.numPages).toBe(1);
-    const items = (await (await document.getPage(1)).getTextContent()).items as Array<{ str?: string; transform: number[] }>;
-    const baselines = items.filter((item) => item.str?.startsWith("Line")).map((item) => item.transform[5]);
-    // A 12px line at 1.5 is 18px: 13.5 points, from each line to the next.
-    expect(baselines.slice(1).map((y, i) => baselines[i] - y).filter((gap) => Math.abs(gap - 13.5) > 0.05)).toEqual([]);
-    expect(baselines.length).toBeGreaterThan(40);
-    expect(baselines.length).toBeLessThan(lines.length);
+    const drawn: string[][] = [];
+    for (let n = 1; n <= document.numPages; n++) {
+      const items = (await (await document.getPage(n)).getTextContent()).items as Array<{ str?: string; transform: number[] }>;
+      const page = items.filter((item) => item.str?.startsWith("Line"));
+      const baselines = page.map((item) => item.transform[5]);
+      // A 12px line at 1.5 is 18px: 13.5 points, from each line to the next.
+      expect(baselines.slice(1).map((y, i) => baselines[i] - y).filter((gap) => Math.abs(gap - 13.5) > 0.05)).toEqual([]);
+      drawn.push(page.map((item) => item.str!));
+    }
+    // 769.89 points of room hold 57 of them; each line once, in order.
+    expect(drawn.map((page) => page.length)).toEqual([57, 43]);
+    expect(drawn.flat()).toEqual(lines);
   });
 
   it("paints each page white unless it has a background of its own (a viewer may show a transparent page as black)", async () => {
@@ -721,18 +737,13 @@ describe("layoutDocument", () => {
 
   it("gives each page's paper and room, and each block on each page, in px from the page's top left", async () => {
     const { pages, nodes } = await layoutDocument(report);
-    expect(pages.map(({ page, width, height }) => [page, width, height])).toEqual([
-      [1, 793.7, 1122.52],
-      [2, 793.7, 1122.52],
-    ]);
+    expect(pages.length).toBeGreaterThan(2);
+    expect(pages.map(({ page, width, height }) => [page, width, height])).toEqual(pages.map((_, i) => [i + 1, 793.7, 1122.52]));
     // The header's on every page at the top margin (48px), the footer on every page down to the bottom one.
     const header = nodes.filter((node) => node.type === "PageHeader");
     const footer = nodes.filter((node) => node.type === "PageFooter");
-    expect(header.map((node) => [node.page, node.x, node.y])).toEqual([
-      [1, 48, 48],
-      [2, 48, 48],
-    ]);
-    expect(footer.map((node) => node.page)).toEqual([1, 2]);
+    expect(header.map((node) => [node.page, node.x, node.y])).toEqual(pages.map(({ page }) => [page, 48, 48]));
+    expect(footer.map((node) => node.page)).toEqual(pages.map(({ page }) => page));
     for (const node of footer) expect(node.y + node.height).toBeCloseTo(1122.52 - 48, 0);
     // The room is between them.
     expect(pages[0].room.top).toBeCloseTo(header[0].y + header[0].height, 1);
@@ -741,29 +752,46 @@ describe("layoutDocument", () => {
     expect(content(nodes, 1).every((node) => node.cut === undefined)).toBe(true);
   });
 
-  it("says what's past a page's room, each text from the one the cut goes through on, never the header or footer, and warns there", async () => {
-    const { nodes, diagnostics } = await layoutDocument(report);
-    // Every text of page 2 is there, cut off or not: nothing goes missing from the layout.
-    const page = content(nodes, 2);
-    expect(page).toHaveLength(50);
-    const first = page.findIndex((node) => node.cut);
-    expect(first).toBeGreaterThan(10);
-    expect(page.slice(0, first).every((node) => !node.cut && node.y + node.height <= nodes.find((n) => n.type === "PageFooter" && n.page === 2)!.y + 0.01)).toBe(true);
-    expect(page.slice(first + 1).every((node) => node.cut === "all")).toBe(true);
-    expect(nodes.filter((node) => !/^root\.children\[\d+\]$/.test(node.path) || node.type !== "Text").every((node) => node.cut === undefined)).toBe(true);
-    expect(diagnostics.filter((d) => d.code === "document/overflow")).toEqual([expect.objectContaining({ path: page[first].path, message: expect.stringMatching(/^Page 2's content/) })]);
+  it("gives each text that goes on to the pages after on the page it's on, each once, in order, none cut", async () => {
+    const { pages, nodes, diagnostics } = await layoutDocument(report);
+    // After the PageBreak (the Document's fourth child), its 50 texts.
+    const texts = pages.flatMap(({ page }) => (page === 1 ? [] : content(nodes, page)));
+    expect(texts.map((node) => node.path)).toEqual(Array.from({ length: 50 }, (_, i) => `root.children[${i + 4}]`));
+    expect(texts.every((node) => node.cut === undefined)).toBe(true);
+    for (const { page, room } of pages) for (const node of content(nodes, page)) expect(node.y + node.height).toBeLessThanOrEqual(room.bottom + 0.01);
+    expect(diagnostics.map((d) => d.code)).not.toContain("document/overflow");
   });
 
-  it("says a text the cut goes through is cut in part, its lines above the cut shown", async () => {
-    const one = (
+  it("says what's past a page's room where it can't go on: the text the cut goes through cut in part, all after it, never the header or footer", async () => {
+    const tall = (
       <Document>
-        <Text>{Array.from({ length: 200 }, (_, i) => `Sentence ${i + 1} of one long paragraph.`).join(" ")}</Text>
+        <PageFooter>
+          <Text>Footer</Text>
+        </PageFooter>
+        <Row>
+          <Column>
+            <Text>{Array.from({ length: 200 }, (_, i) => `Sentence ${i + 1} of a long paragraph in a Row.`).join(" ")}</Text>
+            <Text>After it, in the same Column.</Text>
+          </Column>
+          <Column>
+            <Text>Beside it.</Text>
+          </Column>
+        </Row>
       </Document>
     );
-    const { nodes } = await layoutDocument(one);
-    expect(nodes).toEqual([expect.objectContaining({ path: "root.children[0]", type: "Text", page: 1, cut: "some" })]);
-    // More lines than the room holds (769.89 points, 42 lines of 18).
-    expect(nodes[0].lines).toBeGreaterThan(42);
+    const { nodes, diagnostics } = await layoutDocument(tall);
+    const cut = Object.fromEntries(nodes.map((node) => [node.path, node.cut]));
+    expect(cut).toEqual({
+      "root.children[0]": undefined,
+      "root.children[0].children[0]": undefined,
+      "root.children[1]": "some",
+      "root.children[1].children[0]": "some",
+      "root.children[1].children[0].children[0]": "some",
+      "root.children[1].children[0].children[1]": "all",
+      "root.children[1].children[1]": undefined,
+      "root.children[1].children[1].children[0]": undefined,
+    });
+    expect(diagnostics.filter((d) => d.code === "document/overflow").map((d) => d.path)).toEqual(["root.children[1].children[0].children[0]"]);
   });
 
   it("rejects as renderPdf does", async () => {
@@ -844,10 +872,12 @@ describe("templateAssets", () => {
     // on CI pdf.js drew none of them, and this says whether the file held them. (Images with the same bytes share one.)
     const written = (Buffer.from(pdf).toString("latin1").match(/\/Subtype\s*\/Image\b/g) ?? []).length;
     expect(written, "image XObjects in the PDF").toBeGreaterThan(0);
-    // Four Images (the logo twice) and both thumbnails. pdf.js's warnings are printed (verbosity 1): an image it can't
-    // read is skipped with only a warning.
-    const { fnArray } = await (await (await getDocument({ data: pdf.slice(), verbosity: 1 }).promise).getPage(1)).getOperatorList();
-    expect(fnArray.filter((fn) => fn === OPS.paintImageXObject), `pdf.js drew these of the ${written} images written`).toHaveLength(6);
+    // Four Images (the logo twice) and both thumbnails, on the pages they go on (each thumbnail is as wide as the page).
+    // pdf.js's warnings are printed (verbosity 1): an image it can't read is skipped with only a warning.
+    const document = await getDocument({ data: pdf.slice(), verbosity: 1 }).promise;
+    let painted = 0;
+    for (let n = 1; n <= document.numPages; n++) painted += (await (await document.getPage(n)).getOperatorList()).fnArray.filter((fn) => fn === OPS.paintImageXObject).length;
+    expect(painted, `pdf.js drew these of the ${written} images written`).toBe(6);
   });
 
   it("rejects a template as renderPdf() does", () => {

@@ -1105,6 +1105,7 @@
        "children": [
         {
          "kind": "box",
+         "splits": "children",
          "style": {
           "width": 180,
           "flexShrink": 0,
@@ -1114,6 +1115,7 @@
          "children": [
           {
            "kind": "text",
+           "splits": "lines",
            "style": {
             "color": "#12242e",
             "fontFamily": "Helvetica",
@@ -1133,6 +1135,7 @@
         },
         {
          "kind": "box",
+         "splits": "children",
          "style": {
           "width": 179.25,
           "flexShrink": 0,
@@ -1142,6 +1145,7 @@
          "children": [
           {
            "kind": "text",
+           "splits": "lines",
            "style": {
             "color": "#55636b",
             "fontFamily": "Courier",
@@ -1171,6 +1175,7 @@
     "content": [
      {
       "kind": "box",
+      "splits": "children",
       "style": {
        "paddingTop": 21,
        "paddingRight": 0,
@@ -1182,6 +1187,8 @@
       "children": [
        {
         "kind": "text",
+        "splits": "lines",
+        "keepWithNext": true,
         "style": {
          "color": "#12242e",
          "fontFamily": "Helvetica",
@@ -1199,6 +1206,7 @@
        },
        {
         "kind": "text",
+        "splits": "lines",
         "style": {
          "color": "#12242e",
          "fontFamily": "Helvetica",
@@ -1215,6 +1223,7 @@
        },
        {
         "kind": "box",
+        "splits": "rows",
         "style": {
          "flexDirection": "column"
         },
@@ -1222,6 +1231,7 @@
          {
           "kind": "box",
           "path": "root.children[1].children[2].children[0]",
+          "repeat": true,
           "style": {
            "flexDirection": "row",
            "borderBottomWidth": 0.75,
@@ -1612,6 +1622,7 @@
      "children": [
       {
        "kind": "text",
+       "splits": "lines",
        "style": {
         "color": "#55636b",
         "fontFamily": "Courier",
@@ -1666,6 +1677,7 @@
        "children": [
         {
          "kind": "box",
+         "splits": "children",
          "style": {
           "width": 180,
           "flexShrink": 0,
@@ -1675,6 +1687,7 @@
          "children": [
           {
            "kind": "text",
+           "splits": "lines",
            "style": {
             "color": "#12242e",
             "fontFamily": "Helvetica",
@@ -1694,6 +1707,7 @@
         },
         {
          "kind": "box",
+         "splits": "children",
          "style": {
           "width": 179.25,
           "flexShrink": 0,
@@ -1703,6 +1717,7 @@
          "children": [
           {
            "kind": "text",
+           "splits": "lines",
            "style": {
             "color": "#55636b",
             "fontFamily": "Courier",
@@ -1732,6 +1747,7 @@
     "content": [
      {
       "kind": "box",
+      "splits": "children",
       "style": {
        "paddingTop": 21,
        "paddingRight": 0,
@@ -1743,6 +1759,8 @@
       "children": [
        {
         "kind": "text",
+        "splits": "lines",
+        "keepWithNext": true,
         "style": {
          "color": "#12242e",
          "fontFamily": "Helvetica",
@@ -1760,6 +1778,7 @@
        },
        {
         "kind": "text",
+        "splits": "lines",
         "style": {
          "color": "#12242e",
          "fontFamily": "Helvetica",
@@ -1778,6 +1797,7 @@
        },
        {
         "kind": "text",
+        "splits": "lines",
         "style": {
          "color": "#55636b",
          "fontFamily": "Helvetica",
@@ -1811,6 +1831,7 @@
      "children": [
       {
        "kind": "text",
+       "splits": "lines",
        "style": {
         "color": "#55636b",
         "fontFamily": "Courier",
@@ -1865,6 +1886,7 @@
        "children": [
         {
          "kind": "box",
+         "splits": "children",
          "style": {
           "width": 180,
           "flexShrink": 0,
@@ -1874,6 +1896,7 @@
          "children": [
           {
            "kind": "text",
+           "splits": "lines",
            "style": {
             "color": "#12242e",
             "fontFamily": "Helvetica",
@@ -1893,6 +1916,7 @@
         },
         {
          "kind": "box",
+         "splits": "children",
          "style": {
           "width": 179.25,
           "flexShrink": 0,
@@ -1902,6 +1926,7 @@
          "children": [
           {
            "kind": "text",
+           "splits": "lines",
            "style": {
             "color": "#55636b",
             "fontFamily": "Courier",
@@ -1931,6 +1956,8 @@
     "content": [
      {
       "kind": "text",
+      "splits": "lines",
+      "keepWithNext": true,
       "style": {
        "color": "#12242e",
        "fontFamily": "Helvetica",
@@ -1952,6 +1979,7 @@
      },
      {
       "kind": "text",
+      "splits": "lines",
       "style": {
        "color": "#12242e",
        "fontFamily": "Helvetica",
@@ -2010,6 +2038,7 @@
      "children": [
       {
        "kind": "text",
+       "splits": "lines",
        "style": {
         "color": "#55636b",
         "fontFamily": "Courier",

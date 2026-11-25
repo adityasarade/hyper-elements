@@ -8,4 +8,5 @@ export * from "./model";
 export { assetParts, LAYOUT_VERSION, type Asset, type FontFace } from "../index";
 export { pdfFamily } from "./styles";
 export { reactPdf } from "./react-pdf";
-export { thumbnailOf, writeDocument, type WriteContext } from "./write";
+export { flowDocument, thumbnailOf, writeDocument, type WriteContext } from "./write";
+export type { HoldBack, SplitText } from "./flow";

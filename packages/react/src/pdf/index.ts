@@ -10,11 +10,12 @@
  * given in `fonts`. A template that needs one it isn't given is an error (an image) or drawn in a standard PDF font (a
  * font), and says so. templateAssets() lists the fonts and images a template names, for a tool that loads them.
  */
-import { assetParts, LAYOUT_VERSION, pdfFamily, reactPdf, thumbnailOf, writeDocument, type Asset, type Font } from "@hyper-elements/core/pdf";
+import { assetParts, flowDocument, LAYOUT_VERSION, pdfFamily, reactPdf, thumbnailOf, writeDocument, type Asset, type Font } from "@hyper-elements/core/pdf";
 import type { FontFace } from "@hyper-elements/core";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode, type Snapshot } from "@hyper-elements/react";
 import type { ReactElement } from "react";
 import { documentLayout, measuredOverflow, type DocumentLayout } from "./layout";
+import { linesOver, overflows } from "./flow";
 
 export type { DocumentLayout, DocumentNode, DocumentPage } from "./layout";
 
@@ -42,6 +43,9 @@ export interface PdfResult {
   /** Warnings and notes (errors are thrown). */
   diagnostics: Diagnostic[];
 }
+
+/** How many times a Document's pages are flowed and drawn again, after it's drawn once, at most. */
+const MAX_FLOWS = 2;
 
 /** The date a PDF says it was made by default: fixed, so the same template makes the same bytes. */
 const FIXED_DATE = new Date(Date.UTC(2026, 0, 1));
@@ -76,8 +80,26 @@ async function draw(element: ReactElement | Snapshot, options: PdfOptions) {
   const images = imageSources(root, options.images ?? {}, found);
   if (found.some((d) => d.severity === "error")) throw new ElementsError([...diagnostics, ...found]);
   found.push(...missingFaces(root, fonts, options.fonts ?? []), ...beyondStandard(root, new Set(fonts.map((font) => font.family))));
-  const pages = writeDocument(root, { families: new Set(fonts.map((font) => font.family)), fonts, image: (src) => images.get(src), date: options.date ?? FIXED_DATE });
-  const { pdf, placed } = await reactPdf(pages);
+  const context = { families: new Set(fonts.map((font) => font.family)), fonts, image: (src: string) => images.get(src), date: options.date ?? FIXED_DATE };
+  const written = writeDocument(root, context);
+  const first = await reactPdf(written);
+  let pages = written;
+  let { pdf, placed } = first;
+  // Content that doesn't fit its page goes on to the next: flowed from where this render laid it out, and drawn again.
+  // A part of a block of text split across pages that comes out in more lines than planned (its engine breaks a part's
+  // lines as a whole) has the block's parts cut that many lines shorter, and the pages flowed again: three renders at
+  // most, and what still doesn't fit is said, measured.
+  if (first.placed && overflows(written.pages, first.placed)) {
+    const hold = new Map<string, number>();
+    for (let attempt = 0; attempt < MAX_FLOWS; attempt++) {
+      const flowed = flowDocument(root, context, written, first.placed, hold);
+      ({ pdf, placed } = await reactPdf(flowed.document));
+      pages = flowed.document;
+      const longer = placed ? linesOver(flowed.splits, placed) : new Map<string, number>();
+      if (!longer.size) break;
+      for (const [path, lines] of longer) hold.set(path, (hold.get(path) ?? 0) + lines);
+    }
+  }
   const said = placed ? [...diagnostics.filter((d) => d.code !== "document/overflow"), ...measuredOverflow(root, pages.pages, placed)] : diagnostics;
   return { root, pages, placed, pdf, diagnostics: [...said, ...found] };
 }

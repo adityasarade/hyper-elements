@@ -1,11 +1,13 @@
 /**
  * A laid-out Document as pages to draw (model.ts): a page for each of its pages (the paper's size, the margins, its
- * header, content and footer, nothing flowing onto the next), and each block as a box, a block of text, an image, a
+ * header, content and footer), then, where the engine finds a page's content runs past it, that content flowed onto the
+ * pages after it (flowDocument(), flow.ts); and each block as a box, a block of text, an image, a
  * link or a drawing, at the width the resolver gave it, so the PDF is laid out as the print HTML is. No engine is
  * named here: an engine's adapter draws what this writes (react-pdf.tsx).
  */
 import { assetParts, documentPages, htmlText, linkParts, pageBox, videoParts, type Asset, type BorderSide, type LinkValue, type ResolvedNode } from "../index";
-import type { Block, DrawnDocument, Font, Page, Picture, Run, Shape, Style } from "./model";
+import { flowPage, type HoldBack, type SplitText } from "./flow";
+import type { Block, DrawnDocument, Font, Page, Picture, PlacedPage, Run, Shape, Style } from "./model";
 import { alignSelf, borderStyle, boxStyle, flex, pt, runStyle, textStyle } from "./styles";
 
 export interface WriteContext {
@@ -61,6 +63,33 @@ export function writeDocument(root: ResolvedNode, context: WriteContext): DrawnD
   };
 }
 
+/**
+ * A Document's pages flowed: each page's content that doesn't fit going on to pages of its own after it, with the
+ * page's paper, margins and background, and its header and footer numbered for the pages there now are. From the
+ * pages as written (`document`) and where the engine laid them out (`placed`); `hold`, the lines to hold back when a
+ * block of text is split. Each page's split text with it, to check it came out as planned.
+ */
+export function flowDocument(root: ResolvedNode, context: WriteContext, document: DrawnDocument, placed: PlacedPage[], hold: HoldBack = new Map()): { document: DrawnDocument; splits: SplitText[][] } {
+  const { header, footer } = documentPages(root);
+  const planned: Array<{ page: Page; content: Block[]; splits: SplitText[] }> = [];
+  document.pages.forEach((page, i) => {
+    const flowed = placed[i] ? flowPage(page, placed[i], hold) : undefined;
+    if (!flowed) planned.push({ page, content: page.content, splits: [] });
+    else flowed.pages.forEach((content, j) => planned.push({ page, content, splits: flowed.splits[j] }));
+  });
+  const write = new Writer(context);
+  return {
+    document: {
+      ...document,
+      pages: planned.map(({ page, content }, index): Page => {
+        write.page = { number: index + 1, total: planned.length };
+        return { ...page, content, header: header && write.block(header, root), footer: footer && write.block(footer, root) };
+      }),
+    },
+    splits: planned.map(({ splits }) => splits),
+  };
+}
+
 const gap = (node: ResolvedNode): Style => (typeof node.style.gap === "number" ? { gap: pt(node.style.gap) } : {});
 
 class Writer {
@@ -83,7 +112,7 @@ class Writer {
     switch (node.type) {
       case "Text":
       case "Heading":
-        return { kind: "text", style: { ...textStyle(node, families), ...boxStyle(node), ...placed }, runs: this.runs(node) };
+        return { kind: "text", splits: "lines", ...(node.type === "Heading" ? { keepWithNext: true } : {}), style: { ...textStyle(node, families), ...boxStyle(node), ...placed }, runs: this.runs(node) };
       case "Button":
         return {
           kind: "link",
@@ -123,14 +152,14 @@ class Writer {
         return this.video(node, placed);
       case "Html":
         // A PDF can't draw markup: its plain text (validate() says so).
-        return { kind: "text", style: { ...textStyle(node, families), ...placed }, runs: [htmlText(node)] };
+        return { kind: "text", splits: "lines", style: { ...textStyle(node, families), ...placed }, runs: [htmlText(node)] };
       case "Svg":
         return this.svg(node, placed);
       case "Section":
       case "Column":
       case "PageHeader":
       case "PageFooter":
-        return { kind: "box", style: { ...boxStyle(node), ...placed, flexDirection: "column", ...gap(node), justifyContent: flex(node.style.justifyContent) }, children: present(nodes(node).map((child) => this.block(child, node))) };
+        return { kind: "box", ...(node.type === "Section" || node.type === "Column" ? { splits: "children" as const } : {}), style: { ...boxStyle(node), ...placed, flexDirection: "column", ...gap(node), justifyContent: flex(node.style.justifyContent) }, children: present(nodes(node).map((child) => this.block(child, node))) };
       default:
         // Every block a Document takes is a case above (a test checks): one without a case fails rather than disappears.
         throw new Error(`[Elements] The PDF writer draws no ${node.type}`);
@@ -201,6 +230,7 @@ class Writer {
     const start = Number(node.props.start ?? 1);
     return {
       kind: "box",
+      splits: "children",
       style: { ...boxStyle(node), ...placed, flexDirection: "column", ...gap(node) },
       children: nodes(node).map((item, i): Block => ({
         kind: "box",
@@ -239,12 +269,14 @@ class Writer {
     const rows = nodes(node);
     return {
       kind: "box",
+      splits: "rows",
       style: { ...boxStyle(node), ...placed, flexDirection: "column" },
       children: rows.map((row, r): Block => {
         let column = 0;
         return {
           kind: "box",
           path: row.path,
+          ...(row.props.header ? { repeat: true } : {}),
           style: { flexDirection: "row", ...boxStyle(row), ...(r < rows.length - 1 && rowBorder ? borderStyle({ bottom: rowBorder }) : {}) },
           children: nodes(row).map((cell): Block => {
             const span = Math.max(1, Number(cell.props.colSpan ?? 1));
