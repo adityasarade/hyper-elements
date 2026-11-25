@@ -131,14 +131,16 @@ jobs:
       # bytes for the two together, templates and the `elements` key (349,212 measured); 350,800 bytes for a block
       # map of every root, the page writer marking its blocks as the email writer does (829 bytes more, 350,381 measured);
       # 355,500 bytes for a Document's print HTML drawn from its plan, with the PDF's pages (the planned pages' nodes,
-      # writers/page/flowed.ts, and a block of text cut between pages drawn line by line: 4,519 bytes more, 354,900 measured).
+      # writers/page/flowed.ts, and a block of text cut between pages drawn line by line: 4,519 bytes more, 354,900 measured);
+      # 356,200 bytes for its parts that go on filling their page, and a Row's column with nothing on a page kept as its
+      # room (690 bytes more, 355,590 measured).
       - name: Check main entry bundle size
         run: |
           BUNDLE="packages/react/dist/primitives.js"
           # A bundle that wasn't built (or came out empty) fails here rather than passing the checks below.
           test -s "$BUNDLE" && test -s "packages/react/dist/primitives.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=355500
+          MAX_SIZE=356200
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::Main entry bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
@@ -173,13 +175,15 @@ jobs:
       # have it, its words read at the page's line height, and a row below a footer row said (1,927 bytes measured).
       # 521,700 bytes for templates and the builder's table together (521,210 measured); 522,500 bytes for a block map of
       # every root, in the writers it shares (844 bytes more, 522,115 measured); 527,200 bytes for a Document's print
-      # HTML drawn from its plan, in the writers it shares (4,575 bytes more, 526,690 measured).
+      # HTML drawn from its plan, in the writers it shares (4,575 bytes more, 526,690 measured); 527,900 bytes for its parts
+      # that go on filling their page, and a Row's column with nothing on a page kept as its room (692 bytes more, 527,382
+      # measured).
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=527200
+          MAX_SIZE=527900
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
