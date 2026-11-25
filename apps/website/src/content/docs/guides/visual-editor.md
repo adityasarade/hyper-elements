@@ -53,6 +53,11 @@ The builder holds what its tools can. Two things happen to the rest:
 
 Two smaller details: a line height goes into the builder's field as a whole percentage, as browsers draw it, so `24px` at 13px becomes `185%`, a twentieth of a pixel taller there. The builder has no page numbers yet, so a `PageNumber` goes in as its token, which the editor's PDF prints as it is. The report says so.
 
+The builder also changes two things when it loads a design, and the report says each:
+
+- **An email's width.** An `Email` wider than 900px becomes 900px wide.
+- **A document's page.** On a plan without page format controls, a `Document`'s page becomes A4 portrait with the builder's 96px margin. A margin of 0 is kept. A `Document` that sets no margin has 48px, so this happens to it too: `margin={96}` or `margin={0}` on an A4 portrait `Document` keeps its page the same on every plan.
+
 ## Load it in the builder
 
 Create the editor, load the builder design when it's ready, and export when the user is done:
