@@ -3,7 +3,7 @@
  * each page) and laid out with layoutDocument() (where each block landed).
  */
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { Document, Heading, List, ListItem, PageFooter, PageNumber, prepare, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
+import { Column, Document, Heading, List, ListItem, PageFooter, PageNumber, prepare, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
 import { reactPdf, writeDocument } from "@hyper-elements/core/pdf";
 import { layoutDocument, paginate, renderPdf } from "../../src/pdf";
 import { arabicFonts, arabicGiven, arabicSentences } from "./arabic";
@@ -226,6 +226,46 @@ describe("a Document's content that doesn't fit its page", () => {
     const second = nodes.filter((node) => node.page === 2 && node.path.startsWith("root.children[0].children["));
     const last = second[second.length - 1];
     expect(section[1].y + section[1].height - (last.y + last.height)).toBeCloseTo(24, 1);
+  });
+
+  it("fills the rest of a page with a part that goes on to the next, as a browser does: its background to the room's foot", async () => {
+    const { pages, nodes } = await layoutDocument(
+      <Document>
+        <Section style={{ padding: 24, backgroundColor: "#f3f4f6" }}>
+          <Column style={{ padding: 12, backgroundColor: "#e5e7eb" }}>
+            {Array.from({ length: 12 }, (_, i) => (
+              <Text key={i}>{sentences(20, `paragraph ${i + 1}`)}</Text>
+            ))}
+          </Column>
+        </Section>
+      </Document>
+    );
+    expect(pages.length).toBeGreaterThan(1);
+    const bottom = (path: string, page: number) => {
+      const node = nodes.find((node) => node.path === path && node.page === page)!;
+      return node.y + node.height;
+    };
+    for (const path of ["root.children[0]", "root.children[0].children[0]"]) {
+      // Down to the room's foot on each page it goes on from, though its lines end above it (two at least stay together)…
+      for (const page of pages.slice(0, -1)) expect(bottom(path, page.page), `${path} on page ${page.page}`).toBeCloseTo(page.room.bottom, 0);
+      // …and on its last, where it ends.
+      expect(bottom(path, pages.length)).toBeLessThan(pages[pages.length - 1].room.bottom - 100);
+    }
+    // A table that goes on ends with its last row on the page (its rows would be stretched with it in the print HTML).
+    const table = await layoutDocument(
+      <Document>
+        <Table>
+          {Array.from({ length: 80 }, (_, i) => (
+            <TableRow key={i}>
+              <TableCell>{`Row ${i + 1}`}</TableCell>
+            </TableRow>
+          ))}
+        </Table>
+      </Document>
+    );
+    const part = table.nodes.find((node) => node.path === "root.children[0]" && node.page === 1)!;
+    const rows = table.nodes.filter((node) => node.page === 1 && /^root\.children\[0\]\.children\[\d+\]$/.test(node.path));
+    expect(part.y + part.height).toBeCloseTo(Math.max(...rows.map((row) => row.y + row.height)), 1);
   });
 
   it("goes on from a Document.Page to pages with its background, then the next page starts", async () => {

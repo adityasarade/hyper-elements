@@ -145,7 +145,8 @@ export const reactPdf: Engine = async (document) => {
         el(
           View,
           { [ROOM]: true, style: { flexGrow: 1, flexShrink: 1, overflow: "hidden", position: "relative" } },
-          el(View, { style: { position: "absolute", top: 0, left: 0, right: 0, flexDirection: "column", ...(page.gap !== undefined ? { gap: page.gap } : {}) } }, page.content.map(block))
+          // At least the room's height (never held to it), so a part that goes on to the next page can fill the rest of it.
+          el(View, { style: { position: "absolute", top: 0, left: 0, right: 0, minHeight: "100%", flexDirection: "column", ...(page.gap !== undefined ? { gap: page.gap } : {}) } }, page.content.map(block))
         ),
         page.footer && block(page.footer)
       )

@@ -140,8 +140,12 @@ class Measurer {
     return paragraphs.flat() as unknown as Array<{ box: { y: number; width: number; height: number }; string: string; runs: Array<{ glyphs?: Array<{ advanceWidth?: number }>; attributes?: Record<string, unknown> }> }>;
   }
 
-  /** A block laid out at (x, y), `width` wide where its style sets none (or, `exactly`, whatever it sets): its height. */
-  block(block: Block, x: number, y: number, width: number | undefined, exactly = false, inherited: Style = {}): number {
+  /**
+   * A block laid out at (x, y), `width` wide where its style sets none (or, `exactly`, whatever it sets): its height.
+   * `tall`, the height its stack's or Row's flexbox gives it (grown down a stack, stretched across a Row), where its style
+   * sets none.
+   */
+  block(block: Block, x: number, y: number, width: number | undefined, exactly = false, inherited: Style = {}, tall?: number): number {
     const style = "style" in block ? over(inherited, block.style) : inherited;
     const own = exactly ? width : (set(style.width) ?? width);
     if (own === undefined) throw new Unmeasured();
@@ -156,11 +160,11 @@ class Measurer {
         const first = laid[0]?.box.y ?? 0;
         lines = laid.map((line) => ({ top: y + number(style.paddingTop) + line.box.y - first, height: line.box.height, text: line.string, width: line.box.width, natural: natural(line) }));
         const content = laid.reduce((sum, line) => sum + line.box.height, 0);
-        height = set(style.height) ?? content + frame.top + frame.bottom;
+        height = set(style.height) ?? tall ?? content + frame.top + frame.bottom;
         break;
       }
       case "image":
-        height = set(style.height) ?? frame.top + frame.bottom;
+        height = set(style.height) ?? tall ?? frame.top + frame.bottom;
         break;
       case "drawing":
         height = block.height + frame.top + frame.bottom;
@@ -168,7 +172,7 @@ class Measurer {
       case "box":
       case "link": {
         // What it holds is laid out whatever its height: a set height is its box's, not what's in it.
-        const fixed = set(style.height);
+        const fixed = set(style.height) ?? tall;
         const content = this.children(block, x + frame.left, y + frame.top, inner, fixed === undefined ? undefined : fixed - frame.top - frame.bottom, inheritedOf(style));
         height = fixed ?? content + frame.top + frame.bottom;
         break;
@@ -180,7 +184,8 @@ class Measurer {
 
   /**
    * A box's children laid out from (x, y) in `width`: their height, as a column, a row or a Layer's. `room`, the height
-   * a box with a set height holds them in, down which a column's justifyContent places them.
+   * a box with a set height holds them in (or one grown or stretched to it): a column's child that grows takes what its
+   * children leave of it, else its justifyContent places them down it; a Row's children stretched are as tall.
    */
   children(block: Extract<Block, { kind: "box" | "link" }>, x: number, y: number, width: number, room?: number, inherited: Style = {}): number {
     const style = block.style;
@@ -193,11 +198,11 @@ class Measurer {
       for (const layer of children.filter(layered)) this.overlay(layer as Extract<Block, { kind: "box" }>, x, y, width, height, inherited);
       return height;
     }
-    if (style.flexDirection === "row") return this.row(block, x, y, width, inherited);
+    if (style.flexDirection === "row") return this.row(block, x, y, width, inherited, room);
     // A stack: each child under the last, as wide as the stack unless it has a width of its own, or is aligned (not
     // stretched) across it, when it's as wide as what it holds.
     let at = y;
-    const ranges: Array<[number, number]> = [];
+    const laid: Array<{ from: number; to: number; x: number; y: number; width: number; height: number }> = [];
     children.forEach((child, i) => {
       const style = "style" in child ? child.style : {};
       // Its side margins (a painted line's, past its box so it never wraps: paint.ts) narrow or widen its room.
@@ -207,12 +212,30 @@ class Measurer {
       const own = set(style.width) ?? (aligned ? Math.min(room, this.intrinsic(child, room)) : room);
       const across = left + (style.alignSelf === "center" ? (room - own) / 2 : style.alignSelf === "flex-end" ? room - own : 0);
       const from = this.placed.length;
-      at += this.block(child, x + across, at, own, true, inherited) + (i < children.length - 1 ? gap : 0);
-      ranges.push([from, this.placed.length]);
+      const height = this.block(child, x + across, at, own, true, inherited);
+      laid.push({ from, to: this.placed.length, x: x + across, y: at, width: own, height });
+      at += height + (i < children.length - 1 ? gap : 0);
     });
     const used = at - y;
-    // In a box of a set height, the space its children leave, where its justifyContent puts it.
+    // In a box of a set height, the space its children leave: a child that grows takes it (in proportion to its
+    // flexGrow), laid out again that tall, those under it moved down; else its justifyContent puts it.
     const free = room === undefined ? 0 : room - used;
+    const grows = children.map((child) => ("style" in child ? number(child.style.flexGrow) : 0));
+    const growth = grows.reduce((sum, grow) => sum + grow, 0);
+    if (free > 0 && growth > 0) {
+      let down = 0;
+      laid.forEach((entry, i) => {
+        if (!grows[i]) {
+          if (down) this.shift(entry.from, entry.to, down);
+          return;
+        }
+        const extra = (free * grows[i]) / growth;
+        this.again(entry.from, entry.to, (measurer) => measurer.block(children[i], entry.x, entry.y + down, entry.width, true, inherited, entry.height + extra));
+        down += extra;
+      });
+      return room!;
+    }
+    const ranges = laid.map(({ from, to }): [number, number] => [from, to]);
     if (free > 0) {
       const justify = style.justifyContent;
       ranges.forEach(([from, to], i) => {
@@ -244,6 +267,13 @@ class Measurer {
     if (down) this.shift(from, this.placed.length, down);
   }
 
+  /** The blocks placed from `from` up to `to` laid out again (`lay`, by a measurer of their own): as many, in their place. */
+  again(from: number, to: number, lay: (measurer: Measurer) => void): void {
+    const measurer = new Measurer(this.styled, this.kit);
+    lay(measurer);
+    this.placed.splice(from, to - from, ...measurer.placed);
+  }
+
   /** The blocks placed from `from` up to `to` moved `down`, their lines with them. */
   shift(from: number, to: number, down: number): void {
     for (const placed of this.placed.slice(from, to)) {
@@ -259,7 +289,7 @@ class Measurer {
    * height is its tallest child's; a child stretched to it (the row's alignItems or its own alignSelf) is drawn that tall,
    * a centered or end-aligned one placed down it.
    */
-  row(block: Extract<Block, { kind: "box" | "link" }>, x: number, y: number, width: number, inherited: Style = {}): number {
+  row(block: Extract<Block, { kind: "box" | "link" }>, x: number, y: number, width: number, inherited: Style = {}, room?: number): number {
     const style = block.style;
     const gap = number(style.gap);
     const children = block.children;
@@ -282,15 +312,25 @@ class Measurer {
       const childWidth = grows(child) ? share : widths[i];
       const from = this.placed.length;
       const height = this.block(child, at, y, childWidth, true, inherited);
+      const entry = { child, from, to: this.placed.length, height, x: at, width: childWidth };
       at += childWidth + gap + between;
-      return { child, from, to: this.placed.length, height };
+      return entry;
     });
     const tallest = Math.max(0, ...laid.map((entry) => entry.height));
-    for (const { child, from, to, height } of laid) {
+    // Its children's height across it: its own (or what its stack grew or stretched it to), else its tallest child's.
+    const across = room ?? tallest;
+    for (const entry of laid) {
+      const { child, from, to, height } = entry;
       const align = ("style" in child ? child.style.alignSelf : undefined) ?? style.alignItems ?? "stretch";
-      const own = this.placed.slice(from, to).find((placed) => placed.path === child.path);
-      if (align === "stretch" && own && !("style" in child && set(child.style.height) !== undefined)) own.height = tallest;
-      const down = align === "center" ? (tallest - height) / 2 : align === "flex-end" ? tallest - height : 0;
+      if (align === "stretch" && !("style" in child && set(child.style.height) !== undefined) && height !== across) {
+        // A box stretched is laid out again that tall (what's in it grows or is placed down it); text is drawn that tall.
+        if (child.kind === "box" || child.kind === "link") this.again(from, to, (measurer) => measurer.block(child, entry.x, y, entry.width, true, inherited, across));
+        else {
+          const own = this.placed.slice(from, to).find((placed) => placed.path === child.path);
+          if (own) own.height = across;
+        }
+      }
+      const down = align === "center" ? (across - height) / 2 : align === "flex-end" ? across - height : 0;
       if (down) this.shift(from, to, down);
     }
     return tallest;
@@ -362,10 +402,8 @@ function measurePage(page: Page, styled: (style: Style) => Style, kit: Textkit):
   const footer = page.footer ? new Measurer(styled, kit).block(page.footer, left, 0, width) : 0;
   const top = page.margin.top + header;
   const bottom = page.margin.top + page.contentHeight - footer;
-  let at = top;
-  page.content.forEach((block, i) => {
-    at += measurer.block(block, left, at, width) + (i < page.content.length - 1 ? number(page.gap) : 0);
-  });
+  // Its content a column at least as tall as the room (react-pdf.tsx), so a part that goes on to the next page fills it.
+  measurer.children({ kind: "box", style: { flexDirection: "column", gap: page.gap }, children: page.content }, left, top, width, bottom - top);
   if (page.footer) measurer.block(page.footer, left, bottom, width);
   return { room: { top, bottom }, blocks: measurer.placed };
 }

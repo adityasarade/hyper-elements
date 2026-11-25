@@ -70,6 +70,11 @@ export interface ResolvedNode {
    * (as measured, drawn line by line) and the page numbers its characters were counted with (writers/page/flowed.ts).
    */
   flowed?: { lines: PlannedLine[]; page: { number: number; total: number } };
+  /**
+   * In a Document's print HTML drawn from a Plan: a part of a block that goes on to the next page, which fills the rest
+   * of its page, as a box broken between pages does in a browser (grown down its stack, stretched across its Row).
+   */
+  fills?: true;
 }
 
 export interface ResolvedDocument {

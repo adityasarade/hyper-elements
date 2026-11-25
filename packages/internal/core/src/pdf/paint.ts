@@ -4,6 +4,10 @@
  * its last, and no set height. A block of text that's cut is drawn line by line, each line as it was measured: its
  * characters, and the room its spaces between words were given (squeezed into its box, or justified), so the engine
  * draws it where it was and can't break its lines otherwise.
+ *
+ * A part that goes on to the next page fills the rest of its page, as a box broken between pages does in a browser: its
+ * background and side borders down to the room's foot (grown down its stack, or stretched across its Row). A table
+ * doesn't: its rows would be stretched with it in the print HTML, which a browser draws as a table.
  */
 import type { Block, Run, Style } from "./model";
 import { isWhole, type PlannedLine, type PlannedPart } from "../plan";
@@ -87,13 +91,25 @@ function trimEnd(runs: Run[]): Run[] {
   return out;
 }
 
+/** A part that goes on to the next page, filling the rest of its page: down its stack, or across its Row (`inRow`). */
+function filling(block: Block, inRow: boolean): Block {
+  if (!("style" in block)) return block;
+  return { ...block, style: { ...block.style, ...(inRow ? { alignSelf: "stretch" } : { flexGrow: 1 }) } } as Block;
+}
+
 export class Painter {
   /** `blocks`: the page as written, each block by its path. */
   constructor(private readonly blocks: ReadonlyMap<string, Block>) {}
 
-  part(part: PlannedPart): Block {
+  /** A part as it's drawn on its page; `inRow`, where it's in a Row's part, beside the others. */
+  part(part: PlannedPart, inRow = false): Block {
     const block = this.blocks.get(part.path)!;
     if (isWhole(part)) return block;
+    const painted = this.painted(part, block);
+    return part.last || (block.kind === "box" && block.splits === "rows") ? painted : filling(painted, inRow);
+  }
+
+  private painted(part: PlannedPart, block: Block): Block {
     if (part.lines && block.kind === "text") {
       const { lines } = part;
       const justified = block.style.textAlign === "justify";
@@ -118,7 +134,10 @@ export class Painter {
         }),
       };
     }
-    if (part.children && block.kind === "box") return { ...block, style: slice(block.style, part.first, part.last), children: part.children.map((child) => this.part(child)) };
+    if (part.children && block.kind === "box") {
+      const inRow = block.style.flexDirection === "row";
+      return { ...block, style: slice(block.style, part.first, part.last), children: part.children.map((child) => this.part(child, inRow)) };
+    }
     return block;
   }
 }

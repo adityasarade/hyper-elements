@@ -1,6 +1,7 @@
 /**
  * The print HTML drawn from a Document's plan (`render(design, { plan })`) has its PDF's pages: as many sheets when
- * Chromium prints it, each with the same words, nothing cut off its content's room. Chromium lays out the HTML; pdf.js
+ * Chromium prints it, each with the same words, nothing cut off its content's room, and a part that goes on to the next
+ * page down to the room's foot. Chromium lays out the HTML; pdf.js
  * reads the PDF. Arial, the HTML's font, has Helvetica's widths, the PDF's.
  */
 import { chromium, type Browser } from "playwright";
@@ -73,6 +74,9 @@ const designs: Record<string, ReactElement> = {
   ),
 };
 
+/** The designs whose pages end in a block that goes on to the next (a paragraph, a Section). */
+const continuing = new Set(["a justified paragraph with bold runs", "a table with a header row, in a padded Section"]);
+
 describe("a Document's print HTML drawn from its plan", () => {
   for (const [name, design] of Object.entries(designs)) {
     it(`has its PDF's pages, each with the same words, nothing cut off: ${name}`, async () => {
@@ -86,7 +90,9 @@ describe("a Document's print HTML drawn from its plan", () => {
       const sheets = await page.evaluate(() =>
         [...document.querySelectorAll(".elements-page")].map((sheet) => {
           const room = sheet.querySelector(":scope > div") as HTMLElement;
-          return { words: (sheet as HTMLElement).innerText, overflow: room.scrollHeight - room.clientHeight };
+          const last = room.lastElementChild!;
+          // How far above the room's foot its last block ends.
+          return { words: (sheet as HTMLElement).innerText, overflow: room.scrollHeight - room.clientHeight, short: room.getBoundingClientRect().bottom - last.getBoundingClientRect().bottom };
         })
       );
       const printed = (await page.pdf({ preferCSSPageSize: true, printBackground: true })).toString("latin1").match(/\/Type\s*\/Page\b/g)?.length;
@@ -96,6 +102,8 @@ describe("a Document's print HTML drawn from its plan", () => {
       sheets.forEach((sheet, i) => {
         expect(words(sheet.words), `page ${i + 1}'s words`).toBe(expected[i]);
         expect(sheet.overflow, `page ${i + 1}'s content past its room`).toBeLessThanOrEqual(1);
+        // A part that goes on to the next page fills the rest of its page, as its PDF's does.
+        if (continuing.has(name) && i < sheets.length - 1) expect(sheet.short, `page ${i + 1}'s part that goes on, short of the room's foot`).toBeLessThanOrEqual(1);
       });
     });
   }

@@ -8,6 +8,8 @@
  *   (Text.tsx). A line's text is cut from the block's by character, counted as its PDF counts them (src/pdf/runs.ts):
  *   a line break, an image in a line and each character of a merge tag or a page number as written.
  * - The id of a block cut between pages is on its first part only.
+ * - A part that goes on to the next page fills the rest of its page (`fills`), as its PDF's does (src/pdf/paint.ts): its
+ *   background and side borders down to the room's foot. A table's doesn't, as its rows would be stretched with it.
  */
 import { documentPages } from "../../document";
 import type { Json } from "../../model";
@@ -60,7 +62,7 @@ function sliced(style: Record<string, Json>, first: boolean, last: boolean): Rec
 function copy(part: PlannedPart, nodes: ReadonlyMap<string, ResolvedNode>, page: { number: number; total: number }): ResolvedNode | undefined {
   const node = nodes.get(part.path);
   if (!node || isWhole(part)) return node;
-  const base = { ...node, id: part.first ? node.id : undefined, style: sliced(node.style, part.first, part.last) };
+  const base: ResolvedNode = { ...node, id: part.first ? node.id : undefined, style: sliced(node.style, part.first, part.last), ...(part.last || node.type === "Table" ? {} : { fills: true as const }) };
   if (part.lines) return { ...base, flowed: { lines: part.lines, page } };
   if (!part.children) return node;
   const children = part.children.map((child) => copy(child, nodes, page)).filter((child): child is ResolvedNode => child !== undefined);
