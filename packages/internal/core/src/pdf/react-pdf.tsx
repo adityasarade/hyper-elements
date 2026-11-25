@@ -142,8 +142,8 @@ export const reactPdf: Engine = async (document) => {
       )
     )
   );
-  let layout: LaidOut | undefined;
-  const onRender = (rendered?: { _INTERNAL__LAYOUT__DATA_?: LaidOut }) => {
+  let layout: LaidOutNode | undefined;
+  const onRender = (rendered?: { _INTERNAL__LAYOUT__DATA_?: LaidOutNode }) => {
     layout = rendered?._INTERNAL__LAYOUT__DATA_;
   };
   const element = el(Document, { title: document.title, language: document.lang, creationDate: document.date, modificationDate: document.date, producer: "Hyper Elements", creator: "Hyper Elements", onRender }, pages);
@@ -159,25 +159,40 @@ const ROOM = "elementsRoom";
  * A node as react-pdf lays it out (what its render hands a Document's onRender, as `_INTERNAL__LAYOUT__DATA_`): its box
  * from its parent's top left, the parent's padding inside it, in points; a block of text's lines, from its first.
  */
-interface LaidOut {
+interface LaidOutNode {
   type: string;
   props?: Record<string, unknown>;
   box?: { top: number; left: number; width: number; height: number; paddingTop?: number };
-  lines?: Array<{ box: { y: number; height: number }; string?: string }>;
-  children?: LaidOut[];
+  lines?: Array<{ box: { y: number; width: number; height: number }; string?: string; runs?: LaidOutRun[] }>;
+  children?: LaidOutNode[];
+}
+
+/** A run of a laid-out line: its glyphs' own advances, in its font's units, and its size and spacing. */
+interface LaidOutRun {
+  glyphs?: Array<{ advanceWidth?: number; codePoints?: number[] }>;
+  attributes?: { fontSize?: number; characterSpacing?: number; font?: Array<{ unitsPerEm?: number }> | { unitsPerEm?: number } };
+}
+
+/** A line's glyphs' own advances, in points: as wide as it would be with no spacing added or taken. */
+function naturalWidth(line: NonNullable<LaidOutNode["lines"]>[number]): number {
+  return (line.runs ?? []).reduce((sum, run) => {
+    const font = Array.isArray(run.attributes?.font) ? run.attributes!.font[0] : run.attributes?.font;
+    const scale = (run.attributes?.fontSize ?? 0) / (font?.unitsPerEm ?? 1000);
+    return sum + (run.glyphs ?? []).reduce((width, glyph) => width + (glyph.advanceWidth ?? 0) * scale + (run.attributes?.characterSpacing ?? 0), 0);
+  }, 0);
 }
 
 /**
  * Where each page's blocks were laid out, from react-pdf's layout: undefined where it has none or another shape (a
  * react-pdf that hands its onRender another layout), so the caller says what it can without it.
  */
-function placed(document: LaidOut): PlacedPage[] | undefined {
+function placed(document: LaidOutNode): PlacedPage[] | undefined {
   if (!Array.isArray(document.children)) return undefined;
   const pages: PlacedPage[] = [];
   for (const page of document.children) {
     let room: PlacedPage["room"] | undefined;
     const blocks: PlacedBlock[] = [];
-    const visit = (node: LaidOut, top: number, left: number) => {
+    const visit = (node: LaidOutNode, top: number, left: number) => {
       if (!node.box) return;
       const y = top + node.box.top;
       const x = left + node.box.left;
@@ -188,7 +203,7 @@ function placed(document: LaidOut): PlacedPage[] | undefined {
         if (node.lines?.length) {
           // react-pdf draws a text's lines from its top, inside its padding, from its first line's y (renderText).
           const first = node.lines[0].box.y;
-          placedBlock.lines = node.lines.map((line) => ({ top: y + (node.box!.paddingTop ?? 0) + line.box.y - first, height: line.box.height, text: line.string ?? "" }));
+          placedBlock.lines = node.lines.map((line) => ({ top: y + (node.box!.paddingTop ?? 0) + line.box.y - first, height: line.box.height, text: line.string ?? "", width: line.box.width, natural: naturalWidth(line) }));
         }
         blocks.push(placedBlock);
       }

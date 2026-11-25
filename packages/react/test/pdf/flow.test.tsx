@@ -3,7 +3,8 @@
  * each page) and laid out with layoutDocument() (where each block landed).
  */
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { Document, Heading, List, ListItem, PageFooter, PageNumber, Section, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
+import { Document, Heading, List, ListItem, PageFooter, PageNumber, prepare, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
+import { reactPdf, writeDocument } from "@hyper-elements/core/pdf";
 import { layoutDocument, renderPdf } from "../../src/pdf";
 
 /** Each page's words, joined by spaces. */
@@ -21,8 +22,8 @@ const sentences = (count: number, what: string) => Array.from({ length: count },
 
 describe("a Document's content that doesn't fit its page", () => {
   it("goes on to the next pages: a paragraph split between its lines, going on where it stopped, two lines at least on each side", async () => {
-    // 200 sentences: 75 lines of 18 points, for rooms of 769.89. Drawn on its own, its first 42 lines come out in 43 (its
-    // lines are broken as a whole), so it's cut a line shorter: none of it runs past its page.
+    // 200 sentences: 75 lines of 18 points, for rooms of 769.89 (42 lines). Its parts are drawn line by line, as they were
+    // laid out: the 42 on page 1 stay 42 (drawn as paragraphs, they'd break into 43).
     const text = sentences(200, "one long paragraph");
     const design = (
       <Document>
@@ -35,10 +36,49 @@ describe("a Document's content that doesn't fit its page", () => {
     expect(pages).toHaveLength(2);
     expect(pages.join(" ")).toBe(text);
     const { nodes } = await layoutDocument(design);
-    expect(nodes.map(({ page, lines, cut }) => ({ page, cut, lines: lines! >= 2 }))).toEqual([
-      { page: 1, cut: undefined, lines: true },
-      { page: 2, cut: undefined, lines: true },
+    expect(nodes.map(({ page, part, lines, cut }) => ({ page, part, cut, lines: lines! >= 2 }))).toEqual([
+      { page: 1, part: 0, cut: undefined, lines: true },
+      { page: 2, part: 1, cut: undefined, lines: true },
     ]);
+    // Each part's characters of the paragraph's text: the first from its start, the second from where it stopped.
+    expect(nodes[0].chars!.start).toBe(0);
+    expect(nodes[1].chars).toEqual({ start: nodes[0].chars!.end, end: text.length });
+  });
+
+  it("draws a split paragraph's lines where the paragraph set them, in every alignment: the same words, within 2 points", async () => {
+    /** Page 1's lines, by their baselines: their words, and where they start and end. */
+    const lines = async (pdf: Uint8Array) => {
+      const document = await getDocument({ data: pdf.slice(), useSystemFonts: false, disableFontFace: true, verbosity: 0 }).promise;
+      const items = (await (await document.getPage(1)).getTextContent()).items.filter((item): item is { str: string; width: number; transform: number[] } & typeof item => "str" in item && item.str.trim() !== "");
+      const rows = new Map<number, typeof items>();
+      for (const item of items) rows.set(Math.round(item.transform[5] * 10) / 10, [...(rows.get(Math.round(item.transform[5] * 10) / 10) ?? []), item]);
+      return [...rows.entries()]
+        .sort((a, b) => b[0] - a[0])
+        .map(([y, row]) => ({ y, words: row.map((item) => item.str).join("").replace(/\s+/g, ""), start: Math.min(...row.map((item) => item.transform[4])), end: Math.max(...row.map((item) => item.transform[4] + item.width)) }));
+    };
+    for (const textAlign of ["left", "center", "right", "justify"] as const) {
+      // Bold runs among plain ones, and lines its engine squeezes, stretches (justified) or breaks a word in.
+      const design = (
+        <Document>
+          <Text style={{ textAlign }}>
+            {Array.from({ length: 200 }, (_, i) => (i % 7 === 3 ? <Span key={i} style={{ fontWeight: 700 }}>{`Sentence ${i + 1} in bold. `}</Span> : `Sentence ${i + 1} of one long paragraph. `))}
+          </Text>
+        </Document>
+      );
+      const { root } = prepare(design);
+      // The paragraph drawn whole (cut at the page's end, as before it was flowed), and the PDF.
+      const whole = await lines((await reactPdf(writeDocument(root!, { families: new Set(), fonts: [], image: () => undefined, date: new Date(0) }))).pdf);
+      const { pdf, diagnostics } = await renderPdf(design);
+      const painted = await lines(pdf);
+      expect(diagnostics).toEqual([]);
+      expect(painted.length).toBe(42);
+      painted.forEach((line, i) => {
+        expect(line.words, `${textAlign}, line ${i + 1}`).toBe(whole[i].words);
+        expect(line.y).toBeCloseTo(whole[i].y, 1);
+        expect(Math.abs(line.start - whole[i].start), `${textAlign}, line ${i + 1}'s start`).toBeLessThan(2);
+        expect(Math.abs(line.end - whole[i].end), `${textAlign}, line ${i + 1}'s end`).toBeLessThan(2);
+      });
+    }
   });
 
   it("goes on between a table's rows, its header row on top of each page, each row once", async () => {

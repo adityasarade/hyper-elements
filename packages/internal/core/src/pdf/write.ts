@@ -6,7 +6,9 @@
  * named here: an engine's adapter draws what this writes (react-pdf.tsx).
  */
 import { assetParts, documentPages, htmlText, linkParts, pageBox, videoParts, type Asset, type BorderSide, type LinkValue, type ResolvedNode } from "../index";
-import { flowPage, type HoldBack, type SplitText } from "./flow";
+import { flowPage } from "./flow";
+import { Painter } from "./paint";
+import { blocksOf, measure, type MeasuredPage, type Plan, type PlannedPage } from "./plan";
 import type { Block, DrawnDocument, Font, Page, Picture, PlacedPage, Run, Shape, Style } from "./model";
 import { alignSelf, borderStyle, boxStyle, flex, pt, runStyle, textStyle } from "./styles";
 
@@ -65,29 +67,27 @@ export function writeDocument(root: ResolvedNode, context: WriteContext): DrawnD
 
 /**
  * A Document's pages flowed: each page's content that doesn't fit going on to pages of its own after it, with the
- * page's paper, margins and background, and its header and footer numbered for the pages there now are. From the
- * pages as written (`document`) and where the engine laid them out (`placed`); `hold`, the lines to hold back when a
- * block of text is split. Each page's split text with it, to check it came out as planned.
+ * page's paper, margins and background, and its header and footer numbered for the pages there are now. From the
+ * pages as written (`document`) and where the engine laid them out (`placed`), measured (plan.ts), planned (flow.ts)
+ * and painted (paint.ts), with the Plan and what it was made from.
  */
-export function flowDocument(root: ResolvedNode, context: WriteContext, document: DrawnDocument, placed: PlacedPage[], hold: HoldBack = new Map()): { document: DrawnDocument; splits: SplitText[][] } {
-  const { header, footer } = documentPages(root);
-  const planned: Array<{ page: Page; content: Block[]; splits: SplitText[] }> = [];
-  document.pages.forEach((page, i) => {
-    const flowed = placed[i] ? flowPage(page, placed[i], hold) : undefined;
-    if (!flowed) planned.push({ page, content: page.content, splits: [] });
-    else flowed.pages.forEach((content, j) => planned.push({ page, content, splits: flowed.splits[j] }));
+export function flowDocument(root: ResolvedNode, context: WriteContext, document: DrawnDocument, placed: PlacedPage[]): { document: DrawnDocument; plan: Plan; measured: MeasuredPage[] } {
+  const measured = measure(document, placed);
+  const planned: PlannedPage[] = document.pages.flatMap((page, i) => {
+    const pages = measured[i] ? flowPage(page, measured[i], i) : undefined;
+    // A page that couldn't be planned (a block that wasn't measured) stays as it was written.
+    return pages ?? [{ from: i, parts: page.content.map((block) => ({ path: block.path!, part: 0, first: true, last: true })) }];
   });
+  const { header, footer } = documentPages(root);
   const write = new Writer(context);
-  return {
-    document: {
-      ...document,
-      pages: planned.map(({ page, content }, index): Page => {
-        write.page = { number: index + 1, total: planned.length };
-        return { ...page, content, header: header && write.block(header, root), footer: footer && write.block(footer, root) };
-      }),
-    },
-    splits: planned.map(({ splits }) => splits),
-  };
+  const pages = planned.map(({ from, parts }, index): Page => {
+    const page = document.pages[from];
+    const painter = new Painter(blocksOf(page), new Map((measured[from]?.blocks ?? []).map((block) => [block.path, block])));
+    const content = parts.map((part) => painter.part(part));
+    write.page = { number: index + 1, total: planned.length };
+    return { ...page, content, header: header && write.block(header, root), footer: footer && write.block(footer, root) };
+  });
+  return { document: { ...document, pages }, plan: { pages: planned }, measured };
 }
 
 const gap = (node: ResolvedNode): Style => (typeof node.style.gap === "number" ? { gap: pt(node.style.gap) } : {});

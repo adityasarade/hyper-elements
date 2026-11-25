@@ -92,9 +92,11 @@ export interface PlacedBlock {
   height: number;
   /**
    * A block of text's lines, each one's top and height (from the page's top), as drawn, with its characters as laid
-   * out: the block's text in order, less its line breaks, a hyphen added where a word is broken across lines.
+   * out (the block's text in order, less its line breaks, a hyphen added where a word is broken across lines); `width`,
+   * the room it was set in (a space ending it past it), and `natural`, its glyphs' own advances: where they're more, its
+   * engine squeezed its spaces between words to fit it, and a justified line's are stretched to fill it.
    */
-  lines?: Array<{ top: number; height: number; text: string }>;
+  lines?: Array<{ top: number; height: number; text: string; width: number; natural: number }>;
 }
 
 /** Where an engine drew a page's blocks, and the content's room on it: what's past the room's bottom is cut off. */

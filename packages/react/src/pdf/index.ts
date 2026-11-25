@@ -10,12 +10,12 @@
  * given in `fonts`. A template that needs one it isn't given is an error (an image) or drawn in a standard PDF font (a
  * font), and says so. templateAssets() lists the fonts and images a template names, for a tool that loads them.
  */
-import { assetParts, flowDocument, LAYOUT_VERSION, pdfFamily, reactPdf, thumbnailOf, writeDocument, type Asset, type Font } from "@hyper-elements/core/pdf";
+import { assetParts, flowDocument, LAYOUT_VERSION, pdfFamily, reactPdf, thumbnailOf, writeDocument, type Asset, type Font, type MeasuredPage, type Plan } from "@hyper-elements/core/pdf";
 import type { FontFace } from "@hyper-elements/core";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode, type Snapshot } from "@hyper-elements/react";
 import type { ReactElement } from "react";
 import { documentLayout, measuredOverflow, type DocumentLayout } from "./layout";
-import { linesOver, overflows } from "./flow";
+import { overflows } from "./flow";
 
 export type { DocumentLayout, DocumentNode, DocumentPage } from "./layout";
 
@@ -44,9 +44,6 @@ export interface PdfResult {
   diagnostics: Diagnostic[];
 }
 
-/** How many times a Document's pages are flowed and drawn again, after it's drawn once, at most. */
-const MAX_FLOWS = 2;
-
 /** The date a PDF says it was made by default: fixed, so the same template makes the same bytes. */
 const FIXED_DATE = new Date(Date.UTC(2026, 0, 1));
 
@@ -62,11 +59,11 @@ export async function renderPdf(element: ReactElement | Snapshot, options: PdfOp
  * does.
  */
 export async function layoutDocument(element: ReactElement | Snapshot, options: PdfOptions = {}): Promise<DocumentLayout> {
-  const { root, pages, placed, diagnostics } = await draw(element, options);
+  const { root, pages, placed, plan, measured, diagnostics } = await draw(element, options);
   if (!placed) {
     throw new ElementsError([...diagnostics, { code: "pdf/layout", severity: "error", message: "The installed @react-pdf/renderer doesn't say where it laid the PDF out: update it", path: "root" }]);
   }
-  return documentLayout(root, pages.pages, placed, diagnostics);
+  return documentLayout(root, pages.pages, placed, diagnostics, plan && measured ? { plan, measured } : undefined);
 }
 
 /**
@@ -84,24 +81,19 @@ async function draw(element: ReactElement | Snapshot, options: PdfOptions) {
   const written = writeDocument(root, context);
   const first = await reactPdf(written);
   let pages = written;
+  let plan: Plan | undefined;
+  let measured: MeasuredPage[] | undefined;
   let { pdf, placed } = first;
-  // Content that doesn't fit its page goes on to the next: flowed from where this render laid it out, and drawn again.
-  // A part of a block of text split across pages that comes out in more lines than planned (its engine breaks a part's
-  // lines as a whole) has the block's parts cut that many lines shorter, and the pages flowed again: three renders at
-  // most, and what still doesn't fit is said, measured.
+  // Content that doesn't fit its page goes on to the next: planned from where this render laid it out (measured), and
+  // drawn again, a split text's lines as they were laid out (paint.ts). What still doesn't fit is said, measured.
   if (first.placed && overflows(written.pages, first.placed)) {
-    const hold = new Map<string, number>();
-    for (let attempt = 0; attempt < MAX_FLOWS; attempt++) {
-      const flowed = flowDocument(root, context, written, first.placed, hold);
-      ({ pdf, placed } = await reactPdf(flowed.document));
-      pages = flowed.document;
-      const longer = placed ? linesOver(flowed.splits, placed) : new Map<string, number>();
-      if (!longer.size) break;
-      for (const [path, lines] of longer) hold.set(path, (hold.get(path) ?? 0) + lines);
-    }
+    const flowed = flowDocument(root, context, written, first.placed);
+    ({ pdf, placed } = await reactPdf(flowed.document));
+    pages = flowed.document;
+    ({ plan, measured } = flowed);
   }
   const said = placed ? [...diagnostics.filter((d) => d.code !== "document/overflow"), ...measuredOverflow(root, pages.pages, placed)] : diagnostics;
-  return { root, pages, placed, pdf, diagnostics: [...said, ...found] };
+  return { root, pages, placed, plan, measured, pdf, diagnostics: [...said, ...found] };
 }
 
 export interface TemplateAssets {
