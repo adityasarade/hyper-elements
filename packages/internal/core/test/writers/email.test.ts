@@ -870,21 +870,39 @@ describe("email HTML", () => {
       for (const options of [{ phoneBelow: 320 }, {}]) expect(render(part, options).head).not.toContain("max-width:none");
     });
 
-    it("draws a Row's child as its cell, filling it (cell): its sizes the Row's, and its phone sizes where told", () => {
+    it("draws a Row's child as its cell, filling it (cell): its sizes the Row's, and its phone width where its Row stays side by side", () => {
       // A 300px part, a Row's only child in it, half as wide as the Row and a quarter on phones, at most 280px.
       const cell = { root: { type: "Email", props: { width: 300 }, children: [{ type: "Row", children: [{ type: "Text", style: { width: "50%", maxWidth: 280 }, mobile: { width: "25%" }, children: ["Words"] }] }] } };
       const path = "root.children[0].children[0]";
       // Not told: half of its 300px, as any Row's child.
       expect(render(cell).body).toContain("max-width:150px");
       // Told: it fills its cell, its limit in px its own, its phone width its own where its Row stacks.
-      const own = render(cell, { cell: { path, phoneSizes: true } });
+      const own = render(cell, { cell: { path, stacksOnPhones: true } });
       expect(own.body).not.toContain("max-width:150px");
       expect(own.body).toContain("max-width:280px");
       expect(own.head).toContain("width:25%!important");
-      // Its phone sizes too, where they were its cell's.
-      expect(render(cell, { cell: { path, phoneSizes: false } }).head).not.toContain("25%");
+      // Where its Row stays side by side, its phone width is its cell's.
+      expect(render(cell, { cell: { path, stacksOnPhones: false } }).head).not.toContain("25%");
       // Nothing at that place: nothing changes.
-      expect(render(cell, { cell: { path: "root.children[1]", phoneSizes: false } }).html).toBe(render(cell).html);
+      expect(render(cell, { cell: { path: "root.children[1]", stacksOnPhones: false } }).html).toBe(render(cell).html);
+    });
+
+    it("keeps a Row child's phone limit (cell), its own in its cell where its Row stays side by side too, a share of it as well", () => {
+      const limited = (maxWidth: number | string) => ({ root: { type: "Email", props: { width: 300 }, children: [{ type: "Row", children: [{ type: "Text", mobile: { maxWidth }, children: ["Words"] }] }] } });
+      for (const stacksOnPhones of [true, false]) {
+        const cell = { cell: { path: "root.children[0].children[0]", stacksOnPhones } };
+        expect(render(limited(120), cell).head).toContain("max-width:120px!important");
+        expect(render(limited("50%"), cell).head).toContain("50%!important");
+      }
+    });
+
+    it("leaves out a Row child's limit that's a share of the Row (cell), which its cell took already", () => {
+      // 40% of a 300px Row: 120px, which its cell is as wide as already.
+      const share = { root: { type: "Email", props: { width: 300 }, children: [{ type: "Row", children: [{ type: "Text", style: { maxWidth: "40%" }, children: ["Words"] }] }] } };
+      expect(render(share).body).toContain("max-width:120px");
+      const drawn = render(share, { cell: { path: "root.children[0].children[0]", stacksOnPhones: true } }).body;
+      expect(drawn).not.toContain("120px");
+      expect(drawn).toContain("max-width:300px");
     });
   });
 

@@ -1045,6 +1045,20 @@ describe("what the builder can't hold", () => {
       const kept = String(blocks(sideBySide.design)[0].values.html);
       expect(kept, name).not.toMatch(/50%|25%/);
       expect(sideBySide.report, name).toContain("root.children[0].children[0]: the builder's column has no place for mobile.width: left out");
+      // A phone limit is its own there, in its cell, as Elements draws it: kept, and not said.
+      const limited = toDesign(<Root width={600}><Row stackOnMobile={false}><Text style={{ flex: 2, mobile: { maxWidth: 120 } }}>Shown <Span hidden={{ mobile: true }}>on desktops only</Span></Text><Text>Beside it</Text></Row></Root>);
+      expect(String(blocks(limited.design)[0].values.html), name).toContain("max-width:120px!important");
+      expect(limited.report.join("\n"), name).not.toContain("left out");
+      // One that's a share: in an Email, of its cell, kept; in a Page, where it's its cell, of the Row: left out, and said.
+      const share = toDesign(<Root width={600}><Row stackOnMobile={false}><Text style={{ mobile: { maxWidth: "50%" } }}>Shown <Span hidden={{ mobile: true }}>on desktops only</Span></Text><Text>Beside it</Text></Row></Root>);
+      const shared = String(blocks(share.design)[0].values.html);
+      if (name === "Email") {
+        expect(shared).toContain("50%!important");
+        expect(share.report.join("\n")).not.toContain("left out");
+      } else {
+        expect(shared).not.toContain("50%");
+        expect(share.report).toContain("root.children[0].children[0]: the builder's column has no place for mobile.maxWidth: left out");
+      }
       // Where its Row stacks on phones, they're its own there, in its full-width cell, as Elements draws it; a limit in
       // px is its own on desktop too, and one that's a share of the Row is the Row's.
       const stacking = toDesign(<Root width={600}><Row><Text style={{ maxWidth: "50%", mobile: { maxWidth: 80 } }}>Shown <Span hidden={{ mobile: true }}>on desktops only</Span></Text><Text>Beside it</Text></Row></Root>);

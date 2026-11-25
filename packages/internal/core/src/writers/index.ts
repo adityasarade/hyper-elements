@@ -24,7 +24,7 @@ export { support } from "./shared/support";
 export { overflow, pagedSupport } from "./shared/paged";
 export { Stylesheet, CLASS_PREFIX, type Media } from "./shared/classes";
 export { BLOCK_MAP_VERSION, type BlockMap, type BlockMapEntry } from "./shared/block-map";
-export { CELL_SIZES, type PartOptions } from "./shared/part";
+export type { PartOptions } from "./shared/part";
 
 /** The window's width in px at and below which a design is on a phone: an Email's width and 20px, a Page's breakpoint (a Document and a Canvas have no phones). */
 export function phoneWidth(root: ResolvedNode): number | undefined {

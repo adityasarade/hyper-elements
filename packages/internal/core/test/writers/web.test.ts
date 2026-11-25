@@ -137,6 +137,16 @@ describe("web HTML", () => {
     expect(renderTemplate({ root: { type: "Page", props: { breakpoints: { mobile: 360 } }, children: [{ type: "Text", hidden: { mobile: true }, children: ["x"] }] } }).html).toContain("@media (max-width: 360px)");
   });
 
+  it("leaves out a Row child's phone limit that's a share of the Row where it's drawn as its cell (cell) in a Row side by side on phones", () => {
+    // In a Page a Row's child is its cell, so a share of it is of the Row; a limit in px is its own.
+    const row = (mobile: Record<string, unknown>) => ({ root: { type: "Page", props: { width: 300 }, children: [{ type: "Row", children: [{ type: "Text", mobile, children: ["Words"] }] }] } });
+    const cell = (stacksOnPhones: boolean) => ({ cell: { path: "root.children[0].children[0]", stacksOnPhones } });
+    expect(web(row({ maxWidth: "50%" })).head).toContain("max-width:50%!important");
+    expect(web(row({ maxWidth: "50%" }), cell(false)).head).not.toContain("50%");
+    expect(web(row({ maxWidth: "50%" }), cell(true)).head).toContain("max-width:50%!important");
+    expect(web(row({ maxWidth: 120 }), cell(false)).head).toContain("max-width:120px!important");
+  });
+
   it("writes links, images, dividers, line breaks and merge tags", () => {
     const { body } = web(
       page([

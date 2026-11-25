@@ -18,22 +18,25 @@ export interface PartOptions {
    * A Row's child drawn on its own as its cell, the only child of a Row in the part: its place in the part
    * ("root.children[0].children[0]"). What it is there, or what it renders where it's a custom element, fills its
    * cell, taking none of the sizes its Row took already to give it its cell: its width and flex, and a limit that's a
-   * share of the Row (one in px is its own, in its cell too). With `phoneSizes: false` (its Row stayed side by side on
-   * phones, where they're its cell's), none of its phone sizes either.
+   * share of the Row (one in px is its own, in its cell too). With `stacksOnPhones: false` (its Row stays side by side
+   * on phones), not its phone width either, which is its cell's there. A phone limit is its own, in its cell, but in a
+   * Page, where it is its cell, one that's a share of the Row is the Row's too.
    */
-  cell?: { path: string; phoneSizes: boolean };
+  cell?: { path: string; stacksOnPhones: boolean };
 }
 
 /** What sizes a Row's child: what its Row gives it its cell by. */
-export const CELL_SIZES = ["width", "minWidth", "maxWidth", "flex"];
+const CELL_SIZES = ["width", "minWidth", "maxWidth", "flex"];
 const isShare = (value: Json | undefined) => typeof value === "string" && value.trim().endsWith("%");
 
 /** A document expanded, with what's at the cell's place in it (`cell`) as it fills its cell. */
-export function drawnInCell(document: ElementsDocument, paths: TemplatePaths, { path, phoneSizes }: NonNullable<PartOptions["cell"]>): ElementsDocument {
+export function drawnInCell(document: ElementsDocument, paths: TemplatePaths, { path, stacksOnPhones }: NonNullable<PartOptions["cell"]>): ElementsDocument {
   let found = false;
+  const shareOfRow = (key: string, value: Json | undefined) => CELL_SIZES.includes(key) && isShare(value);
+  const inPage = document.root.type === "Page";
   const fill = (node: Node): Node => {
-    const style = Object.fromEntries(Object.entries(node.style ?? {}).filter(([key, value]) => key !== "width" && key !== "flex" && !(CELL_SIZES.includes(key) && isShare(value))));
-    const mobile = Object.fromEntries(Object.entries(node.mobile ?? {}).filter(([key]) => phoneSizes || !CELL_SIZES.includes(key)));
+    const style = Object.fromEntries(Object.entries(node.style ?? {}).filter(([key, value]) => key !== "width" && key !== "flex" && !shareOfRow(key, value)));
+    const mobile = Object.fromEntries(Object.entries(node.mobile ?? {}).filter(([key, value]) => stacksOnPhones || (key !== "width" && !(inPage && shareOfRow(key, value)))));
     const { style: _style, mobile: _mobile, ...rest } = node;
     return { ...rest, ...(Object.keys(style).length ? { style } : {}), ...(Object.keys(mobile).length ? { mobile } : {}) };
   };

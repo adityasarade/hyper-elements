@@ -35,9 +35,9 @@ export interface Where {
   /**
    * It's a Row's child, in its column as in its cell: drawn as the only child of a Row, which it fills, as Elements
    * draws a Row's child, taking none of the sizes its Row took already to give it its cell (core's `cell`, applied to
-   * what it renders where it's a custom element). `phoneSizes: false` where its Row stays side by side on phones.
+   * what it renders where it's a custom element). `stacksOnPhones: false` where its Row stays side by side on phones.
    */
-  cell?: { phoneSizes: boolean };
+  cell?: { stacksOnPhones: boolean };
 }
 
 /** A node drawn on its own by the new engine, at its width, in the root's output: its HTML, with its stylesheet. */
@@ -66,7 +66,7 @@ function renderSubtree(node: Node, width: number, root: Node, components: unknow
   // Its root's direction, which its text and its place in its stack run in (a Document's too: it's drawn as a Page).
   const dir: Record<string, Json> = root.props?.dir === "rtl" || root.props?.dir === "ltr" ? { dir: root.props.dir } : {};
   const page: Node = { type: root.type === "Email" ? "Email" : "Page", props: { width: Math.max(200, drawn), ...dir }, style: rootStyle, children: [placed] };
-  const part = { ...(phoneWidth !== undefined ? { phoneBelow: phoneWidth } : {}), ...(cell ? { cell: { path: at, phoneSizes: cell.phoneSizes } } : {}) };
+  const part = { ...(phoneWidth !== undefined ? { phoneBelow: phoneWidth } : {}), ...(cell ? { cell: { path: at, stacksOnPhones: cell.stacksOnPhones } } : {}) };
   const { head, body } = renderTemplate(theme ? { root: page, theme, merged: true } : { root: page }, { components: components as never, ...part });
   const style = /<style>[\s\S]*?<\/style>/.exec(head)?.[0] ?? "";
   // A page's <main> is centered by its margins: in a flex box, which the builder may draw a block in, those shrink it to its words. It fills its block.

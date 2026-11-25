@@ -9,7 +9,7 @@
  * the builder's table doesn't draw as it is in an Email or a Page, is an HTML block of the new engine's own markup,
  * and said.
  */
-import { CELL_SIZES, phoneWidth, prepareTemplate, type Json, type Node, type ResolvedNode } from "@hyper-elements/core";
+import { phoneWidth, prepareTemplate, type Json, type Node, type ResolvedNode } from "@hyper-elements/core";
 import type React from "react";
 import { collectTemplate, snapshotData } from "../primitives/collect";
 import { add, boxRowOf, builderId, gapOf, hasBox, hiddenWhere, hiding, linesOf, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";
@@ -116,8 +116,9 @@ export function raise(element: React.ReactElement): Raised {
       // the stack's alignItems: its own width (a share of it, a Button's) is then its own, once. In a Row, its column is
       // its cell, as wide as it is, which it fills as Elements draws a Row's child (`cell`): its sizes there are the
       // Row's, taken already (a Row's alignItems is up and down, which its column already gives it). Where its Row stays
-      // side by side on phones, so are its phone sizes, which a builder column has none of: left out, and said (what a
-      // custom element renders is laid out as `own`, its sizes those).
+      // side by side on phones, so is its phone width, which a builder column has none of: left out, and said (what a
+      // custom element renders is laid out as `own`, its sizes those). A phone limit is its own, in its cell too, but in
+      // a Page, where it's its cell, one that's a share of the Row is the Row's: left out there too, and said.
       const parent = parentOf(path);
       const stacked = parent !== undefined && STACKS.has(parent.type);
       const sideBySide = parent?.type === "Row" && parent.props.stackOnMobile === false;
@@ -125,9 +126,10 @@ export function raise(element: React.ReactElement): Raised {
       // A Section (your own element's too, laid out as one) spans the window, with no place across its root: it's drawn
       // directly in the root, where it goes, not in a Column.
       const across = stacked && own.type !== "Section" ? parent.style.alignItems : undefined;
-      const where: Where = { theme: document.theme, scopes: enclosing.get(node), alignItems: across, phoneWidth: phoneWidth(resolvedRoot), ...(stacked ? {} : { cell: { phoneSizes: !sideBySide } }) };
-      const leftOut = !stacked && sideBySide ? CELL_SIZES.filter((key) => own.mobile?.[key] !== undefined) : [];
-      if (leftOut.length) report.push(`${path}: the builder's column has no place for ${leftOut.map((key) => `mobile.${key}`).join(", ")}: left out`);
+      const where: Where = { theme: document.theme, scopes: enclosing.get(node), alignItems: across, phoneWidth: phoneWidth(resolvedRoot), ...(stacked ? {} : { cell: { stacksOnPhones: !sideBySide } }) };
+      const shareOfRow = typeof own.mobile?.maxWidth === "string" && own.mobile.maxWidth.trim().endsWith("%") && resolvedRoot.type !== "Email";
+      const leftOut = !stacked && sideBySide ? [...(own.mobile?.width !== undefined ? ["mobile.width"] : []), ...(shareOfRow ? ["mobile.maxWidth"] : [])] : [];
+      if (leftOut.length) report.push(`${path}: the builder's column has no place for ${leftOut.join(", ")}: left out`);
       // Hidden where it is as the builder's block too, so the space around it goes with it (its markup hides it as well):
       // as laid out, where what a custom element renders is hidden too.
       return put({ ...lockedHtml(node, width, root, components, around, inheritedText(path), where), hiding: hiding({ ...node, hidden: own.hidden ?? node.hidden }) });
