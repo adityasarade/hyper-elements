@@ -228,7 +228,12 @@
        "cells": [
         320,
         320
-       ]
+       ],
+       "_override": {
+        "mobile": {
+         "padding": "24px 0px 32px"
+        }
+       }
       }
      },
      {

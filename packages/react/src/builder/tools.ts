@@ -3,6 +3,7 @@
  * defaults, design.ts), what the tool has no field for as hidden properties, its place's spacing in its
  * `containerPadding` and its place's alignment in its `textAlign`.
  */
+import { phoneSidesDiffer } from "./spacing";
 import { linkParts, Menu as MenuDefinition, Social as SocialDefinition, videoParts, type Json, type LinkValue, type Node, type ResolvedNode } from "@hyper-elements/core";
 import { block, type Block } from "./design";
 import { hiddenOf, merge } from "./hide";
@@ -271,7 +272,8 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
     default:
       // A plain stack (a Column without a box of its own) is its blocks, in the same column.
       if ((node.type === "Column" || node.type === "Section") && !Object.keys(node.style ?? {}).some((key) => !["padding", "gap", "alignItems", ...TEXT_STYLES].includes(key)) && !node.hidden) {
-        const phone = Object.keys(node.mobile ?? {});
+        // Its phone padding and gap are held where its padding and gap are, on phones (spacing.ts), but its padding's sides.
+        const phone = Object.keys(node.mobile ?? {}).flatMap((key) => (key === "gap" ? [] : key !== "padding" ? [key] : phoneSidesDiffer(node) ? ["padding at its sides"] : []));
         if (phone.length) place.report.push(`${path}: the builder has no phone values for a plain ${node.type} (${phone.join(", ")}): left out`);
         return place.stack(node, path, around);
       }

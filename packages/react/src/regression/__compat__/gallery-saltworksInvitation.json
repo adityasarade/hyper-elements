@@ -194,7 +194,8 @@
        "locked": false,
        "_override": {
         "mobile": {
-         "noStackMobile": true
+         "noStackMobile": true,
+         "padding": "24px 0px 0px"
         }
        },
        "cells": [
@@ -242,7 +243,12 @@
            },
            "fontWeight": 600,
            "letterSpacing": "1.6px",
-           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"style\":\"text-transform:uppercase\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"You’re invited to a private view\"}]}]}}"
+           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"style\":\"text-transform:uppercase\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"You’re invited to a private view\"}]}]}}",
+           "_override": {
+            "mobile": {
+             "containerPadding": "32px 48px 0px"
+            }
+           }
           }
          },
          {
@@ -397,7 +403,12 @@
            "draggable": true,
            "duplicatable": true,
            "deletable": true,
-           "hideable": true
+           "hideable": true,
+           "_override": {
+            "mobile": {
+             "containerPadding": "32px 48px 0px"
+            }
+           }
           }
          }
         ],
@@ -638,7 +649,12 @@
         338,
         262
        ],
-       "alignItems": "flex-end"
+       "alignItems": "flex-end",
+       "_override": {
+        "mobile": {
+         "padding": "20px 0px 32px"
+        }
+       }
       }
      },
      {
@@ -676,7 +692,12 @@
            "draggable": true,
            "duplicatable": true,
            "deletable": true,
-           "hideable": true
+           "hideable": true,
+           "_override": {
+            "mobile": {
+             "containerPadding": "32px 48px 0px"
+            }
+           }
           }
          },
          {
@@ -710,7 +731,12 @@
            },
            "fontWeight": 400,
            "letterSpacing": "0px",
-           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Ines Kerr, \"},{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"font-style:italic\",\"text\":\"Low Water (Stour, 6.14am)\"},{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\", 2026. Ink on paper, 76 × 43 cm.\"}]}]}}"
+           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Ines Kerr, \"},{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"font-style:italic\",\"text\":\"Low Water (Stour, 6.14am)\"},{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\", 2026. Ink on paper, 76 × 43 cm.\"}]}]}}",
+           "_override": {
+            "mobile": {
+             "containerPadding": "10px 48px 0px"
+            }
+           }
           }
          }
         ],
@@ -799,7 +825,8 @@
            "letterSpacing": "0px",
            "_override": {
             "mobile": {
-             "fontSize": "17px"
+             "fontSize": "17px",
+             "containerPadding": "32px 48px 0px"
             }
            },
            "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"For a year, Ines walked out onto the Stour estuary at every low tide she could reach before work, and drew what the water left behind. These are thirty-one of those drawings, shown together for the first time.\"}]}]}}"
@@ -818,7 +845,12 @@
            "draggable": true,
            "duplicatable": true,
            "deletable": true,
-           "hideable": true
+           "hideable": true,
+           "_override": {
+            "mobile": {
+             "containerPadding": "24px 48px 0px"
+            }
+           }
           }
          }
         ],
@@ -1034,7 +1066,12 @@
         260,
         340
        ],
-       "alignItems": "center"
+       "alignItems": "center",
+       "_override": {
+        "mobile": {
+         "padding": "24px 0px 0px"
+        }
+       }
       }
      },
      {
@@ -1075,7 +1112,12 @@
            },
            "fontWeight": 600,
            "letterSpacing": "1.6px",
-           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"style\":\"text-transform:uppercase\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"During the show, until 18 January\"}]}]}}"
+           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"style\":\"text-transform:uppercase\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"During the show, until 18 January\"}]}]}}",
+           "_override": {
+            "mobile": {
+             "containerPadding": "40px 48px 8px"
+            }
+           }
           }
          },
          {
@@ -1178,7 +1220,12 @@
            },
            "fontWeight": 400,
            "letterSpacing": "0px",
-           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"The Saltworks is open Wednesday to Sunday, 11am to 5pm, and free. You’re getting this because you’re on our list for openings. \"},{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"https://thesaltworks.example/unsubscribe\",\"target\":null,\"rel\":null,\"style\":\"color:#5e5d66\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Leave the list\"}]},{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\".\"}]}]}}"
+           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"The Saltworks is open Wednesday to Sunday, 11am to 5pm, and free. You’re getting this because you’re on our list for openings. \"},{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"https://thesaltworks.example/unsubscribe\",\"target\":null,\"rel\":null,\"style\":\"color:#5e5d66\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Leave the list\"}]},{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\".\"}]}]}}",
+           "_override": {
+            "mobile": {
+             "containerPadding": "40px 48px 44px"
+            }
+           }
           }
          }
         ],
@@ -1291,13 +1338,13 @@
    "schemaVersion": 27
   },
   "report": [
-   "root.children[0]: the builder's row has no place for mobile.padding, mobile.gap: left out",
-   "root.children[1]: the builder's row has no place for mobile.padding, mobile.gap: left out",
-   "root.children[2]: the builder's row has no place for mobile.padding, mobile.gap: left out",
+   "root.children[0]: the builder's row has no place for mobile.padding at its sides: left out",
+   "root.children[1]: the builder's row has no place for mobile.padding at its sides: left out",
+   "root.children[2]: the builder's row has no place for mobile.padding at its sides: left out",
    "root.children[2].children[1]: a Column isn't a tool of the builder's: it's an HTML block of its own markup in the builder (it can be moved, not edited)",
-   "root.children[3]: the builder's row has no place for mobile.padding: left out",
+   "root.children[3]: the builder's row has no place for mobile.padding at its sides: left out",
    "root.children[3].children[1]: a Column isn't a tool of the builder's: it's an HTML block of its own markup in the builder (it can be moved, not edited)",
-   "root.children[4]: the builder's row has no place for mobile.padding: left out"
+   "root.children[4]: the builder's row has no place for mobile.padding at its sides: left out"
   ]
  }
 }

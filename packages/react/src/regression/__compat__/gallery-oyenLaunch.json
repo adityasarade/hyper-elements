@@ -193,7 +193,8 @@
        "locked": false,
        "_override": {
         "mobile": {
-         "noStackMobile": true
+         "noStackMobile": true,
+         "padding": "28px 0px 14px"
         }
        },
        "cells": [
@@ -316,7 +317,12 @@
            },
            "fontWeight": 400,
            "letterSpacing": "1.2px",
-           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"style\":\"text-transform:uppercase\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"New instrument — FR-2\"}]}]}}"
+           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"style\":\"text-transform:uppercase\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"New instrument — FR-2\"}]}]}}",
+           "_override": {
+            "mobile": {
+             "containerPadding": "48px 48px 0px"
+            }
+           }
           }
          },
          {
@@ -393,7 +399,8 @@
            "letterSpacing": "0px",
            "_override": {
             "mobile": {
-             "fontSize": "17px"
+             "fontSize": "17px",
+             "containerPadding": "24px 48px 0px"
             }
            },
            "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"style\":\"max-width:400px\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"FR-2 is a pocket recorder with two capsules that turn, one dial, and nothing to set before you press record.\"}]}]}}"
@@ -612,7 +619,12 @@
         242,
         358
        ],
-       "alignItems": "center"
+       "alignItems": "center",
+       "_override": {
+        "mobile": {
+         "padding": "24px 0px 0px"
+        }
+       }
       }
      },
      {
@@ -650,7 +662,12 @@
            "draggable": true,
            "duplicatable": true,
            "deletable": true,
-           "hideable": true
+           "hideable": true,
+           "_override": {
+            "mobile": {
+             "containerPadding": "48px 48px 0px"
+            }
+           }
           }
          },
          {
@@ -684,7 +701,12 @@
            },
            "fontWeight": 400,
            "letterSpacing": "1.2px",
-           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"style\":\"text-transform:uppercase\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Fig. 1 — FR-2, front and side\"}]}]}}"
+           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"style\":\"text-transform:uppercase\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Fig. 1 — FR-2, front and side\"}]}]}}",
+           "_override": {
+            "mobile": {
+             "containerPadding": "10px 48px 0px"
+            }
+           }
           }
          }
         ],
@@ -759,7 +781,12 @@
            "draggable": true,
            "duplicatable": true,
            "deletable": true,
-           "hideable": true
+           "hideable": true,
+           "_override": {
+            "mobile": {
+             "containerPadding": "48px 48px 0px"
+            }
+           }
           }
          }
         ],
@@ -1013,7 +1040,12 @@
            "draggable": true,
            "duplicatable": true,
            "deletable": true,
-           "hideable": true
+           "hideable": true,
+           "_override": {
+            "mobile": {
+             "containerPadding": "48px 48px 0px"
+            }
+           }
           }
          }
         ],
@@ -1219,7 +1251,12 @@
            "draggable": true,
            "duplicatable": true,
            "deletable": true,
-           "hideable": true
+           "hideable": true,
+           "_override": {
+            "mobile": {
+             "containerPadding": "48px 48px 0px"
+            }
+           }
           }
          }
         ],
@@ -1453,7 +1490,12 @@
        "cells": [
         196,
         404
-       ]
+       ],
+       "_override": {
+        "mobile": {
+         "padding": "14px 0px 56px"
+        }
+       }
       }
      },
      {
@@ -1690,7 +1732,12 @@
         372,
         228
        ],
-       "alignItems": "flex-end"
+       "alignItems": "flex-end",
+       "_override": {
+        "mobile": {
+         "padding": "36px 0px"
+        }
+       }
       }
      },
      {
@@ -1873,7 +1920,12 @@
        "cells": [
         196,
         404
-       ]
+       ],
+       "_override": {
+        "mobile": {
+         "padding": "28px 0px 44px"
+        }
+       }
       }
      }
     ],
@@ -1940,16 +1992,15 @@
    "schemaVersion": 27
   },
   "report": [
-   "root.children[0]: the builder's row has no place for mobile.padding, mobile.gap: left out",
-   "root.children[0].children[2]: the builder has no phone values for a plain Column (gap): left out",
+   "root.children[0]: the builder's row has no place for mobile.padding at its sides: left out",
    "root.children[0].children[3].children[1].children[0].children[0]: a Row isn't a tool of the builder's: it's an HTML block of its own markup in the builder (it can be moved, not edited)",
    "root.children[0].children[3].children[1].children[0].children[1]: a Row isn't a tool of the builder's: it's an HTML block of its own markup in the builder (it can be moved, not edited)",
    "root.children[0].children[3].children[1].children[0].children[2]: a Row isn't a tool of the builder's: it's an HTML block of its own markup in the builder (it can be moved, not edited)",
    "root.children[0].children[3].children[1].children[0].children[3]: a Row isn't a tool of the builder's: it's an HTML block of its own markup in the builder (it can be moved, not edited)",
    "root.children[0].children[4].children[1].children[0]: the builder's table doesn't draw it as it is (a line between rows only; a column of a fixed width): it's an HTML block of its own markup in the builder (it can be moved, not edited)",
-   "root.children[1]: the builder's row has no place for mobile.padding: left out",
+   "root.children[1]: the builder's row has no place for mobile.padding at its sides: left out",
    "root.children[1].children[0].children[1]: the builder's column has no place for mobile.width: left out",
-   "root.children[2]: the builder's row has no place for mobile.padding: left out"
+   "root.children[2]: the builder's row has no place for mobile.padding at its sides: left out"
   ]
  }
 }

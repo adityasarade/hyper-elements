@@ -12,10 +12,11 @@
 import { phoneWidth, prepareTemplate, type Json, type Node, type ResolvedNode } from "@hyper-elements/core";
 import type React from "react";
 import { collectTemplate, snapshotData } from "../primitives/collect";
-import { add, boxRowOf, builderId, gapOf, hasBox, hiddenWhere, hiding, linesOf, padding, rowOf, TEXT_FOLDED, ZERO, type Sides, type Writer } from "./columns";
+import { add, boxRowOf, builderId, gapOf, hasBox, hiddenWhere, hiding, linesOf, padding, rowOf, TEXT_FOLDED, ZERO, type Child, type Sides, type Writer } from "./columns";
 import { block, columnWith, rowWith, type Block, type Body, type BodyFields, type Row } from "./design";
 import { hiddenOf, leftOut, merge } from "./hide";
 import { lockedHtml, type Where } from "./locked";
+import { given, phoneGapOf, phonePadOf, phoneSidesDiffer, spaceRows, type Reading } from "./spacing";
 import { blockTool, NOT_IN_DOCUMENTS, type Place } from "./tools";
 import { builderBorder, builderFont, cssPx, cssSides, type Values } from "./values";
 
@@ -26,7 +27,6 @@ export interface Raised {
   report: string[];
 }
 
-type Child = { child: Node; path: string };
 
 const holdsPageNumber = (node: Node): boolean => node.type === "PageNumber" || (node.children ?? []).some((child) => typeof child !== "string" && holdsPageNumber(child));
 
@@ -158,7 +158,7 @@ export function raise(element: React.ReactElement): Raised {
     return children.flatMap(({ child, path: childPath }, i) => {
       const last = i === children.length - 1;
       const space: Sides = { top: (i === 0 ? pad.top : gap) + carried[i], right: pad.right, bottom: last ? pad.bottom + carry : 0, left: pad.left };
-      return ([] as Block[]).concat(blockTool(child, childPath, own, space, place));
+      return given(([] as Block[]).concat(blockTool(child, childPath, own, space, place)), childPath, space);
     });
   };
 
@@ -171,11 +171,13 @@ export function raise(element: React.ReactElement): Raised {
     const gap = gapOf(stackNode);
     const contents = blocks.flatMap(({ child, path }, i) => {
       const space: Sides = { top: i === 0 ? pad.top : gap, right: pad.right, bottom: i === blocks.length - 1 ? pad.bottom : 0, left: pad.left };
-      return ([] as Block[]).concat(child.type === "Row" ? place.locked(child, path, "a Row whose children take their own width (a line of links)", space) : blockTool(child, path, stackNode, space, place));
+      return given(([] as Block[]).concat(child.type === "Row" ? place.locked(child, path, "a Row whose children take their own width (a line of links)", space) : blockTool(child, path, stackNode, space, place)), path, space);
     });
     // A run with nothing in it but space (an empty Section): its space as the row's padding.
     const empty = !contents.length;
-    return put(rowWith([1], { padding: empty ? cssSides({ ...pad, left: 0, right: 0 }) : "0px", ...sectionHiding, ...band }, [columnWith({ padding: "0px" }, contents)]), bandHidden);
+    const made = put(rowWith([1], { padding: empty ? cssSides({ ...pad, left: 0, right: 0 }) : "0px", ...sectionHiding, ...band }, [columnWith({ padding: "0px" }, contents)]), bandHidden);
+    made.run = true;
+    return made;
   };
 
   /** The root's children, or a Section's: Rows, Grids and boxes as rows of their own, runs of blocks as one-column rows. */
@@ -199,9 +201,9 @@ export function raise(element: React.ReactElement): Raised {
       run = [];
     };
     /** A line above or below something, a Divider in a row of its own: a column's border fills the row, and moves with its alignItems. */
-    const lineRow = (line: Json | undefined, space: Sides, node: Node) => {
+    const lineRow = (line: Json | undefined, space: Sides, node: Node, path: string) => {
       if (!line) return;
-      const divider = put(block("divider"), { border: builderBorder({ top: line as never }), width: "100%", textAlign: "center", containerPadding: cssSides(space) });
+      const [divider] = given([put(block("divider"), { border: builderBorder({ top: line as never }), width: "100%", textAlign: "center", containerPadding: cssSides(space) })], path, space);
       out.push(put(rowWith([1], { padding: "0px", ...hiding(node), ...band, ...sectionHiding }, [columnWith({ padding: "0px" }, [divider])]), bandHidden(out.length)));
     };
     children.forEach(({ child, path }, i) => {
@@ -212,13 +214,13 @@ export function raise(element: React.ReactElement): Raised {
         flush(false);
         const o = outer();
         const within = { ...o, top: lines.top ? 0 : o.top, bottom: lines.bottom ? 0 : o.bottom };
-        lineRow(lines.top, { ...o, bottom: 0 }, child);
-        if (child.type === "Row") out.push(row(child, path, { ...band, ...sectionHiding }, within, bandHidden(out.length)));
+        lineRow(lines.top, { ...o, bottom: 0 }, child, path);
+        if (child.type === "Row") out.push(...given([row(child, path, { ...band, ...sectionHiding }, within, bandHidden(out.length))], path, within));
         else {
           const { border: _border, ...style } = child.style ?? {};
           out.push(oneColumn([{ child: { ...child, style }, path }], stackNode, band, within, bandHidden(out.length), sectionHiding));
         }
-        lineRow(lines.bottom, { ...o, top: 0 }, child);
+        lineRow(lines.bottom, { ...o, top: 0 }, child, path);
       } else if (child.type === "Column" && !hasBox(child) && hasLayout(child)) {
         // A plain stack holding Rows: its children are rows of their own, its padding around them.
         flush(false);
@@ -229,7 +231,8 @@ export function raise(element: React.ReactElement): Raised {
         run.push({ child, path });
       } else if (child.type === "Row") {
         flush(false);
-        out.push(row(child, path, { ...band, ...sectionHiding }, outer(), bandHidden(out.length)));
+        const o = outer();
+        out.push(...given([row(child, path, { ...band, ...sectionHiding }, o, bandHidden(out.length))], path, o));
       } else if (child.type === "Grid") {
         // A Grid is the Column of Rows it's laid out as: each of its Rows a row of the builder's, each cell a column.
         flush(false);
@@ -246,7 +249,7 @@ export function raise(element: React.ReactElement): Raised {
           const shape = nodeOf(gridRow);
           const cells = (shape.children ?? []).map((cell) => (typeof cell !== "string" && cell.children?.length ? { ...cell, children: [items[next++]] } : cell));
           const space = { ...pad, top: r === 0 ? (out.length === 0 ? pad.top : gap) : gridGap, bottom: last && r === arranged.children.length - 1 ? pad.bottom : 0 };
-          out.push(row({ ...shape, children: cells }, gridRow.path, { ...band, ...sectionHiding, ...gridHiding }, space, bandHidden(out.length), gridRow));
+          out.push(...given([row({ ...shape, children: cells }, gridRow.path, { ...band, ...sectionHiding, ...gridHiding }, space, bandHidden(out.length), gridRow)], gridRow.path, space));
         });
       } else if (child.type === "Column" && (hasBox(child) || !childrenOf(child, path).length) && !hasLayout(child)) {
         flush(false);
@@ -255,7 +258,7 @@ export function raise(element: React.ReactElement): Raised {
         // isn't around the box. A box that's painted fills its column, so that space is columns of its own beside it.
         const painted = PAINT.some((key) => child.style?.[key] !== undefined || child.mobile?.[key] !== undefined);
         const box = painted ? child : { ...child, style: { ...child.style, padding: add(padding(child), { left: o.left, right: o.right }) } };
-        out.push(boxRow(box, path, { ...band, ...sectionHiding }, { top: o.top, right: 0, bottom: o.bottom, left: 0 }, bandHidden(out.length), painted ? { left: o.left, right: o.right } : undefined));
+        out.push(...given([boxRow(box, path, { ...band, ...sectionHiding }, { top: o.top, right: 0, bottom: o.bottom, left: 0 }, bandHidden(out.length), painted ? { left: o.left, right: o.right } : undefined)], path, o));
       } else run.push({ child, path });
     });
     flush(true);
@@ -267,8 +270,13 @@ export function raise(element: React.ReactElement): Raised {
   const headers: Row[] = [];
   const footers: Row[] = [];
   let loose: Child[] = [];
+  const reading: Reading = { at, childrenOf };
   const flushLoose = () => {
-    if (loose.length) body.push(...rows(loose, resolvedRoot, {}, ZERO));
+    if (loose.length) {
+      const looseRows = rows(loose, resolvedRoot, {}, ZERO);
+      spaceRows(looseRows, { children: loose, pad: ZERO, gap: gapOf(resolvedRoot) }, reading, () => oneColumn([], resolvedRoot, {}, ZERO, {}));
+      body.push(...looseRows);
+    }
     loose = [];
   };
   /** A page break of the builder's, in a row of its own. */
@@ -284,13 +292,22 @@ export function raise(element: React.ReactElement): Raised {
       if (last === "page") breakBefore();
       last = "other";
       const own = at(path);
-      sayLeftOut("row", child, path, ["style.backgroundColor", "style.padding", "style.border", "style.gap", "style.alignItems", ...TEXT_FOLDED]);
+      sayLeftOut("row", child, path, ["style.backgroundColor", "style.padding", "mobile.padding", "style.border", "style.gap", "mobile.gap", "style.alignItems", ...TEXT_FOLDED]);
+      if (phoneSidesDiffer(child)) report.push(`${path}: the builder's row has no place for mobile.padding at its sides: left out`);
       const band = own.style.backgroundColor !== undefined ? { backgroundColor: own.style.backgroundColor as string } : {};
       if (child.mobile?.border !== undefined) report.push(`${path}: the builder's row has no border on phones: left out`);
       const sectionRows = rows(childrenOf(child, path), own, band, padding(child), child);
+      spaceRows(sectionRows, { children: childrenOf(child, path), pad: padding(child), phonePad: phonePadOf(child), gap: gapOf(own), phoneGap: phoneGapOf(child), hidden: own.hidden }, reading, () => oneColumn([], own, band, ZERO, {}, hiddenWhere(child)));
       if (child.id && sectionRows[0]) put(sectionRows[0], builderId(child.id, "u_row"));
       // An empty Section (a band of space) is a row with nothing in it.
-      body.push(...(sectionRows.length ? sectionRows : [oneColumn([], own, band, padding(child), {}, hiding(child))]));
+      const phonePad = phonePadOf(child);
+      const empty = (): Row => {
+        const made = oneColumn([], own, band, padding(child), {}, hiding(child));
+        // Its padding on phones, where it's its own, at its top and bottom.
+        if (phonePad && (phonePad.top !== padding(child).top || phonePad.bottom !== padding(child).bottom)) put(made, { _override: { mobile: { padding: cssSides({ ...phonePad, left: 0, right: 0 }) } } });
+        return made;
+      };
+      body.push(...(sectionRows.length ? sectionRows : [empty()]));
     } else if (child.type === "DocumentPage") {
       flushLoose();
       breakBefore();

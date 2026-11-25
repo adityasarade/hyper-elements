@@ -191,7 +191,8 @@
        "locked": false,
        "_override": {
         "mobile": {
-         "noStackMobile": true
+         "noStackMobile": true,
+         "padding": "24px 0px 10px"
         }
        },
        "cells": [
@@ -317,7 +318,8 @@
            "letterSpacing": "-2px",
            "_override": {
             "mobile": {
-             "fontSize": "68px"
+             "fontSize": "68px",
+             "containerPadding": "12px 48px 0px"
             }
            }
           }
@@ -355,7 +357,8 @@
            "letterSpacing": "0px",
            "_override": {
             "mobile": {
-             "fontSize": "14px"
+             "fontSize": "14px",
+             "containerPadding": "12px 48px 2px"
             }
            },
            "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"style\":\"font-style:italic\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"A weekly letter about food, and where it comes from\"}]}]}}"
@@ -380,7 +383,12 @@
            "draggable": true,
            "duplicatable": true,
            "deletable": true,
-           "hideable": true
+           "hideable": true,
+           "_override": {
+            "mobile": {
+             "containerPadding": "12px 48px 0px"
+            }
+           }
           }
          },
          {
@@ -489,7 +497,12 @@
            },
            "fontWeight": 600,
            "letterSpacing": "1.6px",
-           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"style\":\"text-transform:uppercase\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"This week’s long read\"}]}]}}"
+           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"style\":\"text-transform:uppercase\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"This week’s long read\"}]}]}}",
+           "_override": {
+            "mobile": {
+             "containerPadding": "32px 48px 0px"
+            }
+           }
           }
          },
          {
@@ -527,7 +540,8 @@
            "letterSpacing": "-0.6px",
            "_override": {
             "mobile": {
-             "fontSize": "32px"
+             "fontSize": "32px",
+             "containerPadding": "16px 48px 0px"
             }
            }
           }
@@ -565,7 +579,8 @@
            "letterSpacing": "0px",
            "_override": {
             "mobile": {
-             "fontSize": "18px"
+             "fontSize": "18px",
+             "containerPadding": "16px 48px 0px"
             }
            },
            "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"style\":\"font-style:italic\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Perry pears once grew on four thousand acres here. Mary Holloway farms the last forty, and she isn’t sure who will farm them next.\"}]}]}}"
@@ -602,7 +617,12 @@
            },
            "fontWeight": 400,
            "letterSpacing": "0px",
-           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"By Tom Ashworth · A nine-minute read\"}]}]}}"
+           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"By Tom Ashworth · A nine-minute read\"}]}]}}",
+           "_override": {
+            "mobile": {
+             "containerPadding": "16px 48px 0px"
+            }
+           }
           }
          },
          {
@@ -636,7 +656,12 @@
            },
            "fontWeight": 400,
            "letterSpacing": "0px",
-           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"font-weight:600;letter-spacing:1px;text-transform:uppercase;font-size:14px\",\"text\":\"The trees are older than the farmhouse.\"},{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\" Some of them went in when Victoria was a girl, and they’ve outlived every Holloway who planted them. A perry pear tree takes a lifetime to bear and then bears for two more: the saying in the Vale is that you plant pears for your heirs.\"}]}]}}"
+           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"font-weight:600;letter-spacing:1px;text-transform:uppercase;font-size:14px\",\"text\":\"The trees are older than the farmhouse.\"},{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\" Some of them went in when Victoria was a girl, and they’ve outlived every Holloway who planted them. A perry pear tree takes a lifetime to bear and then bears for two more: the saying in the Vale is that you plant pears for your heirs.\"}]}]}}",
+           "_override": {
+            "mobile": {
+             "containerPadding": "22px 48px 0px"
+            }
+           }
           }
          },
          {
@@ -670,7 +695,12 @@
            },
            "fontWeight": 400,
            "letterSpacing": "0px",
-           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"What Mary’s heirs will inherit is less clear. The cider makers who bought her fruit have gone over to apples, which crop in five years instead of fifty, and the last perry mill in the county closed in the spring. This autumn she pressed the harvest herself, in a borrowed press, in her own barn.\"}]}]}}"
+           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"What Mary’s heirs will inherit is less clear. The cider makers who bought her fruit have gone over to apples, which crop in five years instead of fifty, and the last perry mill in the county closed in the spring. This autumn she pressed the harvest herself, in a borrowed press, in her own barn.\"}]}]}}",
+           "_override": {
+            "mobile": {
+             "containerPadding": "16px 48px 0px"
+            }
+           }
           }
          },
          {
@@ -704,7 +734,12 @@
            },
            "fontWeight": 600,
            "letterSpacing": "0px",
-           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"https://pith.example/112/evesham\",\"target\":null,\"rel\":null,\"style\":\"color:#b83a26\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Read the rest of the piece\"}]}]}]}}"
+           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"https://pith.example/112/evesham\",\"target\":null,\"rel\":null,\"style\":\"color:#b83a26\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Read the rest of the piece\"}]}]}]}}",
+           "_override": {
+            "mobile": {
+             "containerPadding": "16px 48px 0px"
+            }
+           }
           }
          }
         ],
@@ -779,7 +814,12 @@
            "draggable": true,
            "duplicatable": true,
            "deletable": true,
-           "hideable": true
+           "hideable": true,
+           "_override": {
+            "mobile": {
+             "containerPadding": "28px 48px 0px"
+            }
+           }
           }
          }
         ],
@@ -1067,7 +1107,12 @@
            },
            "fontWeight": 600,
            "letterSpacing": "1.6px",
-           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"style\":\"text-transform:uppercase\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Also this week\"}]}]}}"
+           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"style\":\"text-transform:uppercase\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Also this week\"}]}]}}",
+           "_override": {
+            "mobile": {
+             "containerPadding": "32px 48px 0px"
+            }
+           }
           }
          },
          {
@@ -1152,7 +1197,12 @@
            "draggable": true,
            "duplicatable": true,
            "deletable": true,
-           "hideable": true
+           "hideable": true,
+           "_override": {
+            "mobile": {
+             "containerPadding": "32px 48px 0px"
+            }
+           }
           }
          }
         ],
@@ -1239,7 +1289,12 @@
            },
            "fontWeight": 400,
            "letterSpacing": "0px",
-           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"style\":\"font-style:italic\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Until next Thursday,\"},{\"type\":\"linebreak\",\"version\":1},{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Tom\"}]}]}}"
+           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"style\":\"font-style:italic\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Until next Thursday,\"},{\"type\":\"linebreak\",\"version\":1},{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Tom\"}]}]}}",
+           "_override": {
+            "mobile": {
+             "containerPadding": "32px 48px 0px"
+            }
+           }
           }
          },
          {
@@ -1261,7 +1316,12 @@
            "draggable": true,
            "duplicatable": true,
            "deletable": true,
-           "hideable": true
+           "hideable": true,
+           "_override": {
+            "mobile": {
+             "containerPadding": "20px 48px 0px"
+            }
+           }
           }
          },
          {
@@ -1317,7 +1377,12 @@
            },
            "fontWeight": 400,
            "letterSpacing": "0px",
-           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"You’re reading Pith because you subscribed to it. If someone you know cooks, forward it to them.\"},{\"type\":\"linebreak\",\"version\":1},{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"https://pith.example/112\",\"target\":null,\"rel\":null,\"style\":\"color:#6a645a\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Read it on the web\"}]},{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"  ·  \"},{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"https://pith.example/unsubscribe\",\"target\":null,\"rel\":null,\"style\":\"color:#6a645a\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Unsubscribe\"}]}]}]}}"
+           "textJson": "{\"root\":{\"type\":\"root\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"children\":[{\"type\":\"extended-paragraph\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"textFormat\":0,\"textStyle\":\"\",\"isInlineTool\":false,\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"You’re reading Pith because you subscribed to it. If someone you know cooks, forward it to them.\"},{\"type\":\"linebreak\",\"version\":1},{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"https://pith.example/112\",\"target\":null,\"rel\":null,\"style\":\"color:#6a645a\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Read it on the web\"}]},{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"  ·  \"},{\"type\":\"extended-link\",\"version\":1,\"format\":\"\",\"indent\":0,\"direction\":null,\"url\":\"https://pith.example/unsubscribe\",\"target\":null,\"rel\":null,\"style\":\"color:#6a645a\",\"children\":[{\"type\":\"extended-text\",\"version\":1,\"detail\":0,\"format\":0,\"mode\":\"normal\",\"style\":\"\",\"text\":\"Unsubscribe\"}]}]}]}}",
+           "_override": {
+            "mobile": {
+             "containerPadding": "20px 48px 40px"
+            }
+           }
           }
          }
         ],
@@ -1450,14 +1515,14 @@
    "schemaVersion": 27
   },
   "report": [
-   "root.children[0]: the builder's row has no place for mobile.padding, mobile.gap: left out",
-   "root.children[1]: the builder's row has no place for mobile.padding, mobile.gap: left out",
-   "root.children[2]: the builder's row has no place for mobile.padding: left out",
-   "root.children[3]: the builder's row has no place for mobile.padding: left out",
+   "root.children[0]: the builder's row has no place for mobile.padding at its sides: left out",
+   "root.children[1]: the builder's row has no place for mobile.padding at its sides: left out",
+   "root.children[2]: the builder's row has no place for mobile.padding at its sides: left out",
+   "root.children[3]: the builder's row has no place for mobile.padding at its sides: left out",
    "root.children[3].children[1]: a Column isn't a tool of the builder's: it's an HTML block of its own markup in the builder (it can be moved, not edited)",
-   "root.children[4]: the builder's row has no place for mobile.padding: left out",
+   "root.children[4]: the builder's row has no place for mobile.padding at its sides: left out",
    "root.children[4].children[0]: a Column isn't a tool of the builder's: it's an HTML block of its own markup in the builder (it can be moved, not edited)",
-   "root.children[5]: the builder's row has no place for mobile.padding, mobile.gap: left out"
+   "root.children[5]: the builder's row has no place for mobile.padding at its sides: left out"
   ]
  }
 }
