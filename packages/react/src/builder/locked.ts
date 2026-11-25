@@ -49,7 +49,8 @@ function renderSubtree(node: Node, width: number, root: Node, components: unknow
   const { head, body } = renderTemplate(theme ? { root: shown, theme, merged: true } : { root: shown }, { components: components as never });
   const style = /<style>[\s\S]*?<\/style>/.exec(head)?.[0] ?? "";
   // A page's <main> is centered by its margins: in a flex box, which the builder may draw a block in, those shrink it to its words. It fills its block.
-  const filled = body.replace(/^<main style="/, '<main style="width:100%;');
+  // Its play icons let clicks through to their video's link.
+  const filled = clickThrough(body.replace(/^<main style="/, '<main style="width:100%;'));
   return withParagraphMargin(style + filled, "margin-top:1em;margin-bottom:1em");
 }
 
@@ -60,14 +61,27 @@ export const thumbnailOf = (video: Node): Json | undefined => video.props?.thumb
 const printVideos = (node: Node): Node =>
   node.type === "Video" ? printedVideo(node) : node.children ? { ...node, children: node.children.map((child) => (typeof child === "string" ? child : printVideos(child))) } : node;
 
-/**
- * A play icon, as the builder's own video draws one on its thumbnail: here a dark round button with a white triangle,
- * 64px wide but no wider than a quarter of the thumbnail, so a small video's isn't covered by it. It's only drawn (an
- * image with no alternate text is hidden from screen readers); the link under it is what's read and followed.
- */
+/** A play icon, as the builder's own video draws one on its thumbnail: here a dark round button with a white triangle. */
 const PLAY_ICON_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="32" fill-opacity="0.6"/><path d="M26 20v24l20-12z" fill="#fff"/></svg>';
-const PLAY_ICON: Node = { type: "Image", props: { src: `data:image/svg+xml,${encodeURIComponent(PLAY_ICON_SVG)}`, alt: "" }, style: { width: 64, maxWidth: "25%" } };
+
+const PLAY_ICON_SRC = `data:image/svg+xml,${encodeURIComponent(PLAY_ICON_SVG)}`;
+
+/**
+ * The play icon, 64px wide but no wider than a quarter of the thumbnail, so a small video's isn't covered by it. It's
+ * only drawn: no alternate text, so screen readers read the one link under it, and its markup lets clicks through to
+ * that link (`clickThrough`).
+ */
+const PLAY_ICON: Node = { type: "Image", props: { src: PLAY_ICON_SRC, alt: "" }, style: { width: 64, maxWidth: "25%" } };
+
+/**
+ * Markup whose play icons let clicks through to the thumbnail's link under each: `pointer-events: none`, which no
+ * style of Elements' writes, at the start of each icon image's style (its other attributes, a width among them, are
+ * as the page writer writes them). The video's one link then takes a click anywhere on it.
+ */
+const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const ICON_STYLE = new RegExp(`(<img src="${escaped(PLAY_ICON_SRC)}" alt=""[^>]*? style=")`, "g");
+const clickThrough = (html: string): string => html.replace(ICON_STYLE, "$1pointer-events:none;");
 
 /**
  * A Video as a PDF can show it: its thumbnail linked to it, with a play icon in its middle, else a link with its title.

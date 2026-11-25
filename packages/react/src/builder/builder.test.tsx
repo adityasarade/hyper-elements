@@ -231,10 +231,14 @@ describe("toDesign", () => {
     // As wide as the Video: its link fills its place, not shrunk to the image's own size.
     expect(thumbnail.values.html).not.toMatch(/<a [^>]*align-self/);
     // A play icon over the thumbnail, in its middle: the link and the icon share a grid's one cell, centered in it. The
-    // icon is only drawn (no alternate text, so screen readers read the link), 64px but no wider than a quarter of the
-    // thumbnail, so a small video isn't covered by it.
+    // icon is 64px but no wider than a quarter of the thumbnail, so a small video isn't covered by it. It's only drawn:
+    // no alternate text, and clicks go through it to the video's one link.
     expect(thumbnail.values.html).toMatch(/<div style="display:grid;[^"]*align-items:center;justify-items:center">/);
-    expect(thumbnail.values.html).toMatch(/<\/a><\/div><img src="data:image\/svg\+xml,[^"]*" alt="" [^>]*style="grid-area:1 \/ 1;[^"]*max-width:25%;width:64px;/);
+    expect(thumbnail.values.html).toMatch(/<\/a><\/div><img src="data:image\/svg\+xml,[^"]*" alt="" [^>]*style="pointer-events:none;grid-area:1 \/ 1;[^"]*max-width:25%;width:64px;/);
+    expect(thumbnail.values.html.match(/<a /g)).toHaveLength(1);
+    // A small video's icon too, of its own width (a quarter of 40px).
+    const [small] = blocks(toDesign(<Document><Video src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" style={{ width: 40 }} /></Document>).design);
+    expect(small.values.html).toMatch(/<img src="data:image\/svg\+xml,[^"]*" alt="" width="10" style="pointer-events:none;/);
     expect(link.values.html).not.toContain("<iframe");
     expect(link.values.html).toMatch(/<a [^>]*href="https:\/\/vimeo\.com\/76979871"[^>]*>Tour<\/a>/);
     // No thumbnail, no icon: a link with the title is all there is.
@@ -426,7 +430,7 @@ describe("toDesign", () => {
       const html = blocks(toDesign(<Document>{element}</Document>).design).filter((content) => content.type === "html").map((content) => content.values.html).join("");
       expect(html, where).not.toContain("<iframe");
       expect(html, where).toMatch(thumbnail);
-      expect(html, where).toMatch(/<\/a><\/div><img src="data:image\/svg\+xml,[^"]*" alt=""/);
+      expect(html, where).toMatch(/<\/a><\/div><img src="data:image\/svg\+xml,[^"]*" alt="" [^>]*style="pointer-events:none;/);
       expect(blocks(toDesign(<Page>{element}</Page>).design).find((content) => content.type === "html")?.values.html, where).toContain("<iframe");
     }
   });
