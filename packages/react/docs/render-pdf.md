@@ -14,6 +14,7 @@ npm install @hyper-elements/react @react-pdf/renderer react
 |---------|---------|-----|
 | `@hyper-elements/react` | `^0.3.0` | The elements, and this entry |
 | `@react-pdf/renderer` | `^4.9.0` | Draws the pages (optional: only for `/pdf`) |
+| `@react-pdf/textkit` | `^7.0.1` | Measures the pages without drawing them, for `paginate()` (optional: without it, `paginate()` draws the PDF to measure it) |
 | `react` | `>=18` | |
 
 The tree `prepare()` lays out says its format (its layout version), and `renderPdf` reads the one it's built with. Where the `@hyper-elements/react` it loads writes another (a second install beside it), it throws an `ElementsError` (`pdf/version`) rather than drawing the design wrong.
@@ -97,8 +98,10 @@ import { paginate, renderPdf } from "@hyper-elements/react/pdf";
 const { pdf, plan } = await renderPdf(design, { fonts });
 const { html } = await render(design, { plan }); // the same pages, the same words on each
 
-// Or the plan alone: const { plan } = await paginate(design, { fonts });
+// Or the plan alone, without drawing the PDF: const { plan } = await paginate(design, { fonts });
 ```
+
+`paginate()` measures the pages with react-pdf's own text layout (`@react-pdf/textkit`, the same package react-pdf draws with) and its layout's arithmetic, without drawing them: the plan is the one `renderPdf()` makes from the PDF it draws, line for line. `renderPdf()` draws first: a Document that fits is drawn once, as it always was.
 
 ## Where everything landed
 

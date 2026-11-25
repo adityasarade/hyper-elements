@@ -169,7 +169,7 @@ const { pdf, plan } = await renderPdf(design, { fonts });
 const { html } = await render(design, { plan });
 ```
 
-`paginate(design, { fonts })` gives the plan alone.
+`paginate(design, { fonts })` gives the plan alone, measured without drawing the PDF: install `@react-pdf/textkit` beside `@react-pdf/renderer` for that (without it, `paginate()` draws the PDF to measure it).
 
 ### Where everything landed
 
