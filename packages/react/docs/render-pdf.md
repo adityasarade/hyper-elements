@@ -76,6 +76,18 @@ Text whose `fontFamily` has no file given is drawn in a standard PDF font: Helve
 
 `validate()` from `@hyper-elements/react` reports `pdf/unsupported` and `document/overflow` without rendering. Without the fonts its `document/overflow` is an estimate. The font and image checks need the files, so only `renderPdf` makes them, and measures.
 
+## Pages that flow
+
+Content that doesn't fit its page goes on to the next, with the Document's `PageHeader` and `PageFooter` on each page and each `PageNumber` numbered for the pages there are:
+
+- **Text** splits between its lines, leaving two lines at least on each side.
+- **A Section, a Column (not one in a Row) and a List** split between and inside what they hold. A Section that's cut keeps its top padding and border on its first part and its bottom ones on its last; its background runs on.
+- **A Table** splits between its rows, and its header rows (`<TableRow header>`) start each page it goes on to.
+- **A Heading** isn't left last on a page: it goes on with what follows it.
+- **A `Document.Page`** that's too long goes on to pages after it, with its background. A `PageBreak` still starts a new page.
+
+Each page is drawn once: a Document whose pages fit is drawn as it always was, and one that doesn't is drawn again, flowed.
+
 ## Where everything landed
 
 `layoutDocument(design, options)` takes `renderPdf`'s options and gives the Document as its PDF lays it out, in px:
@@ -91,7 +103,9 @@ It draws the PDF to measure it.
 - **WOFF2 isn't drawn**: react-pdf would embed its letters blank. Give TTF, OTF or WOFF.
 - **SVG images aren't drawn**: give a PNG or JPEG. An `Svg` (the element) is drawn as vectors.
 - **The standard PDF fonts draw Western European characters only.** For any other script, give a font file that has it. Whether a file given has every character isn't checked.
-- **Nothing flows from one page to the next**: content taller than its page is cut off. Split it with a `PageBreak` or into `Document.Page`s.
+- **What stays whole**: a Row of Columns, an image, an `Svg`, a Button and a block with a set height don't split between pages. One taller than a page is cut off where it is, with `document/overflow`.
+- **The print HTML doesn't flow yet**: its pages hold what they're given and cut the rest. Only the PDF goes on to the next page.
+- **A justified paragraph split between pages** ends its first part with a line that isn't justified.
 - **No hover, no video player**: a Button shows its own colors, a Video its thumbnail or title.
 
 ## License

@@ -150,6 +150,18 @@ A `Video` shows its thumbnail where its file is given (its own, or a YouTube vid
 
 `validate()` from `@hyper-elements/react` reports `pdf/unsupported` and `document/overflow` without rendering. Without the fonts its `document/overflow` is an estimate, and it can miss a page that's only a little too tall. The font and image checks need the files, so only `renderPdf()` makes them, and measures.
 
+### Pages that flow
+
+Content that doesn't fit its page goes on to the next, with the `PageHeader` and `PageFooter` on each page and each `PageNumber` numbered for the pages there are:
+
+- **Text** splits between its lines, leaving two lines at least on each side.
+- **A Section, a Column (not one in a Row) and a List** split between and inside what they hold. A Section's top padding and border stay on its first part, its bottom ones on its last.
+- **A Table** splits between its rows, and its header rows start each page it goes on to.
+- **A Heading** isn't left last on a page: it goes on with what follows it.
+- **A `Document.Page`** that's too long goes on to pages after it, with its background. A `PageBreak` still starts a new page.
+
+A Document whose pages fit is drawn as it always was. One that doesn't is drawn a second time, flowed.
+
 ### Where everything landed
 
 `layoutDocument(design, { fonts, images })` takes `renderPdf()`'s options and gives the Document as its PDF lays it out:
@@ -170,7 +182,9 @@ It draws the PDF to measure it, so it takes as long as `renderPdf()`.
 
 ## Limits
 
-- **Nothing flows from one page to the next.** Content taller than its page is cut off, and you get `document/overflow`, measured. Split it with a `PageBreak` or into `Document.Page`s, and check where things landed with `layoutDocument()`.
+- **Some blocks stay whole.** A Row of Columns, an image, an `Svg`, a Button and a block with a set height don't split between pages. One taller than a page is cut off where it is, and you get `document/overflow`, measured.
+- **The print HTML doesn't flow yet.** Only the PDF goes on to the next page.
+- **A justified paragraph split between pages** ends its first part with a line that isn't justified.
 - **WOFF2 isn't drawn.** react-pdf would embed its letters blank. Give TTF, OTF or WOFF.
 - **SVG images aren't drawn.** Give a PNG or JPEG. An `Svg` element is drawn as vectors.
 - **The standard PDF fonts draw Western European characters only.** Whether a font file you give has every character isn't checked.
