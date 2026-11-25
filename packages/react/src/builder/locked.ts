@@ -3,7 +3,7 @@
  * the new engine's own markup for it, in an HTML block of the builder's. It can be moved, duplicated or deleted there,
  * not edited; it comes back as an `Html` block. The builder's document mode draws one from editor 1.544.0.
  */
-import { renderTemplate, videoParts, type Json, type Node } from "@hyper-elements/core";
+import { renderTemplate, videoParts, videoTitle, type Json, type Node } from "@hyper-elements/core";
 import { block, type Block } from "./design";
 import { withParagraphMargin } from "./text";
 import { cssSides } from "./values";
@@ -76,7 +76,7 @@ const PLAY_ICON: Node = { type: "Image", props: { src: `data:image/svg+xml,${enc
  */
 function printedVideo(video: Node): Node {
   const href = String(video.props?.src);
-  const title = String(video.props?.title ?? "Video");
+  const title = videoTitle(video.props?.title);
   const thumbnail = thumbnailOf(video);
   const shown: Node = thumbnail
     ? thumbnailWithIcon({ type: "Link", props: { href, title }, children: [{ type: "Image", props: { src: thumbnail, alt: title }, style: { width: "100%" } }] })

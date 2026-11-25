@@ -256,6 +256,18 @@ describe("toDesign", () => {
     }
   });
 
+  it("names a Video with an empty title \"Video\" in a Document's HTML block, so its link has words a screen reader can say", () => {
+    for (const [src, link] of [
+      ["https://vimeo.com/76979871", /<a [^>]*href="https:\/\/vimeo\.com\/76979871"[^>]*>Video<\/a>/],
+      ["https://www.youtube.com/watch?v=dQw4w9WgXcQ", /<a [^>]*title="Video"[^>]*><img [^>]*alt="Video"/],
+    ] as const) {
+      for (const title of ["", "  "]) {
+        const [video] = blocks(toDesign(<Document><Video src={src} title={title} /></Document>).design);
+        expect(video.values.html).toMatch(link);
+      }
+    }
+  });
+
   it("places a Document's Video of its own width as its parent aligns it, as the builder's video did, a link with its title too", () => {
     for (const src of ["https://www.youtube.com/watch?v=dQw4w9WgXcQ", "https://vimeo.com/76979871"]) {
       const placedAt = (alignItems: "start" | "center" | "end") => {
