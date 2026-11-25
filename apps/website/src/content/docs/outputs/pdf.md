@@ -154,8 +154,9 @@ A `Video` shows its thumbnail where its file is given (its own, or a YouTube vid
 
 Content that doesn't fit its page goes on to the next, with the `PageHeader` and `PageFooter` on each page and each `PageNumber` numbered for the pages there are:
 
-- **Text** splits between its lines, leaving two lines at least on each side.
-- **A Section, a Column (not one in a Row) and a List** split between and inside what they hold. A Section's top padding and border stay on its first part, its bottom ones on its last.
+- **Text** splits between its lines, leaving two lines at least on each side. Text written right to left is laid out right to left and splits the same way.
+- **A Section, a Column and a List** split between and inside what they hold. A Section's top padding and border stay on its first part, its bottom ones on its last. A part that goes on to the next page fills the rest of its page, its background down to the page's foot.
+- **A Row of Columns** that fits on a page goes on to the next whole. One taller than a page goes on by its columns, each in its own place, a column that has ended keeping its room empty.
 - **A Table** splits between its rows, and its header rows start each page it goes on to.
 - **A Heading** isn't left last on a page: it goes on with what follows it.
 - **A `Document.Page`** that's too long goes on to pages after it, with its background. A `PageBreak` still starts a new page.
@@ -191,7 +192,8 @@ It draws the PDF to measure it, so it takes as long as `renderPdf()`.
 
 ## Limits
 
-- **Some blocks stay whole.** A Row of Columns, an image, an `Svg`, a Button and a block with a set height don't split between pages. One taller than a page is cut off where it is, and you get `document/overflow`, measured.
+- **Some blocks stay whole.** An image, an `Svg`, a Button, a block with a set height, and a Row whose columns sit at its middle or end (or wrap) don't split between pages. One taller than a page is cut off where it is, and you get `document/overflow`, measured.
+- **Text that changes direction across a line break** (Arabic quoted in an English paragraph, broken inside the quote) can sit up to a space's width from where the whole paragraph would set it, when the paragraph is split between pages.
 - **The print HTML flows only when it's drawn from a plan.** Plain `render()` has no font files to measure with, so its pages hold what they're given.
 - **WOFF2 isn't drawn.** react-pdf would embed its letters blank. Give TTF, OTF or WOFF.
 - **SVG images aren't drawn.** Give a PNG or JPEG. An `Svg` element is drawn as vectors.

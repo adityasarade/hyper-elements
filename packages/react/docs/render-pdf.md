@@ -81,8 +81,9 @@ Text whose `fontFamily` has no file given is drawn in a standard PDF font: Helve
 
 Content that doesn't fit its page goes on to the next, with the Document's `PageHeader` and `PageFooter` on each page and each `PageNumber` numbered for the pages there are:
 
-- **Text** splits between its lines, leaving two lines at least on each side.
-- **A Section, a Column (not one in a Row) and a List** split between and inside what they hold. A Section that's cut keeps its top padding and border on its first part and its bottom ones on its last; its background runs on.
+- **Text** splits between its lines, leaving two lines at least on each side. Text written right to left (`dir="rtl"`, or `"auto"` and its first letter Hebrew or Arabic) is laid out right to left and splits the same way.
+- **A Section, a Column and a List** split between and inside what they hold. A Section that's cut keeps its top padding and border on its first part and its bottom ones on its last. A part that goes on to the next page fills the rest of its page, its background down to the page's foot, as a browser draws a box broken between pages.
+- **A Row of Columns** that fits on a page goes on to the next whole. One taller than a page goes on by its columns: each in its own place, split its own way, a column that has ended keeping its room empty.
 - **A Table** splits between its rows, and its header rows (`<TableRow header>`) start each page it goes on to.
 - **A Heading** isn't left last on a page: it goes on with what follows it.
 - **A `Document.Page`** that's too long goes on to pages after it, with its background. A `PageBreak` still starts a new page.
@@ -118,7 +119,8 @@ It draws the PDF to measure it.
 - **WOFF2 isn't drawn**: react-pdf would embed its letters blank. Give TTF, OTF or WOFF.
 - **SVG images aren't drawn**: give a PNG or JPEG. An `Svg` (the element) is drawn as vectors.
 - **The standard PDF fonts draw Western European characters only.** For any other script, give a font file that has it. Whether a file given has every character isn't checked.
-- **What stays whole**: a Row of Columns, an image, an `Svg`, a Button and a block with a set height don't split between pages. One taller than a page is cut off where it is, with `document/overflow`.
+- **What stays whole**: an image, an `Svg`, a Button, a block with a set height, and a Row whose columns sit at its middle or end (or wrap) don't split between pages. One taller than a page is cut off where it is, with `document/overflow`.
+- **Text that changes direction across a line break** (Arabic quoted in an English paragraph, broken inside the quote) can be drawn up to a space's width from where the whole paragraph would set it, when its paragraph is split between pages. Its words and lines are the same.
 - **The print HTML flows only when it's drawn from a plan** (`render(design, { plan })`): plain `render()` has no font files to measure with, so its pages hold what they're given and cut the rest.
 - **No hover, no video player**: a Button shows its own colors, a Video its thumbnail or title.
 
