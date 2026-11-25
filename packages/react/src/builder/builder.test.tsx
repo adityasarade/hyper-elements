@@ -107,7 +107,7 @@ describe("toDesign", () => {
     expect(body.headers[0].values._meta).toEqual({ htmlID: "u_header_1", htmlClassNames: "u_header" });
     expect(blocks(design).map((content) => content.type)).toEqual(["heading", "paragraph", "page_break", "paragraph", "page_break", "paragraph", "page_break", "paragraph"]);
     expect(textJsonHtml(blocks(design)[1].values.textJson).html).toContain(">Page {{page_number}} of {{page_count}}<");
-    expect(report).toEqual([expect.stringContaining("the builder has no page numbers yet")]);
+    expect(report).toEqual([expect.stringContaining("the builder has no page numbers yet"), expect.stringContaining("root: the page (A5 landscape, margin 40px)")]);
     // A margin that differs from side to side: the widest, the sides hidden.
     const sides = toDesign(<Document margin={[10, 20, 30, 40]}><Text>A</Text><PageBreak /><Text>B</Text></Document>).design.body.values;
     expect([sides.documentMargin, sides.margin]).toEqual(["40px", "10px 20px 30px 40px"]);
@@ -122,6 +122,26 @@ describe("toDesign", () => {
     for (const root of [<Email key="900" width={900}><Text>a</Text></Email>, <Email key="written" width={900.001}><Text>a</Text></Email>, <Email key="default"><Text>a</Text></Email>, <Page key="page" width={1200}><Text>a</Text></Page>]) {
       expect(toDesign(root).report).toEqual([]);
     }
+  });
+
+  it("says what a plan without page format controls makes a Document's page: A4 portrait, its margin the builder's A4 margin unless it's 0", () => {
+    const said = (root: Parameters<typeof toDesign>[0]) => toDesign(root).report;
+    const plans = "the builder keeps a document's page size, orientation and margin only on plans with page format controls; on other plans it becomes";
+    // A Document's own margin, 48px, is not the builder's A4 margin, 96px.
+    expect(said(<Document><Text>a</Text></Document>)).toEqual([`root: the page (A4 portrait, margin 48px): ${plans} A4 portrait, margin 96px`]);
+    expect(said(<Document size="Letter" orientation="landscape"><Text>a</Text></Document>)).toEqual([`root: the page (Letter landscape, margin 48px): ${plans} A4 portrait, margin 96px`]);
+    expect(said(<Document size="Letter" margin={0}><Text>a</Text></Document>)).toEqual([`root: the page (Letter portrait, margin 0px): ${plans} A4 portrait, margin 0px`]);
+    expect(said(<Document orientation="landscape" margin={96}><Text>a</Text></Document>)).toEqual([`root: the page (A4 landscape, margin 96px): ${plans} A4 portrait, margin 96px`]);
+    expect(said(<Document margin={[10, 20, 30, 40]}><Text>a</Text></Document>)).toEqual([`root: the page (A4 portrait, margin 10px 20px 30px 40px): ${plans} A4 portrait, margin 96px`]);
+    // A4 portrait with a margin the builder keeps on every plan.
+    expect(said(<Document margin={96}><Text>a</Text></Document>)).toEqual([]);
+    expect(said(<Document margin={0}><Text>a</Text></Document>)).toEqual([]);
+    // The builder reads the margin written, to the hundredth, in whole px: 0.3px is 0, and 96.4px and 95.5px are 96.
+    expect(said(<Document margin={0.3}><Text>a</Text></Document>)).toEqual([]);
+    expect(said(<Document margin={96.4}><Text>a</Text></Document>)).toEqual([]);
+    expect(said(<Document margin={95.496}><Text>a</Text></Document>)).toEqual([]);
+    // 0.496px is written as 0.5px, which it reads as 1px.
+    expect(said(<Document margin={0.496}><Text>a</Text></Document>)).toEqual([`root: the page (A4 portrait, margin 0.5px): ${plans} A4 portrait, margin 96px`]);
   });
 
   it("writes a link's target only where the template gives one: a Button's, a link in text, an image's", () => {
@@ -344,6 +364,8 @@ describe("a Table", () => {
   const tables = (design: any) => blocks(design).filter((content) => content.type === "table");
   /** A cell's words, as the builder's editor writes its rich text out. */
   const words = (cell: Values) => textJsonHtml(cell.textJson).html.replace(/<[^>]+>/g, "");
+  /** What's said of the table: a Document's page has a line of its own, which "toDesign" holds. */
+  const tableLines = (report: string[]) => report.filter((line) => !line.startsWith("root: the page ("));
   const table = (
     <Table>
       <TableRow>
@@ -358,7 +380,7 @@ describe("a Table", () => {
       const [only] = tables(design);
       expect(blocks(design).map((content) => content.type)).toEqual(["table"]);
       expect(only.values.table.rows[0].cells.map(words)).toEqual(["Words"]);
-      expect(report).toEqual([]);
+      expect(tableLines(report)).toEqual([]);
     }
   });
 
@@ -439,7 +461,7 @@ describe("a Table", () => {
     );
     for (const root of [<Email key="e">{narrow}</Email>, <Page key="p">{narrow}</Page>, <Document key="d">{narrow}</Document>]) {
       const { design, report } = toDesign(root);
-      expect(report).toEqual([]);
+      expect(tableLines(report)).toEqual([]);
       expect(tables(design)[0].values.table.rows[0].cells.map((cell: Values) => cell.width)).toEqual([0.01, 100]);
     }
   });
@@ -458,7 +480,7 @@ describe("a Table", () => {
     for (const root of [<Email key="e">{zero}</Email>, <Page key="p">{zero}</Page>, <Document key="d">{zero}</Document>]) {
       const { design, report } = toDesign(root);
       const [first, second] = tables(design)[0].values.table.rows;
-      expect(report).toEqual([]);
+      expect(tableLines(report)).toEqual([]);
       expect(second.height).toBeGreaterThan(0);
       expect(second.height).toBe(first.height);
     }
@@ -486,7 +508,7 @@ describe("a Table", () => {
     const { code } = fromDesign(JSON.parse(JSON.stringify(design)), { displayMode: "document" });
     expect(code).toContain("height: 40");
     expect(code).not.toMatch(/height: 1\b/);
-    expect(report).toEqual(["root.children[0].children[1]: an empty cell is a line tall in the builder's table and as tall as its padding in the Table, so the row is taller in the builder's"]);
+    expect(tableLines(report)).toEqual(["root.children[0].children[1]: an empty cell is a line tall in the builder's table and as tall as its padding in the Table, so the row is taller in the builder's"]);
     // In an Email, the row as tall as a line of its own is drawn as it is: the one with no height is the HTML block's reason.
     expect(toDesign(<Email>{blank}</Email>).report).toEqual(["root.children[0]: the builder's table doesn't draw it as it is (an empty cell, a line tall in the builder's): it's an HTML block of its own markup in the builder (it can be moved, not edited)"]);
     // An empty cell of a larger size beside words is taller than they are in the builder.
@@ -498,7 +520,7 @@ describe("a Table", () => {
         </TableRow>
       </Table>
     );
-    expect(toDesign(<Document>{beside}</Document>).report).toEqual(["root.children[0].children[0]: an empty cell is a line tall in the builder's table and as tall as its padding in the Table, so the row is taller in the builder's"]);
+    expect(tableLines(toDesign(<Document>{beside}</Document>).report)).toEqual(["root.children[0].children[0]: an empty cell is a line tall in the builder's table and as tall as its padding in the Table, so the row is taller in the builder's"]);
     const tall = (
       <Table>
         <TableRow>
@@ -520,7 +542,7 @@ describe("a Table", () => {
       </Table>
     );
     const spaced = toDesign(<Document>{nbsp}</Document>);
-    expect(spaced.report).toEqual([]);
+    expect(tableLines(spaced.report)).toEqual([]);
     expect(tables(spaced.design)[0].values.table.rows.map((row: Values) => row.height)).toEqual([24]);
     expect(toDesign(<Email>{nbsp}</Email>).report).toEqual([]);
     // Read back, a row a line tall is no taller than its words: it has no height of its own.
@@ -671,7 +693,7 @@ describe("a Table", () => {
     for (const behind of [undefined, "#eeeeee"]) {
       for (const [root, mode] of [[<Email key="e">{painted(behind)}</Email>, "email"], [<Page key="p">{painted(behind)}</Page>, "web"], [<Document key="d">{painted(behind)}</Document>, "document"]] as const) {
         const { design, report } = toDesign(root);
-        expect(report).toEqual([]);
+        expect(tableLines(report)).toEqual([]);
         const { values } = tables(design)[0];
         // The builder paints a part's field behind all its rows (its canvas on the <thead>, its HTML on each cell): the
         // table's, so the clear row shows it, the painted row its own on its cells.
@@ -733,7 +755,7 @@ describe("a Table", () => {
     const [grid] = tables(design);
     expect(grid.values.border).toMatchObject({ borderTopWidth: "1px", borderLeftWidth: "1px", borderRightWidth: "1px", borderBottomWidth: "1px" });
     expect(grid.values.borderCollapse).toBe("separate");
-    expect(report).toEqual(["root.children[0]: the lines of cells side by side are one line in the builder's table, two in the Table (its borderCollapse isn't collapse)"]);
+    expect(tableLines(report)).toEqual(["root.children[0]: the lines of cells side by side are one line in the builder's table, two in the Table (its borderCollapse isn't collapse)"]);
     expect(fromDesign(JSON.parse(JSON.stringify(design)), { displayMode: "document" }).code).toContain('borderCollapse: "separate"');
   });
 
@@ -751,7 +773,7 @@ describe("a Table", () => {
     expect(only.values).toMatchObject({ enableHeader: true, rows: 0, headerFontWeight: 700 });
     expect(only.values.table.headers[0].cells.map(words)).toEqual(["Words"]);
     expect(only.values.table.rows).toEqual([]);
-    expect(report).toEqual([]);
+    expect(tableLines(report)).toEqual([]);
   });
 
   it("says what the builder's table can't hold: a cell across columns, a row short of cells, lines on some cells only", () => {
@@ -776,7 +798,7 @@ describe("a Table", () => {
       ["Wide", "", ""],
       ["A", "B", "C"],
     ]);
-    expect(report).toEqual([
+    expect(tableLines(report)).toEqual([
       "root.children[0]: its cells' borders aren't one border around every cell, the only one the builder's table draws: left out",
       "root.children[0]: a cell spanning columns is a cell for each column in the builder's table, its words in the first: the builder's table has no cells across columns",
       "root.children[0]: a row with fewer cells than the table's columns has empty cells in the builder's table, to make up its columns",
@@ -818,7 +840,7 @@ describe("a Table", () => {
     );
     const [grouped] = tables(design);
     expect(grouped.values.table.rows.map((row: Values) => row.cells.map(words))).toEqual([["Body"], ["Subheading"]]);
-    expect(report).toEqual([1, 2].map((row) => `root.children[0].children[${row}]: a header row below the table's first rows is a row of the builder's table, its words in bold: the builder's table has its header at its top only`));
+    expect(tableLines(report)).toEqual([1, 2].map((row) => `root.children[0].children[${row}]: a header row below the table's first rows is a row of the builder's table, its words in bold: the builder's table has its header at its top only`));
   });
 
   it("says a row below a footer row is in the builder's footer, as it's in Elements', and comes back a footer row", () => {
@@ -840,7 +862,7 @@ describe("a Table", () => {
       // Drawn as it is (Elements' footer runs from its first footer row on too), so it's the builder's table everywhere.
       const [ended] = tables(design);
       expect(ended.values.table.footers.map((row: Values) => row.cells.map(words))).toEqual([["Total"], ["Note"]]);
-      expect(report).toEqual(["root.children[0].children[2]: a row below a footer row is a row of the builder's footer, which runs from the first footer row on as Elements' does: it comes back a footer row"]);
+      expect(tableLines(report)).toEqual(["root.children[0].children[2]: a row below a footer row is a row of the builder's footer, which runs from the first footer row on as Elements' does: it comes back a footer row"]);
       expect(fromDesign(JSON.parse(JSON.stringify(design)), { displayMode: mode }).code.match(/<TableRow footer/g)).toHaveLength(2);
     }
   });
@@ -855,7 +877,7 @@ describe("a Table", () => {
         </Table>
       </Document>
     );
-    expect(report).toEqual([
+    expect(tableLines(report)).toEqual([
       "root.children[0].children[0]: the builder's table has no place for a row's id: left out",
       "root.children[0].children[0].children[0]: the builder's table has no place for a cell's id: left out",
     ]);
@@ -988,6 +1010,7 @@ describe("a design read back", () => {
     expect(read("text", { text: "a" }, { minWidth: "120px" }).tree).toContain('"minWidth":120');
     expect(read("text", { text: "a" }, { maxWidth: "200px", _override: { mobile: { maxWidth: "120px" } } }).tree).toContain('"mobile":{"maxWidth":120');
   });
+
   it("reads a document's margin of auto as its page size's, and a size it doesn't know as A4's, even one named like an object's own key", () => {
     const margin = (documentSize: string) => collectTemplate(fromDesign({ body: { values: { documentSize, documentMargin: "auto" }, rows: [] } }, { displayMode: "document" }).element).document!.root.props?.margin;
     // A5's margin is 48px, a Document's own: it sets none.

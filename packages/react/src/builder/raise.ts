@@ -17,7 +17,7 @@ import { block, columnWith, rowWith, type Block, type Body, type BodyFields, typ
 import { hiddenOf, leftOut, merge } from "./hide";
 import { lockedHtml } from "./locked";
 import { blockTool, NOT_IN_DOCUMENTS, type Place } from "./tools";
-import { MAX_EMAIL_WIDTH } from "./tool-defaults";
+import { MAX_EMAIL_WIDTH, PageMargins } from "./tool-defaults";
 import { builderBorder, builderFont, cssPx, cssSides, writtenPx, type Values } from "./values";
 
 export interface Raised {
@@ -30,6 +30,24 @@ export interface Raised {
 type Child = { child: Node; path: string };
 
 const holdsPageNumber = (node: Node): boolean => node.type === "PageNumber" || (node.children ?? []).some((child) => typeof child !== "string" && holdsPageNumber(child));
+
+/** A Document's margin where it sets none (its definition's default). */
+const DOCUMENT_MARGIN: Sides = { top: 48, right: 48, bottom: 48, left: 48 };
+
+/**
+ * What a plan without page format controls does to a Document's page when the builder loads it: A4 portrait with the
+ * builder's A4 margin. A margin of 0 it keeps, and one as wide as its A4 margin draws the same.
+ */
+function pageFormatReset(props: Node["props"]): string | undefined {
+  const size = (props?.size as string | undefined) ?? "A4";
+  const orientation = (props?.orientation as string | undefined) ?? "portrait";
+  const sides = (props?.margin as Sides | undefined) ?? DOCUMENT_MARGIN;
+  // The builder's one margin: the widest side as written (design.ts), which it reads in whole px.
+  const margin = Math.round(writtenPx(Math.max(sides.top, sides.right, sides.bottom, sides.left)));
+  const kept = margin === 0 || margin === PageMargins.A4;
+  if (size === "A4" && orientation === "portrait" && kept) return undefined;
+  return `root: the page (${size} ${orientation}, margin ${cssSides(sides)}): the builder keeps a document's page size, orientation and margin only on plans with page format controls; on other plans it becomes A4 portrait, margin ${cssPx(kept ? margin : PageMargins.A4)}`;
+}
 
 /** What shows a box's edges: where these are set, space around it can't move inside it. */
 const PAINT = ["backgroundColor", "border", "borderRadius"];
@@ -300,6 +318,8 @@ export function raise(element: React.ReactElement): Raised {
   // What the builder changes when it loads the design.
   const width = Number(resolvedRoot.width);
   if (root.type === "Email" && writtenPx(width) > MAX_EMAIL_WIDTH) report.push(`root: an email ${cssPx(width)} wide: the builder makes an email ${MAX_EMAIL_WIDTH}px wide at most, so it becomes ${MAX_EMAIL_WIDTH}px`);
+  const reset = root.type === "Document" ? pageFormatReset(root.props) : undefined;
+  if (reset) report.push(reset);
   const common: BodyFields = {
     contentWidth: cssPx(width),
     textColor: text.color,
@@ -310,7 +330,7 @@ export function raise(element: React.ReactElement): Raised {
   // Its title, the builder's accessibility title (which its export writes as the page's <title>).
   const title = typeof root.props?.title === "string" && root.props.title ? { accessibilityTitle: root.props.title } : {};
   // A Document's margin: the builder has one for every side (design.ts), the template's sides kept where they differ.
-  const margin = root.type === "Document" ? { margin: cssSides((root.props?.margin as Sides | undefined) ?? { top: 48, right: 48, bottom: 48, left: 48 }) } : {};
+  const margin = root.type === "Document" ? { margin: cssSides((root.props?.margin as Sides | undefined) ?? DOCUMENT_MARGIN) } : {};
   // No background is none (the builder's own default is a grey).
   const bodyHidden = { ...hiddenOf("body", root, ["props.margin"]), ...margin, ...title, backgroundColor: (style.backgroundColor as string | undefined) ?? "" };
   if (root.type === "Document") {
