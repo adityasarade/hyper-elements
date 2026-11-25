@@ -72,9 +72,19 @@ Text whose `fontFamily` has no file given is drawn in a standard PDF font: Helve
 | `pdf/font` | warning | A font in the Document's `fonts` isn't given; a file given is WOFF2; or text in a standard PDF font has characters it can't draw (it draws Western European ones only) |
 | `pdf/font-weight` | warning | Text in a weight or style of a family that isn't given: it's drawn in the nearest file given |
 | `pdf/unsupported` | warning | What a PDF can't show that the HTML can: a hover, a Video's player |
-| `document/overflow` | warning | A page's content looks taller than the page (an estimate: text isn't measured yet) |
+| `document/overflow` | warning | A page's content is taller than its room (the page less its margins, header and footer), measured with its fonts. Named at the first block cut off |
 
-`validate()` from `@hyper-elements/react` reports `pdf/unsupported` and `document/overflow` without rendering. The font and image checks need the files, so only `renderPdf` makes them.
+`validate()` from `@hyper-elements/react` reports `pdf/unsupported` and `document/overflow` without rendering. Without the fonts its `document/overflow` is an estimate. The font and image checks need the files, so only `renderPdf` makes them, and measures.
+
+## Where everything landed
+
+`layoutDocument(design, options)` takes `renderPdf`'s options and gives the Document as its PDF lays it out, in px:
+
+- `pages`: each page's `width` and `height`, and its `room` (`top` and `bottom`: below its header, above its footer).
+- `nodes`: each block of the design on each `page` it's on, with `path`, `id`, `field`, `type`, its box (`x`, `y`, `width`, `height` from the page's top left) and a block of text's `lines`. `cut` is `"some"` or `"all"` where the page's room ends before it does. A PageHeader's and a PageFooter's blocks are on every page.
+- `diagnostics`: `renderPdf`'s.
+
+It draws the PDF to measure it.
 
 ## Known limits
 

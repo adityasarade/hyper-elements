@@ -14,6 +14,9 @@ import { assetParts, LAYOUT_VERSION, pdfFamily, reactPdf, thumbnailOf, writeDocu
 import type { FontFace } from "@hyper-elements/core";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode, type Snapshot } from "@hyper-elements/react";
 import type { ReactElement } from "react";
+import { documentLayout, measuredOverflow, type DocumentLayout } from "./layout";
+
+export type { DocumentLayout, DocumentNode, DocumentPage } from "./layout";
 
 export interface PdfFont {
   /** The family a template names in its fontFamily stacks ("Inter"). */
@@ -45,6 +48,28 @@ const FIXED_DATE = new Date(Date.UTC(2026, 0, 1));
 
 /** A Document written as a PDF. Rejects with an `ElementsError` listing the problems if it has errors. */
 export async function renderPdf(element: ReactElement | Snapshot, options: PdfOptions = {}): Promise<PdfResult> {
+  const { pdf, diagnostics } = await draw(element, options);
+  return { pdf, diagnostics };
+}
+
+/**
+ * A Document as its PDF lays it out, measured with its fonts: its pages, where each block landed on each, and what's
+ * past a page's room (cut off). Takes renderPdf()'s options, and draws the PDF to measure it. Rejects as renderPdf()
+ * does.
+ */
+export async function layoutDocument(element: ReactElement | Snapshot, options: PdfOptions = {}): Promise<DocumentLayout> {
+  const { root, pages, placed, diagnostics } = await draw(element, options);
+  if (!placed) {
+    throw new ElementsError([...diagnostics, { code: "pdf/layout", severity: "error", message: "The installed @react-pdf/renderer doesn't say where it laid the PDF out: update it", path: "root" }]);
+  }
+  return documentLayout(root, pages.pages, placed, diagnostics);
+}
+
+/**
+ * The PDF drawn, with where the engine placed each block. A page's content measured past its room is said as measured;
+ * where the engine can't say, validate()'s estimate stands.
+ */
+async function draw(element: ReactElement | Snapshot, options: PdfOptions) {
   const { root, diagnostics } = documentOf(element);
   const found: Diagnostic[] = [];
   const fonts = fontFiles(root, options.fonts ?? [], found);
@@ -52,7 +77,9 @@ export async function renderPdf(element: ReactElement | Snapshot, options: PdfOp
   if (found.some((d) => d.severity === "error")) throw new ElementsError([...diagnostics, ...found]);
   found.push(...missingFaces(root, fonts, options.fonts ?? []), ...beyondStandard(root, new Set(fonts.map((font) => font.family))));
   const pages = writeDocument(root, { families: new Set(fonts.map((font) => font.family)), fonts, image: (src) => images.get(src), date: options.date ?? FIXED_DATE });
-  return { pdf: (await reactPdf(pages)).pdf, diagnostics: [...diagnostics, ...found] };
+  const { pdf, placed } = await reactPdf(pages);
+  const said = placed ? [...diagnostics.filter((d) => d.code !== "document/overflow"), ...measuredOverflow(root, pages.pages, placed)] : diagnostics;
+  return { root, pages, placed, pdf, diagnostics: [...said, ...found] };
 }
 
 export interface TemplateAssets {

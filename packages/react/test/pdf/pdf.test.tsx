@@ -45,7 +45,7 @@ import {
   Video,
 } from "@hyper-elements/react";
 import { writeDocument } from "@hyper-elements/core/pdf";
-import { renderPdf, templateAssets } from "../../src/pdf";
+import { layoutDocument, renderPdf, templateAssets, type DocumentNode } from "../../src/pdf";
 import { toWoff, toWoff2 } from "./woff";
 
 /** What prepare() gives, where a test gives another layout version (another copy of Elements, newer or older). */
@@ -395,7 +395,7 @@ describe("renderPdf", () => {
     expect(validate(<Email><Button href="https://x.test" style={{ hover: { backgroundColor: "#333333" } }}>Go</Button></Email>).diagnostics.filter((d) => d.code.startsWith("pdf/"))).toEqual([]);
   });
 
-  it("says a page whose content can't fit is cut off, an estimate till text is measured (and validate() says it too)", async () => {
+  it("says a page whose content can't fit is cut off, measured with its fonts, from the first text cut (validate(), without them, estimates)", async () => {
     const long = (
       <Document>
         {Array.from({ length: 120 }, (_, i) => (
@@ -404,10 +404,17 @@ describe("renderPdf", () => {
       </Document>
     );
     const { diagnostics } = await renderPdf(long);
-    const overflow = diagnostics.find((d) => d.code === "document/overflow");
-    expect(overflow).toMatchObject({ severity: "warning" });
-    expect(overflow?.message).toMatch(/^Page 1's content \(split it with a PageBreak, or into pages\) looks about \d+% as tall as its room \(an estimate: text isn't measured yet\)\. What doesn't fit is cut off$/);
-    expect(validate(long).diagnostics.map((d) => d.code)).toContain("document/overflow");
+    const overflow = diagnostics.filter((d) => d.code === "document/overflow");
+    // A4 less its margins is 769.89 points; each text is a line of 18 (16px at 1.5): 42 lines fit, the 43rd is cut.
+    expect(overflow).toEqual([
+      {
+        code: "document/overflow",
+        severity: "warning",
+        message: "Page 1's content (split it with a PageBreak, or into pages) is 281% as tall as its room, measured with its fonts. What doesn't fit is cut off, from here on",
+        path: "root.children[42]",
+      },
+    ]);
+    expect(validate(long).diagnostics.find((d) => d.code === "document/overflow")?.message).toMatch(/\(an estimate: text isn't measured yet\)/);
     // A page that fits says nothing, nor does each page of the same content split into pages.
     expect((await renderPdf(<Document><Text>One paragraph.</Text></Document>)).diagnostics).toEqual([]);
     const split = (
@@ -422,6 +429,22 @@ describe("renderPdf", () => {
       </Document>
     );
     expect((await renderPdf(split)).diagnostics.map((d) => d.code)).not.toContain("document/overflow");
+  });
+
+  it("says what the estimate misses: capitals, wider than it reckons, cut off with no warning from validate()", async () => {
+    const capitals = (
+      <Document>
+        <Heading level={1}>Capitals</Heading>
+        {Array.from({ length: 26 }, (_, i) => (
+          <Text key={i}>WIDE CAPITAL LETTERS MAKE MUCH LONGER LINES THAN THE ESTIMATE EXPECTS, SO MORE LINES WRAP.</Text>
+        ))}
+      </Document>
+    );
+    expect(validate(capitals).diagnostics.map((d) => d.code)).not.toContain("document/overflow");
+    const overflow = (await renderPdf(capitals)).diagnostics.find((d) => d.code === "document/overflow");
+    // The heading is a line of 30 points (32px at 1.25), each of them two lines of 18: in the room's 769.89 points the
+    // heading and 20 of them fit, and the 21st is cut.
+    expect(overflow).toMatchObject({ severity: "warning", path: "root.children[21]" });
   });
 
   it("places a Button by its own alignSelf, over its stack's alignItems", () => {
@@ -672,6 +695,85 @@ describe("renderPdf", () => {
         </Email>
       )
     ).rejects.toMatchObject({ diagnostics: [expect.objectContaining({ code: "pdf/root" })] });
+  });
+});
+
+describe("layoutDocument", () => {
+  const report = (
+    <Document title="Report">
+      <PageHeader>
+        <Text>Acme report</Text>
+      </PageHeader>
+      <PageFooter>
+        <Text>
+          Page <PageNumber /> of <PageNumber total />
+        </Text>
+      </PageFooter>
+      <Text id="intro">An introduction long enough to wrap onto a second line of an A4 page, written out so that it does, with some more words.</Text>
+      <PageBreak />
+      {Array.from({ length: 50 }, (_, i) => (
+        <Text key={i}>Text {i + 1} of the second page, which holds more than fits.</Text>
+      ))}
+    </Document>
+  );
+  /** A page's own content: the blocks of the Document's children, not those of its header and footer. */
+  const content = (nodes: DocumentNode[], page: number) => nodes.filter((node) => node.page === page && /^root\.children\[\d+\]$/.test(node.path) && node.type === "Text");
+
+  it("gives each page's paper and room, and each block on each page, in px from the page's top left", async () => {
+    const { pages, nodes } = await layoutDocument(report);
+    expect(pages.map(({ page, width, height }) => [page, width, height])).toEqual([
+      [1, 793.7, 1122.52],
+      [2, 793.7, 1122.52],
+    ]);
+    // The header's on every page at the top margin (48px), the footer on every page down to the bottom one.
+    const header = nodes.filter((node) => node.type === "PageHeader");
+    const footer = nodes.filter((node) => node.type === "PageFooter");
+    expect(header.map((node) => [node.page, node.x, node.y])).toEqual([
+      [1, 48, 48],
+      [2, 48, 48],
+    ]);
+    expect(footer.map((node) => node.page)).toEqual([1, 2]);
+    for (const node of footer) expect(node.y + node.height).toBeCloseTo(1122.52 - 48, 0);
+    // The room is between them.
+    expect(pages[0].room.top).toBeCloseTo(header[0].y + header[0].height, 1);
+    expect(pages[0].room.bottom).toBeCloseTo(footer[0].y, 1);
+    expect(nodes.find((node) => node.id === "intro")).toMatchObject({ path: "root.children[2]", type: "Text", page: 1, x: 48, y: header[0].y + header[0].height, lines: 2 });
+    expect(content(nodes, 1).every((node) => node.cut === undefined)).toBe(true);
+  });
+
+  it("says what's past a page's room, each text from the one the cut goes through on, never the header or footer, and warns there", async () => {
+    const { nodes, diagnostics } = await layoutDocument(report);
+    // Every text of page 2 is there, cut off or not: nothing goes missing from the layout.
+    const page = content(nodes, 2);
+    expect(page).toHaveLength(50);
+    const first = page.findIndex((node) => node.cut);
+    expect(first).toBeGreaterThan(10);
+    expect(page.slice(0, first).every((node) => !node.cut && node.y + node.height <= nodes.find((n) => n.type === "PageFooter" && n.page === 2)!.y + 0.01)).toBe(true);
+    expect(page.slice(first + 1).every((node) => node.cut === "all")).toBe(true);
+    expect(nodes.filter((node) => !/^root\.children\[\d+\]$/.test(node.path) || node.type !== "Text").every((node) => node.cut === undefined)).toBe(true);
+    expect(diagnostics.filter((d) => d.code === "document/overflow")).toEqual([expect.objectContaining({ path: page[first].path, message: expect.stringMatching(/^Page 2's content/) })]);
+  });
+
+  it("says a text the cut goes through is cut in part, its lines above the cut shown", async () => {
+    const one = (
+      <Document>
+        <Text>{Array.from({ length: 200 }, (_, i) => `Sentence ${i + 1} of one long paragraph.`).join(" ")}</Text>
+      </Document>
+    );
+    const { nodes } = await layoutDocument(one);
+    expect(nodes).toEqual([expect.objectContaining({ path: "root.children[0]", type: "Text", page: 1, cut: "some" })]);
+    // More lines than the room holds (769.89 points, 42 lines of 18).
+    expect(nodes[0].lines).toBeGreaterThan(42);
+  });
+
+  it("rejects as renderPdf does", async () => {
+    await expect(
+      layoutDocument(
+        <Email>
+          <Text>Not a document</Text>
+        </Email>
+      )
+    ).rejects.toThrow(/PDF output is a Document's/);
   });
 });
 

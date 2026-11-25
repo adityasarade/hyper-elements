@@ -146,13 +146,31 @@ A `Video` shows its thumbnail where its file is given (its own, or a YouTube vid
 | `pdf/font` | warning | A font in the Document's `fonts` isn't given, a file given is WOFF2, or text in a standard PDF font has characters it can't draw |
 | `pdf/font-weight` | warning | Text in a weight or style of a family that isn't given. It's drawn in the nearest file given |
 | `pdf/unsupported` | warning | What a PDF can't show that the HTML can: a hover, a Video's player, an `Html` block's markup (its plain text is drawn), a line too wide to wrap (it goes past the edge) |
-| `document/overflow` | warning | A page's content looks taller than the page. An estimate: text isn't measured yet |
+| `document/overflow` | warning | A page's content is taller than its room (the page less its margins, header and footer), measured with its fonts. Named at the first block cut off |
 
-`validate()` from `@hyper-elements/react` reports `pdf/unsupported` and `document/overflow` without rendering. The font and image checks need the files, so only `renderPdf()` makes them.
+`validate()` from `@hyper-elements/react` reports `pdf/unsupported` and `document/overflow` without rendering. Without the fonts its `document/overflow` is an estimate, and it can miss a page that's only a little too tall. The font and image checks need the files, so only `renderPdf()` makes them, and measures.
+
+### Where everything landed
+
+`layoutDocument(design, { fonts, images })` takes `renderPdf()`'s options and gives the Document as its PDF lays it out:
+
+- `pages`: each page's paper, and its room, the part below its header and above its footer, in px from its top.
+- `nodes`: each block of the design on each page, with its box in px from the page's top left and a block of text's `lines`. A PageHeader's and a PageFooter's blocks are on every page. `cut` is `"some"` where a cut goes through it and `"all"` where it's past the room: neither is drawn whole.
+- `diagnostics`: `renderPdf()`'s.
+
+```tsx
+import { layoutDocument } from "@hyper-elements/react/pdf";
+
+const { nodes } = await layoutDocument(<Invoice />, { fonts });
+const total = nodes.find((node) => node.id === "total");
+if (total?.page !== 1 || total.cut) throw new Error("The total isn't on page 1");
+```
+
+It draws the PDF to measure it, so it takes as long as `renderPdf()`.
 
 ## Limits
 
-- **Nothing flows from one page to the next.** Content taller than its page is cut off, and you get `document/overflow`. Split it with a `PageBreak` or into `Document.Page`s, and test with your longest real data.
+- **Nothing flows from one page to the next.** Content taller than its page is cut off, and you get `document/overflow`, measured. Split it with a `PageBreak` or into `Document.Page`s, and check where things landed with `layoutDocument()`.
 - **WOFF2 isn't drawn.** react-pdf would embed its letters blank. Give TTF, OTF or WOFF.
 - **SVG images aren't drawn.** Give a PNG or JPEG. An `Svg` element is drawn as vectors.
 - **The standard PDF fonts draw Western European characters only.** Whether a font file you give has every character isn't checked.
