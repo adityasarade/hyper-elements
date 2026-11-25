@@ -88,10 +88,12 @@ hidden on phones or desktops, is still an HTML block.
 - In an `Email` or a `Page`, an HTML block draws a table exactly, so a `Table` is the builder's table only where the
   builder draws it as it is. One it would draw otherwise (a column of a fixed width, a row with fewer cells than its
   columns, phone values, a half-transparent background, a width away from the left of its place or wider than it, in a
-  `Page` a border that collapses with its cells' lines) stays an HTML block, as before, and `report` says why.
+  `Page` a px width with no `maxWidth`, which the builder's shrinks in a narrow window, or a border that collapses with
+  its cells' lines) stays an HTML block, as before, and `report` says why.
 
 `fromDesign()` reads the builder's table back as a `Table`, one made in the builder too, where it was left out before;
-a cell's paragraphs are its lines.
+a cell's paragraphs are its lines. Its lines are what the builder draws, and a px width keeps the builder's `maxWidth`
+of 100%. A row's or a cell's id that starts with `u_` is left out, as a block's is.
 
 ### An HTML block shows what's behind it
 
