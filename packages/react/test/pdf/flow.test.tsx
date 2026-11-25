@@ -5,7 +5,7 @@
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { Document, Heading, List, ListItem, PageFooter, PageNumber, prepare, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
 import { reactPdf, writeDocument } from "@hyper-elements/core/pdf";
-import { layoutDocument, renderPdf } from "../../src/pdf";
+import { layoutDocument, paginate, renderPdf } from "../../src/pdf";
 
 /** Each page's words, joined by spaces. */
 async function words(pdf: Uint8Array): Promise<string[]> {
@@ -78,6 +78,43 @@ describe("a Document's content that doesn't fit its page", () => {
         expect(Math.abs(line.start - whole[i].start), `${textAlign}, line ${i + 1}'s start`).toBeLessThan(2);
         expect(Math.abs(line.end - whole[i].end), `${textAlign}, line ${i + 1}'s end`).toBeLessThan(2);
       });
+    }
+  });
+
+  it("is planned the same without drawing (paginate()) as from the PDF's own layout (renderPdf())", async () => {
+    const designs = [
+      <Document key="text">
+        <Text style={{ textAlign: "justify" }}>{sentences(200, "one long paragraph")}</Text>
+      </Document>,
+      <Document key="table">
+        <PageFooter>
+          <Text>
+            Page <PageNumber /> of <PageNumber total />
+          </Text>
+        </PageFooter>
+        <Section style={{ padding: 24 }}>
+          <Heading level={2}>Rows</Heading>
+          <Table>
+            <TableRow header>
+              <TableCell>Item</TableCell>
+              <TableCell>Amount</TableCell>
+            </TableRow>
+            {Array.from({ length: 70 }, (_, i) => (
+              <TableRow key={i}>
+                <TableCell>{`Row ${i + 1}`}</TableCell>
+                <TableCell>$1.00</TableCell>
+              </TableRow>
+            ))}
+          </Table>
+        </Section>
+      </Document>,
+    ];
+    for (const design of designs) {
+      const drawn = await renderPdf(design);
+      const planned = await paginate(design);
+      expect(planned.plan.pages.length).toBeGreaterThan(1);
+      expect(planned.plan).toEqual(drawn.plan);
+      expect(planned.diagnostics).toEqual(drawn.diagnostics);
     }
   });
 

@@ -613,10 +613,10 @@ describe("renderPdf", () => {
     await refused({}, `${reads} none: update @hyper-elements/react`);
   });
 
-  it("depends on its engine in one file: the writer builds pages as plain data, which react-pdf's adapter draws", () => {
+  it("depends on its engine in its adapter's files: the writer builds pages as plain data, which react-pdf's adapter measures and draws", () => {
     const src = join(dirname(fileURLToPath(import.meta.url)), "../../../internal/core/src/pdf");
     const importing = readdirSync(src).filter((file) => /from "@react-pdf\//.test(readFileSync(join(src, file), "utf8")));
-    expect(importing).toEqual(["react-pdf.tsx"]);
+    expect(importing.sort()).toEqual(["react-pdf-measure.ts", "react-pdf.tsx"]);
     // What the writer builds is data: the same after a round trip through JSON (its date aside).
     const { root } = prepare(invoice);
     const pages = writeDocument(root!, { families: new Set(), fonts: [], image: (src) => src, date: new Date(0) });

@@ -1,0 +1,392 @@
+/**
+ * The page model (model.ts) measured as react-pdf lays it out, without drawing it: each block's box from its page's
+ * top left, and a block of text's lines, as react-pdf.tsx reads them back from a drawn PDF (PlacedPage). So a
+ * Document's pages can be planned before anything's drawn, and drawn once.
+ *
+ * A block of text's lines are react-pdf's own: its textkit, given the fonts react-pdf draws with (fontsOf()), the text
+ * as react-pdf hands it over (its runs' styles, transforms, links, an image in a line). Every other size is the page
+ * model's arithmetic, as react-pdf's flexbox lays it out: a block's width is its own, or its stack's, or (aligned in a
+ * stack, or in a Row with no width) what it holds; a stack is its children's heights and its gaps, a Row its tallest
+ * child (its children shrunk in proportion where they're wider than it, stretched or aligned down it), a Layer the
+ * block under its layers (each laid over it), an image or a drawing its own height, a set height its own; padding and
+ * borders inside it. A page holding a block it can't measure so is measured by drawing it instead: undefined.
+ */
+import { Font } from "@react-pdf/renderer";
+import type { Fragment } from "@react-pdf/textkit";
+import type { Block, DrawnDocument, Page, PlacedBlock, PlacedPage, Run, Style } from "./model";
+import { fontsOf } from "./react-pdf";
+
+const OPTIONS = { shrinkWhitespaceFactor: { before: -0.5, after: -0.5 } };
+
+/** react-pdf's text layout: its engine as its layout runs it, and what makes its text. */
+interface Textkit {
+  engine: (text: unknown, container: object, options: object) => unknown[];
+  fromFragments: (fragments: Fragment[]) => unknown;
+}
+
+let textkit: Promise<Textkit | undefined> | undefined;
+/**
+ * @react-pdf/textkit, loaded the first time a Document is measured (an optional peer: renderPdf() doesn't need it).
+ * Undefined where it can't be loaded (not installed, or a CommonJS project that can't load it): then a Document is
+ * measured by drawing it.
+ */
+const loadTextkit = (): Promise<Textkit | undefined> =>
+  (textkit ??= import("@react-pdf/textkit").then(
+    (kit) => ({
+      engine: kit.default({ bidi: kit.bidi, linebreaker: kit.linebreaker, justification: kit.justification, textDecoration: kit.textDecoration, scriptItemizer: kit.scriptItemizer, wordHyphenation: kit.wordHyphenation, fontSubstitution: kit.fontSubstitution }) as Textkit["engine"],
+      fromFragments: kit.fromFragments,
+    }),
+    () => undefined
+  ));
+
+/** react-pdf's font store, as react-pdf.tsx reaches it (its own types are closed). */
+const fonts = Font as unknown as { load(descriptor: object): Promise<void>; getFont(descriptor: object): { data?: unknown } | undefined };
+
+/** A block this can't measure without drawing: the page is measured by drawing it. */
+class Unmeasured extends Error {}
+
+const number = (value: unknown): number => (typeof value === "number" ? value : 0);
+const edges = (style: Style) => ({
+  top: number(style.paddingTop) + number(style.borderTopWidth),
+  bottom: number(style.paddingBottom) + number(style.borderBottomWidth),
+  left: number(style.paddingLeft) + number(style.borderLeftWidth),
+  right: number(style.paddingRight) + number(style.borderRightWidth),
+});
+const set = (value: unknown): number | undefined => (typeof value === "number" ? value : undefined);
+
+/** The text styles a box hands what's in it, as react-pdf's styles inherit. */
+const INHERITED = ["color", "fontFamily", "fontSize", "fontStyle", "fontWeight", "letterSpacing", "lineHeight", "textAlign", "textDecoration", "textTransform"];
+const inheritedOf = (style: Style): Style => Object.fromEntries(INHERITED.filter((key) => style[key] !== undefined).map((key) => [key, style[key]]));
+
+/** A run's style over the text's it's in: its own values where it has them. */
+const over = (base: Style, own: Style): Style => ({ ...base, ...Object.fromEntries(Object.entries(own).filter(([, value]) => value !== undefined)) });
+
+/** Text as react-pdf transforms it. */
+function transformed(text: string, transform: unknown): string {
+  switch (transform) {
+    case "uppercase":
+      return text.toUpperCase();
+    case "lowercase":
+      return text.toLowerCase();
+    case "capitalize":
+      return text.replace(/(^|\s)(\S)/g, (_, space: string, letter: string) => space + letter.toUpperCase());
+    default:
+      return text;
+  }
+}
+
+/** A text style's font descriptors: its family's, then Helvetica, react-pdf's fallback. */
+const descriptors = (style: Style) => [String(style.fontFamily ?? "Helvetica"), "Helvetica"].map((fontFamily) => ({ fontFamily, fontWeight: style.fontWeight ?? 400, fontStyle: style.fontStyle ?? "normal" }));
+
+/**
+ * react-pdf's font for a descriptor, looked up once (the store's lookup matches weights and styles). A family's
+ * registered name is made from its files (react-pdf.tsx), so a name is always the same font; one not loaded isn't kept.
+ */
+const fontCache = new Map<string, unknown>();
+const fontOf = (descriptor: object) => {
+  const key = JSON.stringify(descriptor);
+  const cached = fontCache.get(key);
+  if (cached) return cached;
+  const data = fonts.getFont(descriptor)?.data;
+  if (data) fontCache.set(key, data);
+  return data;
+};
+
+class Measurer {
+  readonly placed: PlacedBlock[] = [];
+
+  constructor(
+    readonly styled: (style: Style) => Style,
+    private readonly kit: Textkit
+  ) {}
+
+  /** A text style's textkit attributes, as react-pdf builds them (layout's getFragments). */
+  attributes(style: Style, link?: string): Record<string, unknown> {
+    const resolved = this.styled(style);
+    const fontSize = number(resolved.fontSize) || 18;
+    return {
+      font: descriptors(resolved).map(fontOf),
+      color: resolved.color ?? "black",
+      fontSize,
+      lineHeight: resolved.lineHeight !== undefined ? number(resolved.lineHeight) * fontSize : undefined,
+      direction: "ltr",
+      verticalAlign: resolved.verticalAlign,
+      characterSpacing: resolved.letterSpacing,
+      link,
+      align: resolved.textAlign ?? "left",
+    };
+  }
+
+  /** A block of text's runs as textkit's fragments. */
+  fragments(runs: Run[], style: Style, link?: string, out: Fragment[] = []): Fragment[] {
+    const attributes = this.attributes(style, link);
+    for (const run of runs) {
+      if (typeof run === "string") out.push({ string: transformed(run, style.textTransform), attributes } as Fragment);
+      else if (run.kind === "image") {
+        const fontSize = number(attributes.fontSize);
+        out.push({ string: "￼", attributes: { ...attributes, attachment: { width: set(run.style.width) ?? fontSize, height: set(run.style.height) ?? fontSize, image: {} } } } as unknown as Fragment);
+      } else this.fragments(run.runs, over(style, run.style), run.kind === "link" ? run.href : link, out);
+    }
+    return out;
+  }
+
+  /** A block of text's lines at `width`: each line's box, characters and glyphs, as react-pdf lays them out. */
+  lines(block: Extract<Block, { kind: "text" }>, width: number) {
+    const fragments = this.fragments(block.runs, block.style);
+    if (!fragments.length) return [];
+    const paragraphs = this.kit.engine(this.kit.fromFragments(fragments), { x: 0, y: 0, width, height: Infinity }, OPTIONS);
+    return paragraphs.flat() as unknown as Array<{ box: { y: number; width: number; height: number }; string: string; runs: Array<{ glyphs?: Array<{ advanceWidth?: number }>; attributes?: Record<string, unknown> }> }>;
+  }
+
+  /** A block laid out at (x, y), `width` wide where its style sets none (or, `exactly`, whatever it sets): its height. */
+  block(block: Block, x: number, y: number, width: number | undefined, exactly = false, inherited: Style = {}): number {
+    const style = "style" in block ? over(inherited, block.style) : inherited;
+    const own = exactly ? width : (set(style.width) ?? width);
+    if (own === undefined) throw new Unmeasured();
+    const frame = edges(style);
+    const inner = own - frame.left - frame.right;
+    let height: number;
+    let lines: PlacedBlock["lines"];
+    switch (block.kind) {
+      case "text": {
+        // At the width react-pdf's flexbox hands its text layout: held in a 32-bit float.
+        const laid = this.lines({ ...block, style }, Math.fround(inner));
+        const first = laid[0]?.box.y ?? 0;
+        lines = laid.map((line) => ({ top: y + number(style.paddingTop) + line.box.y - first, height: line.box.height, text: line.string, width: line.box.width, natural: natural(line) }));
+        const content = laid.reduce((sum, line) => sum + line.box.height, 0);
+        height = set(style.height) ?? content + frame.top + frame.bottom;
+        break;
+      }
+      case "image":
+        height = set(style.height) ?? frame.top + frame.bottom;
+        break;
+      case "drawing":
+        height = block.height + frame.top + frame.bottom;
+        break;
+      case "box":
+      case "link": {
+        // What it holds is laid out whatever its height: a set height is its box's, not what's in it.
+        const fixed = set(style.height);
+        const content = this.children(block, x + frame.left, y + frame.top, inner, fixed === undefined ? undefined : fixed - frame.top - frame.bottom, inheritedOf(style));
+        height = fixed ?? content + frame.top + frame.bottom;
+        break;
+      }
+    }
+    if (block.path !== undefined) this.placed.push({ path: block.path, x, y, width: own, height, ...(lines ? { lines } : {}) });
+    return height;
+  }
+
+  /**
+   * A box's children laid out from (x, y) in `width`: their height, as a column, a row or a Layer's. `room`, the height
+   * a box with a set height holds them in, down which a column's justifyContent places them.
+   */
+  children(block: Extract<Block, { kind: "box" | "link" }>, x: number, y: number, width: number, room?: number, inherited: Style = {}): number {
+    const style = block.style;
+    const gap = number(style.gap);
+    const children = block.children;
+    if (style.position === "relative" && children.some((child) => "style" in child && child.style.position === "absolute")) {
+      // A Layer: the block under its layers sets its height; each layer is laid over all of it, taking no room.
+      const layered = (child: Block) => "style" in child && child.style.position === "absolute";
+      const height = children.filter((child) => !layered(child)).reduce((max, child) => Math.max(max, this.block(child, x, y, width, false, inherited)), 0);
+      for (const layer of children.filter(layered)) this.overlay(layer as Extract<Block, { kind: "box" }>, x, y, width, height, inherited);
+      return height;
+    }
+    if (style.flexDirection === "row") return this.row(block, x, y, width, inherited);
+    // A stack: each child under the last, as wide as the stack unless it has a width of its own, or is aligned (not
+    // stretched) across it, when it's as wide as what it holds.
+    let at = y;
+    const ranges: Array<[number, number]> = [];
+    children.forEach((child, i) => {
+      const style = "style" in child ? child.style : {};
+      // Its side margins (a painted line's, past its box so it never wraps: paint.ts) narrow or widen its room.
+      const left = number(style.marginLeft);
+      const room = width - left - number(style.marginRight);
+      const aligned = style.alignSelf !== undefined && style.alignSelf !== "stretch";
+      const own = set(style.width) ?? (aligned ? Math.min(room, this.intrinsic(child, room)) : room);
+      const across = left + (style.alignSelf === "center" ? (room - own) / 2 : style.alignSelf === "flex-end" ? room - own : 0);
+      const from = this.placed.length;
+      at += this.block(child, x + across, at, own, true, inherited) + (i < children.length - 1 ? gap : 0);
+      ranges.push([from, this.placed.length]);
+    });
+    const used = at - y;
+    // In a box of a set height, the space its children leave, where its justifyContent puts it.
+    const free = room === undefined ? 0 : room - used;
+    if (free > 0) {
+      const justify = style.justifyContent;
+      ranges.forEach(([from, to], i) => {
+        const down = justify === "center" ? free / 2 : justify === "flex-end" ? free : justify === "space-between" && ranges.length > 1 ? (free / (ranges.length - 1)) * i : 0;
+        if (down) this.shift(from, to, down);
+      });
+    }
+    return used;
+  }
+
+  /**
+   * A Layer's layer: a column over the whole Layer (`width` by `height`), its blocks down it where its justifyContent
+   * puts them, across it where its alignItems does (stretched, or as wide as what each holds).
+   */
+  overlay(layer: Extract<Block, { kind: "box" }>, x: number, y: number, width: number, height: number, inherited: Style = {}): void {
+    const inside = over(inherited, inheritedOf(layer.style));
+    const style = layer.style;
+    const from = this.placed.length;
+    let at = y;
+    for (const child of layer.children) {
+      const childStyle = "style" in child ? child.style : {};
+      const align = childStyle.alignSelf ?? style.alignItems ?? "stretch";
+      const own = set(childStyle.width) ?? (align === "stretch" ? width : Math.min(width, this.intrinsic(child, width)));
+      const across = align === "center" ? (width - own) / 2 : align === "flex-end" ? width - own : 0;
+      at += this.block(child, x + across, at, own, true, inside);
+    }
+    const used = at - y;
+    const down = style.justifyContent === "center" ? (height - used) / 2 : style.justifyContent === "flex-end" ? height - used : 0;
+    if (down) this.shift(from, this.placed.length, down);
+  }
+
+  /** The blocks placed from `from` up to `to` moved `down`, their lines with them. */
+  shift(from: number, to: number, down: number): void {
+    for (const placed of this.placed.slice(from, to)) {
+      placed.y += down;
+      if (placed.lines) placed.lines = placed.lines.map((line) => ({ ...line, top: line.top + down }));
+    }
+  }
+
+  /**
+   * A Row's children side by side (its gap between): each its own width, else as wide as what it holds (its text's
+   * widest line at most the row's width, as react-pdf measures it), else (one that grows) a share of what's left; where
+   * they're wider than the row, each narrower in proportion to its width, as react-pdf's flexbox shrinks them. Its
+   * height is its tallest child's; a child stretched to it (the row's alignItems or its own alignSelf) is drawn that tall,
+   * a centered or end-aligned one placed down it.
+   */
+  row(block: Extract<Block, { kind: "box" | "link" }>, x: number, y: number, width: number, inherited: Style = {}): number {
+    const style = block.style;
+    const gap = number(style.gap);
+    const children = block.children;
+    const grows = (child: Block) => "style" in child && set(child.style.width) === undefined && number(child.style.flexGrow) > 0;
+    const widths = children.map((child) => (grows(child) ? 0 : ("style" in child ? set(child.style.width) : undefined) ?? this.intrinsic(child, width)));
+    const gaps = gap * Math.max(0, children.length - 1);
+    const fixed = widths.reduce((sum, w) => sum + w, 0);
+    const growing = children.filter(grows).length;
+    if (fixed + gaps > width + 0.001 && fixed > 0) {
+      const factor = (fixed + gaps - width) / fixed;
+      widths.forEach((w, i) => (widths[i] = w - w * factor));
+    }
+    const share = growing ? Math.max(0, width - fixed - gaps) / growing : 0;
+    // The room its children leave across it, where its justifyContent puts it (a child that grows takes it all).
+    const free = growing ? 0 : Math.max(0, width - fixed - gaps);
+    const justify = style.justifyContent;
+    const between = justify === "space-between" && children.length > 1 ? free / (children.length - 1) : 0;
+    let at = x + (justify === "center" ? free / 2 : justify === "flex-end" ? free : 0);
+    const laid = children.map((child, i) => {
+      const childWidth = grows(child) ? share : widths[i];
+      const from = this.placed.length;
+      const height = this.block(child, at, y, childWidth, true, inherited);
+      at += childWidth + gap + between;
+      return { child, from, to: this.placed.length, height };
+    });
+    const tallest = Math.max(0, ...laid.map((entry) => entry.height));
+    for (const { child, from, to, height } of laid) {
+      const align = ("style" in child ? child.style.alignSelf : undefined) ?? style.alignItems ?? "stretch";
+      const own = this.placed.slice(from, to).find((placed) => placed.path === child.path);
+      if (align === "stretch" && own && !("style" in child && set(child.style.height) !== undefined)) own.height = tallest;
+      const down = align === "center" ? (tallest - height) / 2 : align === "flex-end" ? tallest - height : 0;
+      if (down) this.shift(from, to, down);
+    }
+    return tallest;
+  }
+
+  /** How wide a block with no width of its own is in a Row `available` wide: what it holds, as react-pdf measures it. */
+  intrinsic(block: Block, available: number): number {
+    const style = "style" in block ? block.style : {};
+    const own = set(style.width);
+    if (own !== undefined) return own;
+    const frame = edges(style);
+    const room = available - frame.left - frame.right;
+    switch (block.kind) {
+      case "text": {
+        const widest = Math.max(0, ...this.lines(block, room).map((line) => number((line as unknown as { xAdvance?: number }).xAdvance)));
+        return Math.min(room, widest) + frame.left + frame.right;
+      }
+      case "image":
+        return frame.left + frame.right;
+      case "drawing":
+        return block.width + frame.left + frame.right;
+      case "box":
+      case "link": {
+        const children = block.children.map((child) => this.intrinsic(child, room));
+        const inner = block.style.flexDirection === "row" ? children.reduce((sum, w) => sum + w, 0) + number(block.style.gap) * Math.max(0, children.length - 1) : Math.max(0, ...children);
+        return inner + frame.left + frame.right;
+      }
+    }
+  }
+}
+
+/** A laid-out line's glyphs' own advances, in points (react-pdf.tsx's naturalWidth, on textkit's line). */
+function natural(line: { runs: Array<{ glyphs?: Array<{ advanceWidth?: number }>; attributes?: Record<string, unknown> }> }): number {
+  return line.runs.reduce((sum, run) => {
+    const font = (Array.isArray(run.attributes?.font) ? run.attributes!.font[0] : run.attributes?.font) as { unitsPerEm?: number } | undefined;
+    const scale = number(run.attributes?.fontSize) / (font?.unitsPerEm ?? 1000);
+    return sum + (run.glyphs ?? []).reduce((width, glyph) => width + (glyph.advanceWidth ?? 0) * scale + number(run.attributes?.characterSpacing), 0);
+  }, 0);
+}
+
+/** Every font descriptor a page's text names, to load each before measuring (as react-pdf loads them before laying out). */
+function named(blocks: Array<Block | undefined>, styled: (style: Style) => Style, out = new Map<string, object>()): Map<string, object> {
+  const runs = (items: Run[], style: Style) => {
+    for (const run of items) {
+      if (typeof run !== "string" && run.kind !== "image") {
+        const inner = over(style, run.style);
+        for (const descriptor of descriptors(styled(inner))) out.set(JSON.stringify(descriptor), descriptor);
+        runs(run.runs, inner);
+      }
+    }
+  };
+  for (const block of blocks) {
+    if (!block) continue;
+    if (block.kind === "text") {
+      for (const descriptor of descriptors(styled(block.style))) out.set(JSON.stringify(descriptor), descriptor);
+      runs(block.runs, block.style);
+    } else if (block.kind === "box" || block.kind === "link") named(block.children, styled, out);
+  }
+  return out;
+}
+
+/** A page measured: its header, its content from below the header (its gap between), its footer at the bottom of its room. */
+function measurePage(page: Page, styled: (style: Style) => Style, kit: Textkit): PlacedPage {
+  const measurer = new Measurer(styled, kit);
+  const left = page.margin.left;
+  const width = page.width - page.margin.left - page.margin.right;
+  const header = page.header ? measurer.block(page.header, left, page.margin.top, width) : 0;
+  // The footer's height first (measured aside), to know where the room ends and the footer starts.
+  const footer = page.footer ? new Measurer(styled, kit).block(page.footer, left, 0, width) : 0;
+  const top = page.margin.top + header;
+  const bottom = page.margin.top + page.contentHeight - footer;
+  let at = top;
+  page.content.forEach((block, i) => {
+    at += measurer.block(block, left, at, width) + (i < page.content.length - 1 ? number(page.gap) : 0);
+  });
+  if (page.footer) measurer.block(page.footer, left, bottom, width);
+  return { room: { top, bottom }, blocks: measurer.placed };
+}
+
+/**
+ * Each page as react-pdf lays it out, without drawing it; undefined where a page holds a block this can't measure so
+ * (the caller then measures by drawing).
+ */
+export async function reactPdfLayout(document: DrawnDocument): Promise<PlacedPage[] | undefined> {
+  const kit = await loadTextkit();
+  if (!kit) return undefined;
+  const styled = await fontsOf(document.fonts);
+  for (const descriptor of named(document.pages.flatMap((page) => [page.header, ...page.content, page.footer]), styled).values()) {
+    try {
+      await fonts.load(descriptor);
+    } catch {
+      // A font react-pdf can't load fails where it's drawn, as it does when drawing.
+    }
+  }
+  try {
+    return document.pages.map((page) => measurePage(page, styled, kit));
+  } catch (error) {
+    if (error instanceof Unmeasured) return undefined;
+    throw error;
+  }
+}

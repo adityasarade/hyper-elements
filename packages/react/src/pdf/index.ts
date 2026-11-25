@@ -10,7 +10,7 @@
  * given in `fonts`. A template that needs one it isn't given is an error (an image) or drawn in a standard PDF font (a
  * font), and says so. templateAssets() lists the fonts and images a template names, for a tool that loads them.
  */
-import { assetParts, flowDocument, LAYOUT_VERSION, pdfFamily, reactPdf, thumbnailOf, writeDocument, type Asset, type Font } from "@hyper-elements/core/pdf";
+import { assetParts, flowDocument, LAYOUT_VERSION, pdfFamily, reactPdf, reactPdfLayout, thumbnailOf, writeDocument, type Asset, type Font, type PlacedPage } from "@hyper-elements/core/pdf";
 import type { FontFace, Plan } from "@hyper-elements/core";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode, type Snapshot } from "@hyper-elements/react";
 import type { ReactElement } from "react";
@@ -64,13 +64,14 @@ export async function renderPdf(element: ReactElement | Snapshot, options: PdfOp
 }
 
 /**
- * A Document's pages as planned, measured with its fonts as its PDF is drawn: for print HTML with the same pages as
- * its PDF, `render(design, { plan })`. Takes renderPdf()'s options (it draws the PDF to measure it). Rejects as
- * renderPdf() does.
+ * A Document's pages as planned, measured with its fonts as its PDF lays them out, without drawing it: for print HTML
+ * with the same pages as its PDF, `render(design, { plan })`. Takes renderPdf()'s options. Rejects as renderPdf() does.
  */
 export async function paginate(element: ReactElement | Snapshot, options: PdfOptions = {}): Promise<PaginateResult> {
-  const { plan, diagnostics } = await draw(element, options);
-  return { plan, diagnostics };
+  const planned = await planDocument(element, options, false);
+  // Where what's on each planned page landed, without drawing it (or, where it can't be measured so, drawn).
+  const placed = planned.drawn && planned.pages === planned.written ? planned.drawn.placed : ((await reactPdfLayout(planned.pages)) ?? (await reactPdf(planned.pages)).placed);
+  return { plan: planned.plan, diagnostics: said(planned, placed) };
 }
 
 /**
@@ -87,10 +88,11 @@ export async function layoutDocument(element: ReactElement | Snapshot, options: 
 }
 
 /**
- * The PDF drawn, with where the engine placed each block. A page's content measured past its room is said as measured;
- * where the engine can't say, validate()'s estimate stands.
+ * A Document written as pages, measured, and planned: where its content doesn't fit a page, flowed onto the pages after
+ * it. `drawing`: measured by drawing it (`drawn`, the PDF of the pages as written, which is the PDF where they fit: most
+ * Documents are drawn once); else measured without drawing it (react-pdf-measure.ts), or drawn where it can't be.
  */
-async function draw(element: ReactElement | Snapshot, options: PdfOptions) {
+async function planDocument(element: ReactElement | Snapshot, options: PdfOptions, drawing: boolean) {
   const { root, diagnostics } = documentOf(element);
   const found: Diagnostic[] = [];
   const fonts = fontFiles(root, options.fonts ?? [], found);
@@ -99,21 +101,34 @@ async function draw(element: ReactElement | Snapshot, options: PdfOptions) {
   found.push(...missingFaces(root, fonts, options.fonts ?? []), ...beyondStandard(root, new Set(fonts.map((font) => font.family))));
   const context = { families: new Set(fonts.map((font) => font.family)), fonts, image: (src: string) => images.get(src), date: options.date ?? FIXED_DATE };
   const written = writeDocument(root, context);
-  const first = await reactPdf(written);
-  let pages = written;
+  const measured = drawing ? undefined : await reactPdfLayout(written);
+  const drawn = measured ? undefined : await reactPdf(written);
+  const laid = measured ?? drawn?.placed;
   // A Document that fits: each page as written, each block whole on it.
   let plan: Plan = { pages: written.pages.map((page, from) => ({ from, parts: page.content.map((block) => ({ path: block.path!, part: 0, first: true, last: true })) })) };
-  let { pdf, placed } = first;
-  // Content that doesn't fit its page goes on to the next: planned from where this render laid it out (measured), and
-  // drawn again, a split text's lines as they were laid out (paint.ts). What still doesn't fit is said, measured.
-  if (first.placed && overflows(written.pages, first.placed)) {
-    const flowed = flowDocument(root, context, written, first.placed);
-    ({ pdf, placed } = await reactPdf(flowed.document));
+  let pages = written;
+  // Content that doesn't fit its page goes on to the next, planned from where it was laid out, a split text's lines as
+  // they were laid out (paint.ts).
+  if (laid && overflows(written.pages, laid)) {
+    const flowed = flowDocument(root, context, written, laid);
     pages = flowed.document;
     plan = flowed.plan;
   }
-  const said = placed ? [...diagnostics.filter((d) => d.code !== "document/overflow"), ...measuredOverflow(root, pages.pages, placed)] : diagnostics;
-  return { root, pages, placed, plan, pdf, diagnostics: [...said, ...found] };
+  return { root, written, pages, plan, drawn, diagnostics, found };
+}
+
+/** The diagnostics: prepare()'s, a page's content past its room measured (where it can be), and the files' and fonts'. */
+function said(planned: Awaited<ReturnType<typeof planDocument>>, placed: PlacedPage[] | undefined): Diagnostic[] {
+  const { root, pages, diagnostics, found } = planned;
+  const overflow = placed ? [...diagnostics.filter((d) => d.code !== "document/overflow"), ...measuredOverflow(root, pages.pages, placed)] : diagnostics;
+  return [...overflow, ...found];
+}
+
+/** The PDF: drawn once where its pages fit, and again, flowed, where they don't. */
+async function draw(element: ReactElement | Snapshot, options: PdfOptions) {
+  const planned = await planDocument(element, options, true);
+  const { pdf, placed } = planned.drawn && planned.pages === planned.written ? planned.drawn : await reactPdf(planned.pages);
+  return { root: planned.root, pages: planned.pages, placed, plan: planned.plan, pdf, diagnostics: said(planned, placed) };
 }
 
 export interface TemplateAssets {

@@ -6,6 +6,9 @@ import type { MeasuredBlock, MeasuredPage } from "../plan";
 import type { Block, DrawnDocument, PlacedPage } from "./model";
 import { lineEnds, runsText } from "./runs";
 
+/** A length to a thousandth of a point (no negative zero). */
+const thousandth = (points: number) => Math.round(points * 1000) / 1000 || 0;
+
 /** Each block of a page, by its path: its content, header and footer, and what's in them. */
 export function blocksOf(page: DrawnDocument["pages"][number]): Map<string, Block> {
   const out = new Map<string, Block>();
@@ -41,7 +44,9 @@ export function measure(document: DrawnDocument, placed: PlacedPage[]): Measured
               // Squeezed where its glyphs are wider than its room; justified to fill it but at a paragraph's end.
               const last = j === ends.length - 1 || end.next > end.end;
               const spacing = !between ? 0 : line.natural > line.width + 0.01 || (justified && !last) ? (line.width - line.natural) / between : 0;
-              return { start: j === 0 ? 0 : ends[j - 1].next, end: end.end, next: end.next, hyphenated: end.hyphenated, top: line.top, height: line.height, wordSpacing: Math.abs(spacing) > 0.001 ? spacing : 0 };
+              // To a thousandth of a point: what's measured with or without drawing is the same (react-pdf's flexbox holds
+              // a width in 32-bit floats), and a plan comes out the same wherever it's made.
+              return { start: j === 0 ? 0 : ends[j - 1].next, end: end.end, next: end.next, hyphenated: end.hyphenated, top: line.top, height: thousandth(line.height), wordSpacing: thousandth(spacing) };
             });
           }
         }

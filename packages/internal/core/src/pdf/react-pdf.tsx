@@ -1,6 +1,7 @@
 /**
- * The page model (model.ts) drawn by react-pdf: the only file that imports an engine. Another engine is another file
- * like this one, drawing the same pages; the writer doesn't change.
+ * The page model (model.ts) drawn by react-pdf: with react-pdf-measure.ts (which measures it without drawing), the only
+ * files that import an engine. Another engine is other files like these, drawing the same pages; the writer doesn't
+ * change.
  *
  * react-pdf lays out the boxes (Yoga's flexbox) at the widths the writer gives them and breaks the lines, and says
  * where it laid each block out (placed(), from the layout its render hands a Document's onRender).
@@ -76,17 +77,25 @@ const SHAPES: Record<Shape["kind"], unknown> = { rect: Rect, circle: Circle, ell
 /** An element of react-pdf's, from the model's plain props (react-pdf's own types are closed unions of its style keys). */
 const el = (type: unknown, props: Record<string, unknown>, ...children: ReactNode[]): ReactElement => createElement(type as never, props as never, ...children);
 
-export const reactPdf: Engine = async (document) => {
-  const names = register(document.fonts);
+/**
+ * The fonts given, registered with react-pdf and loaded; and a style with its family as react-pdf has it: a given family
+ * by the name it's registered under, a standard PDF font as it is. react-pdf finds the nearest weight a family is given
+ * in, but throws for a style it has no file in: that text is drawn in the style it has. What drawing and measuring
+ * share (react-pdf-measure.ts), so both have the same fonts.
+ */
+export async function fontsOf(fonts: readonly FontFile[]): Promise<(style: Style) => Style> {
+  const names = register(fonts);
   for (const { name, files } of names.values()) await load(name, files);
-  // A given family by the name it's registered under; a standard PDF font as it is. react-pdf finds the nearest weight
-  // a family is given in, but throws for a style it has no file in: that text is drawn in the style it has.
-  const styled = (style: Style): Style => {
+  return (style) => {
     const family = style.fontFamily === undefined ? undefined : names.get(String(style.fontFamily));
     if (!family) return style;
     const fontStyle = family.styles.has(String(style.fontStyle ?? "normal")) ? style.fontStyle : [...family.styles][0];
     return { ...style, fontFamily: family.name, fontStyle };
   };
+}
+
+export const reactPdf: Engine = async (document) => {
+  const styled = await fontsOf(document.fonts);
   const run = (item: Run, key: number): ReactNode => {
     if (typeof item === "string") return item;
     switch (item.kind) {
