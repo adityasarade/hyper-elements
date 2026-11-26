@@ -13,7 +13,7 @@
  */
 import { Font } from "@react-pdf/renderer";
 import type { Fragment } from "@react-pdf/textkit";
-import type { Block, DrawnDocument, Page, PlacedBlock, PlacedPage, Run, Style } from "./model";
+import type { Block, DrawnDocument, Font as FontFile, Page, PlacedBlock, PlacedPage, Run, Style } from "./model";
 import { fontsOf } from "./react-pdf";
 
 const OPTIONS = { shrinkWhitespaceFactor: { before: -0.5, after: -0.5 } };
@@ -92,12 +92,73 @@ const fontOf = (descriptor: object) => {
   return data;
 };
 
+/** A line of a block of text as textkit laid it out: what's kept of it (so a cache of them holds little). */
+interface Laid {
+  y: number;
+  width: number;
+  height: number;
+  text: string;
+  /** Its glyphs' own advances (natural()), and textkit's advance for it (spacing and justification in). */
+  natural: number;
+  advance: number;
+}
+
+/**
+ * Blocks of text laid out, by what's laid out (their text with its styles and fonts, and the width): a keystroke lays
+ * out the one block it changes. The least recently used go first, past `size`.
+ */
+export class LineCache {
+  private readonly entries = new Map<string, Laid[]>();
+  /** How many blocks of text have been laid out, not found laid out. */
+  laid = 0;
+
+  constructor(readonly size = 10_000) {}
+
+  get(key: string): Laid[] | undefined {
+    const laid = this.entries.get(key);
+    if (laid) {
+      this.entries.delete(key);
+      this.entries.set(key, laid);
+    }
+    return laid;
+  }
+
+  set(key: string, laid: Laid[]): void {
+    this.entries.set(key, laid);
+    if (this.entries.size > this.size) this.entries.delete(this.entries.keys().next().value!);
+  }
+}
+
+/** A font's number in a cache's keys: the same font object, the same number. */
+const fontIds = new WeakMap<object, number>();
+let fonted = 0;
+const fontId = (font: unknown): number => {
+  if (!font || typeof font !== "object") return 0;
+  let id = fontIds.get(font);
+  if (id === undefined) fontIds.set(font, (id = ++fonted));
+  return id;
+};
+/** What of a fragment's attributes lays it out, in a fixed order (its color draws it, so isn't in it). */
+const LAYOUT = ["fontSize", "lineHeight", "direction", "verticalAlign", "characterSpacing", "link", "align"] as const;
+const keyOf = (fragments: Fragment[], width: number): string => {
+  let key = String(width);
+  for (const fragment of fragments) {
+    const attributes = fragment.attributes as Record<string, unknown>;
+    const attachment = attributes.attachment as { width: number; height: number } | undefined;
+    key += `\u0001${fragment.string}\u0000${(attributes.font as unknown[]).map(fontId).join(",")}`;
+    for (const name of LAYOUT) key += `|${attributes[name] ?? ""}`;
+    if (attachment) key += `|${attachment.width}x${attachment.height}`;
+  }
+  return key;
+};
+
 class Measurer {
   readonly placed: PlacedBlock[] = [];
 
   constructor(
     readonly styled: (style: Style) => Style,
-    private readonly kit: Textkit
+    private readonly kit: Textkit,
+    private readonly cache?: LineCache
   ) {}
 
   /** A text style's textkit attributes, as react-pdf builds them (layout's getFragments). */
@@ -132,12 +193,21 @@ class Measurer {
     return out;
   }
 
-  /** A block of text's lines at `width`: each line's box, characters and glyphs, as react-pdf lays them out. */
-  lines(block: Extract<Block, { kind: "text" }>, width: number) {
+  /** A block of text's lines at `width`: each line's box and characters, as react-pdf lays them out (or as it laid them out before). */
+  lines(block: Extract<Block, { kind: "text" }>, width: number): Laid[] {
     const fragments = this.fragments(block.runs, block.style);
     if (!fragments.length) return [];
+    const key = this.cache && keyOf(fragments, width);
+    const cached = key === undefined ? undefined : this.cache!.get(key);
+    if (cached) return cached;
     const paragraphs = this.kit.engine(this.kit.fromFragments(fragments), { x: 0, y: 0, width, height: Infinity }, OPTIONS);
-    return paragraphs.flat() as unknown as Array<{ box: { y: number; width: number; height: number }; string: string; runs: Array<{ glyphs?: Array<{ advanceWidth?: number }>; attributes?: Record<string, unknown> }> }>;
+    const lines = paragraphs.flat() as unknown as Array<{ box: { y: number; width: number; height: number }; string: string; xAdvance?: number; runs: Array<{ glyphs?: Array<{ advanceWidth?: number }>; attributes?: Record<string, unknown> }> }>;
+    const laid = lines.map((line) => ({ y: line.box.y, width: line.box.width, height: line.box.height, text: line.string, natural: natural(line), advance: number(line.xAdvance) }));
+    if (key !== undefined) {
+      this.cache!.set(key, laid);
+      this.cache!.laid++;
+    }
+    return laid;
   }
 
   /**
@@ -157,9 +227,9 @@ class Measurer {
       case "text": {
         // At the width react-pdf's flexbox hands its text layout: held in a 32-bit float.
         const laid = this.lines({ ...block, style }, Math.fround(inner));
-        const first = laid[0]?.box.y ?? 0;
-        lines = laid.map((line) => ({ top: y + number(style.paddingTop) + line.box.y - first, height: line.box.height, text: line.string, width: line.box.width, natural: natural(line) }));
-        const content = laid.reduce((sum, line) => sum + line.box.height, 0);
+        const first = laid[0]?.y ?? 0;
+        lines = laid.map((line) => ({ top: y + number(style.paddingTop) + line.y - first, height: line.height, text: line.text, width: line.width, natural: line.natural }));
+        const content = laid.reduce((sum, line) => sum + line.height, 0);
         height = set(style.height) ?? tall ?? content + frame.top + frame.bottom;
         break;
       }
@@ -269,7 +339,7 @@ class Measurer {
 
   /** The blocks placed from `from` up to `to` laid out again (`lay`, by a measurer of their own): as many, in their place. */
   again(from: number, to: number, lay: (measurer: Measurer) => void): void {
-    const measurer = new Measurer(this.styled, this.kit);
+    const measurer = new Measurer(this.styled, this.kit, this.cache);
     lay(measurer);
     this.placed.splice(from, to - from, ...measurer.placed);
   }
@@ -345,7 +415,7 @@ class Measurer {
     const room = available - frame.left - frame.right;
     switch (block.kind) {
       case "text": {
-        const widest = Math.max(0, ...this.lines(block, room).map((line) => number((line as unknown as { xAdvance?: number }).xAdvance)));
+        const widest = Math.max(0, ...this.lines(block, room).map((line) => line.advance));
         return Math.min(room, widest) + frame.left + frame.right;
       }
       case "image":
@@ -393,19 +463,29 @@ function named(blocks: Array<Block | undefined>, styled: (style: Style) => Style
 }
 
 /** A page measured: its header, its content from below the header (its gap between), its footer at the bottom of its room. */
-function measurePage(page: Page, styled: (style: Style) => Style, kit: Textkit): PlacedPage {
-  const measurer = new Measurer(styled, kit);
+function measurePage(page: Page, styled: (style: Style) => Style, kit: Textkit, cache?: LineCache): PlacedPage {
+  const measurer = new Measurer(styled, kit, cache);
   const left = page.margin.left;
   const width = page.width - page.margin.left - page.margin.right;
   const header = page.header ? measurer.block(page.header, left, page.margin.top, width) : 0;
   // The footer's height first (measured aside), to know where the room ends and the footer starts.
-  const footer = page.footer ? new Measurer(styled, kit).block(page.footer, left, 0, width) : 0;
+  const footer = page.footer ? new Measurer(styled, kit, cache).block(page.footer, left, 0, width) : 0;
   const top = page.margin.top + header;
   const bottom = page.margin.top + page.contentHeight - footer;
   // Its content a column at least as tall as the room (react-pdf.tsx), so a part that goes on to the next page fills it.
   measurer.children({ kind: "box", style: { flexDirection: "column", gap: page.gap }, children: page.content }, left, top, width, bottom - top);
   if (page.footer) measurer.block(page.footer, left, bottom, width);
   return { room: { top, bottom }, blocks: measurer.placed };
+}
+
+/** Each page measured; undefined where a page holds a block this can't measure so. */
+function measurePages(document: DrawnDocument, styled: (style: Style) => Style, kit: Textkit, cache?: LineCache): PlacedPage[] | undefined {
+  try {
+    return document.pages.map((page) => measurePage(page, styled, kit, cache));
+  } catch (error) {
+    if (error instanceof Unmeasured) return undefined;
+    throw error;
+  }
 }
 
 /**
@@ -423,10 +503,51 @@ export async function reactPdfLayout(document: DrawnDocument): Promise<PlacedPag
       // A font react-pdf can't load fails where it's drawn, as it does when drawing.
     }
   }
-  try {
-    return document.pages.map((page) => measurePage(page, styled, kit));
-  } catch (error) {
-    if (error instanceof Unmeasured) return undefined;
-    throw error;
+  return measurePages(document, styled, kit);
+}
+
+/** The standard PDF fonts, in the weights and styles they're drawn in: what a Document draws text in without a file of its own. */
+const STANDARD = ["Helvetica", "Times-Roman", "Courier"].flatMap((fontFamily) => [400, 700].flatMap((fontWeight) => ["normal", "italic"].map((fontStyle) => ({ fontFamily, fontWeight, fontStyle }))));
+
+/**
+ * A measurer for Documents drawn in these fonts, ready to measure without waiting: textkit and the fonts loaded once,
+ * and each block of text laid out once (`cache`) until what it holds or its width changes.
+ */
+export interface Layout {
+  /**
+   * Each page as react-pdf lays it out, without drawing it (as reactPdfLayout() measures it); undefined where a page holds
+   * a block this can't measure so, or text in a font it wasn't made with.
+   */
+  measure(document: DrawnDocument): PlacedPage[] | undefined;
+  /** How many blocks of text it has laid out with textkit, not found laid out before: for a test, or a profile. */
+  readonly laid: number;
+}
+
+/** A Layout for these fonts; undefined where textkit can't be loaded. `size`: how many blocks of text it keeps laid out. */
+export async function createLayout(files: readonly FontFile[], size?: number): Promise<Layout | undefined> {
+  const kit = await loadTextkit();
+  if (!kit) return undefined;
+  const styled = await fontsOf(files);
+  for (const descriptor of STANDARD) {
+    try {
+      await fonts.load(descriptor);
+    } catch {
+      // Drawn where it's drawn, as react-pdf draws it.
+    }
   }
+  const cache = new LineCache(size);
+  return {
+    measure(document) {
+      // The fonts it was made with only: text in another can't be measured before it's loaded.
+      const made = (font: FontFile) => files.some((file) => file.data === font.data && file.family === font.family && file.weight === font.weight && file.style === font.style);
+      if (!document.fonts.every(made)) return undefined;
+      for (const descriptor of named(document.pages.flatMap((page) => [page.header, ...page.content, page.footer]), styled).values()) {
+        if (!fontOf(descriptor)) return undefined;
+      }
+      return measurePages(document, styled, kit, cache);
+    },
+    get laid() {
+      return cache.laid;
+    },
+  };
 }

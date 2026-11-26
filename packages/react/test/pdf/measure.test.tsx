@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createElement, type ReactElement } from "react";
 import { Column, Document, Heading, Image, List, ListItem, PageFooter, PageHeader, PageNumber, prepare, Row, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
-import { flowDocument, reactPdf, reactPdfLayout, writeDocument, type DrawnDocument, type PlacedPage } from "@hyper-elements/core/pdf";
+import { createLayout, flowDocument, reactPdf, reactPdfLayout, writeDocument, type DrawnDocument, type Layout, type PlacedPage } from "@hyper-elements/core/pdf";
 import { gallery } from "../../src/primitives/examples/gallery";
 import { stress } from "../../src/primitives/examples/stress";
 import { arabicFonts, arabicSentences } from "./arabic";
@@ -87,13 +87,16 @@ async function templateDesigns(): Promise<Array<[string, ReactElement]>> {
   return Promise.all(files.map(async (file) => [file.slice(folder.length + 1), createElement(((await import(file)) as { default: () => ReactElement }).default)] as [string, ReactElement]));
 }
 
+/** Every design measured: the gallery's, the stress tests' printed ones, the templates' and the ones above. */
+const corpus = async (): Promise<Array<[string, ReactElement]>> => [
+  ...Object.entries(gallery),
+  ...Object.entries(stress).filter(([, e]) => e.roots !== "screen").map(([n, e]) => [n, e.template] as [string, ReactElement]),
+  ...(await templateDesigns()),
+  ...Object.entries(synthetic),
+];
+
 it("measures each Document as react-pdf draws it, without drawing it", async () => {
-  const cases: Array<[string, ReactElement]> = [
-    ...Object.entries(gallery),
-    ...Object.entries(stress).filter(([, e]) => e.roots !== "screen").map(([n, e]) => [n, e.template] as [string, ReactElement]),
-    ...(await templateDesigns()),
-    ...Object.entries(synthetic),
-  ];
+  const cases = await corpus();
   const differences: string[] = [];
   let docs = 0;
   let blocks = 0;
@@ -153,4 +156,49 @@ it("measures each Document as react-pdf draws it, without drawing it", async () 
   expect(docs).toBeGreaterThan(15);
   expect(lines).toBeGreaterThan(300);
   expect(flowed).toBeGreaterThan(0);
+});
+
+it("measures each Document with a Layout made once as without one, laying out again only the text that's changed", async () => {
+  // A Layout for each set of fonts, made once and kept: each Document measured as reactPdfLayout() measures it, then
+  // again from what it laid out before, laying out nothing.
+  const layouts = new Map<unknown, Layout>();
+  let docs = 0;
+  for (const [name, design] of await corpus()) {
+    const { root } = prepare(design as ReactElement);
+    if (root?.type !== "Document") continue;
+    docs++;
+    const files = given[name] ?? [];
+    if (!layouts.has(files)) layouts.set(files, (await createLayout(files))!);
+    const layout = layouts.get(files)!;
+    const context = { families: new Set(files.map((font) => font.family)), fonts: files, image: (src: string) => (src.startsWith("data:") ? src : undefined), date: new Date(0) };
+    const written = writeDocument(root, context);
+    const measured = layout.measure(written);
+    expect(measured, name).toEqual(await reactPdfLayout(written));
+    const laid = layout.laid;
+    expect(layout.measure(written), name).toEqual(measured);
+    expect(layout.laid, name).toBe(laid);
+  }
+  expect(docs).toBeGreaterThan(15);
+
+  // A paragraph of a report changed, as a keystroke changes it: that paragraph is laid out again, and nothing else.
+  const report = (typed: string) => (
+    <Document>
+      {Array.from({ length: 40 }, (_, i) => (
+        <Text key={i}>
+          {para(i)}
+          {i === 7 ? typed : ""}
+        </Text>
+      ))}
+    </Document>
+  );
+  const layout = (await createLayout([]))!;
+  const written = (typed: string) => writeDocument(prepare(report(typed)).root!, { families: new Set(), fonts: [], image: () => undefined, date: new Date(0) });
+  layout.measure(written(""));
+  expect(layout.laid).toBe(40);
+  for (const typed of [" a", " an", " and"]) {
+    const before = layout.laid;
+    const measured = layout.measure(written(typed));
+    expect(layout.laid - before).toBe(1);
+    expect(measured).toEqual(await reactPdfLayout(written(typed)));
+  }
 });
