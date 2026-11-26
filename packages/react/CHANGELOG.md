@@ -4,6 +4,36 @@ Versions before 0.3.0 were published as `@unlayer/react-elements`.
 
 ## Unreleased
 
+### A Document's PDF goes on to the next page
+
+`renderPdf()` no longer cuts off what doesn't fit a page: it goes on to the next, with the `PageHeader` and
+`PageFooter` on each page and each `PageNumber` numbered for the pages there are.
+- Text splits between its lines, two at least on each side, right to left too.
+- A Section, a Column and a List split between and inside what they hold, keeping their top padding and border on
+  their first part and their bottom ones on the page they end on.
+- A Table splits between its rows, its header rows again on top of each page.
+- A Row of Columns taller than a page goes on by its columns.
+- A Heading goes on with what follows it.
+
+A Document whose pages fit is drawn as it was. See "Pages that flow" in `docs/render-pdf.md`.
+
+- **The same pages everywhere:** `renderPdf()` returns its `plan`, and `render(design, { plan })` draws the print
+  HTML with the PDF's pages.
+- **A plan without drawing:** `paginate(design)` makes the plan without drawing the PDF. Its text is measured with
+  react-pdf's own layout (`@react-pdf/textkit`, a new optional peer).
+- **Where everything landed:** `layoutDocument(design)` gives each page and each block where its PDF lays it out.
+- **For a page view as a Document is edited:**
+  - `createPaginator({ fonts, images })` answers `paginate()` at once (in Node, a browser or a Worker), laying out
+    again only the text that changed.
+  - It can give each page as an SVG drawn where the PDF draws it (`svg`), and each line's box and its carets
+    (`layout`).
+  - `caretAt()`, `caretBox()`, `selectionBoxes()` and `fontFaces()` read and draw them.
+- **New warnings:**
+  - `pdf/measure`: a paginator guessed a block it can't measure exactly.
+  - `pdf/layer`: text over a Layer is taller than the Layer, which the PDF doesn't draw.
+  - `pdf/layout`: the installed react-pdf doesn't say where it laid the PDF out.
+  - `render/plan`: a plan made from another version of the Document.
+
 ### A block map for every root
 
 `render(design, { blockMap: true })` now returns `blocks` for a Page, a Document (its print HTML) and a Canvas (as HTML),
