@@ -491,6 +491,32 @@ describe("renderPdf", () => {
     expect(written.pages[0].content.map(direction)).toEqual(["rtl", "rtl", undefined, "rtl", undefined]);
   });
 
+  it("draws a list item's text beside its marker, its lines inside the page's right margin as a paragraph's are", async () => {
+    const words = "Elements writes the same design to email, the web, print and PDF, so this stands in for a section.";
+    const { pdf } = await renderPdf(
+      <Document>
+        <Text>{words}</Text>
+        <List type="number">
+          <ListItem>{words}</ListItem>
+        </List>
+      </Document>
+    );
+    const document = await getDocument({ data: pdf.slice(), useSystemFonts: false, disableFontFace: true, verbosity: 0 }).promise;
+    const page = await document.getPage(1);
+    const items = (await page.getTextContent()).items.filter((item): item is { str: string; width: number; transform: number[] } & typeof item => "str" in item && item.str.trim() !== "");
+    const ends = (from: string) => items.filter((item) => item.str.startsWith(from)).map((item) => item.transform[4] + item.width);
+    // The page's right margin (48px, 36 points, in from its edge): the item's first line, set 18 points in beside its
+    // marker, ends inside it as the paragraph's does.
+    const margin = page.view[2] - 36;
+    const [paragraph, item, ...more] = ends("Elements");
+    expect(more).toEqual([]);
+    expect(paragraph).toBeLessThanOrEqual(margin + 0.1);
+    expect(item).toBeLessThanOrEqual(margin + 0.1);
+    const marker = items.find((item) => item.str === "1.")!;
+    const first = items.filter((item) => item.str.startsWith("Elements"))[1];
+    expect(first.transform[4] - marker.transform[4]).toBeCloseTo(18, 1);
+  });
+
   it("places a Button by its own alignSelf, over its stack's alignItems", () => {
     const { root } = prepare(
       <Document style={{ alignItems: "start" }}>

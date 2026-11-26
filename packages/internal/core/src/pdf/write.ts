@@ -298,7 +298,9 @@ class Writer {
         style: { flexDirection: "row" },
         children: [
           { kind: "text", style: { ...this.text(item), width: pt(indent), textAlign: "left" }, runs: [node.props.type === "number" ? `${start + i}.` : "•"] },
-          { kind: "box", style: { flexGrow: 1, flexShrink: 1, flexDirection: "column" }, children: this.itemParts(item) },
+          // Its text laid out at the room beside its marker: with a basis of its own, react-pdf's flexbox would lay it out
+          // as wide as the item first and keep those lines, past the page's right margin.
+          { kind: "box", style: { flexGrow: 1, flexShrink: 1, flexBasis: 0, flexDirection: "column" }, children: this.itemParts(item) },
         ],
       })),
     };
