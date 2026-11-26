@@ -66,8 +66,11 @@ function fit(view: HTMLElement) {
   if (!scaler || !frame) return;
   const scale = Math.min(1, view.clientWidth / width);
   scaler.style.transform = `scale(${scale})`;
-  frame.width = String(width);
-  // Scaled: a view that hides its preview until then (the home page's hero) can show it.
+  // A view that fills its panel (the home page's hero) draws a design narrower than the panel at the panel's width,
+  // so the design's own background reaches the panel's edge.
+  const fill = view.dataset.fitFill !== undefined && scale === 1;
+  frame.width = String(fill ? Math.max(width, view.clientWidth) : width);
+  // Scaled: a view that hides its preview until then (the hero) can show it.
   view.dataset.fitted = "";
   if (view.dataset.fitFull !== undefined) return fitFull(view, frame, width, scale);
   frame.height = String(Math.ceil(view.clientHeight / scale));
