@@ -3,8 +3,8 @@
 //   pnpm --filter @hyper-elements/website check:og-image
 //
 // It serves dist/ and opens /tools/open-graph-image-generator in Playwright's Chromium, offline: a request to any
-// other host is refused, and counted (the site's typeface, which every page loads from Google Fonts, is the only one
-// allowed). What it holds the page to:
+// other host is refused, and counted (the site's typeface, which every page loads from Google Fonts, and the header's
+// star count, which every page asks GitHub for, are the only ones allowed). What it holds the page to:
 //
 //   1. The built files are there: the page (with its FAQ as structured data), the worker, the fonts, the sample photo
 //      and each design's picture; the footer, the sitemap and llms.txt name it.
@@ -152,9 +152,11 @@ assert.deepEqual(sof, [1200, 630], "The JPG is 1200 × 630");
 // ─── 6. No resvg where it isn't needed; nothing from elsewhere ─────────────────
 
 assert(!asked.some((request) => request.includes("resvg.wasm")), "resvg's WebAssembly isn't loaded: the browser makes the PNG and the JPEG");
-// The site's own typeface (Geist), which every page's layout loads from Google Fonts, is the only thing from elsewhere.
+// The site's own typeface (Geist), which every page's layout loads from Google Fonts, and the header's star count
+// (Header.astro), a GET with nothing of the visitor's in it, are the only things from elsewhere.
 const SITE_FONTS = /^https:\/\/fonts\.(googleapis|gstatic)\.com\//;
-assert.deepEqual(elsewhere.filter((url) => !SITE_FONTS.test(url)), [], "The page asks nothing of any other host, but for the site's typeface");
+const STARS = /^https:\/\/api\.github\.com\/repos\/hyper-elements\/hyper-elements$/;
+assert.deepEqual(elsewhere.filter((url) => !SITE_FONTS.test(url) && !STARS.test(url)), [], "The page asks nothing of any other host, but for the site's typeface and its star count");
 
 // ─── 7. A phone's width ────────────────────────────────────────────────────────
 

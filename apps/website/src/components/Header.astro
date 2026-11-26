@@ -5,7 +5,7 @@ import { stars as starCount } from "../lib/stars";
 const path = Astro.url.pathname.replace(/\/$/, "") || "/";
 const current = (href: string) => path === href || path.startsWith(href + "/");
 
-// The repo's star count, fetched once per build (src/lib/stars.ts).
+// The repo's star count, fetched once per build (src/lib/stars.ts), and brought up to date in the browser (below).
 const stars = await starCount;
 ---
 <header class="site-header">
@@ -33,7 +33,7 @@ const stars = await starCount;
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <span class="label">Search docs</span><kbd>⌘K</kbd>
       </button>
-      <a class="icon-link" href={site.github} aria-label={stars ? `GitHub, ${stars} stars` : "GitHub"}>
+      <a class="icon-link" href={site.github} aria-label={stars ? `GitHub, ${stars} stars` : "GitHub"} data-stars={site.repo}>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a12 12 0 0 0-3.8 23.4c.6.1.8-.3.8-.6v-2.1c-3.3.7-4-1.4-4-1.4-.6-1.4-1.4-1.8-1.4-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.9 1.3 1.9 1.3 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.9 0-1.3.5-2.4 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.7 18.3 5 18.3 5c.7 1.7.2 2.9.1 3.2.8.8 1.2 1.9 1.2 3.2 0 4.6-2.8 5.6-5.5 5.9.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A12 12 0 0 0 12 .5Z"/></svg>
         {stars && <span class="stars">{stars}</span>}
       </a>
@@ -53,3 +53,52 @@ const stars = await starCount;
   <input type="search" placeholder="Search docs and elements…" aria-label="Search" autocomplete="off" data-search-input />
   <ul class="search-results" data-search-results></ul>
 </dialog>
+
+<script>
+  import { starLabel } from "../lib/star-label";
+
+  // The build's count is as old as the last deploy: show GitHub's, asked at most once an hour per visitor (GitHub
+  // allows 60 requests an hour without a token). Where it can't be had, the build's count stays.
+  const link = document.querySelector<HTMLAnchorElement>("[data-stars]");
+  const KEY = "he-stars";
+  const HOUR = 60 * 60 * 1000;
+
+  const show = (n: number) => {
+    if (!link) return;
+    const label = starLabel(n);
+    let count = link.querySelector<HTMLElement>(".stars");
+    if (!count) {
+      count = document.createElement("span");
+      count.className = "stars";
+      link.append(count);
+    }
+    count.textContent = label;
+    link.setAttribute("aria-label", `GitHub, ${label} stars`);
+  };
+
+  const read = (): { n: number; at: number } | null => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(KEY) ?? "null");
+      return typeof saved?.n === "number" && typeof saved?.at === "number" ? saved : null;
+    } catch {
+      return null;
+    }
+  };
+
+  if (link?.dataset.stars) {
+    const saved = read();
+    if (saved) show(saved.n);
+    if (!saved || Date.now() - saved.at > HOUR) {
+      fetch(`https://api.github.com/repos/${link.dataset.stars}`, { headers: { accept: "application/vnd.github+json" } })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((repo) => {
+          if (typeof repo?.stargazers_count !== "number") return;
+          show(repo.stargazers_count);
+          try {
+            localStorage.setItem(KEY, JSON.stringify({ n: repo.stargazers_count, at: Date.now() }));
+          } catch {}
+        })
+        .catch(() => {});
+    }
+  }
+</script>
