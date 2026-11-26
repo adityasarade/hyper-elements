@@ -519,6 +519,9 @@ importers:
       concurrently:
         specifier: 9.2.1
         version: 9.2.1
+      esbuild:
+        specifier: 0.25.11
+        version: 0.25.11
       http-server:
         specifier: 14.1.1
         version: 14.1.1

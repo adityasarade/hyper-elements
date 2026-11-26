@@ -14,7 +14,7 @@ npm install @hyper-elements/react @react-pdf/renderer react
 |---------|---------|-----|
 | `@hyper-elements/react` | `^0.3.0` | The elements, and this entry |
 | `@react-pdf/renderer` | `^4.9.0` | Draws the pages (optional: only for `/pdf`) |
-| `@react-pdf/textkit` | `^7.0.1` | Measures the pages without drawing them, for `paginate()` (optional: without it, `paginate()` draws the PDF to measure it) |
+| `@react-pdf/textkit` | `^7.0.1` | Measures the pages without drawing them, for `paginate()` and `createPaginator()` (optional: without it, `paginate()` draws the PDF to measure it, and `createPaginator()` rejects) |
 | `react` | `>=18` | |
 
 The tree `prepare()` lays out says its format (its layout version), and `renderPdf` reads the one it's built with. Where the `@hyper-elements/react` it loads writes another (a second install beside it), it throws an `ElementsError` (`pdf/version`) rather than drawing the design wrong.
@@ -103,6 +103,24 @@ const { html } = await render(design, { plan }); // the same pages, the same wor
 ```
 
 `paginate()` measures the pages with react-pdf's own text layout (`@react-pdf/textkit`, the same package react-pdf draws with) and its layout's arithmetic, without drawing them: the plan is the one `renderPdf()` makes from the PDF it draws, line for line. `renderPdf()` draws first: a Document that fits is drawn once, as it always was.
+
+## Pages as a Document is edited
+
+`createPaginator(options)` takes `renderPdf`'s options and makes a paginator for Documents drawn with those fonts and images. It loads and reads the fonts once, and keeps each block of text it lays out, so paginating again after a keystroke lays out only the paragraph that changed. Its `paginate()` answers at once (it isn't a Promise), with `paginate()`'s plan and diagnostics. With `{ diagnostics: false }` it gives the plan alone, without the measuring its diagnostics take: for pages kept up to date as someone types.
+
+```tsx
+import { createPaginator } from "@hyper-elements/react/pdf";
+
+const paginator = await createPaginator({ fonts });
+
+// On each edit:
+const { plan } = paginator.paginate(design, { diagnostics: false });
+```
+
+- **Anywhere:** it runs in Node, in a browser and in a Worker, with react-pdf's browser build (which bundlers pick); it uses nothing of Node's. A Document is paginated to the same plan in each.
+- **Fast:** on a laptop, a 28-page report is paginated again in about 7ms after a keystroke (12ms with its diagnostics), where `paginate()` takes about 65ms.
+- **Its fonts:** text in a font it wasn't given is drawn in a standard PDF font, as `renderPdf()` draws it. Make another paginator for other fonts.
+- `cacheSize` sets how many blocks of text it keeps laid out (10,000 by default).
 
 ## Where everything landed
 

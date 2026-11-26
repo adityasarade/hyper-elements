@@ -3,10 +3,10 @@
  * each page) and laid out with layoutDocument() (where each block landed).
  */
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { Column, Document, Heading, List, ListItem, PageFooter, PageNumber, prepare, Row, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
+import { Column, Document, Heading, Image, List, ListItem, PageFooter, PageNumber, prepare, Row, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
 import type { PlannedPart } from "@hyper-elements/core";
 import { reactPdf, writeDocument } from "@hyper-elements/core/pdf";
-import { layoutDocument, paginate, renderPdf } from "../../src/pdf";
+import { createPaginator, layoutDocument, paginate, renderPdf } from "../../src/pdf";
 import { arabicFonts, arabicGiven, arabicSentences } from "./arabic";
 
 /** Each page's words, joined by spaces. */
@@ -147,6 +147,41 @@ describe("a Document's content that doesn't fit its page", () => {
       expect(planned.plan).toEqual(drawn.plan);
       expect(planned.diagnostics).toEqual(drawn.diagnostics);
     }
+  });
+
+  it("is planned by a paginator as paginate() plans it, as it's typed into, and without diagnostics when asked", async () => {
+    const report = (typed: string) => (
+      <Document fonts={[{ family: "Inter", src: "https://example.com/inter.woff" }]}>
+        <Heading level={2}>Report</Heading>
+        {Array.from({ length: 30 }, (_, i) => (
+          <Text key={i} style={{ textAlign: i % 2 ? "justify" : "left" }}>
+            {sentences(10, `paragraph ${i}`)}
+            {i === 3 ? typed : ""}
+          </Text>
+        ))}
+      </Document>
+    );
+    const arabic = (
+      <Document dir="rtl" style={{ fontFamily: "Noto Arabic" }}>
+        <Text style={{ textAlign: "justify" }}>{arabicSentences(200)}</Text>
+      </Document>
+    );
+    const paginator = await createPaginator({ fonts: arabicGiven });
+    for (const design of [report(""), report(" and"), report(" and more"), arabic]) {
+      const planned = await paginate(design, { fonts: arabicGiven });
+      expect(planned.plan.pages.length).toBeGreaterThan(1);
+      expect(paginator.paginate(design)).toEqual(planned);
+      // Without diagnostics: the same plan, and nothing said.
+      expect(paginator.paginate(design, { diagnostics: false })).toEqual({ plan: planned.plan, diagnostics: [] });
+    }
+    // The report says its font isn't given, with its diagnostics; a template with errors throws without them too.
+    expect(paginator.paginate(report("")).diagnostics.map((d) => d.code)).toContain("pdf/font");
+    const broken = (
+      <Document>
+        <Image src="https://example.com/photo.png" alt="A photo" />
+      </Document>
+    );
+    expect(() => paginator.paginate(broken, { diagnostics: false })).toThrow(/images option/);
   });
 
   it("goes on between a table's rows, its header row on top of each page, each row once", async () => {

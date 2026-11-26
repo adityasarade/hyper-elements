@@ -10,7 +10,7 @@
  * given in `fonts`. A template that needs one it isn't given is an error (an image) or drawn in a standard PDF font (a
  * font), and says so. templateAssets() lists the fonts and images a template names, for a tool that loads them.
  */
-import { assetParts, base64, flowDocument, LAYOUT_VERSION, pdfFamily, reactPdf, reactPdfLayout, thumbnailOf, writeDocument, type Asset, type Font, type PlacedPage } from "@hyper-elements/core/pdf";
+import { assetParts, base64, createLayout, flowDocument, LAYOUT_VERSION, pdfFamily, reactPdf, reactPdfLayout, thumbnailOf, writeDocument, type Asset, type Font, type Layout, type PlacedPage } from "@hyper-elements/core/pdf";
 import type { FontFace, Plan } from "@hyper-elements/core";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode, type Snapshot } from "@hyper-elements/react";
 import type { ReactElement } from "react";
@@ -68,10 +68,85 @@ export async function renderPdf(element: ReactElement | Snapshot, options: PdfOp
  * with the same pages as its PDF, `render(design, { plan })`. Takes renderPdf()'s options. Rejects as renderPdf() does.
  */
 export async function paginate(element: ReactElement | Snapshot, options: PdfOptions = {}): Promise<PaginateResult> {
+  const setup = setupOf(options);
+  const layout = await createLayout(setup.fonts);
+  const paginated = layout && paginateWith(layout, setup, element, true);
+  if (paginated) return paginated;
+  // Where it can't be measured without drawing it: drawn.
   const planned = await planDocument(element, options, false);
   // Where what's on each planned page landed, without drawing it (or, where it can't be measured so, drawn).
   const placed = planned.drawn && planned.pages === planned.written ? planned.drawn.placed : ((await reactPdfLayout(planned.pages)) ?? (await reactPdf(planned.pages)).placed);
   return { plan: planned.plan, diagnostics: said(planned, placed) };
+}
+
+export interface PaginatorOptions extends PdfOptions {
+  /** How many blocks of text it keeps laid out, so it lays out again only those that change: 10,000 by default. */
+  cacheSize?: number;
+}
+
+export interface PaginateOptions {
+  /**
+   * false: the plan only, without renderPdf()'s diagnostics, whose measuring takes as long again (`diagnostics` is
+   * empty, and a template with errors still throws). For pages kept up to date as a Document is edited. true by default.
+   */
+  diagnostics?: boolean;
+}
+
+/** Documents paginated with the same fonts and images, made ready once: createPaginator() makes one. */
+export interface Paginator {
+  /**
+   * A Document's pages as planned, as paginate() plans them, at once: what it laid out before (a block of text with
+   * the same text, styles and width) isn't laid out again. Throws as renderPdf() rejects.
+   */
+  paginate(element: ReactElement | Snapshot, options?: PaginateOptions): PaginateResult;
+}
+
+/**
+ * A paginator for Documents drawn with these fonts and images, in Node, a browser or a Worker: their fonts loaded and
+ * read once, and each block of text laid out once until it changes. For a page view kept up to date as a Document is
+ * edited, each keystroke paginated again. Takes renderPdf()'s options. Rejects where @react-pdf/textkit can't be
+ * loaded: install it.
+ */
+export async function createPaginator(options: PaginatorOptions = {}): Promise<Paginator> {
+  const setup = setupOf(options);
+  const layout = await createLayout(setup.fonts, options.cacheSize);
+  if (!layout) {
+    throw new ElementsError([{ code: "pdf/textkit", severity: "error", message: "createPaginator() lays text out with @react-pdf/textkit, which can't be loaded: install it", path: "root" }]);
+  }
+  return {
+    paginate(element, { diagnostics = true } = {}) {
+      const paginated = paginateWith(layout, setup, element, diagnostics);
+      if (paginated) return paginated;
+      throw new ElementsError([{ code: "pdf/measure", severity: "error", message: "This Document holds a block that can't be measured without drawing it: paginate() it", path: "root" }]);
+    },
+  };
+}
+
+/** What a Document is paginated with: the options' fonts and images, read once. */
+interface Setup {
+  given: PdfFont[];
+  fonts: Font[];
+  /** What's said of the fonts given, whatever the Document. */
+  notes: Diagnostic[];
+  images: Record<string, Uint8Array | ArrayBuffer>;
+  date: Date;
+}
+
+const setupOf = (options: PdfOptions): Setup => {
+  const notes: Diagnostic[] = [];
+  const given = options.fonts ?? [];
+  return { given, fonts: drawnFonts(given, notes), notes, images: options.images ?? {}, date: options.date ?? FIXED_DATE };
+};
+
+/** A Document paginated by a Layout: undefined where it can't measure it so. `check`: with renderPdf()'s diagnostics. */
+function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snapshot, check: boolean): PaginateResult | undefined {
+  const document = written(element, setup, check);
+  const laid = layout.measure(document.written);
+  if (!laid) return undefined;
+  const { plan, pages } = planned(document, laid);
+  if (!check) return { plan, diagnostics: [] };
+  const placed = pages === document.written ? laid : layout.measure(pages);
+  return { plan, diagnostics: said({ ...document, pages }, placed) };
 }
 
 /**
@@ -93,17 +168,31 @@ export async function layoutDocument(element: ReactElement | Snapshot, options: 
  * Documents are drawn once); else measured without drawing it (react-pdf-measure.ts), or drawn where it can't be.
  */
 async function planDocument(element: ReactElement | Snapshot, options: PdfOptions, drawing: boolean) {
+  const document = written(element, setupOf(options), true);
+  const measured = drawing ? undefined : await reactPdfLayout(document.written);
+  const drawn = measured ? undefined : await reactPdf(document.written);
+  return { ...document, ...planned(document, measured ?? drawn?.placed), drawn };
+}
+
+/**
+ * A Document written as pages, with what's said of it so far: prepare()'s diagnostics (`diagnostics`) and its files'
+ * and fonts' (`found`; `check`, all of them, else the errors only). A template with errors throws.
+ */
+function written(element: ReactElement | Snapshot, setup: Setup, check: boolean) {
   const { root, diagnostics } = documentOf(element);
-  const found: Diagnostic[] = [];
-  const fonts = fontFiles(root, options.fonts ?? [], found);
-  const images = imageSources(root, options.images ?? {}, found);
+  const found: Diagnostic[] = [...setup.notes, ...notGiven(root, setup.given)];
+  const images = imageSources(root, setup.images, found);
   if (found.some((d) => d.severity === "error")) throw new ElementsError([...diagnostics, ...found]);
-  found.push(...missingFaces(root, fonts, options.fonts ?? []), ...beyondStandard(root, new Set(fonts.map((font) => font.family))));
-  const context = { families: new Set(fonts.map((font) => font.family)), fonts, image: (src: string) => images.get(src), date: options.date ?? FIXED_DATE };
-  const written = writeDocument(root, context);
-  const measured = drawing ? undefined : await reactPdfLayout(written);
-  const drawn = measured ? undefined : await reactPdf(written);
-  const laid = measured ?? drawn?.placed;
+  const { fonts } = setup;
+  const families = new Set(fonts.map((font) => font.family));
+  if (check) found.push(...missingFaces(root, fonts, setup.given), ...beyondStandard(root, families));
+  const context = { families, fonts, image: (src: string) => images.get(src), date: setup.date };
+  return { root, context, written: writeDocument(root, context), diagnostics, found };
+}
+
+/** A Document's pages planned from where they were laid out (`laid`): as written where they fit. */
+function planned(document: ReturnType<typeof written>, laid: PlacedPage[] | undefined) {
+  const { root, context, written } = document;
   // A Document that fits: each page as written, each block whole on it.
   let plan: Plan = { pages: written.pages.map((page, from) => ({ from, parts: page.content.map((block) => ({ path: block.path!, part: 0, first: true, last: true })) })) };
   let pages = written;
@@ -114,11 +203,11 @@ async function planDocument(element: ReactElement | Snapshot, options: PdfOption
     pages = flowed.document;
     plan = flowed.plan;
   }
-  return { root, written, pages, plan, drawn, diagnostics, found };
+  return { pages, plan };
 }
 
 /** The diagnostics: prepare()'s, a page's content past its room measured (where it can be), and the files' and fonts'. */
-function said(planned: Awaited<ReturnType<typeof planDocument>>, placed: PlacedPage[] | undefined): Diagnostic[] {
+function said(planned: { root: ResolvedNode; pages: ReturnType<typeof written>["written"]; diagnostics: Diagnostic[]; found: Diagnostic[] }, placed: PlacedPage[] | undefined): Diagnostic[] {
   const { root, pages, diagnostics, found } = planned;
   const overflow = placed ? [...diagnostics.filter((d) => d.code !== "document/overflow"), ...measuredOverflow(root, pages.pages, placed)] : diagnostics;
   return [...overflow, ...found];
@@ -195,8 +284,8 @@ const woff2 = (bytes: Uint8Array) => String.fromCharCode(...bytes.subarray(0, 4)
 /** The Document's own font faces (its `fonts` prop): the files renderPdf's fonts option gives. */
 const facesOf = (root: ResolvedNode): FontFace[] => (root.props.fonts as FontFace[] | undefined) ?? [];
 
-/** The font files given, by the family the template names (lowercased); a file a PDF can't draw, or a web font not given, noted. */
-function fontFiles(root: ResolvedNode, given: PdfFont[], found: Diagnostic[]): Font[] {
+/** The font files given, by the family the template names (lowercased); a file a PDF can't draw noted. */
+function drawnFonts(given: PdfFont[], found: Diagnostic[]): Font[] {
   const files = given.map((font) => ({ font, data: font.src instanceof ArrayBuffer ? new Uint8Array(font.src) : font.src }));
   // react-pdf embeds the glyphs a PDF draws as the file stores them (fontkit unpacks a WOFF's). A WOFF2 stores its
   // outlines transformed (Google Fonts' and most others do), and its letters come out blank, with no error.
@@ -207,18 +296,20 @@ function fontFiles(root: ResolvedNode, given: PdfFont[], found: Diagnostic[]): F
     const meanwhile = families.has(font.family.toLowerCase()) ? `${font.family}'s other files` : "a standard PDF font";
     found.push({ code: "pdf/font", severity: "warning", message: `${font.family}'s file is WOFF2: a PDF draws TTF, OTF and WOFF files. Its text is drawn in ${meanwhile} meanwhile`, path: "root.props.fonts" });
   }
-  // A family given only as WOFF2 is said above, not as one not given.
+  return drawn.map(({ font, data }) => ({ family: font.family.toLowerCase(), data, weight: font.weight ?? 400, style: font.style ?? "normal" }));
+}
+
+/** The Document's own font faces whose files aren't given (a family given only as WOFF2 is said by drawnFonts()). */
+function notGiven(root: ResolvedNode, given: PdfFont[]): Diagnostic[] {
   const named = new Set(given.map((font) => font.family.toLowerCase()));
-  for (const face of facesOf(root)) {
-    if (named.has(face.family.toLowerCase())) continue;
-    found.push({
+  return facesOf(root)
+    .filter((face) => !named.has(face.family.toLowerCase()))
+    .map((face) => ({
       code: "pdf/font",
-      severity: "warning",
+      severity: "warning" as const,
       message: `PDF output loads no fonts: give ${face.family}'s file in renderPdf's fonts option. Its text is drawn in a standard PDF font meanwhile`,
       path: "root.props.fonts",
-    });
-  }
-  return drawn.map(({ font, data }) => ({ family: font.family.toLowerCase(), data, weight: font.weight ?? 400, style: font.style ?? "normal" }));
+    }));
 }
 
 /**
