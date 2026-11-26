@@ -55,6 +55,11 @@ const edges = (style: Style) => ({
   right: number(style.paddingRight) + number(style.borderRightWidth),
 });
 const set = (value: unknown): number | undefined => (typeof value === "number" ? value : undefined);
+/** A block's own width, no wider than `room` where its maxWidth is all of it (an image as wide as its file: write.ts). */
+const widthOf = (style: Style, room: number | undefined): number | undefined => {
+  const own = set(style.width);
+  return own !== undefined && style.maxWidth === "100%" && room !== undefined ? Math.min(own, room) : own;
+};
 
 /** The text styles a box hands what's in it, as react-pdf's styles inherit. */
 const INHERITED = ["color", "fontFamily", "fontSize", "fontStyle", "fontWeight", "letterSpacing", "lineHeight", "textAlign", "textDecoration", "textTransform"];
@@ -297,7 +302,7 @@ class Measurer {
    */
   block(block: Block, x: number, y: number, width: number | undefined, exactly = false, inherited: Style = {}, tall?: number): number {
     const style = "style" in block ? over(inherited, block.style) : inherited;
-    const own = exactly ? width : (set(style.width) ?? width);
+    const own = exactly ? width : (widthOf(style, width) ?? width);
     if (own === undefined) throw new Unmeasured();
     const frame = edges(style);
     const inner = own - frame.left - frame.right;
@@ -393,7 +398,7 @@ class Measurer {
       const left = number(style.marginLeft);
       const room = width - left - number(style.marginRight);
       const aligned = style.alignSelf !== undefined && style.alignSelf !== "stretch";
-      const own = set(style.width) ?? (aligned ? Math.min(room, this.intrinsic(child, room)) : room);
+      const own = widthOf(style, room) ?? (aligned ? Math.min(room, this.intrinsic(child, room)) : room);
       const across = left + (style.alignSelf === "center" ? (room - own) / 2 : style.alignSelf === "flex-end" ? room - own : 0);
       const from = this.frames.length;
       const height = this.block(child, x + across, at, own, true, inherited);
@@ -442,7 +447,7 @@ class Measurer {
     for (const child of layer.children) {
       const childStyle = "style" in child ? child.style : {};
       const align = childStyle.alignSelf ?? style.alignItems ?? "stretch";
-      const own = set(childStyle.width) ?? (align === "stretch" ? width : Math.min(width, this.intrinsic(child, width)));
+      const own = widthOf(childStyle, width) ?? (align === "stretch" ? width : Math.min(width, this.intrinsic(child, width)));
       const across = align === "center" ? (width - own) / 2 : align === "flex-end" ? width - own : 0;
       at += this.block(child, x + across, at, own, true, inside);
     }
@@ -488,7 +493,7 @@ class Measurer {
     // An image with no width across a Row is sized by Yoga's flexbox and react-pdf's measureImage together, which
     // this doesn't follow: not measured.
     if (children.some((child) => child.kind === "image" && set(child.style.width) === undefined)) throw new Unmeasured();
-    const widths = children.map((child) => (grows(child) ? 0 : ("style" in child ? set(child.style.width) : undefined) ?? this.intrinsic(child, width)));
+    const widths = children.map((child) => (grows(child) ? 0 : ("style" in child ? widthOf(child.style, width) : undefined) ?? this.intrinsic(child, width)));
     const gaps = gap * Math.max(0, children.length - 1);
     const fixed = widths.reduce((sum, w) => sum + w, 0);
     const growing = children.filter(grows).length;
@@ -533,7 +538,7 @@ class Measurer {
   /** How wide a block with no width of its own is in a Row `available` wide: what it holds, as react-pdf measures it. */
   intrinsic(block: Block, available: number): number {
     const style = "style" in block ? block.style : {};
-    const own = set(style.width);
+    const own = widthOf(style, available);
     if (own !== undefined) return own;
     const frame = edges(style);
     const room = available - frame.left - frame.right;

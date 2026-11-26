@@ -10,39 +10,15 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createElement, type ReactElement } from "react";
-import { deflateSync } from "node:zlib";
 import { Button, Column, Document, Heading, Image, Layer, List, ListItem, PageFooter, PageHeader, PageNumber, prepare, Row, Section, Span, Table, TableCell, TableRow, Text, Video } from "@hyper-elements/react";
 import type { ResolvedNode } from "@hyper-elements/core";
 import { createLayout, flowDocument, reactPdf, reactPdfLayout, writeDocument, type DrawnDocument, type Layout, type PlacedPage } from "@hyper-elements/core/pdf";
 import { gallery } from "../../src/primitives/examples/gallery";
 import { stress } from "../../src/primitives/examples/stress";
 import { arabicFonts, arabicSentences } from "./arabic";
+import { png } from "./png";
 const liberation = (name: string) => readFileSync(join(dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")), "standard_fonts", name));
 const PNG = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==`;
-/** A PNG `width` by `height` pixels, gray, as a data URI. */
-function png(width: number, height: number): string {
-  const chunk = (type: string, data: Buffer) => {
-    const out = Buffer.alloc(12 + data.length);
-    out.writeUInt32BE(data.length, 0);
-    out.write(type, 4, "latin1");
-    data.copy(out, 8);
-    let crc = ~0;
-    for (const byte of out.subarray(4, 8 + data.length)) {
-      crc ^= byte;
-      for (let k = 0; k < 8; k++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
-    }
-    out.writeUInt32BE(~crc >>> 0, 8 + data.length);
-    return out;
-  };
-  const header = Buffer.alloc(13);
-  header.writeUInt32BE(width, 0);
-  header.writeUInt32BE(height, 4);
-  header.set([8, 0, 0, 0, 0], 8);
-  const rows = Buffer.alloc((width + 1) * height, 0x80);
-  for (let y = 0; y < height; y++) rows[y * (width + 1)] = 0;
-  const file = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", header), chunk("IDAT", deflateSync(rows)), chunk("IEND", Buffer.alloc(0))]);
-  return `data:image/png;base64,${file.toString("base64")}`;
-}
 const photo = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../../../../templates/_assets/companies/nike/pick-1.jpg"));
 /** The photo turned on its side by its EXIF (orientation 6): an APP1 segment after its start. */
 const turned = Buffer.concat([photo.subarray(0, 2), Buffer.from([0xff, 0xe1, 0, 34, ...Buffer.from("Exif\0\0", "latin1"), 0x4d, 0x4d, 0, 42, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0]), photo.subarray(2)]);
@@ -84,6 +60,7 @@ const synthetic: Record<string, ReactElement> = {
     <Document style={{ gap: 8 }}>
       <Image src={png(40, 10)} alt="Wide" style={{ width: 300 }} />
       <Image src={jpeg(photo)} alt="A photo" />
+      <Image src={png(2000, 100)} alt="Wider than its page" />
       <Row style={{ gap: 12 }}>
         <Column style={{ width: 140 }}>
           <Image src={jpeg(turned)} alt="Turned" style={{ width: 120 }} />

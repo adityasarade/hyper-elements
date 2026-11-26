@@ -45,6 +45,8 @@ import {
   Video,
 } from "@hyper-elements/react";
 import { reactPdf, writeDocument, type Block } from "@hyper-elements/core/pdf";
+import { images } from "./operators";
+import { png } from "./png";
 import { layoutDocument, renderPdf, templateAssets, type DocumentNode } from "../../src/pdf";
 import { arabicFonts, arabicSentences } from "./arabic";
 import { toWoff, toWoff2 } from "./woff";
@@ -240,6 +242,21 @@ describe("renderPdf", () => {
     ]);
     const line = content[3];
     expect(line.kind === "text" && line.runs.map((run) => (typeof run === "string" ? run : [run.kind, run.style.width, run.style.height]))).toEqual(["Status ", ["image", 12, 12], " ready"]);
+  });
+
+  it("draws an Image with no width given or known as wide as its file, no wider than its parent, as the print HTML does", async () => {
+    // 40 by 20 pixels: 30 by 15 points. 2,000 by 100: as wide as the page's content (A4, 36 points each side).
+    const { pdf } = await renderPdf(
+      <Document>
+        <Image src={png(40, 20)} alt="Small" />
+        <Image src={png(2000, 100)} alt="Wide" />
+      </Document>
+    );
+    const drawn = await images(await (await getDocument({ data: pdf.slice(), verbosity: 0 }).promise).getPage(1));
+    expect(drawn.map(({ width, height }) => [Math.round(width * 100) / 100, Math.round(height * 100) / 100])).toEqual([
+      [30, 15],
+      [523.28, 26.16],
+    ]);
   });
 
   it("draws a Document whose JPEG is cut short, leaving the image out as react-pdf does, its size given or not", async () => {

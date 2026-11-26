@@ -292,7 +292,7 @@ class Writer {
           case "Image": {
             // In a line, an image the PDF can't draw (an SVG) keeps its room, left empty: one character of the line, as
             // the print HTML a plan draws counts it (and draws the image there).
-            const image = this.image(child, {});
+            const image = this.image(child, {}, undefined, true);
             return image.kind === "image" ? image : { kind: "image", src: BLANK, style: { width: image.style.width, height: image.style.height } };
           }
           default:
@@ -303,7 +303,7 @@ class Writer {
   }
 
   /** An Image; one the PDF can't draw (an SVG), its alt text in a box of its size, as a browser shows one it can't. */
-  image(node: ResolvedNode, placed: Style, cover?: number): Picture | Block {
+  image(node: ResolvedNode, placed: Style, cover?: number, inline = false): Picture | Block {
     const { src, width, height } = assetParts(node.props.src as Asset);
     const drawn = node.width ?? width;
     const style: Style = { ...placed, ...boxStyle(node), width: drawn !== undefined && drawn !== null ? pt(drawn) : undefined };
@@ -311,7 +311,11 @@ class Writer {
     else if (typeof node.style.height !== "number" && drawn && width && height) style.height = pt((drawn * height) / width);
     const source = this.context.image(src);
     // Its file's size, where its height isn't given: what an engine sizes it by.
-    if (source) return { kind: "image", src: source, style, ...(style.height === undefined ? sized(source) : {}) };
+    const size = source && style.height === undefined ? sized(source) : {};
+    // A block with no width of its own given or known: as wide as its file, no wider than its parent (as the print HTML
+    // and a browser show it). Without a width, react-pdf draws it 0 tall.
+    if (source && size.size && style.width === undefined && cover === undefined && !inline) Object.assign(style, { width: pt(size.size.width), maxWidth: "100%" });
+    if (source) return { kind: "image", src: source, style, ...size };
     const alt = String(node.props.alt ?? "");
     return { kind: "box", style: { ...style, objectFit: undefined, overflow: "hidden" }, children: alt ? [{ kind: "text", style: this.text(node), runs: [alt] }] : [] };
   }
