@@ -108,6 +108,22 @@ export interface PlacedBlock {
   boxes?: PlacedLine[];
 }
 
+/**
+ * A block as the measurer laid it out, with a path or not: what a page is drawn from (drawing.ts), each block where it
+ * was laid out. Its `style` is its own over what it takes from the blocks it's in.
+ */
+export interface PlacedFrame {
+  block: Block;
+  style: Style;
+  path?: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  lines?: PlacedBlock["lines"];
+  boxes?: PlacedLine[];
+}
+
 /** A line of text as drawn: where (see PlacedBlock's `boxes`). */
 export interface PlacedLine {
   /** Its characters as laid out (as `lines`' `text`). */
@@ -117,6 +133,8 @@ export interface PlacedLine {
   height: number;
   ascent: number;
   edges?: LineEdges;
+  /** Its underlines and strike-throughs, as textkit sets them: from `x` across and from its top down. */
+  decorations?: Array<{ x: number; y: number; width: number; height: number; color: string; style: string }>;
 }
 
 /** Where an engine drew a page's blocks, and the content's room on it: what's past the room's bottom is cut off. */
@@ -125,6 +143,8 @@ export interface PlacedPage {
   room: { top: number; bottom: number };
   /** Each block with a `path`, in the order drawn (a block before the blocks inside it). */
   blocks: PlacedBlock[];
+  /** Measured without drawing: every block, with a path or not, as it was laid out (what draws the page: drawing.ts). */
+  frames?: PlacedFrame[];
 }
 
 /** What an engine drew: the PDF file, and where it placed each block, where it can say. */

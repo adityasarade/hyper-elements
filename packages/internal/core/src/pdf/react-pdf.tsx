@@ -43,6 +43,30 @@ function register(fonts: readonly FontFile[]): Map<string, { name: string; style
   return names;
 }
 
+/** A font react-pdf loaded, as what it's drawn in: the family the page model names, its weight and its style. */
+export interface Face {
+  family: string;
+  weight: number;
+  style: string;
+}
+
+const faces = new WeakMap<object, Face>();
+
+/**
+ * The face a font react-pdf loaded draws: a given file's, by its family as the page model names it; a standard PDF
+ * font's from its name ("Helvetica-BoldOblique": Helvetica, 700, italic).
+ */
+export function faceOf(font: unknown): Face | undefined {
+  if (!font || typeof font !== "object") return undefined;
+  const given = faces.get(font);
+  if (given) return given;
+  const name = (font as { fullName?: unknown; name?: unknown }).fullName ?? (font as { name?: unknown }).name;
+  if (typeof name !== "string") return undefined;
+  const family = /^Times/.test(name) ? "Times-Roman" : /^Courier/.test(name) ? "Courier" : /^Helvetica/.test(name) ? "Helvetica" : undefined;
+  if (!family) return undefined;
+  return { family, weight: /Bold/.test(name) ? 700 : 400, style: /Oblique|Italic/.test(name) ? "italic" : "normal" };
+}
+
 /** The fonts whose glyph lookups are mended (below): each once. */
 const mended = new WeakSet<object>();
 
@@ -91,6 +115,13 @@ const el = (type: unknown, props: Record<string, unknown>, ...children: ReactNod
 export async function fontsOf(fonts: readonly FontFile[]): Promise<(style: Style) => Style> {
   const names = register(fonts);
   for (const { name, files } of names.values()) await load(name, files);
+  // Each file's font, by the family the page model names it, its weight and its style (faceOf()).
+  for (const [family, { name, files }] of names) {
+    for (const file of files) {
+      const font = (Font as unknown as { getFont(descriptor: object): { data?: unknown } | undefined }).getFont({ fontFamily: name, fontWeight: file.weight, fontStyle: file.style })?.data;
+      if (font && typeof font === "object") faces.set(font, { family, weight: file.weight, style: file.style });
+    }
+  }
   return (style) => {
     const family = style.fontFamily === undefined ? undefined : names.get(String(style.fontFamily));
     if (!family) return style;

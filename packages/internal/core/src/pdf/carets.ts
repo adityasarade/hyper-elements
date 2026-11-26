@@ -17,7 +17,7 @@ export interface LaidOutLine {
     start: number;
     end: number;
     xAdvance?: number;
-    attributes?: { bidiLevel?: number };
+    attributes?: { bidiLevel?: number } & Record<string, unknown>;
     glyphs?: Array<{ codePoints?: number[] } | undefined>;
     positions?: Array<{ xAdvance: number }>;
   }>;
@@ -27,6 +27,13 @@ export interface LaidOutLine {
 export interface LineEdges {
   /** How many UTF-16 units its text has. */
   length: number;
+  /** Its text, in the order it's written (a bracket textkit mirrored, written right to left, as it's written). */
+  text: string;
+  /**
+   * Its runs, in the order they're written: where each is in its text, whether it's written right to left, its
+   * attributes (its style), and (`face`, where its measurer knows it) what its font draws.
+   */
+  runs: Array<{ start: number; end: number; rtl: boolean; attributes: Record<string, unknown>; face?: { family: string; weight: number; style: string } }>;
   /** Each unit's character's left and right edge, from the left of the line's box (where textkit sets it), in points: two a unit. */
   edges: Float32Array;
   /** 1 where a unit is written right to left. */
@@ -70,6 +77,7 @@ export function lineEdges(line: LaidOutLine): LineEdges | undefined {
   }
   const edges = new Float32Array(length * 2);
   const rtl = new Uint8Array(length);
+  const written = new Array<string>(runs.length);
   let x = line.box.x;
   for (let r = 0; r < runs.length; r++) {
     const run = runs[r];
@@ -107,6 +115,8 @@ export function lineEdges(line: LaidOutLine): LineEdges | undefined {
       });
     }
     const reversed = levels[r] % 2 === 1;
+    // Its text as it's written: a reversed run reversed back, its brackets as written (textkit mirrors them).
+    written[r] = reversed ? [...drawn].reverse().map((char) => MIRRORED[char] ?? char).join("") : drawn.join("");
     // Each character's place in the line's text: as drawn, or, in a reversed run, from its end.
     let unit = 0;
     drawn.forEach((char, i) => {
@@ -120,5 +130,20 @@ export function lineEdges(line: LaidOutLine): LineEdges | undefined {
     });
     x += advance;
   }
-  return { length, edges, rtl };
+  const order = writtenOrder(levels);
+  return {
+    length,
+    edges,
+    rtl,
+    text: order.map((r) => written[r]).join(""),
+    runs: order.map((r) => ({ start: starts[r], end: starts[r] + lengths[r], rtl: levels[r] % 2 === 1, attributes: runs[r].attributes ?? {} })),
+  };
 }
+
+/** The brackets textkit mirrors in text written right to left (its mirrorString), each to its pair. */
+const MIRRORED: Record<string, string> = Object.fromEntries(
+  [["(", ")"], ["[", "]"], ["{", "}"], ["<", ">"], ["«", "»"], ["‹", "›"], ["⁅", "⁆"], ["〈", "〉"], ["《", "》"], ["「", "」"], ["『", "』"]].flatMap(([a, b]) => [
+    [a, b],
+    [b, a],
+  ])
+);

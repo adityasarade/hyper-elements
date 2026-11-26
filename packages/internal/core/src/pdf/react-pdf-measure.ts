@@ -14,8 +14,8 @@
 import { Font } from "@react-pdf/renderer";
 import type { Fragment } from "@react-pdf/textkit";
 import { lineEdges, type LaidOutLine, type LineEdges } from "./carets";
-import type { Block, DrawnDocument, Font as FontFile, Page, PlacedBlock, PlacedLine, PlacedPage, Run, Style } from "./model";
-import { fontsOf } from "./react-pdf";
+import type { Block, DrawnDocument, Font as FontFile, Page, PlacedBlock, PlacedFrame, PlacedLine, PlacedPage, Run, Style } from "./model";
+import { faceOf, fontsOf } from "./react-pdf";
 
 const OPTIONS = { shrinkWhitespaceFactor: { before: -0.5, after: -0.5 } };
 
@@ -107,6 +107,8 @@ interface Laid {
   advance: number;
   /** Its characters' edges, from its box's left. */
   edges?: LineEdges;
+  /** Its underlines and strike-throughs, from its box's left and its top. */
+  decorations: NonNullable<PlacedLine["decorations"]>;
 }
 
 /**
@@ -135,6 +137,17 @@ export class LineCache {
   }
 }
 
+/** A line's runs, each with the face its font draws (react-pdf.tsx's faceOf()). */
+function withFaces(edges: LineEdges | undefined): LineEdges | undefined {
+  if (!edges) return undefined;
+  for (const run of edges.runs) {
+    const font = run.attributes.font;
+    const face = faceOf(Array.isArray(font) ? font[0] : font);
+    if (face) run.face = face;
+  }
+  return edges;
+}
+
 /** A font's number in a cache's keys: the same font object, the same number. */
 const fontIds = new WeakMap<object, number>();
 let fonted = 0;
@@ -144,8 +157,8 @@ const fontId = (font: unknown): number => {
   if (id === undefined) fontIds.set(font, (id = ++fonted));
   return id;
 };
-/** What of a fragment's attributes lays it out, in a fixed order (its color draws it, so isn't in it). */
-const LAYOUT = ["fontSize", "lineHeight", "direction", "verticalAlign", "characterSpacing", "link", "align"] as const;
+/** What of a fragment's attributes lays it out or draws it (what's kept of its lines is drawn from too), in a fixed order. */
+const LAYOUT = ["fontSize", "lineHeight", "direction", "verticalAlign", "characterSpacing", "link", "align", "color", "backgroundColor", "underline", "strike"] as const;
 const keyOf = (fragments: Fragment[], width: number): string => {
   let key = String(width);
   for (const fragment of fragments) {
@@ -159,9 +172,8 @@ const keyOf = (fragments: Fragment[], width: number): string => {
 };
 
 class Measurer {
-  readonly placed: PlacedBlock[] = [];
-  /** The lines of the texts with no path of their own in the block with a path being laid out (a part drawn line by line). */
-  private gathered?: PlacedLine[];
+  /** Every block as it's laid out, with a path or not (a block after the blocks inside it). */
+  readonly frames: PlacedFrame[] = [];
 
   constructor(
     readonly styled: (style: Style) => Style,
@@ -169,34 +181,46 @@ class Measurer {
     private readonly cache?: LineCache
   ) {}
 
-  /** A text style's textkit attributes, as react-pdf builds them (layout's getFragments). */
-  attributes(style: Style, link?: string): Record<string, unknown> {
+  /**
+   * A text style's textkit attributes, as react-pdf builds them (layout's getFragments): `inner`, a run's inside its
+   * text (its background is drawn with its words; a text's own, with its box). `paint`, what it's drawn in: its fonts'
+   * families, as the page model names them, and its weight and style.
+   */
+  attributes(style: Style, link?: string, inner = false): Record<string, unknown> {
     const resolved = this.styled(style);
     const fontSize = number(resolved.fontSize) || 18;
     // A run's own direction, which react-pdf hands down to nothing (its paragraph takes its first run's).
     const direction = style.direction === "rtl" ? "rtl" : "ltr";
+    const color = resolved.color ?? "black";
+    const decoration = String(resolved.textDecoration ?? "");
+    const font = descriptors(resolved).map(fontOf);
     return {
-      font: descriptors(resolved).map(fontOf),
-      color: resolved.color ?? "black",
+      font,
+      color,
       fontSize,
       lineHeight: resolved.lineHeight !== undefined ? number(resolved.lineHeight) * fontSize : undefined,
       direction,
       verticalAlign: resolved.verticalAlign,
+      backgroundColor: inner ? resolved.backgroundColor : undefined,
       characterSpacing: resolved.letterSpacing,
+      underline: /underline/.test(decoration),
+      strike: /line-through/.test(decoration),
+      underlineColor: color,
+      strikeColor: color,
       link,
       align: resolved.textAlign ?? (direction === "rtl" ? "right" : "left"),
     };
   }
 
   /** A block of text's runs as textkit's fragments. */
-  fragments(runs: Run[], style: Style, link?: string, out: Fragment[] = []): Fragment[] {
-    const attributes = this.attributes(style, link);
+  fragments(runs: Run[], style: Style, link?: string, out: Fragment[] = [], inner = false): Fragment[] {
+    const attributes = this.attributes(style, link, inner);
     for (const run of runs) {
       if (typeof run === "string") out.push({ string: transformed(run, style.textTransform), attributes } as Fragment);
       else if (run.kind === "image") {
         const fontSize = number(attributes.fontSize);
         out.push({ string: "￼", attributes: { ...attributes, attachment: { width: set(run.style.width) ?? fontSize, height: set(run.style.height) ?? fontSize, image: {} } } } as unknown as Fragment);
-      } else this.fragments(run.runs, { ...over(style, run.style), direction: run.style.direction }, run.kind === "link" ? run.href : link, out);
+      } else this.fragments(run.runs, { ...over(style, run.style), direction: run.style.direction }, run.kind === "link" ? run.href : link, out, true);
     }
     return out;
   }
@@ -209,8 +233,28 @@ class Measurer {
     const cached = key === undefined ? undefined : this.cache!.get(key);
     if (cached) return cached;
     const paragraphs = this.kit.engine(this.kit.fromFragments(fragments), { x: 0, y: 0, width, height: Infinity }, OPTIONS);
-    const lines = paragraphs.flat() as unknown as Array<LaidOutLine & { box: { x: number; y: number; width: number; height: number }; ascent?: number; xAdvance?: number; runs: Array<{ glyphs?: Array<{ advanceWidth?: number }>; attributes?: Record<string, unknown> }> }>;
-    const laid = lines.map((line) => ({ x: line.box.x, y: line.box.y, width: line.box.width, height: line.box.height, ascent: number(line.ascent), text: line.string, natural: natural(line), advance: number(line.xAdvance), edges: lineEdges(line) }));
+    const lines = paragraphs.flat() as unknown as Array<
+      LaidOutLine & {
+        box: { x: number; y: number; width: number; height: number };
+        ascent?: number;
+        xAdvance?: number;
+        decorationLines?: Array<{ rect: { x: number; y: number; width: number; height: number }; color?: string; style?: string }>;
+        runs: Array<{ glyphs?: Array<{ advanceWidth?: number }>; attributes?: Record<string, unknown> }>;
+      }
+    >;
+    const laid = lines.map((line) => ({
+      x: line.box.x,
+      y: line.box.y,
+      width: line.box.width,
+      height: line.box.height,
+      ascent: number(line.ascent),
+      text: line.string,
+      natural: natural(line),
+      advance: number(line.xAdvance),
+      edges: withFaces(lineEdges(line)),
+      // Drawn from its box's left and top (react-pdf's renderLine).
+      decorations: (line.decorationLines ?? []).map(({ rect, color, style }) => ({ x: line.box.x + rect.x, y: rect.y, width: rect.width, height: rect.height, color: color ?? "black", style: style ?? "solid" })),
+    }));
     if (key !== undefined) {
       this.cache!.set(key, laid);
       this.cache!.laid++;
@@ -232,9 +276,6 @@ class Measurer {
     let height: number;
     let lines: PlacedBlock["lines"];
     let boxes: PlacedLine[] | undefined;
-    // A block with a path gathers the lines of the texts in it with none (each a line of a part drawn line by line).
-    const outer = this.gathered;
-    if (block.path !== undefined && block.kind !== "text") this.gathered = [];
     switch (block.kind) {
       case "text": {
         // At the width react-pdf's flexbox hands its text layout: held in a 32-bit float.
@@ -242,8 +283,7 @@ class Measurer {
         const first = laid[0]?.y ?? 0;
         lines = laid.map((line) => ({ top: y + number(style.paddingTop) + line.y - first, height: line.height, text: line.text, width: line.width, natural: line.natural }));
         // react-pdf draws a text from its box's left and left padding (renderText), each line where textkit set it.
-        boxes = laid.map((line, i) => ({ text: line.text, x: x + number(style.paddingLeft), top: lines![i].top, height: line.height, ascent: line.ascent, ...(line.edges ? { edges: line.edges } : {}) }));
-        if (block.path === undefined && block.of !== undefined) this.gathered?.push(...boxes);
+        boxes = laid.map((line, i) => ({ text: line.text, x: x + number(style.paddingLeft), top: lines![i].top, height: line.height, ascent: line.ascent, ...(line.edges ? { edges: line.edges } : {}), ...(line.decorations.length ? { decorations: line.decorations } : {}) }));
         const content = laid.reduce((sum, line) => sum + line.height, 0);
         height = set(style.height) ?? tall ?? content + frame.top + frame.bottom;
         break;
@@ -263,11 +303,7 @@ class Measurer {
         break;
       }
     }
-    if (block.kind !== "text") {
-      boxes = this.gathered?.length && block.path !== undefined ? this.gathered : undefined;
-      if (block.path !== undefined) this.gathered = outer;
-    }
-    if (block.path !== undefined) this.placed.push({ path: block.path, x, y, width: own, height, ...(lines ? { lines } : {}), ...(boxes ? { boxes } : {}) });
+    this.frames.push({ block, style, ...(block.path !== undefined ? { path: block.path } : {}), x, y, width: own, height, ...(lines ? { lines } : {}), ...(boxes ? { boxes } : {}) });
     return height;
   }
 
@@ -300,9 +336,9 @@ class Measurer {
       const aligned = style.alignSelf !== undefined && style.alignSelf !== "stretch";
       const own = set(style.width) ?? (aligned ? Math.min(room, this.intrinsic(child, room)) : room);
       const across = left + (style.alignSelf === "center" ? (room - own) / 2 : style.alignSelf === "flex-end" ? room - own : 0);
-      const from = this.placed.length;
+      const from = this.frames.length;
       const height = this.block(child, x + across, at, own, true, inherited);
-      laid.push({ from, to: this.placed.length, x: x + across, y: at, width: own, height });
+      laid.push({ from, to: this.frames.length, x: x + across, y: at, width: own, height });
       at += height + (i < children.length - 1 ? gap : 0);
     });
     const used = at - y;
@@ -342,7 +378,7 @@ class Measurer {
   overlay(layer: Extract<Block, { kind: "box" }>, x: number, y: number, width: number, height: number, inherited: Style = {}): void {
     const inside = over(inherited, inheritedOf(layer.style));
     const style = layer.style;
-    const from = this.placed.length;
+    const from = this.frames.length;
     let at = y;
     for (const child of layer.children) {
       const childStyle = "style" in child ? child.style : {};
@@ -353,19 +389,19 @@ class Measurer {
     }
     const used = at - y;
     const down = style.justifyContent === "center" ? (height - used) / 2 : style.justifyContent === "flex-end" ? height - used : 0;
-    if (down) this.shift(from, this.placed.length, down);
+    if (down) this.shift(from, this.frames.length, down);
   }
 
   /** The blocks placed from `from` up to `to` laid out again (`lay`, by a measurer of their own): as many, in their place. */
   again(from: number, to: number, lay: (measurer: Measurer) => void): void {
     const measurer = new Measurer(this.styled, this.kit, this.cache);
     lay(measurer);
-    this.placed.splice(from, to - from, ...measurer.placed);
+    this.frames.splice(from, to - from, ...measurer.frames);
   }
 
   /** The blocks placed from `from` up to `to` moved `down`, their lines with them. */
   shift(from: number, to: number, down: number): void {
-    for (const placed of this.placed.slice(from, to)) {
+    for (const placed of this.frames.slice(from, to)) {
       placed.y += down;
       if (placed.lines) placed.lines = placed.lines.map((line) => ({ ...line, top: line.top + down }));
       if (placed.boxes) placed.boxes = placed.boxes.map((line) => ({ ...line, top: line.top + down }));
@@ -400,9 +436,9 @@ class Measurer {
     let at = x + (justify === "center" ? free / 2 : justify === "flex-end" ? free : 0);
     const laid = children.map((child, i) => {
       const childWidth = grows(child) ? share : widths[i];
-      const from = this.placed.length;
+      const from = this.frames.length;
       const height = this.block(child, at, y, childWidth, true, inherited);
-      const entry = { child, from, to: this.placed.length, height, x: at, width: childWidth };
+      const entry = { child, from, to: this.frames.length, height, x: at, width: childWidth };
       at += childWidth + gap + between;
       return entry;
     });
@@ -416,7 +452,7 @@ class Measurer {
         // A box stretched is laid out again that tall (what's in it grows or is placed down it); text is drawn that tall.
         if (child.kind === "box" || child.kind === "link") this.again(from, to, (measurer) => measurer.block(child, entry.x, y, entry.width, true, inherited, across));
         else {
-          const own = this.placed.slice(from, to).find((placed) => placed.path === child.path);
+          const own = this.frames.slice(from, to).find((placed) => placed.block === child);
           if (own) own.height = across;
         }
       }
@@ -495,7 +531,24 @@ function measurePage(page: Page, styled: (style: Style) => Style, kit: Textkit, 
   // Its content a column at least as tall as the room (react-pdf.tsx), so a part that goes on to the next page fills it.
   measurer.children({ kind: "box", style: { flexDirection: "column", gap: page.gap }, children: page.content }, left, top, width, bottom - top);
   if (page.footer) measurer.block(page.footer, left, bottom, width);
-  return { room: { top, bottom }, blocks: measurer.placed };
+  return { room: { top, bottom }, blocks: placedOf(measurer.frames), frames: measurer.frames };
+}
+
+/**
+ * The blocks with a path, as they were laid out: a block whose text is a text of its own (`of` it: a ListItem's, a
+ * TableCell's, a Button's, a part drawn line by line) with that text's lines.
+ */
+function placedOf(frames: readonly PlacedFrame[]): PlacedBlock[] {
+  const texts = new Map<string, PlacedLine[]>();
+  for (const frame of frames) {
+    if (frame.block.kind !== "text" || frame.path !== undefined || frame.block.of === undefined || !frame.boxes) continue;
+    texts.set(frame.block.of, [...(texts.get(frame.block.of) ?? []), ...frame.boxes]);
+  }
+  return frames.flatMap(({ path, x, y, width, height, lines, boxes }): PlacedBlock[] => {
+    if (path === undefined) return [];
+    const own = boxes ?? texts.get(path);
+    return [{ path, x, y, width, height, ...(lines ? { lines } : {}), ...(own ? { boxes: own } : {}) }];
+  });
 }
 
 /** Each page measured; undefined where a page holds a block this can't measure so. */

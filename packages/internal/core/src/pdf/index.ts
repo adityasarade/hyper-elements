@@ -14,3 +14,4 @@ export { flowDocument, thumbnailOf, writeDocument, type WriteContext } from "./w
 export { blocksOf, measure } from "./measure";
 export { lineEnds, runsText } from "./runs";
 export type { LineEdges } from "./carets";
+export { drawPage, type Drawn, type DrawnSide, type DrawnWord } from "./drawing";
