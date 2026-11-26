@@ -45,13 +45,16 @@ const present = <T>(items: Array<T | undefined>): T[] => items.filter((item): it
  * A Document's pages as written: each page its content, header and footer, numbered for the pages there are.
  * `reserve`: its page numbers written as the widest they get (each `reserve`, the count of pages a plan has), so
  * they're measured as tall as they're drawn on any page (a footer, or a text, that wraps once its count grows a
- * digit); the pages are then flowed (flowDocument()'s `reserve`), which numbers each as it's drawn.
+ * digit); the pages are then flowed (flowDocument()'s `reserve`), which numbers each as it's drawn. `numbered`: a
+ * text's page numbers written as the page it's drawn on, by its path (flowDocument()'s too), so it's measured as wide
+ * as it's drawn.
  */
-export function writeDocument(root: ResolvedNode, context: WriteContext, reserve?: number): DrawnDocument {
+export function writeDocument(root: ResolvedNode, context: WriteContext, reserve?: number, numbered?: ReadonlyMap<string, { number: number; total: number }>): DrawnDocument {
   const box = pageBox(root.props);
   const { pages, header, footer } = documentPages(root);
   const total = pages.length;
   const write = new Writer(context, root);
+  write.numbered = numbered;
   return {
     title: root.props.title as string | undefined,
     lang: root.props.lang as string | undefined,
@@ -87,7 +90,7 @@ export function writeDocument(root: ResolvedNode, context: WriteContext, reserve
  * pages as written (`document`) and where the engine laid them out (`placed`), measured (plan.ts), planned (flow.ts)
  * and painted (paint.ts), with the Plan and what it was made from.
  */
-export function flowDocument(root: ResolvedNode, context: WriteContext, document: DrawnDocument, placed: PlacedPage[], reserve?: number): { document: DrawnDocument; plan: Plan; measured: MeasuredPage[] } {
+export function flowDocument(root: ResolvedNode, context: WriteContext, document: DrawnDocument, placed: PlacedPage[], reserve?: number, texts?: ReadonlyMap<string, { number: number; total: number }>): { document: DrawnDocument; plan: Plan; measured: MeasuredPage[] } {
   const measured = measure(document, placed);
   const planned: PlannedPage[] = document.pages.flatMap((page, i) => {
     const pages = measured[i] ? flowPage(page, measured[i], i) : undefined;
@@ -108,7 +111,7 @@ export function flowDocument(root: ResolvedNode, context: WriteContext, document
     const content = parts.map((part) => numbered(painter.part(part), write.page));
     return { ...page, content, header: header && write.block(header, root), footer: footer && write.block(footer, root) };
   });
-  return { document: { ...document, pages }, plan: { pages: planned, ...(reserve !== undefined ? { numbers: reserve } : {}) }, measured };
+  return { document: { ...document, pages }, plan: { pages: planned, ...(reserve !== undefined ? { numbers: reserve } : {}), ...(texts?.size ? { numbered: Object.fromEntries(texts) } : {}) }, measured };
 }
 
 const gap = (node: ResolvedNode): Style => (typeof node.style.gap === "number" ? { gap: pt(node.style.gap) } : {});
@@ -179,6 +182,20 @@ function rightToLeft(root: ResolvedNode): Set<string> {
 
 class Writer {
   page = { number: 1, total: 1 };
+  /** Where a text's page numbers are written as the page it's drawn on (writeDocument()'s `numbered`), by its path. */
+  numbered?: ReadonlyMap<string, { number: number; total: number }>;
+
+  /** The numbers a page number in `path` is written with: its text's (or a block's around it) where they're given, else this page's. */
+  numbersAt(path: string): { number: number; total: number } {
+    for (let at = path; this.numbered; ) {
+      const given = this.numbered.get(at);
+      if (given) return given;
+      const up = at.replace(/\.children\[\d+\]$/, "");
+      if (up === at) break;
+      at = up;
+    }
+    return this.page;
+  }
 
   private readonly rtl: Set<string>;
 
@@ -287,9 +304,11 @@ class Writer {
             return "\n";
           case "MergeTag":
             return `{{${child.props.name}}}`;
-          case "PageNumber":
+          case "PageNumber": {
             // Marked, so a page its text goes on to numbers it (flowDocument()).
-            return { kind: "span", style: {}, runs: [String(child.props.total ? this.page.total : this.page.number)], page: child.props.total ? "total" : "number" };
+            const numbers = this.numbersAt(node.path);
+            return { kind: "span", style: {}, runs: [String(child.props.total ? numbers.total : numbers.number)], page: child.props.total ? "total" : "number" };
+          }
           case "Link":
             return { kind: "link", href: linkParts(child.props.href as LinkValue).href, style: { ...runStyle(child, this.context.families), ...direction }, runs: this.runs(child, direction) };
           case "Image": {

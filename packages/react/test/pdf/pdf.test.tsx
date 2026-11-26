@@ -307,6 +307,22 @@ describe("renderPdf", () => {
     expect(Math.max(...xs), path).toBeLessThanOrEqual((box.x + box.width) * 0.75 + 0.01);
   });
 
+  it("defines every image of the Document in svgImages, not only those on the pages drawn now", async () => {
+    const late = png(30, 20, true);
+    const design = (
+      <Document>
+        {Array.from({ length: 120 }, (_, i) => (
+          <Text key={i}>Record {i + 1}: a line of a long report, long enough to go on for several pages.</Text>
+        ))}
+        <Image src={late} alt="On a later page" style={{ width: 120 }} />
+      </Document>
+    );
+    const { plan, svg, svgImages } = (await createPaginator()).paginate(design, { diagnostics: false, svg: { pages: [1], shareImages: true } });
+    expect(plan.pages.length).toBeGreaterThan(2);
+    expect(svg![0]).not.toContain("<use");
+    expect(svgImages).toContain(late);
+  });
+
   it("measures an image on a page too short for it as react-pdf draws it: 0 tall, not less", async () => {
     const design = (
       <Document size="A5" margin={{ top: 391, bottom: 391, left: 48, right: 48 }}>
@@ -318,6 +334,25 @@ describe("renderPdf", () => {
     const drawn = await layoutDocument(design);
     expect((await paginate(design)).plan).toEqual((await renderPdf(design)).plan);
     expect(preview.layout!.nodes.find((node) => node.id === "image")!.height).toBe(drawn.nodes.find((node) => node.id === "image")!.height);
+  });
+
+  it("draws the image a buffer holds now, where one given before is written over (a server's reused buffer)", async () => {
+    const uri = "https://example.test/avatar.png";
+    const bytes = (noise: boolean) => Buffer.from(png(1, 1, noise).split(",")[1], "base64");
+    const design = (
+      <Document>
+        <Image src={{ src: uri, width: 24, height: 24 }} alt="Avatar" />
+      </Document>
+    );
+    const shared = bytes(false);
+    const replacement = bytes(true);
+    expect(shared).not.toEqual(replacement);
+    const before = await renderPdf(design, { images: { [uri]: shared } });
+    shared.set(replacement);
+    const replaced = await renderPdf(design, { images: { [uri]: shared } });
+    const fresh = await renderPdf(design, { images: { [uri]: replacement } });
+    expect(fresh.pdf).not.toEqual(before.pdf);
+    expect(Buffer.from(replaced.pdf).equals(fresh.pdf)).toBe(true);
   });
 
   it("measures a PNG cut short (its header whole) as react-pdf draws it, left out: the same plan without drawing", async () => {

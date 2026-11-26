@@ -2,6 +2,7 @@
  * A Document's content that doesn't fit its page goes on to the next: each PDF read back with pdf.js (the words on
  * each page) and laid out with layoutDocument() (where each block landed).
  */
+import { readFileSync } from "node:fs";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { Column, Document, Heading, Image, Layer, List, ListItem, PageFooter, PageNumber, prepare, render, Row, Section, Span, Table, TableCell, TableRow, Text, Video } from "@hyper-elements/react";
 import type { PlannedPart } from "@hyper-elements/core";
@@ -486,6 +487,16 @@ describe("a Document's content that doesn't fit its page", () => {
     const edited = await render(report(" typed"), { plan });
     expect(edited.diagnostics.map((d) => [d.code, d.severity])).toContainEqual(["render/plan", "warning"]);
     expect(edited.body.match(/<section /g)).toHaveLength(1);
+    // Its text styles changed from above (written right to left, then aligned left): another Document.
+    const rtl = (style?: { textAlign: "left" }) => (
+      <Document dir="rtl" style={style}>
+        {Array.from({ length: 60 }, (_, i) => (
+          <Text key={i}>Report entry {i + 1}</Text>
+        ))}
+      </Document>
+    );
+    const { plan: before } = await paginate(rtl());
+    expect((await render(rtl({ textAlign: "left" }), { plan: before })).diagnostics.map((d) => d.code)).toContain("render/plan");
     // A plan made without one (an older plan, or by hand) is drawn as before.
     const { design, ...older } = plan;
     expect(design).toBeDefined();
@@ -539,9 +550,54 @@ describe("a Document's content that doesn't fit its page", () => {
     expect(layout.nodes.filter((node) => node.cut)).toEqual([]);
     const { pdf, plan } = await renderPdf(design);
     expect((await words(pdf))[total.page - 1]).toContain(`Total ${layout.pages.length}`);
-    // Its page numbers measured as the widest they get, which the print HTML cuts its text by; the same without drawing.
-    expect(plan.numbers).toBe(plan.pages.length);
+    // Measured with the numbers it's drawn with (its page, and the count): the plan says so, for the print HTML to cut
+    // its text by; the same without drawing.
+    expect(plan.numbered).toEqual({ [total.path]: { number: total.page, total: plan.pages.length } });
     expect((await paginate(design)).plan).toEqual(plan);
+  });
+
+  it("measures a page number in the content as wide as it's drawn, its figure wider though its digits are as many", async () => {
+    // In Inter, "Page 1" fits 50px; "Page 4", a wider figure, wraps: measured as drawn, it goes on whole, not cut off.
+    const fonts = [{ family: "Inter", src: readFileSync(new URL("../../../../templates/_assets/fonts/Inter-400.ttf", import.meta.url)) }];
+    const row = { fontSize: 16, lineHeight: 1.5 };
+    const design = (
+      <Document size="A5" margin={{ top: 300, bottom: 300, left: 48, right: 48 }}>
+        {Array.from({ length: 31 }, (_, i) => (
+          <Text key={i} style={row}>
+            Record {i + 1}
+          </Text>
+        ))}
+        <Text id="numbered" style={{ ...row, fontFamily: "Inter", width: 50 }}>
+          Page <PageNumber />
+        </Text>
+      </Document>
+    );
+    const drawn = await layoutDocument(design, { fonts });
+    expect(drawn.pages.length).toBeGreaterThan(3);
+    expect(drawn.nodes.find((node) => node.id === "numbered")!.cut).toBeUndefined();
+    expect((await paginate(design, { fonts })).plan).toEqual((await createPaginator({ fonts })).paginate(design).plan);
+  });
+
+  it("plans the same pages and hashes from every entry point where page numbers grow a digit", async () => {
+    const design = (
+      <Document size="A5">
+        <PageFooter>
+          <Text style={{ width: 68, fontFamily: "Courier" }}>
+            Total <PageNumber total />
+          </Text>
+        </PageFooter>
+        {Array.from({ length: 270 }, (_, i) => (
+          <Text key={i}>Record {i + 1}</Text>
+        ))}
+        <Text style={{ width: 68, fontFamily: "Courier" }}>
+          Page <PageNumber /> of <PageNumber total />
+        </Text>
+      </Document>
+    );
+    const { plan } = await renderPdf(design);
+    expect(plan.pages.length).toBeGreaterThanOrEqual(10);
+    const paginator = await createPaginator();
+    for (const other of [(await paginate(design)).plan, paginator.paginate(design).plan, paginator.paginate(design, { diagnostics: false }).plan, paginator.paginate(design, { diagnostics: false, layout: { pages: [3] }, svg: { pages: [3] } }).plan]) expect(other).toEqual(plan);
   });
 
   it("measures a footer as tall as it's drawn when its count of pages grows a digit, so nothing above it is cut off", async () => {

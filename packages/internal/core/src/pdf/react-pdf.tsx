@@ -8,18 +8,22 @@
  */
 import { Circle, Document, Ellipse, Font, Image, Line, Link, Page, Path, Polygon, Rect, Svg, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { createElement, type ReactElement, type ReactNode } from "react";
-import { base64, sha256 } from "./bytes";
+import { base64, fingerprint, sha256 } from "./bytes";
 import { lineEdges, type LaidOutLine } from "./carets";
 import type { Block, Engine, Font as FontFile, PlacedBlock, PlacedLine, PlacedPage, Run, Shape, Style } from "./model";
 
 /** The names fonts are registered under with react-pdf (whose registry is the process's, shared by every render). */
 const registered = new Set<string>();
 
-/** A font file as base64 and its digest, made once a file (a server gives the same file's bytes to every render). */
-const encoded = new WeakMap<Uint8Array, { data: string; digest: string }>();
+/**
+ * A font file as base64 and its digest, made once a file (a server gives the same file's bytes to every render), and
+ * again where its buffer now holds other bytes (its quick hash: fingerprint()).
+ */
+const encoded = new WeakMap<Uint8Array, { data: string; digest: string; check: number }>();
 const encode = (bytes: Uint8Array) => {
+  const check = fingerprint(bytes);
   let out = encoded.get(bytes);
-  if (!out) encoded.set(bytes, (out = { data: base64(bytes), digest: sha256(bytes) }));
+  if (!out || out.check !== check) encoded.set(bytes, (out = { data: base64(bytes), digest: sha256(bytes), check }));
   return out;
 };
 

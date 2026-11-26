@@ -64,15 +64,16 @@ function sliced(style: Record<string, Json>, first: boolean, last: boolean): Rec
 }
 
 /** The node a part shows: as written, or a copy of it with the part's blocks or lines; `page`, the numbers it was measured with. */
-function copy(part: PlannedPart, nodes: ReadonlyMap<string, ResolvedNode>, page: { number: number; total: number }): ResolvedNode | undefined {
+function copy(part: PlannedPart, nodes: ReadonlyMap<string, ResolvedNode>, page: { number: number; total: number }, numbered?: Plan["numbered"]): ResolvedNode | undefined {
   const node = nodes.get(part.path);
   if (!node || isWhole(part)) return node;
   // A Row's column with nothing on this page: its place across the Row (its width or share), and nothing drawn.
   if (part.empty) return { ...node, id: undefined, style: Object.fromEntries(Object.entries(node.style).filter(([key]) => PLACE.has(key))), children: [] };
   const base: ResolvedNode = { ...node, id: part.first ? node.id : undefined, style: sliced(node.style, part.first, part.last), ...(part.last || node.type === "Table" ? {} : { fills: true as const }) };
-  if (part.lines) return { ...base, flowed: { lines: part.lines, page } };
+  // Its page numbers as it was measured with them: its own (Plan's `numbered`), else its page's.
+  if (part.lines) return { ...base, flowed: { lines: part.lines, page: numbered?.[part.path] ?? page } };
   if (!part.children) return node;
-  const children = part.children.map((child) => copy(child, nodes, page)).filter((child): child is ResolvedNode => child !== undefined);
+  const children = part.children.map((child) => copy(child, nodes, page, numbered)).filter((child): child is ResolvedNode => child !== undefined);
   if (node.type === "List" && children.length) {
     // An ordered list goes on numbering from its first item on this page.
     const index = node.children.filter((child): child is ResolvedNode => typeof child !== "string" && shown(child)).findIndex((item) => item.path === children[0].path);
@@ -88,7 +89,7 @@ export function flowedPages(root: ResolvedNode, plan: Plan): FlowedPage[] {
   const total = documentPages(root).pages.length;
   return plan.pages.map(({ from, parts }) => {
     const numbers = plan.numbers === undefined ? { number: from + 1, total } : { number: plan.numbers, total: plan.numbers };
-    return { from, content: parts.map((part) => copy(part, nodes, numbers)).filter((node): node is ResolvedNode => node !== undefined) };
+    return { from, content: parts.map((part) => copy(part, nodes, numbers, plan.numbered)).filter((node): node is ResolvedNode => node !== undefined) };
   });
 }
 

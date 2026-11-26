@@ -10,7 +10,7 @@
  * given in `fonts`. A template that needs one it isn't given is an error (an image) or drawn in a standard PDF font (a
  * font), and says so. templateAssets() lists the fonts and images a template names, for a tool that loads them.
  */
-import { assetParts, base64, createLayout, designPrint, drawPage, flowDocument, LAYOUT_VERSION, pageHash, pdfFamily, reactPdf, reactPdfLayout, runsText, thumbnailOf, writeDocument, type Asset, type Block, type DrawnDocument, type Font, type Layout, type PlacedPage, type Run } from "@hyper-elements/core/pdf";
+import { assetParts, base64, createLayout, designPrint, drawPage, fingerprint, fontsKey, flowDocument, LAYOUT_VERSION, pageHash, pdfFamily, reactPdf, reactPdfLayout, runsText, thumbnailOf, writeDocument, type Asset, type Block, type Drawn, type DrawnDocument, type Font, type Layout, type PlacedPage, type Run } from "@hyper-elements/core/pdf";
 import type { FontFace, Plan } from "@hyper-elements/core";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode, type Snapshot } from "@hyper-elements/react";
 import type { ReactElement } from "react";
@@ -94,11 +94,16 @@ export async function paginate(element: ReactElement | Snapshot, options: PdfOpt
   const measure = async (pages: DrawnDocument) => (await reactPdfLayout(pages)) ?? (await reactPdf(pages)).placed;
   let { pages, plan, laid } = planned;
   let placed = planned.drawn && pages === planned.written ? planned.drawn.placed : await measure(pages);
-  for (let again = 0; again < 3 && pages !== planned.written && laid && (renumbers(planned.written, plan) || (placed && shrank(plan, laid, placed))); again++) {
-    const reserved = writeDocument(planned.root, planned.context, plan.pages.length);
-    laid = await measure(reserved);
+  let numbering: Numbering = {};
+  let measuredFrom = planned.written;
+  for (let again = 0; again < 3 && pages !== planned.written && laid; again++) {
+    const next = renumbering(numbering, measuredFrom, pages, plan, laid, placed);
+    if (!next) break;
+    numbering = next;
+    measuredFrom = writeDocument(planned.root, planned.context, next.reserve, next.numbered);
+    laid = await measure(measuredFrom);
     if (!laid) break;
-    ({ pages, plan } = flowed(planned, reserved, laid, plan.pages.length));
+    ({ pages, plan } = flowed(planned, measuredFrom, laid, next.reserve, next.numbered));
     placed = await measure(pages);
   }
   return { plan: hashed(plan, pages), diagnostics: said({ ...planned, pages }, placed) };
@@ -169,9 +174,11 @@ export async function createPaginator(options: PaginatorOptions = {}): Promise<P
   if (!layout) {
     throw new ElementsError([{ code: "pdf/textkit", severity: "error", message: "createPaginator() lays text out with @react-pdf/textkit, which can't be loaded, or isn't the version @react-pdf/renderer lays text out with: install it, the version @react-pdf/renderer depends on", path: "root" }]);
   }
+  // Its font files' key for its pages' hashes, once: they're its files for as long as it's used.
+  const fonts = fontsKey(setup.fonts);
   return {
     paginate(element, { diagnostics = true, layout: laidOut = false, svg = false } = {}) {
-      const paginated = paginateWith(layout, setup, element, diagnostics, laidOut, svg);
+      const paginated = paginateWith(layout, setup, element, diagnostics, laidOut, svg, false, fonts);
       if (paginated) return paginated;
       throw new ElementsError([{ code: "pdf/measure", severity: "error", message: "This Document's text is in fonts this paginator wasn't made with: make one with them (createPaginator({ fonts }))", path: "root" }]);
     },
@@ -198,7 +205,7 @@ const setupOf = (options: PdfOptions): Setup => {
  * A Document paginated by a Layout: undefined where it can't measure it so. `check`: with renderPdf()'s diagnostics;
  * `lines`: with its layout, each text node's lines in it.
  */
-function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snapshot, check: boolean, lines: boolean | PagesWanted = false, svg: boolean | SvgWanted = false, exact = false): PaginateResult | undefined {
+function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snapshot, check: boolean, lines: boolean | PagesWanted = false, svg: boolean | SvgWanted = false, exact = false, fonts?: string): PaginateResult | undefined {
   const document = written(element, setup, check);
   // Measured, what it doesn't follow exactly guessed: each such block said (pdf/measure), the editor kept working.
   // `exact` (paginate()'s): not measured, undefined, so it's measured by drawing.
@@ -223,16 +230,20 @@ function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snap
     pages === document.written ? undefined : check ? placed : numberedAround(document.written) ? measure({ ...pages, pages: pages.pages.map((page) => ({ ...page, content: [] })) }) : undefined;
   // The pages as written that were measured: the Document's, or, planned again, with its page numbers the widest.
   let measuredFrom = document.written;
-  for (let again = 0; again < 3 && pages !== document.written && (renumbers(document.written, plan) || shrankIn(plan, laid, rooms())); again++) {
-    const reserved = writeDocument(document.root, document.context, plan.pages.length);
-    const relaid = measure(reserved);
+  let numbering: Numbering = {};
+  for (let again = 0; again < 3 && pages !== document.written; again++) {
+    const next = renumbering(numbering, measuredFrom, pages, plan, laid, rooms());
+    if (!next) break;
+    numbering = next;
+    const rewritten = writeDocument(document.root, document.context, next.reserve, next.numbered);
+    const relaid = measure(rewritten);
     if (!relaid) break;
     laid = relaid;
-    measuredFrom = reserved;
-    ({ pages, plan } = flowed(document, reserved, laid, plan.pages.length));
+    measuredFrom = rewritten;
+    ({ pages, plan } = flowed(document, rewritten, laid, next.reserve, next.numbered));
     placed = measured();
   }
-  plan = hashed(plan, pages);
+  plan = hashed(plan, pages, fonts);
   const guesses = guessedOf(guessed);
   if (!check && !lines && !svg) return { plan, diagnostics: guesses };
   const diagnostics = [...(check ? said({ ...document, pages }, placed as PlacedPage[] | undefined) : []), ...guesses];
@@ -241,8 +252,7 @@ function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snap
   return {
     plan,
     diagnostics,
-    // A page not measured (not asked for): its room as the page it goes on from was measured.
-    ...(lines ? { layout: documentLayout(document.root, pages.pages, placed.map((page, i) => page ?? { room: laid[plan.pages[i].from]?.room ?? { top: 0, bottom: 0 }, blocks: [] }), diagnostics, plan, nodeTexts(measuredFrom, pages), only(lines)) } : {}),
+    ...(lines ? { layout: documentLayout(document.root, pages.pages, roomed(placed, pages, measure), diagnostics, plan, nodeTexts(measuredFrom, pages), only(lines)) } : {}),
     ...(svg ? drawn(svg, pages, placed) : {}),
   };
 }
@@ -250,8 +260,36 @@ function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snap
 /** The pages asked for drawn as SVG, their images defined once where that's asked for. */
 function drawn(svg: true | SvgWanted, pages: DrawnDocument, placed: ReadonlyArray<PlacedPage | undefined>): Pick<PaginateResult, "svg" | "svgImages"> {
   const images = svg !== true && svg.shareImages ? new SharedImages() : undefined;
+  // Every image of the Document defined, not only those on the pages drawn now: a page view keeps the pages it drew, and
+  // swaps in the newest svgImages.
+  if (images) for (const image of imagesIn(pages)) images.use(image);
   const out = pages.pages.map((page, i) => (wants(svg, i + 1) && placed[i] ? pageSvg(drawPage(page, placed[i]!) ?? [], page.width, page.height, images) : undefined));
   return { svg: out, ...(images ? { svgImages: images.svg() } : {}) };
+}
+
+/** Each page as measured, and a page not measured (not asked for) with its room: its header and footer measured alone (they set it). */
+function roomed(placed: ReadonlyArray<PlacedPage | undefined>, pages: DrawnDocument, measure: (document: DrawnDocument) => PlacedPage[] | undefined): PlacedPage[] {
+  if (placed.every(Boolean)) return placed as PlacedPage[];
+  const rooms = measure({ ...pages, pages: pages.pages.map((page) => ({ ...page, content: [] })) });
+  return placed.map((page, i) => page ?? { room: rooms?.[i]?.room ?? { top: pages.pages[i].margin.top, bottom: pages.pages[i].margin.top + pages.pages[i].contentHeight }, blocks: [] });
+}
+
+/** Each image a Document's pages draw, as drawPage() draws it (how it fits its box): a block's, and one in a line. */
+function imagesIn(document: DrawnDocument): Array<Extract<Drawn, { kind: "image" }>> {
+  const out: Array<Extract<Drawn, { kind: "image" }>> = [];
+  const run = (item: Run) => {
+    if (typeof item === "string") return;
+    if (item.kind === "image") out.push({ kind: "image", x: 0, y: 0, width: 0, height: 0, src: item.src, fit: "contain", bottom: true });
+    else item.runs.forEach(run);
+  };
+  const block = (item: Block | undefined) => {
+    if (!item) return;
+    if (item.kind === "image") out.push({ kind: "image", x: 0, y: 0, width: 0, height: 0, src: item.src, fit: item.style.objectFit === "cover" ? "cover" : item.style.objectFit === "contain" ? "contain" : "fill" });
+    else if (item.kind === "text") item.runs.forEach(run);
+    else if (item.kind === "box" || item.kind === "link") item.children.forEach(block);
+  };
+  for (const page of document.pages) [page.header, ...page.content, page.footer].forEach(block);
+  return out;
 }
 
 /** Whether a page (from 1) is asked for: every page with true, those listed with { pages }. */
@@ -276,8 +314,10 @@ function measureSome(measure: (document: DrawnDocument) => PlacedPage[] | undefi
   return out;
 }
 
-/** A plan with each page's hash: what's drawn on it (core's pageHash()). */
-const hashed = (plan: Plan, pages: DrawnDocument): Plan => ({ ...plan, pages: plan.pages.map((page, i) => (pages.pages[i] ? { ...page, hash: pageHash(pages.pages[i]) } : page)) });
+/** A plan with each page's hash: what's drawn on it, in its font files (core's pageHash(), fontsKey()). */
+function hashed(plan: Plan, pages: DrawnDocument, fonts = fontsKey(pages.fonts)): Plan {
+  return { ...plan, pages: plan.pages.map((page, i) => (pages.pages[i] ? { ...page, hash: pageHash(pages.pages[i], fonts) } : page)) };
+}
 
 /**
  * A Document as its PDF lays it out, measured with its fonts: its pages, where each block landed on each, and what's
@@ -338,22 +378,53 @@ function planned(document: ReturnType<typeof written>, laid: PlacedPage[] | unde
 }
 
 /** A Document's pages as written (`pages`, as laid out: `laid`) flowed, each page planned, even where all of it fits. */
-function flowed(document: ReturnType<typeof written>, pages: DrawnDocument, laid: PlacedPage[], reserve?: number): { pages: DrawnDocument; plan: Plan } {
-  const { document: out, plan } = flowDocument(document.root, document.context, pages, laid, reserve);
+function flowed(document: ReturnType<typeof written>, pages: DrawnDocument, laid: PlacedPage[], reserve?: number, numbered?: ReadonlyMap<string, PageNumbers>): { pages: DrawnDocument; plan: Plan } {
+  const { document: out, plan } = flowDocument(document.root, document.context, pages, laid, reserve, numbered);
   return { pages: out, plan: { ...plan, design: document.print } };
 }
 
+/** A page's number and the count of pages. */
+type PageNumbers = { number: number; total: number };
+
+/** How a Document's page numbers are written to be measured: its headers' and footers' at the widest they get, each text's in its content as the page it's drawn on. */
+interface Numbering {
+  reserve?: number;
+  numbered?: Map<string, PageNumbers>;
+}
+
+/** Each text with a page number in a Document's pages, by its path, and the numbers it holds: those of the first page it's on. */
+function numbersIn(document: DrawnDocument, of: (page: number) => PageNumbers): Map<string, PageNumbers> {
+  const out = new Map<string, PageNumbers>();
+  document.pages.forEach((page, i) => {
+    const visit = (block: Block) => {
+      if (block.kind === "text") {
+        const path = block.path ?? block.of;
+        if (path !== undefined && markedRuns(block.runs) && !out.has(path)) out.set(path, of(i));
+      } else if (block.kind === "box" || block.kind === "link") block.children.forEach(visit);
+    };
+    page.content.forEach(visit);
+  });
+  return out;
+}
+
 /**
- * Whether a page number in a page's content has more or fewer digits in a plan than its pages were written (and
- * measured) with: a count of pages, or a page's number, grown a digit. Drawn with them, its text may wrap where it
- * didn't. It's planned again, each page number measured as the widest it gets. (A header's or a footer's is found
- * drawn taller: shrank().)
+ * How a Document's page numbers are written to be measured again, or undefined where its plan draws them as they were
+ * measured: a text in its content holding another page's number (or another count) than it was measured with, so it may
+ * wrap where it didn't ("Page 1" fits, "Page 4", a wider figure, doesn't); or a page drawn with less room than planned
+ * (its header or footer taller: shrank()), its headers' and footers' numbers then measured at their widest. The pages
+ * then go where their numbers are drawn, at most three times over.
  */
-function renumbers(written: DrawnDocument, plan: Plan): boolean {
-  if (plan.numbers !== undefined) return String(plan.pages.length).length > String(plan.numbers).length;
-  if (!written.pages.some((page) => page.content.some(numberedBlock))) return false;
-  const digits = (n: number) => String(n).length;
-  return digits(plan.pages.length) !== digits(written.pages.length) || plan.pages.some(({ from }, i) => digits(from + 1) !== digits(i + 1));
+function renumbering(current: Numbering, measuredFrom: DrawnDocument, pages: DrawnDocument, plan: Plan, laid: readonly PlacedPage[], rooms: ReadonlyArray<PlacedPage | undefined> | undefined): Numbering | undefined {
+  const drawn = numbersIn(pages, (i) => ({ number: i + 1, total: pages.pages.length }));
+  const total = measuredFrom.pages.length;
+  const measured = current.numbered ?? numbersIn(measuredFrom, (i) => (current.reserve !== undefined ? { number: current.reserve, total: current.reserve } : { number: i + 1, total }));
+  const moved = [...drawn].some(([path, numbers]) => {
+    const was = measured.get(path);
+    return !was || was.number !== numbers.number || was.total !== numbers.total;
+  });
+  const taller = !!rooms && shrank(plan, laid, rooms);
+  if (!moved && !taller) return undefined;
+  return { reserve: taller ? plan.pages.length : current.reserve, numbered: drawn.size ? drawn : undefined };
 }
 
 /**
@@ -368,9 +439,6 @@ function shrank(plan: Plan, laid: readonly PlacedPage[], placed: ReadonlyArray<P
     return drawn !== undefined && planned !== undefined && (drawn.bottom < planned.bottom - 0.01 || drawn.top > planned.top + 0.01);
   });
 }
-
-/** shrank(), where the rooms were measured. */
-const shrankIn = (plan: Plan, laid: readonly PlacedPage[], rooms: ReadonlyArray<PlacedPage | undefined> | undefined): boolean => !!rooms && shrank(plan, laid, rooms);
 
 /** Whether a block has a page number in it (a marked run: write.ts). */
 const numberedBlock = (block: Block | undefined): boolean =>
@@ -416,11 +484,16 @@ async function draw(element: ReactElement | Snapshot, options: PdfOptions) {
   let { pages, plan, laid } = planned;
   let { pdf, placed } = planned.drawn && pages === planned.written ? planned.drawn : await reactPdf(pages);
   // Planned again where a page drawn has less room than planned (its header's or footer's page numbers drawn taller).
-  for (let again = 0; again < 3 && pages !== planned.written && laid && (renumbers(planned.written, plan) || (placed && shrank(plan, laid, placed))); again++) {
-    const reserved = writeDocument(planned.root, planned.context, plan.pages.length);
-    laid = (await reactPdf(reserved)).placed;
+  let numbering: Numbering = {};
+  let measuredFrom = planned.written;
+  for (let again = 0; again < 3 && pages !== planned.written && laid; again++) {
+    const next = renumbering(numbering, measuredFrom, pages, plan, laid, placed);
+    if (!next) break;
+    numbering = next;
+    measuredFrom = writeDocument(planned.root, planned.context, next.reserve, next.numbered);
+    laid = (await reactPdf(measuredFrom)).placed;
     if (!laid) break;
-    ({ pages, plan } = flowed(planned, reserved, laid, plan.pages.length));
+    ({ pages, plan } = flowed(planned, measuredFrom, laid, next.reserve, next.numbered));
     ({ pdf, placed } = await reactPdf(pages));
   }
   return { root: planned.root, pages, placed, plan: hashed(plan, pages), pdf, diagnostics: said({ ...planned, pages }, placed) };
@@ -474,14 +547,20 @@ function readable(layout: unknown, output: "pdf" | "image"): void {
 
 // ─── Fonts ─────────────────────────────────────────────────────────────────
 
-/** An image file as base64, made once a file (a server and a paginator give the same file's bytes each time). */
-const encoded = new WeakMap<Uint8Array | ArrayBuffer, string>();
+/**
+ * An image file as base64, made once a file (a server and a paginator give the same file's bytes each time), and again
+ * where its buffer now holds other bytes (a server's reused buffer: its quick hash, fingerprint()), so no PDF is drawn
+ * with the image a buffer held for another.
+ */
+const encoded = new WeakMap<Uint8Array | ArrayBuffer, { data: string; check: number }>();
 function encode(bytes: Uint8Array | ArrayBuffer): string {
+  const view = bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes;
+  const check = fingerprint(view);
   const known = encoded.get(bytes);
-  if (known !== undefined) return known;
-  const out = base64(bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes);
-  encoded.set(bytes, out);
-  return out;
+  if (known && known.check === check) return known.data;
+  const data = base64(view);
+  encoded.set(bytes, { data, check });
+  return data;
 }
 
 /** A WOFF2 file, by its first bytes: a PDF draws TTF, OTF and WOFF files, not these. */

@@ -4,22 +4,29 @@
  * page view keeps a page it drew.
  */
 import { hasher } from "../plan";
+import { fingerprint } from "./bytes";
 import type { Block, Page, Run } from "./model";
 
-/** An image file's number in a page's hash (its data URI can be large): the last 1,000; a number never given twice. */
-const files = new Map<string, number>();
-let filed = 0;
+/**
+ * An image file's own hash, in a page's (its data URI can be large: hashed once, the last 1,000 kept): from its bytes, so
+ * the same page has the same hash in any process, and another file another.
+ */
+const files = new Map<string, string>();
 const fileOf = (src: string): string => {
-  let id = files.get(src);
-  if (id === undefined) {
-    files.set(src, (id = ++filed));
+  let hex = files.get(src);
+  if (hex === undefined) {
+    const file = hasher();
+    file.add(src);
+    files.set(src, (hex = file.hex()));
     if (files.size > 1000) files.delete(files.keys().next().value!);
   }
-  return `#${id}`;
+  return `#${hex}`;
 };
 
-export function pageHash(page: Page): string {
+/** `fonts`: what the page's text is drawn in (its font files', fontsKey()): another file under the same family is another page. */
+export function pageHash(page: Page, fonts = ""): string {
   const hash = hasher();
+  hash.add(fonts);
   const run = (item: Run) => {
     if (typeof item === "string") return hash.add(`"${item}`);
     if (item.kind === "image") return hash.add(`i${fileOf(item.src)}${JSON.stringify(item.style)}`);
@@ -50,4 +57,9 @@ export function pageHash(page: Page): string {
   page.content.forEach(block);
   block(page.footer);
   return hash.hex();
+}
+
+/** The font files a Document is drawn with, as a key for its pages' hashes: each one's family, weight, style and bytes (their quick hash). */
+export function fontsKey(fonts: ReadonlyArray<{ family: string; weight: number; style: string; data: Uint8Array }>): string {
+  return fonts.map((font) => `${font.family}|${font.weight}|${font.style}|${fingerprint(font.data)}`).join(";");
 }

@@ -3,15 +3,17 @@
  * a paginator's layout with its lines: each line where its PDF draws it, read back with pdf.js, and each character
  * where it's drawn (the measuring test holds every character's edges to react-pdf's own, drawn).
  */
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { ReactElement } from "react";
-import { Button, Document, List, ListItem, PageFooter, PageHeader, PageNumber, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
+import { Button, Document, Image, List, ListItem, PageFooter, PageHeader, PageNumber, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
 import { caretAt, caretBox, createPaginator, renderPdf, selectionBoxes, type DocumentLayout, type DocumentLine, type DocumentNode } from "../../src/pdf";
 import { arabic, arabicSentences } from "./arabic";
 import { glyphs } from "./operators";
+import { png } from "./png";
 
 const sentences = (count: number, what: string) => Array.from({ length: count }, (_, i) => `Sentence ${i + 1} of ${what}.`).join(" ");
 const liberation = new Uint8Array(readFileSync(join(dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")), "standard_fonts", "LiberationSans-Regular.ttf")));
@@ -297,6 +299,22 @@ describe("a paginator's layout with its lines", () => {
     expect(some.layout!.pages).toEqual(whole.layout!.pages);
     // Its SVG: pages 2 and 3, as in the whole; the others not drawn.
     expect(some.svg!.map((svg, i) => (svg === undefined ? undefined : svg === whole.svg![i]))).toEqual(whole.svg!.map((_, i) => (i === 1 || i === 2 ? true : undefined)));
+    // Every page's room as the whole layout has it, a footer that grows a digit's too, asked for or not.
+    const footed = (
+      <Document size="A5">
+        <PageFooter>
+          <Text style={{ width: 68, fontFamily: "Courier" }}>
+            Page# <PageNumber />
+          </Text>
+        </PageFooter>
+        {Array.from({ length: 270 }, (_, i) => (
+          <Text key={i}>Record {i + 1}</Text>
+        ))}
+      </Document>
+    );
+    const full = paginator.paginate(footed, { layout: true, diagnostics: false });
+    expect(full.plan.pages.length).toBeGreaterThanOrEqual(10);
+    expect(paginator.paginate(footed, { layout: { pages: [10] }, diagnostics: false }).layout!.pages).toEqual(full.layout!.pages);
     // A page it wasn't laid out for: said, not an empty answer.
     expect(() => caretAt(some.layout!, { page: 1, x: 100, y: 100 })).toThrow(/pages 2 only, not page 1/);
     // Each page's hash: the same where nothing on it changed. Typed into the paragraph on the last page, the pages before
@@ -306,6 +324,43 @@ describe("a paginator's layout with its lines", () => {
     const last = typed.plan.pages.findIndex((page) => page.parts.some((part) => part.path === "root.children[46]"));
     expect(last).toBeGreaterThan(2);
     typed.plan.pages.forEach((page, i) => expect(page.hash === whole.plan.pages[i].hash, `page ${i + 1}`).toBe(i < last && !whole.plan.pages[i].parts.some((part) => part.path === "root.children[46]")));
+  });
+
+  it("hashes a page by what's drawn on it, in any process: its images' bytes and its fonts' files, not what was seen before", async () => {
+    const uri = "https://example.test/logo.png";
+    const design = (
+      <Document>
+        <Image src={{ src: uri, width: 10, height: 10 }} alt="Logo" />
+      </Document>
+    );
+    // Each in a process of its own (two Workers, two servers), with the package as built: another logo at the same URL, another
+    // hash; the same logo, the same hash.
+    const script = `
+      import { createElement as el } from "react";
+      import { Document, Image } from "@hyper-elements/react";
+      import { createPaginator } from "@hyper-elements/react/pdf";
+      const paginator = await createPaginator({ images: { "${uri}": Buffer.from(process.argv[1], "base64") } });
+      const { plan } = paginator.paginate(el(Document, null, el(Image, { src: { src: "${uri}", width: 10, height: 10 }, alt: "Logo" })), { diagnostics: false });
+      console.log(plan.pages[0].hash);
+    `;
+    const inProcess = (image: string) => {
+      const run = spawnSync(process.execPath, ["--input-type=module", "-e", script, image.split(",")[1]], { encoding: "utf8" });
+      expect(run.status, run.stderr).toBe(0);
+      return run.stdout.trim();
+    };
+    expect(inProcess(png(10, 10, true))).not.toBe(inProcess(png(10, 10)));
+    expect(inProcess(png(10, 10))).toBe(inProcess(png(10, 10)));
+    expect(inProcess(png(10, 10))).toBe((await createPaginator({ images: { [uri]: Buffer.from(png(10, 10).split(",")[1], "base64") } })).paginate(design, { diagnostics: false }).plan.pages[0].hash);
+    // Another file under the same family: another page.
+    const font = (name: string) => readFileSync(new URL(`../../../../templates/_assets/fonts/${name}.ttf`, import.meta.url));
+    const branded = (
+      <Document style={{ fontFamily: "Brand" }}>
+        <Text>Every word has its place.</Text>
+      </Document>
+    );
+    const inter = (await createPaginator({ fonts: [{ family: "Brand", src: font("Inter-400") }] })).paginate(branded).plan.pages[0].hash;
+    const mono = (await createPaginator({ fonts: [{ family: "Brand", src: font("JetBrainsMono-500") }] })).paginate(branded).plan.pages[0].hash;
+    expect(mono).not.toBe(inter);
   });
 
   it("puts a caret between characters, never inside one: a letter and its accent, a pair of UTF-16 units", async () => {

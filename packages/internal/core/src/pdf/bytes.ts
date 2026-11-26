@@ -64,3 +64,13 @@ export function sha256(message: Uint8Array): string {
   }
   return Array.from(h, (word) => word.toString(16).padStart(8, "0")).join("");
 }
+
+/**
+ * A quick hash of a file's bytes (32-bit FNV-1a over all of them): what a cache kept by a buffer checks, so a buffer
+ * written over with other bytes (one a server reuses) is encoded again, never given as the file it held before.
+ */
+export function fingerprint(bytes: Uint8Array): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < bytes.length; i++) hash = Math.imul(hash ^ bytes[i], 0x01000193);
+  return (hash ^ bytes.length) >>> 0;
+}

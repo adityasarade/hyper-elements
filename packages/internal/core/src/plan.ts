@@ -92,6 +92,11 @@ export interface Plan {
    */
   numbers?: number;
   /**
+   * Each text with a page number in its content, and the numbers it was measured with: the page it's on and the count
+   * of pages, as they're drawn (so it's measured as wide as it's drawn). The print HTML cuts it where it was measured.
+   */
+  numbered?: Record<string, { number: number; total: number }>;
+  /**
    * The Document it was planned from: a hash of it as laid out (designPrint()). render(design, { plan }) draws a plan
    * only for the Document it was made from, so a page view's plan a keystroke old isn't drawn against what's changed.
    */
@@ -118,7 +123,7 @@ export function hasher(): { add(text: string): void; hex(): string } {
 
 /**
  * A Document as laid out, as a hash: the same for the same design, different (all but certainly) for any change to its
- * nodes, their props, styles, widths or text. 64 bits of FNV-1a, as hex.
+ * nodes, their props, styles (inherited ones too), widths or text. 64 bits of FNV-1a, as hex.
  */
 export function designPrint(root: ResolvedNode): string {
   const hash = hasher();
@@ -130,6 +135,8 @@ export function designPrint(root: ResolvedNode): string {
     hash.add(node.type);
     hash.add(JSON.stringify(node.props));
     hash.add(JSON.stringify(node.style));
+    // Its text styles as inherited (an alignment or a direction from above lays its text out).
+    hash.add(JSON.stringify(node.text));
     if (node.hidden) hash.add(JSON.stringify(node.hidden));
     hash.add(String(node.width));
     hash.add(`(${node.children.length}`);

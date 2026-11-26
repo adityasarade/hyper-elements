@@ -164,8 +164,11 @@ async function compare(document: DrawnDocument, label: string, out: Tally, stric
     if (strict) out.differences.push(`${label}: not measured without drawing`);
     return drawn;
   }
+  // As many pages: one more or fewer is a difference, not a crash.
+  if (drawn.length !== drawless.length) out.differences.push(`${label}: ${drawn.length} pages drawn, ${drawless.length} measured`);
   drawn.forEach((page, i) => {
     const d = drawless[i];
+    if (!d) return;
     if (Math.abs(page.room.top - d.room.top) > 0.05 || Math.abs(page.room.bottom - d.room.bottom) > 0.05) out.differences.push(`${label} page ${i + 1}: its room`);
     const byPath = new Map(d.blocks.map((b) => [b.path, { ...b, y: b.y + skew }]));
     for (const b of page.blocks) {
