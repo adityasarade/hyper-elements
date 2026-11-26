@@ -8,6 +8,7 @@ export * from "./model";
 export { assetParts, LAYOUT_VERSION, type Asset, type FontFace } from "../index";
 export { pdfFamily } from "./styles";
 export { reactPdf } from "./react-pdf";
+export { imageSize } from "./image-size";
 export { pageHash } from "./page-hash";
 export { agrees as textkitAgrees, createLayout, LineCache, reactPdfLayout, type Layout, type Textkit } from "./react-pdf-measure";
 export { base64, sha256 } from "./bytes";

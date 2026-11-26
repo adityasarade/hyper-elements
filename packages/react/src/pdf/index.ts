@@ -17,7 +17,7 @@ import type { ReactElement } from "react";
 import { documentLayout, measuredOverflow, type DocumentLayout } from "./layout";
 import { overflows } from "./flow";
 import { nodeTexts } from "./lines";
-import { pageSvg } from "./svg";
+import { pageSvg, SharedImages } from "./svg";
 
 export type { DocumentLayout, DocumentLine, DocumentNode, DocumentPage, DocumentRun } from "./layout";
 export { caretAt, caretBox, selectionBoxes, type Caret, type CaretBox, type CaretHit, type CaretOptions, type PagePoint, type SelectionBox } from "./caret";
@@ -66,6 +66,8 @@ export interface PaginateResult {
    * fontFaces() gives), by page (svg[0] is page 1); with `svg: { pages }`, those pages only, the others undefined.
    */
   svg?: Array<string | undefined>;
+  /** With a paginator's `svg: { shareImages: true }`: each image its pages draw, defined once, to put in the page before them. */
+  svgImages?: string;
 }
 
 /** The date a PDF says it was made by default: fixed, so the same template makes the same bytes. */
@@ -124,7 +126,18 @@ export interface PaginateOptions {
    * characters are), for a page view: shown in px, its coordinates the PDF's points, so the layout's px are over it. Its
    * text is drawn in the families the Document names: put fontFaces(fonts) in the page's CSS.
    */
-  svg?: boolean | PagesWanted;
+  svg?: boolean | SvgWanted;
+}
+
+/** Which pages a paginator draws as SVG (all of them, without `pages`), and how. */
+export interface SvgWanted {
+  pages?: readonly number[];
+  /**
+   * true: each image the pages draw defined once (`svgImages`, an SVG of symbols to put in the page before them), and
+   * drawn from it, not in each page's SVG: a long Document's header image is in the page once. Its ids come from its
+   * files, so a page drawn before still finds its images.
+   */
+  shareImages?: boolean;
 }
 
 /**
@@ -185,7 +198,7 @@ const setupOf = (options: PdfOptions): Setup => {
  * A Document paginated by a Layout: undefined where it can't measure it so. `check`: with renderPdf()'s diagnostics;
  * `lines`: with its layout, each text node's lines in it.
  */
-function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snapshot, check: boolean, lines: boolean | PagesWanted = false, svg: boolean | PagesWanted = false): PaginateResult | undefined {
+function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snapshot, check: boolean, lines: boolean | PagesWanted = false, svg: boolean | SvgWanted = false): PaginateResult | undefined {
   const document = written(element, setup, check);
   let laid = layout.measure(document.written);
   if (!laid) return undefined;
@@ -217,12 +230,19 @@ function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snap
     diagnostics,
     // A page not measured (not asked for): its room as the page it goes on from was measured.
     ...(lines ? { layout: documentLayout(document.root, pages.pages, placed.map((page, i) => page ?? { room: laid[plan.pages[i].from]?.room ?? { top: 0, bottom: 0 }, blocks: [] }), diagnostics, plan, nodeTexts(measuredFrom, pages), only(lines)) } : {}),
-    ...(svg ? { svg: pages.pages.map((page, i) => (wants(svg, i + 1) && placed[i] ? pageSvg(drawPage(page, placed[i]!) ?? [], page.width, page.height) : undefined)) } : {}),
+    ...(svg ? drawn(svg, pages, placed) : {}),
   };
 }
 
+/** The pages asked for drawn as SVG, their images defined once where that's asked for. */
+function drawn(svg: true | SvgWanted, pages: DrawnDocument, placed: ReadonlyArray<PlacedPage | undefined>): Pick<PaginateResult, "svg" | "svgImages"> {
+  const images = svg !== true && svg.shareImages ? new SharedImages() : undefined;
+  const out = pages.pages.map((page, i) => (wants(svg, i + 1) && placed[i] ? pageSvg(drawPage(page, placed[i]!) ?? [], page.width, page.height, images) : undefined));
+  return { svg: out, ...(images ? { svgImages: images.svg() } : {}) };
+}
+
 /** Whether a page (from 1) is asked for: every page with true, those listed with { pages }. */
-const wants = (option: boolean | PagesWanted, page: number): boolean => option === true || (typeof option === "object" && option.pages.includes(page));
+const wants = (option: boolean | { pages?: readonly number[] }, page: number): boolean => option === true || (typeof option === "object" && (option.pages === undefined || option.pages.includes(page)));
 
 /** The pages asked for measured, the others left out (undefined): for a long Document, what a page view shows. */
 function measureSome(layout: Layout, document: DrawnDocument, asked: (page: number) => boolean): Array<PlacedPage | undefined> | undefined {

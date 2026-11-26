@@ -11,6 +11,7 @@ import { Button, Column, Document, Heading, Image, Layer, List, ListItem, PageFo
 import { createPaginator, fontFaces, renderPdf, type PdfFont } from "../../../src/pdf";
 import { arabic, arabicSentences } from "../arabic";
 import { glyphs, images } from "../operators";
+import { png } from "../png";
 
 let browser: Browser;
 beforeAll(async () => {
@@ -158,5 +159,48 @@ describe("a Document's pages drawn as SVG", () => {
     // Its content cut to its room: below the header, above the footer, inside the margins.
     const [room] = layout!.pages;
     expect(page1).toContain(`viewBox="36 ${pt(room.room.top)} ${523.28} ${pt(room.room.bottom - room.room.top)}" overflow="hidden"`);
+  });
+
+  it("defines each image once where asked, drawn from it on every page: a long Document's header image in the page once", async () => {
+    const header = png(400, 400, true);
+    const design = (
+      <Document>
+        <PageHeader>
+          <Image src={header} alt="Letterhead" style={{ width: 120 }} />
+        </PageHeader>
+        {Array.from({ length: 100 }, (_, i) => (
+          <Text key={i}>{sentences(125, `paragraph ${i}`)}</Text>
+        ))}
+      </Document>
+    );
+    const paginator = await createPaginator();
+    const inline = paginator.paginate(design, { diagnostics: false, svg: true });
+    const shared = paginator.paginate(design, { diagnostics: false, svg: { shareImages: true } });
+    const pages = shared.svg!.length;
+    expect(pages).toBeGreaterThanOrEqual(100);
+    expect(header.length).toBeGreaterThan(140_000);
+    // Each page draws it inline otherwise: its file in every page.
+    expect(inline.svg!.every((page) => page!.includes(header))).toBe(true);
+    // Shared: in svgImages once (its href, and xlink:href for older readers), in no page: each page smaller than drawn
+    // inline by the image, all of it a fraction of the pages drawn inline.
+    expect(shared.svgImages!.split(header).length - 1).toBe(2);
+    expect(shared.svg!.every((page, i) => !page!.includes("data:image") && page!.length < inline.svg![i]!.length - header.length + 300)).toBe(true);
+    const total = (svg: Array<string | undefined>, extra = 0) => svg.reduce((sum, page) => sum + page!.length, extra);
+    expect(total(shared.svg!, shared.svgImages!.length)).toBeLessThan(total(inline.svg!) / 4);
+    // In Chromium, each page's image drawn from its symbol where the PDF draws it.
+    const page = await browser.newPage();
+    await page.setContent(`<!doctype html><html><body style="margin:0">${shared.svgImages}${shared.svg!.slice(0, 2).join("")}</body></html>`);
+    const boxes = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("body > svg[viewBox] use")).map((use) => {
+        const box = (use as SVGGraphicsElement).getBBox();
+        return [box.x, box.y, box.width, box.height].map((v) => Math.round(v * 100) / 100);
+      })
+    );
+    const { pdf } = await renderPdf(design);
+    const file = await getDocument({ data: pdf.slice(), verbosity: 0 }).promise;
+    const drawn = await images(await file.getPage(1));
+    expect(boxes).toHaveLength(2);
+    expect(boxes[0]).toEqual([drawn[0].x, drawn[0].y, drawn[0].width, drawn[0].height].map((v) => Math.round(v * 100) / 100));
+    expect(boxes[0][2]).toBeGreaterThan(0);
   });
 });

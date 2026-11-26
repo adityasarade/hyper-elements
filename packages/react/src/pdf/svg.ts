@@ -6,7 +6,8 @@
  * Its text is in the families the Document names: for its glyphs to be the PDF's, the page it's shown in has the same
  * font files (fontFaces()). Text in a standard PDF font is drawn in the browser's nearest (Arial has Helvetica's widths).
  */
-import { base64, type Drawn } from "@hyper-elements/core/pdf";
+import { hasher } from "@hyper-elements/core";
+import { base64, imageSize, type Drawn } from "@hyper-elements/core/pdf";
 import type { PdfFont } from "./index";
 
 const escape = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -28,7 +29,46 @@ function outline(x: number, y: number, width: number, height: number, [tl, tr, b
   return `M${n(x + tl)} ${n(y)}H${n(x + width - tr)}${tr ? `A${n(tr)} ${n(tr)} 0 0 1 ${n(x + width)} ${n(y + tr)}` : ""}V${n(y + height - br)}${br ? `A${n(br)} ${n(br)} 0 0 1 ${n(x + width - br)} ${n(y + height)}` : ""}H${n(x + bl)}${bl ? `A${n(bl)} ${n(bl)} 0 0 1 ${n(x)} ${n(y + height - bl)}` : ""}V${n(y + tl)}${tl ? `A${n(tl)} ${n(tl)} 0 0 1 ${n(x + tl)} ${n(y)}` : ""}Z`;
 }
 
-function item(drawn: Drawn): string {
+/** How an image fills its box, as SVG's preserveAspectRatio. */
+const aspectOf = (drawn: Extract<Drawn, { kind: "image" }>) => (drawn.fit === "cover" ? "xMidYMid slice" : drawn.fit === "contain" ? (drawn.bottom ? "xMidYMax meet" : "xMidYMid meet") : "none");
+
+/** An image file's hash, for its symbol's id: the last 1,000 files. */
+const hashes = new Map<string, string>();
+function fileHash(src: string): string {
+  let hex = hashes.get(src);
+  if (hex === undefined) {
+    const hash = hasher();
+    hash.add(src);
+    hashes.set(src, (hex = hash.hex()));
+    if (hashes.size > 1000) hashes.delete(hashes.keys().next().value!);
+  }
+  return hex;
+}
+
+/**
+ * The images pages draw, each defined once (a symbol, its id from its file and how it fills its box) for the pages to
+ * use: a long Document's repeated header image is in the page once, not in each page's SVG.
+ */
+export class SharedImages {
+  private readonly symbols = new Map<string, string>();
+
+  /** The id an image is drawn from (its symbol, made the first time), or undefined where its file's size isn't known. */
+  use(drawn: Extract<Drawn, { kind: "image" }>): string | undefined {
+    const size = imageSize(drawn.src);
+    if (!size) return undefined;
+    const aspect = aspectOf(drawn);
+    const id = `elements-image-${fileHash(drawn.src)}-${aspect.replace(/ /g, "-")}`;
+    if (!this.symbols.has(id)) this.symbols.set(id, `<symbol id="${id}" viewBox="0 0 ${size.width} ${size.height}" preserveAspectRatio="${aspect}"><image width="${size.width}" height="${size.height}" href="${escape(drawn.src)}" xlink:href="${escape(drawn.src)}"/></symbol>`);
+    return id;
+  }
+
+  /** Each image used, defined once: an SVG to put in the page before the pages that use them. */
+  svg(): string {
+    return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="0" height="0" style="position:absolute" aria-hidden="true"><defs>${[...this.symbols.values()].join("")}</defs></svg>`;
+  }
+}
+
+function item(drawn: Drawn, images?: SharedImages): string {
   switch (drawn.kind) {
     case "rect": {
       const { x, y, width, height, fill, radius, border } = drawn;
@@ -56,8 +96,9 @@ function item(drawn: Drawn): string {
       return out;
     }
     case "image": {
-      const aspect = drawn.fit === "cover" ? "xMidYMid slice" : drawn.fit === "contain" ? (drawn.bottom ? "xMidYMax meet" : "xMidYMid meet") : "none";
-      return `<image x="${n(drawn.x)}" y="${n(drawn.y)}" width="${n(drawn.width)}" height="${n(drawn.height)}" preserveAspectRatio="${aspect}" href="${escape(drawn.src)}"/>`;
+      const id = images?.use(drawn);
+      if (id) return `<use x="${n(drawn.x)}" y="${n(drawn.y)}" width="${n(drawn.width)}" height="${n(drawn.height)}" href="#${id}" xlink:href="#${id}"/>`;
+      return `<image x="${n(drawn.x)}" y="${n(drawn.y)}" width="${n(drawn.width)}" height="${n(drawn.height)}" preserveAspectRatio="${aspectOf(drawn)}" href="${escape(drawn.src)}"/>`;
     }
     case "drawing": {
       const shapes = drawn.shapes.map((shape) => `<${shape.kind}${Object.entries(shape.attributes).filter(([, value]) => value !== undefined).map(([name, value]) => ` ${name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}="${escape(String(value))}"`).join("")}/>`).join("");
@@ -73,13 +114,16 @@ function item(drawn: Drawn): string {
       return out;
     }
     case "clip":
-      return `<svg x="${n(drawn.x)}" y="${n(drawn.y)}" width="${n(drawn.width)}" height="${n(drawn.height)}" viewBox="${n(drawn.x)} ${n(drawn.y)} ${n(drawn.width)} ${n(drawn.height)}" overflow="hidden">${drawn.items.map(item).join("")}</svg>`;
+      return `<svg x="${n(drawn.x)}" y="${n(drawn.y)}" width="${n(drawn.width)}" height="${n(drawn.height)}" viewBox="${n(drawn.x)} ${n(drawn.y)} ${n(drawn.width)} ${n(drawn.height)}" overflow="hidden">${drawn.items.map((inner) => item(inner, images)).join("")}</svg>`;
   }
 }
 
-/** A page drawn as an SVG: `width` and `height` its paper in points, shown in px (96 to the inch). */
-export function pageSvg(drawn: Drawn[], width: number, height: number): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${n(width / 0.75)}" height="${n(height / 0.75)}" viewBox="0 0 ${n(width)} ${n(height)}">${drawn.map(item).join("")}</svg>`;
+/**
+ * A page drawn as an SVG: `width` and `height` its paper in points, shown in px (96 to the inch). `images`: its images
+ * drawn from symbols defined once (SharedImages), else each in it.
+ */
+export function pageSvg(drawn: Drawn[], width: number, height: number, images?: SharedImages): string {
+  return `<svg xmlns="http://www.w3.org/2000/svg"${images ? ' xmlns:xlink="http://www.w3.org/1999/xlink"' : ""} width="${n(width / 0.75)}" height="${n(height / 0.75)}" viewBox="0 0 ${n(width)} ${n(height)}">${drawn.map((inner) => item(inner, images)).join("")}</svg>`;
 }
 
 /** A font file's format, for its @font-face: by its first bytes. */
