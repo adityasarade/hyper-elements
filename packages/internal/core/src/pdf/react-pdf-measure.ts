@@ -15,13 +15,13 @@ import { Font } from "@react-pdf/renderer";
 import type { Fragment } from "@react-pdf/textkit";
 import { lineEdges, type LaidOutLine, type LineEdges } from "./carets";
 import type { Block, DrawnDocument, Font as FontFile, Page, PlacedBlock, PlacedFrame, PlacedLine, PlacedPage, Run, Style } from "./model";
-import { faceOf, fontsOf } from "./react-pdf";
+import { faceOf, fontsOf, reactPdf } from "./react-pdf";
 import { runsText } from "./runs";
 
 const OPTIONS = { shrinkWhitespaceFactor: { before: -0.5, after: -0.5 } };
 
 /** react-pdf's text layout: its engine as its layout runs it, and what makes its text. */
-interface Textkit {
+export interface Textkit {
   engine: (text: unknown, container: object, options: object) => unknown[];
   fromFragments: (fragments: Fragment[]) => unknown;
 }
@@ -29,17 +29,62 @@ interface Textkit {
 let textkit: Promise<Textkit | undefined> | undefined;
 /**
  * @react-pdf/textkit, loaded the first time a Document is measured (an optional peer: renderPdf() doesn't need it).
- * Undefined where it can't be loaded (not installed, or a CommonJS project that can't load it): then a Document is
- * measured by drawing it.
+ * Undefined where it can't be loaded (not installed, or a CommonJS project that can't load it), or where it doesn't lay
+ * text out as @react-pdf/renderer does (another version of it, installed beside the one react-pdf uses: agrees()):
+ * then a Document is measured by drawing it.
  */
 const loadTextkit = (): Promise<Textkit | undefined> =>
   (textkit ??= import("@react-pdf/textkit").then(
-    (kit) => ({
-      engine: kit.default({ bidi: kit.bidi, linebreaker: kit.linebreaker, justification: kit.justification, textDecoration: kit.textDecoration, scriptItemizer: kit.scriptItemizer, wordHyphenation: kit.wordHyphenation, fontSubstitution: kit.fontSubstitution }) as Textkit["engine"],
-      fromFragments: kit.fromFragments,
-    }),
+    async (module): Promise<Textkit | undefined> => {
+      const kit: Textkit = {
+        engine: module.default({ bidi: module.bidi, linebreaker: module.linebreaker, justification: module.justification, textDecoration: module.textDecoration, scriptItemizer: module.scriptItemizer, wordHyphenation: module.wordHyphenation, fontSubstitution: module.fontSubstitution }) as Textkit["engine"],
+        fromFragments: module.fromFragments,
+      };
+      return (await agrees(kit)) ? kit : undefined;
+    },
     () => undefined
   ));
+
+/** A page of text that tells two textkits apart: justified, kerned, hyphenated, with quotes and figures. */
+const PROBE: DrawnDocument = {
+  date: new Date(0),
+  fonts: [],
+  pages: [
+    {
+      width: 300,
+      height: 400,
+      margin: { top: 30, right: 30, bottom: 30, left: 30 },
+      background: "#ffffff",
+      contentHeight: 340,
+      content: [
+        {
+          kind: "text",
+          path: "probe",
+          style: { fontFamily: "Helvetica", fontSize: 11, textAlign: "justify" },
+          runs: ["Typography: AVAWAY, Wolf, office efficiency, internationalization and characterization, “quoted” words and figures (1,234.56) on lines justified across the page."],
+        },
+      ],
+    },
+  ],
+};
+
+/**
+ * Whether this textkit lays text out as @react-pdf/renderer draws it: the probe's lines (their characters and widths)
+ * measured with it and drawn, within 0.05 points. Checked once, where it's loaded: a project with two versions of
+ * textkit (one for react-pdf, another for this) measures by drawing, not by a textkit that breaks lines elsewhere.
+ */
+export async function agrees(kit: Textkit): Promise<boolean> {
+  try {
+    await fonts.load({ fontFamily: "Helvetica", fontWeight: 400, fontStyle: "normal" });
+    const measured = measurePages(PROBE, (style) => style, kit)?.[0]?.blocks[0]?.lines;
+    const drawn = (await reactPdf(PROBE)).placed?.[0]?.blocks[0]?.lines;
+    // Where react-pdf says nothing of where it drew (an older one), there's nothing to hold it to: as it was.
+    if (!drawn) return true;
+    return !!measured && measured.length === drawn.length && measured.every((line, i) => line.text === drawn[i].text && Math.abs(line.width - drawn[i].width) <= 0.05);
+  } catch {
+    return false;
+  }
+}
 
 /** react-pdf's font store, as react-pdf.tsx reaches it (its own types are closed). */
 const fonts = Font as unknown as { load(descriptor: object): Promise<void>; getFont(descriptor: object): { data?: unknown } | undefined };

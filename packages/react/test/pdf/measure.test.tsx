@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { createElement, type ReactElement } from "react";
 import { Button, Column, Document, Heading, Image, Layer, List, ListItem, PageFooter, PageHeader, PageNumber, prepare, Row, Section, Span, Table, TableCell, TableRow, Text, Video } from "@hyper-elements/react";
 import type { ResolvedNode } from "@hyper-elements/core";
-import { createLayout, flowDocument, reactPdf, reactPdfLayout, writeDocument, type DrawnDocument, type Layout, type PlacedPage } from "@hyper-elements/core/pdf";
+import { createLayout, flowDocument, reactPdf, reactPdfLayout, textkitAgrees, writeDocument, type DrawnDocument, type Layout, type PlacedPage, type Textkit } from "@hyper-elements/core/pdf";
 import { gallery } from "../../src/primitives/examples/gallery";
 import { stress } from "../../src/primitives/examples/stress";
 import { arabicFonts, arabicSentences } from "./arabic";
@@ -454,6 +454,18 @@ it("lays what's over a Layer over all of it where it has a height of its own, al
     expect(line.baseline * 0.75, `a ${height}px Layer`).toBeCloseTo(o.baseline, 1);
     expect(line.x * 0.75, `a ${height}px Layer`).toBeCloseTo(o.x, 1);
   }
+});
+
+it("measures with a textkit only where it lays text out as react-pdf draws it, not another version beside it", async () => {
+  const module = await import("@react-pdf/textkit");
+  const kit: Textkit = {
+    engine: module.default({ bidi: module.bidi, linebreaker: module.linebreaker, justification: module.justification, textDecoration: module.textDecoration, scriptItemizer: module.scriptItemizer, wordHyphenation: module.wordHyphenation, fontSubstitution: module.fontSubstitution }) as Textkit["engine"],
+    fromFragments: module.fromFragments,
+  };
+  expect(await textkitAgrees(kit)).toBe(true);
+  // One that breaks lines elsewhere (as another version might): a tenth narrower.
+  const other: Textkit = { ...kit, engine: (text, box, options) => kit.engine(text, { ...box, width: (box as { width: number }).width * 0.9 }, options) };
+  expect(await textkitAgrees(other)).toBe(false);
 });
 
 it("finds a measurer that's off: what's measured a tenth of a point down is different, for every Document made at random", async () => {

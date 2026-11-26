@@ -146,6 +146,7 @@ A `Video` shows its thumbnail where its file is given (its own, or a YouTube vid
 | `pdf/font` | warning | A font in the Document's `fonts` isn't given, a file given is WOFF2, or text in a standard PDF font has characters it can't draw |
 | `pdf/font-weight` | warning | Text in a weight or style of a family that isn't given. It's drawn in the nearest file given |
 | `pdf/unsupported` | warning | What a PDF can't show that the HTML can: a hover, a Video's player, an `Html` block's markup (its plain text is drawn), a line too wide to wrap (it goes past the edge) |
+| `pdf/layout` | warning | The installed `@react-pdf/renderer` doesn't say where it laid the PDF out, so content that doesn't fit a page isn't moved on to the next: update it |
 | `document/overflow` | warning | A page's content is taller than its room (the page less its margins, header and footer), measured with its fonts. Named at the first block cut off |
 
 `validate()` from `@hyper-elements/react` reports `pdf/unsupported` and `document/overflow` without rendering. Without the fonts its `document/overflow` is an estimate, and it can miss a page that's only a little too tall. The font and image checks need the files, so only `renderPdf()` makes them, and measures.
@@ -170,7 +171,7 @@ const { pdf, plan } = await renderPdf(design, { fonts });
 const { html } = await render(design, { plan });
 ```
 
-`paginate(design, { fonts })` gives the plan alone, measured without drawing the PDF: install `@react-pdf/textkit` beside `@react-pdf/renderer` for that (without it, `paginate()` draws the PDF to measure it).
+`paginate(design, { fonts })` gives the plan alone, measured without drawing the PDF: install `@react-pdf/textkit` beside `@react-pdf/renderer` for that (without it, `paginate()` draws the PDF to measure it). A plan is drawn only for the Document it was made from: `render()` draws one made from another version of it as written, with a `render/plan` warning.
 
 ### Pages as a Document is edited
 

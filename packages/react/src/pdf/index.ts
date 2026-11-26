@@ -140,7 +140,7 @@ export async function createPaginator(options: PaginatorOptions = {}): Promise<P
   const setup = setupOf(options);
   const layout = await createLayout(setup.fonts, options.cacheSize);
   if (!layout) {
-    throw new ElementsError([{ code: "pdf/textkit", severity: "error", message: "createPaginator() lays text out with @react-pdf/textkit, which can't be loaded: install it", path: "root" }]);
+    throw new ElementsError([{ code: "pdf/textkit", severity: "error", message: "createPaginator() lays text out with @react-pdf/textkit, which can't be loaded, or isn't the version @react-pdf/renderer lays text out with: install it, the version @react-pdf/renderer depends on", path: "root" }]);
   }
   return {
     paginate(element, { diagnostics = true, layout: laidOut = false, svg = false } = {}) {
@@ -302,10 +302,12 @@ const numberedAround = (document: DrawnDocument): boolean => document.pages.some
 
 
 /** The diagnostics: prepare()'s, a page's content past its room measured (where it can be), and the files' and fonts'. */
-function said(planned: { root: ResolvedNode; pages: ReturnType<typeof written>["written"]; diagnostics: Diagnostic[]; found: Diagnostic[] }, placed: PlacedPage[] | undefined): Diagnostic[] {
+function said(planned: { root: ResolvedNode; pages: ReturnType<typeof written>["written"]; diagnostics: Diagnostic[]; found: Diagnostic[]; laid?: PlacedPage[] }, placed: PlacedPage[] | undefined): Diagnostic[] {
   const { root, pages, diagnostics, found } = planned;
   const overflow = placed ? [...diagnostics.filter((d) => d.code !== "document/overflow"), ...measuredOverflow(root, pages.pages, placed)] : diagnostics;
-  return [...overflow, ...found];
+  // Drawn, and react-pdf didn't say where (its private layout data gone in an update): nothing could flow.
+  const unplaced: Diagnostic[] = "laid" in planned && !planned.laid ? [{ code: "pdf/layout", severity: "warning", message: "The installed @react-pdf/renderer doesn't say where it laid the PDF out, so content that doesn't fit a page isn't moved on to the next (it's cut off): update @react-pdf/renderer to a version Elements supports", path: "root" }] : [];
+  return [...overflow, ...unplaced, ...found];
 }
 
 /** The PDF: drawn once where its pages fit, and again, flowed, where they don't. */
