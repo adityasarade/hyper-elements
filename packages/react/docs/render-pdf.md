@@ -148,6 +148,24 @@ const boxes = selectionBoxes(layout, { path: caret.path, start: 0, end: 20 }); /
 
 A keystroke on a 28-page report is laid out again with its lines in about 12ms. To draw text where its carets are, draw it in the same font files.
 
+## Pages drawn for a page view
+
+A paginator's `paginate(design, { svg: true })` gives each page drawn as an SVG, without drawing the PDF: everything where its PDF draws it. Each box's background and borders, each image and drawing, each word from where its characters are; nothing is laid out again. It's shown in px, its coordinates the PDF's points, so a layout's px (and its carets) are over it:
+
+```tsx
+import { createPaginator, fontFaces } from "@hyper-elements/react/pdf";
+
+const paginator = await createPaginator({ fonts });
+const { svg, layout } = paginator.paginate(design, { svg: true, layout: true });
+
+style.textContent = fontFaces(fonts); // once: the font files, as @font-face rules
+view.innerHTML = svg.join(""); // a page view, each page as its PDF draws it
+```
+
+- **The same fonts:** its text is drawn in the families the Document names. `fontFaces(fonts)` gives an @font-face for each file a paginator is given: in a page with them, Chromium draws each glyph where the PDF does (within a twentieth of a point, tested). Text in a standard PDF font is drawn in the browser's nearest (Arial has Helvetica's widths), so it's close, not exact.
+- **Text written right to left** is drawn a word at a time from its right, so its letters join as they do in the PDF.
+- **Every page each time:** a 28-page report is paginated, laid out and drawn in about 17ms on a laptop. In a page view, do it in a Worker.
+
 ## Where everything landed
 
 `layoutDocument(design, options)` takes `renderPdf`'s options and gives the Document as its PDF lays it out, in px:

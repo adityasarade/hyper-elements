@@ -200,6 +200,16 @@ const boxes = selectionBoxes(layout, { path: caret.path, start: 0, end: 20 });
 
 Each character is where the PDF draws its glyph. Text written right to left runs from its right, a caret never goes inside a character, and `affinity` says where an offset in two places goes: the end of a line or the start of the next.
 
+### Pages drawn for a page view
+
+A paginator's `paginate(design, { svg: true })` gives each page drawn as an SVG where its PDF draws everything: boxes, images, and each word from where its characters are. It's shown in px, its coordinates the PDF's points, so the layout's carets are over it. `fontFaces(fonts)` gives the font files as @font-face rules: in a page with them, each glyph is where the PDF draws it.
+
+```tsx
+const { svg } = paginator.paginate(design, { svg: true });
+style.textContent = fontFaces(fonts);
+view.innerHTML = svg.join("");
+```
+
 ### Where everything landed
 
 `layoutDocument(design, { fonts, images })` takes `renderPdf()`'s options and gives the Document as its PDF lays it out:

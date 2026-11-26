@@ -10,16 +10,18 @@
  * given in `fonts`. A template that needs one it isn't given is an error (an image) or drawn in a standard PDF font (a
  * font), and says so. templateAssets() lists the fonts and images a template names, for a tool that loads them.
  */
-import { assetParts, base64, createLayout, flowDocument, LAYOUT_VERSION, pdfFamily, reactPdf, reactPdfLayout, thumbnailOf, writeDocument, type Asset, type Font, type Layout, type PlacedPage } from "@hyper-elements/core/pdf";
+import { assetParts, base64, createLayout, drawPage, flowDocument, LAYOUT_VERSION, pdfFamily, reactPdf, reactPdfLayout, thumbnailOf, writeDocument, type Asset, type Font, type Layout, type PlacedPage } from "@hyper-elements/core/pdf";
 import type { FontFace, Plan } from "@hyper-elements/core";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode, type Snapshot } from "@hyper-elements/react";
 import type { ReactElement } from "react";
 import { documentLayout, measuredOverflow, type DocumentLayout } from "./layout";
 import { overflows } from "./flow";
 import { nodeTexts } from "./lines";
+import { pageSvg } from "./svg";
 
 export type { DocumentLayout, DocumentLine, DocumentNode, DocumentPage, DocumentRun } from "./layout";
 export { caretAt, caretBox, selectionBoxes, type Caret, type CaretBox, type CaretOptions, type PagePoint, type SelectionBox } from "./caret";
+export { fontFaces } from "./svg";
 export type { Plan, PlannedLine, PlannedPage, PlannedPart } from "@hyper-elements/core";
 
 export interface PdfFont {
@@ -56,6 +58,8 @@ export interface PaginateResult {
   diagnostics: Diagnostic[];
   /** With a paginator's `layout: true`: where everything landed on its pages, as layoutDocument() says, each text node with its lines. */
   layout?: DocumentLayout;
+  /** With a paginator's `svg: true`: each page drawn as an SVG, everything where its PDF draws it (its text in the fonts fontFaces() gives). */
+  svg?: string[];
 }
 
 /** The date a PDF says it was made by default: fixed, so the same template makes the same bytes. */
@@ -100,6 +104,12 @@ export interface PaginateOptions {
    * caretBox() and selectionBoxes().
    */
   layout?: boolean;
+  /**
+   * true: with its `svg` too, each page drawn as an SVG where its PDF draws everything (each word from where its
+   * characters are), for a page view: shown in px, its coordinates the PDF's points, so the layout's px are over it. Its
+   * text is drawn in the families the Document names: put fontFaces(fonts) in the page's CSS.
+   */
+  svg?: boolean;
 }
 
 /** Documents paginated with the same fonts and images, made ready once: createPaginator() makes one. */
@@ -124,8 +134,8 @@ export async function createPaginator(options: PaginatorOptions = {}): Promise<P
     throw new ElementsError([{ code: "pdf/textkit", severity: "error", message: "createPaginator() lays text out with @react-pdf/textkit, which can't be loaded: install it", path: "root" }]);
   }
   return {
-    paginate(element, { diagnostics = true, layout: laidOut = false } = {}) {
-      const paginated = paginateWith(layout, setup, element, diagnostics, laidOut);
+    paginate(element, { diagnostics = true, layout: laidOut = false, svg = false } = {}) {
+      const paginated = paginateWith(layout, setup, element, diagnostics, laidOut, svg);
       if (paginated) return paginated;
       throw new ElementsError([{ code: "pdf/measure", severity: "error", message: "This Document holds a block that can't be measured without drawing it: paginate() it", path: "root" }]);
     },
@@ -152,17 +162,22 @@ const setupOf = (options: PdfOptions): Setup => {
  * A Document paginated by a Layout: undefined where it can't measure it so. `check`: with renderPdf()'s diagnostics;
  * `lines`: with its layout, each text node's lines in it.
  */
-function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snapshot, check: boolean, lines = false): PaginateResult | undefined {
+function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snapshot, check: boolean, lines = false, svg = false): PaginateResult | undefined {
   const document = written(element, setup, check);
   const laid = layout.measure(document.written);
   if (!laid) return undefined;
   const { plan, pages } = planned(document, laid);
-  if (!check && !lines) return { plan, diagnostics: [] };
-  // Its pages as they're drawn, measured: what's cut off, and where everything landed.
+  if (!check && !lines && !svg) return { plan, diagnostics: [] };
+  // Its pages as they're drawn, measured: what's cut off, where everything landed, and what draws them.
   const placed = pages === document.written ? laid : layout.measure(pages);
   const diagnostics = check ? said({ ...document, pages }, placed) : [];
-  if (!lines || !placed) return { plan, diagnostics };
-  return { plan, diagnostics, layout: documentLayout(document.root, pages.pages, placed, diagnostics, plan, nodeTexts(document.written)) };
+  if (!placed) return { plan, diagnostics };
+  return {
+    plan,
+    diagnostics,
+    ...(lines ? { layout: documentLayout(document.root, pages.pages, placed, diagnostics, plan, nodeTexts(document.written)) } : {}),
+    ...(svg ? { svg: pages.pages.map((page, i) => pageSvg(drawPage(page, placed[i]) ?? [], page.width, page.height)) } : {}),
+  };
 }
 
 /**

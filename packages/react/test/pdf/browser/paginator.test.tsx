@@ -1,8 +1,8 @@
 /**
  * A paginator runs in a browser as it does in Node: createPaginator(), bundled for a browser (react-pdf's browser build,
  * no Node module or global), paginates each Document in Chromium to the same plan, to the bit, as in Node, and lays it
- * out with its lines to the same layout (each line's box and each caret in it); and as it's typed into, a keystroke at
- * a time.
+ * out with its lines to the same layout (each line's box and each caret in it) and draws it to the same SVG; and as it's
+ * typed into, a keystroke at a time.
  */
 import { build } from "esbuild";
 import { chromium, type Browser } from "playwright";
@@ -54,9 +54,10 @@ it("paginates and lays out each Document in a browser as in Node, to the same pl
   const paginator = await createPaginator({ fonts: [{ family: "Noto Arabic", src: arabic }] });
   const plans = Object.fromEntries(Object.entries(designs).map(([name, design]) => [name, paginator.paginate(design)]));
   const typed = typing.map((text) => paginator.paginate(report(80, text), { diagnostics: false }).plan);
-  const layouts = Object.fromEntries(Object.entries(designs).map(([name, design]) => [name, paginator.paginate(design, { diagnostics: false, layout: true }).layout]));
+  const layouts = Object.fromEntries(Object.entries(designs).map(([name, design]) => [name, paginator.paginate(design, { diagnostics: false, layout: true, svg: true })]));
   for (const name of Object.keys(designs)) expect(plans[name].plan.pages.length, name).toBeGreaterThan(1);
   // Each laid out with its lines: where each line is, and each caret in it.
-  for (const name of Object.keys(designs)) expect(layouts[name]!.nodes.some((node) => node.lineBoxes?.length), name).toBe(true);
+  for (const name of Object.keys(designs)) expect(layouts[name].layout!.nodes.some((node) => node.lineBoxes?.length), name).toBe(true);
+  for (const name of Object.keys(designs)) expect(layouts[name].svg, name).toHaveLength(plans[name].plan.pages.length);
   expect(inBrowser).toEqual(JSON.parse(JSON.stringify({ plans, typed, layouts })));
 });

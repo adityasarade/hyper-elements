@@ -65,6 +65,7 @@
   "caretAt",
   "caretBox",
   "createPaginator",
+  "fontFaces",
   "layoutDocument",
   "paginate",
   "renderPdf",
