@@ -195,7 +195,7 @@
 }
 .pg-source-text { color: var(--text); font-size: 13px; }
 .pg-source mark { background: rgba(255, 255, 255, 0.16); color: #fff; border-radius: 3px; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.16); scroll-margin: 80px; }
-/* The editor's colors (SYNTAX in src/playground/editor.ts): tags blue, attributes grey-blue, values sand. */
+/* The site's code colors (SYNTAX in src/lib/syntax.mjs): tags blue, attributes grey-blue, values sand. */
 .pg-source .t { color: #7ab8ff; }
 .pg-source .a { color: #b9c3d4; }
 .pg-source .s { color: #e4cfa1; }

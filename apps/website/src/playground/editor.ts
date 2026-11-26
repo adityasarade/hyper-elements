@@ -1,6 +1,5 @@
-// The playground's code editor: CodeMirror, on the site's dark code surface with a color theme of its own (the site's
-// static code blocks are greyscale; code someone is writing reads better in color), and the template's diagnostics on
-// the lines they're about.
+// The playground's code editor: CodeMirror, on the site's dark code surface in the site's code colors
+// (src/lib/syntax.mjs), and the template's diagnostics on the lines they're about.
 import { autocompletion, closeBrackets, closeBracketsKeymap, completionKeymap, type Completion, type CompletionContext } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { javascript } from "@codemirror/lang-javascript";
@@ -10,6 +9,7 @@ import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
 import { EditorState, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, drawSelection, EditorView, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers, type DecorationSet } from "@codemirror/view";
 import { tags as t } from "@lezer/highlight";
+import { SYNTAX } from "../lib/syntax.mjs";
 
 /** The editor is a code surface: dark in both of the site's themes, as its code blocks are. */
 const theme = EditorView.theme(
@@ -57,23 +57,6 @@ const theme = EditorView.theme(
   },
   { dark: true },
 );
-
-/**
- * The code's colors (the same in the HTML tab, `.pg-source` in playground.css). Four hues on the panel's near-black:
- * blue for components and calls, lavender for keywords, sand for strings, sky for numbers. Coral and mint stay out of
- * it: on this site they mean an error and a success, and a diagnostic's mark has to read as one.
- */
-export const SYNTAX = {
-  text: "#d6d6d6",
-  comment: "#6b6b6b",
-  keyword: "#c4a7e7",
-  component: "#7ab8ff",
-  call: "#9cc8ff",
-  name: "#b9c3d4",
-  string: "#e4cfa1",
-  value: "#89dceb",
-  mark: "#727272",
-};
 
 const highlight = HighlightStyle.define([
   { tag: [t.comment, t.lineComment, t.blockComment, t.docComment], color: SYNTAX.comment, fontStyle: "italic" },
