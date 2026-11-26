@@ -6,8 +6,7 @@
  * Its text is in the families the Document names: for its glyphs to be the PDF's, the page it's shown in has the same
  * font files (fontFaces()). Text in a standard PDF font is drawn in the browser's nearest (Arial has Helvetica's widths).
  */
-import { hasher } from "@hyper-elements/core";
-import { base64, imageSize, type Drawn } from "@hyper-elements/core/pdf";
+import { base64, hasher, imageSize, type Drawn } from "@hyper-elements/core/pdf";
 import type { PdfFont } from "./index";
 
 const escape = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");

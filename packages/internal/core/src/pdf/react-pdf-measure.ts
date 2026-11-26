@@ -74,13 +74,19 @@ const PROBE: DrawnDocument = {
  * textkit (one for react-pdf, another for this) measures by drawing, not by a textkit that breaks lines elsewhere.
  */
 export async function agrees(kit: Textkit): Promise<boolean> {
+  let drawn: PlacedBlock["lines"];
   try {
     await fonts.load({ fontFamily: "Helvetica", fontWeight: 400, fontStyle: "normal" });
+    drawn = (await reactPdf(PROBE)).placed?.[0]?.blocks[0]?.lines;
+  } catch {
+    // Where a PDF can't be drawn (a browser's bundle, without what drawing needs), there's nothing to hold it to.
+    return true;
+  }
+  // Where react-pdf says nothing of where it drew (an older one), there's nothing to hold it to either: as it was.
+  if (!drawn) return true;
+  try {
     const measured = measurePages(PROBE, (style) => style, kit)?.[0]?.blocks[0]?.lines;
-    const drawn = (await reactPdf(PROBE)).placed?.[0]?.blocks[0]?.lines;
-    // Where react-pdf says nothing of where it drew (an older one), there's nothing to hold it to: as it was.
-    if (!drawn) return true;
-    return !!measured && measured.length === drawn.length && measured.every((line, i) => line.text === drawn[i].text && Math.abs(line.width - drawn[i].width) <= 0.05);
+    return !!measured && measured.length === drawn.length && measured.every((line, i) => line.text === drawn![i].text && Math.abs(line.width - drawn![i].width) <= 0.05);
   } catch {
     return false;
   }
