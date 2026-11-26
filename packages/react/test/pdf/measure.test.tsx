@@ -228,8 +228,8 @@ async function compareFlowed(design: ReactElement, files: typeof fonts, label: s
   if (!laid.some(({ room, blocks: placed }) => placed.some((block) => block.y + block.height > room.bottom + 0.5))) return false;
   const { document, plan } = flowDocument(root, context, written, laid);
   const flowed = await compare(document, `${label} (flowed)`, out, strict, skew);
-  // Each page as planned fits its room, as drawn, but where no plan could: a block placed whole on it is taller than
-  // the room, or what runs past starts at the room's top and holds one block placed whole (with the padding and borders
+  // Each page as planned fits its room, as drawn, but where no plan could: a block placed whole in what runs past is
+  // taller than the room, or what runs past starts at the room's top and holds one block placed whole (with the padding and borders
   // below, it fits no page). Else, what runs past fits a page; or only the padding and borders below its last part run
   // past, which moving its last block or line on would have left room for.
   const flat = (part: PlannedPart): PlannedPart[] => [part, ...(part.children ?? []).flatMap(flat)];
@@ -238,13 +238,18 @@ async function compareFlowed(design: ReactElement, files: typeof fonts, label: s
     const inside = (part.children ?? []).filter((child) => !child.empty);
     return inside.length === 1 && ((inside[0].first && inside[0].last) || alone(inside[0]));
   };
+  // Each page goes on from the one before: none repeats it (planning that's gone round, placing nothing new).
+  const shape = (part: PlannedPart): unknown => [part.path, part.first, part.last, part.empty, part.lines?.[0]?.start, part.lines?.length, part.children?.map(shape)];
+  plan.pages.forEach((page, i) => {
+    if (i && page.from === plan.pages[i - 1].from && JSON.stringify(page.parts.map(shape)) === JSON.stringify(plan.pages[i - 1].parts.map(shape))) out.differences.push(`${label} (flowed) page ${i + 1}: as page ${i}, nothing new placed`);
+  });
   flowed.forEach(({ room, blocks }, i) => {
     const parts = plan.pages[i]?.parts ?? [];
     const over = blocks.find((block) => parts.some((part) => part.path === block.path) && block.y + block.height > room.bottom + 0.5);
     if (!over) return;
     const height = new Map(blocks.map((block) => [block.path, block.height]));
-    const tall = parts.flatMap(flat).some((part) => part.first && part.last && (height.get(part.path) ?? 0) > room.bottom - room.top + 0.5);
     const part = parts.find((p) => p.path === over.path)!;
+    const tall = flat(part).some((inner) => inner.first && inner.last && (height.get(inner.path) ?? 0) > room.bottom - room.top + 0.5);
     if (tall || (Math.abs(over.y - room.top) < 0.5 && alone(part))) return;
     const written = new Map<string, Block>();
     const walk = (block: Block) => {
@@ -358,7 +363,7 @@ function generated(seed: number): ReactElement {
         );
       case "table":
         return (
-          <Table key={key++}>
+          <Table key={key} style={key++ % 2 ? undefined : { border: "3px solid #333333" }}>
             <TableRow header>
               <TableCell>Item</TableCell>
               <TableCell>Amount</TableCell>

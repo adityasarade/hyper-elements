@@ -391,6 +391,32 @@ describe("a Document's content that doesn't fit its page", () => {
     }
   });
 
+  it("goes on past a bordered table whose last row fits only without its border, and draws what follows it", async () => {
+    // A header row and a body row fit the room (1,026.5px) together; with the table's bottom border below, they don't.
+    const design = (
+      <Document size="A4" margin={48}>
+        <Table style={{ border: { bottom: "6px solid #333" } }}>
+          <TableRow header style={{ height: 24 }}>
+            <TableCell>Inventory column</TableCell>
+          </TableRow>
+          <TableRow style={{ height: 1000 }}>
+            <TableCell>Inventory item</TableCell>
+          </TableRow>
+        </Table>
+        <Column style={{ height: 700 }}>
+          <Text>First following block</Text>
+        </Column>
+        <Column style={{ height: 700 }}>
+          <Text>Second following block</Text>
+        </Column>
+      </Document>
+    );
+    const { plan, pdf } = await renderPdf(design);
+    // The table ends on its first page (its border a few pixels past the room, as on any page), then a page each.
+    expect(plan.pages.map((page) => page.parts.map((part) => part.path))).toEqual([["root.children[0]"], ["root.children[1]"], ["root.children[2]"]]);
+    expect(await words(pdf)).toEqual(["Inventory column Inventory item", "First following block", "Second following block"]);
+  });
+
   it("fills the rest of a page with a part that goes on to the next, as a browser does: its background to the room's foot", async () => {
     const { pages, nodes } = await layoutDocument(
       <Document>

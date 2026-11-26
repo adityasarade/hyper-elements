@@ -234,6 +234,7 @@ class Planner {
     const top = piece.whole ? edgeTop(style) : 0;
     const gap = gapOf(style);
     const children = piece.children!;
+    const header = piece.header ?? [];
     // What's placed: each child placed whole (with its piece, to move it on again) or the part of one.
     const placed: Array<{ part: PlannedPart; height: number; whole?: Piece }> = [];
     const used = () => top + placed.reduce((sum, entry, i) => sum + entry.height + (i ? gap : 0), 0);
@@ -255,9 +256,10 @@ class Planner {
       // goes on with the edge. One that doesn't fit either way is split as it would be: the stack doesn't end here.
       const within = edge > 0 && height <= space + SLACK;
       let part = this.take(child, within ? space - edge : space, first, fresh);
-      // At the top of a page, all that's left of the stack: where it can't be split so (nothing of it goes on before the
-      // edge), it ends here, its edge past the room, as on any page.
-      if (within && first && (!part || (part.rest && heightOf(part.rest) >= height - SLACK))) part = { part: rest(child), height };
+      // At the top of a page, with nothing above it but a table's header rows (which go on with what's left of it): where
+      // it can't be split so (nothing of it goes on before the edge), it ends here, its edge past the room, as on any page.
+      const top = force && placed.every((entry) => entry.whole !== undefined && header.includes(entry.whole));
+      if (within && top && (!part || (part.rest && heightOf(part.rest) >= height - SLACK))) part = { part: rest(child), height };
       if (part) {
         placed.push({ part: part.part, height: part.height });
         left = part.rest ? [part.rest, ...children.slice(i + 1)] : children.slice(i + 1);
@@ -272,7 +274,6 @@ class Planner {
     // A heading (or headings) that would end the page goes on with what follows, where something else stays.
     while (left.length && placed.length > 1 && placed[placed.length - 1].whole && keptWithNext(placed[placed.length - 1].whole!)) left = [placed.pop()!.whole!, ...left];
     // A table whose header rows alone would end the page goes on whole.
-    const header = piece.header ?? [];
     if (left.length && placed.every((entry) => entry.whole && header.includes(entry.whole)) && !force) return undefined;
     if (!placed.length) return undefined;
     // A table that goes on: its header rows again on top, where they and a row fit on a page.
