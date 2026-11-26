@@ -99,19 +99,19 @@ const swatch = (colors: Record<string, string>) => `background:linear-gradient(1
           <span class="file">{file}</span>
           <button class="btn-link" type="button" aria-expanded="false" aria-controls="brand-file" data-brand-toggle>Show brand.ts</button>
         </div>
-        <CodeBlock code={t.code} color />
+        <CodeBlock code={t.code} />
         <div id="brand-file" class="brand-file" hidden>
           {list.map((b, i) => (
             <div data-brand={b.id} hidden={i !== 0}>
               <p class="code-bar"><span class="file">brand.ts</span><span class="note">{b.name}: put yours here</span></p>
-              <CodeBlock code={t.byBrand[b.id]?.brandFile ?? ""} lang="ts" color />
+              <CodeBlock code={t.byBrand[b.id]?.brandFile ?? ""} lang="ts" />
             </div>
           ))}
         </div>
         {designs.map((d, i) => (
           <div data-design={d.name} hidden={i !== 0}>
             <p class="code-bar"><span class="file">{d.file}</span><span class="note">A design made from the template</span></p>
-            <CodeBlock code={d.code} color />
+            <CodeBlock code={d.code} />
           </div>
         ))}
         <p class="one-file">

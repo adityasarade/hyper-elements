@@ -277,11 +277,12 @@ const outputs = [
   .cc-bar { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-bottom: 1px solid var(--line); font: 500 12px var(--mono); color: var(--text-3); }
   .dots { display: inline-flex; gap: 5px; margin-right: 4px; }
   .dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--bg-3); }
-  .cc-code { margin: 0; padding: 18px 18px 20px; font: 400 13.5px/1.75 var(--mono); color: #a1a1a1; white-space: pre; overflow: hidden; }
-  .cc-code .k { color: #a1a1a1; }
-  .cc-code .fn { color: #ededed; }
-  .cc-code .tg { color: #ededed; }
-  .cc-code .cm { color: #6e6e6e; }
+  /* The site's code colors (src/lib/syntax.mjs). */
+  .cc-code { margin: 0; padding: 18px 18px 20px; font: 400 13.5px/1.75 var(--mono); color: #d6d6d6; white-space: pre; overflow: hidden; }
+  .cc-code .k { color: #c4a7e7; }
+  .cc-code .fn { color: #9cc8ff; }
+  .cc-code .tg { color: #7ab8ff; }
+  .cc-code .cm { color: #6b6b6b; }
   .cc-code [data-token] { display: inline-block; }
   .cc-code [data-token="root"] { color: #ffffff; font-weight: 600; }
   .cc-code [data-token="out"] { color: #cfcfcf; }
