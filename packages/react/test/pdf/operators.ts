@@ -42,3 +42,21 @@ export async function glyphs(page: Awaited<ReturnType<Awaited<ReturnType<typeof 
   });
   return out;
 }
+
+/** Each image a page of the PDF draws (its unit square, transformed), in points from the page's top left. */
+export async function images(page: Awaited<ReturnType<Awaited<ReturnType<typeof getDocument>["promise"]>["getPage"]>>): Promise<Array<{ x: number; y: number; width: number; height: number }>> {
+  const height = page.view[3];
+  const { fnArray, argsArray } = await page.getOperatorList();
+  const out: Array<{ x: number; y: number; width: number; height: number }> = [];
+  const matrix = (args: unknown[]): Matrix => Array.from((Array.isArray(args[0]) || ArrayBuffer.isView(args[0]) ? args[0] : args) as ArrayLike<number>);
+  let ctm: Matrix = [1, 0, 0, 1, 0, 0];
+  const saved: Matrix[] = [];
+  fnArray.forEach((fn, i) => {
+    const args = argsArray[i] as unknown[];
+    if (fn === OPS.save) saved.push(ctm);
+    else if (fn === OPS.restore) ctm = saved.pop() ?? ctm;
+    else if (fn === OPS.transform) ctm = times(ctm, matrix(args));
+    else if (fn === OPS.paintImageXObject || fn === OPS.paintInlineImageXObject) out.push({ x: ctm[4], y: height - ctm[5] - ctm[3], width: ctm[0], height: ctm[3] });
+  });
+  return out;
+}

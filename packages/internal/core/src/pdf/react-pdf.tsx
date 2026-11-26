@@ -24,16 +24,17 @@ const encode = (bytes: Uint8Array) => {
 };
 
 /**
- * Each family registered under a name made from its files (so a render draws a family from the files it was given,
- * never from ones another render gave under the same name, and the same files are registered once), with the styles
- * its files are in: by family.
+ * Each family registered under a name made from it and its files (so a render draws a family from the files it was
+ * given, never from ones another render gave under the same name, and a family's files are registered once), with the
+ * styles its files are in: by family. Its name goes in: the same files given as two families are two fonts, each drawn
+ * as the family it was given as (faceOf()).
  */
 function register(fonts: readonly FontFile[]): Map<string, { name: string; styles: Set<string>; files: Array<{ weight: number; style: string }> }> {
   const byFamily = new Map<string, Array<{ data: string; digest: string; weight: number; style: string }>>();
   for (const font of fonts) byFamily.set(font.family, [...(byFamily.get(font.family) ?? []), { ...encode(font.data), weight: font.weight, style: font.style }]);
   const names = new Map<string, { name: string; styles: Set<string>; files: Array<{ weight: number; style: string }> }>();
   for (const [family, files] of byFamily) {
-    const name = `elements-${sha256(new TextEncoder().encode(files.map((file) => `${file.weight}|${file.style}|${file.digest}\n`).join(""))).slice(0, 32)}`;
+    const name = `elements-${sha256(new TextEncoder().encode(`${family}\n${files.map((file) => `${file.weight}|${file.style}|${file.digest}\n`).join("")}`)).slice(0, 32)}`;
     if (!registered.has(name)) {
       for (const file of files) Font.register({ family: name, src: `data:font/ttf;base64,${file.data}`, fontWeight: file.weight, fontStyle: file.style as "normal" | "italic" });
       registered.add(name);

@@ -24,10 +24,14 @@ export interface DrawnWord {
 
 export type Drawn =
   | { kind: "rect"; x: number; y: number; width: number; height: number; fill?: string; radius?: [number, number, number, number]; border?: Partial<Record<"top" | "right" | "bottom" | "left", DrawnSide>> }
-  | { kind: "image"; x: number; y: number; width: number; height: number; src: string; fit: "fill" | "cover" | "contain" }
+  /** An image: `bottom`, fitted inside its box on its bottom edge (one in a line of text, on its baseline). */
+  | { kind: "image"; x: number; y: number; width: number; height: number; src: string; fit: "fill" | "cover" | "contain"; bottom?: boolean }
   | { kind: "drawing"; x: number; y: number; width: number; height: number; viewBox: string; shapes: Shape[] }
-  /** A run of a line's words, in one font, from its baseline. `family` as the page model names it (a given family's, lowercased, or a standard PDF font's). */
-  | { kind: "words"; baseline: number; family: string; weight: number; style: string; size: number; color: string; opacity?: number; words: DrawnWord[] }
+  /**
+   * A run of a line's words, in one font, from its baseline. `family` as the page model names it (a given family's,
+   * lowercased, or a standard PDF font's); `spacing`, what's added after each of its characters (its letter spacing).
+   */
+  | { kind: "words"; baseline: number; family: string; weight: number; style: string; size: number; color: string; opacity?: number; spacing?: number; words: DrawnWord[] }
   /** What's drawn inside a box that cuts off what's past it: its items, cut to it. */
   | { kind: "clip"; x: number; y: number; width: number; height: number; items: Drawn[] };
 
@@ -84,6 +88,20 @@ function lines(frame: PlacedFrame, out: Drawn[]): void {
       const attributes = run.attributes;
       if (run.end <= run.start) continue;
       if (typeof attributes.backgroundColor === "string") out.push({ kind: "rect", ...across(run.start, run.end), y: line.top, height: line.height, fill: attributes.backgroundColor });
+      const size = number(attributes.fontSize) || 18;
+      // A run raised or lowered (super or sub): its baseline by its yOffset, a share of its size.
+      const baseline = line.top + line.ascent - number(attributes.yOffset) * size;
+      // An image in the line (its object replacement character): as react-pdf draws one (renderAttachment), its box's
+      // right at its character's, on the baseline, the image fitted inside it on its bottom edge. Before its words.
+      const attachment = attributes.attachment as { width?: number; height?: number; src?: string } | undefined;
+      if (attachment?.src) {
+        for (let u = run.start; u < run.end; u++) {
+          if (edges.text[u] !== "\ufffc") continue;
+          const width = number(attachment.width);
+          const height = number(attachment.height);
+          out.push({ kind: "image", x: Math.max(left(u), right(u)) - width, y: baseline - height, width, height, src: attachment.src, fit: "contain", bottom: true });
+        }
+      }
       const words: DrawnWord[] = [];
       let start = run.start;
       for (let u = run.start; u <= run.end; u++) {
@@ -95,9 +113,7 @@ function lines(frame: PlacedFrame, out: Drawn[]): void {
         }
       }
       if (!words.length) continue;
-      const size = number(attributes.fontSize) || 18;
-      // A run raised or lowered (super or sub): its baseline by its yOffset, a share of its size.
-      const baseline = line.top + line.ascent - number(attributes.yOffset) * size;
+      const spacing = number(attributes.characterSpacing);
       // The font textkit chose for it (its style's, or the fallback a character takes): its face.
       const face = run.face ?? { family: "Helvetica", weight: 400, style: "normal" };
       const opacity = typeof attributes.opacity === "number" ? attributes.opacity : undefined;
@@ -110,6 +126,7 @@ function lines(frame: PlacedFrame, out: Drawn[]): void {
         size,
         color: String(attributes.color ?? "black"),
         ...(opacity !== undefined ? { opacity } : {}),
+        ...(spacing ? { spacing } : {}),
         words,
       });
     }

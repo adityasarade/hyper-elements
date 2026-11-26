@@ -7,7 +7,7 @@ import { Column, Document, Heading, Image, List, ListItem, PageFooter, PageNumbe
 import type { PlannedPart } from "@hyper-elements/core";
 import { reactPdf, writeDocument } from "@hyper-elements/core/pdf";
 import { createPaginator, layoutDocument, paginate, renderPdf } from "../../src/pdf";
-import { arabicFonts, arabicGiven, arabicSentences } from "./arabic";
+import { arabic, arabicFonts, arabicGiven, arabicSentences } from "./arabic";
 
 /** Each page's words, joined by spaces. */
 async function words(pdf: Uint8Array): Promise<string[]> {
@@ -182,6 +182,22 @@ describe("a Document's content that doesn't fit its page", () => {
       </Document>
     );
     expect(() => paginator.paginate(broken, { diagnostics: false })).toThrow(/images option/);
+  });
+
+  it("draws each family a paginator is given as that family, where another is given the same font file as another family", async () => {
+    const page = (family: string, words: string) => (
+      <Document dir="rtl" style={{ fontFamily: family }}>
+        <Text>{words}</Text>
+      </Document>
+    );
+    const first = await createPaginator({ fonts: [{ family: "Primary", src: arabic }] });
+    expect(first.paginate(page("Primary", arabicSentences(1)), { svg: true }).svg![0]).toContain(`font-family="'primary'"`);
+    const second = await createPaginator({ fonts: [{ family: "Secondary", src: arabic }] });
+    expect(second.paginate(page("Secondary", arabicSentences(1)), { svg: true }).svg![0]).toContain(`font-family="'secondary'"`);
+    // Typed into after the other was made: what's laid out anew is still in its own family.
+    const typed = first.paginate(page("Primary", arabicSentences(2)), { svg: true }).svg![0];
+    expect(typed).toContain(`font-family="'primary'"`);
+    expect(typed).not.toContain("secondary");
   });
 
   it("goes on between a table's rows, its header row on top of each page, each row once", async () => {

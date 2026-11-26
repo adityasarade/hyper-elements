@@ -7,10 +7,10 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { chromium, type Browser } from "playwright";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { Button, Column, Document, Heading, Image, List, ListItem, PageFooter, PageHeader, PageNumber, Row, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
+import { Button, Column, Document, Heading, Image, Layer, List, ListItem, PageFooter, PageHeader, PageNumber, Row, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
 import { createPaginator, fontFaces, renderPdf, type PdfFont } from "../../../src/pdf";
 import { arabic, arabicSentences } from "../arabic";
-import { glyphs } from "../operators";
+import { glyphs, images } from "../operators";
 
 let browser: Browser;
 beforeAll(async () => {
@@ -71,6 +71,14 @@ const report = (
       ))}
     </Table>
     <Image src={{ src: PNG, width: 120, height: 60 }} alt="A swatch" />
+    <Layer>
+      <Text>Under the layer, a line of its own.</Text>
+      <Text style={{ textAlign: "right", color: "#9ca3af" }}>Drawn over it</Text>
+    </Layer>
+    <Text style={{ letterSpacing: 4 }}>Letters spaced out, each where it is drawn</Text>
+    <Text>
+      Status <Image src={{ src: PNG, width: 14, height: 14 }} alt="OK" /> ready, an image in a line.
+    </Text>
     <Button href="https://example.com">Read more</Button>
     <Text style={{ textAlign: "right" }}>{sentences(120, "a long paragraph")}</Text>
   </Document>
@@ -135,6 +143,18 @@ describe("a Document's pages drawn as SVG", () => {
     // The Section's top border (3px, 2.25 points) inside its box, its middle 1.125 points down; the Column's, all four sides.
     expect(page1).toContain(`<line x1="${pt(section.x)}" y1="${Math.round((pt(section.y) + 1.125) * 100) / 100}" x2="${pt(section.x + section.width)}"`);
     expect(page1).toMatch(/<rect [^>]*fill="none" stroke="#000000" stroke-width="0.75"\/>/);
+    // Each image where its PDF draws it, the one in a line of text too (on its baseline, fitted on its bottom edge).
+    const { pdf } = await renderPdf(report, { fonts });
+    const document = await getDocument({ data: pdf.slice(), useSystemFonts: false, disableFontFace: true, verbosity: 0 }).promise;
+    const drawn = await images(await document.getPage(1));
+    const inSvg = [...page1.matchAll(/<image x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/g)].map((m) => m.slice(1).map(Number));
+    expect(drawn.length).toBe(2);
+    expect(inSvg.length).toBe(2);
+    for (const image of drawn) {
+      const near = inSvg.filter(([x, y, width, height]) => Math.abs(x - image.x) < 0.05 && Math.abs(y - image.y) < 0.05 && Math.abs(width - image.width) < 0.05 && Math.abs(height - image.height) < 0.05);
+      expect(near, JSON.stringify(image)).toHaveLength(1);
+    }
+    expect(page1).toContain('preserveAspectRatio="xMidYMax meet"');
     // Its content cut to its room: below the header, above the footer, inside the margins.
     const [room] = layout!.pages;
     expect(page1).toContain(`viewBox="36 ${pt(room.room.top)} ${523.28} ${pt(room.room.bottom - room.room.top)}" overflow="hidden"`);

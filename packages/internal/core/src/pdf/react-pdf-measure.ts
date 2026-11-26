@@ -157,16 +157,24 @@ const fontId = (font: unknown): number => {
   if (id === undefined) fontIds.set(font, (id = ++fonted));
   return id;
 };
+/** An image file's number in a cache's keys: the same file, the same number. */
+const srcIds = new Map<string, number>();
+const srcId = (src: string | undefined): number => {
+  if (src === undefined) return 0;
+  let id = srcIds.get(src);
+  if (id === undefined) srcIds.set(src, (id = srcIds.size + 1));
+  return id;
+};
 /** What of a fragment's attributes lays it out or draws it (what's kept of its lines is drawn from too), in a fixed order. */
 const LAYOUT = ["fontSize", "lineHeight", "direction", "verticalAlign", "characterSpacing", "link", "align", "color", "backgroundColor", "underline", "strike"] as const;
 const keyOf = (fragments: Fragment[], width: number): string => {
   let key = String(width);
   for (const fragment of fragments) {
     const attributes = fragment.attributes as Record<string, unknown>;
-    const attachment = attributes.attachment as { width: number; height: number } | undefined;
+    const attachment = attributes.attachment as { width: number; height: number; src?: string } | undefined;
     key += `\u0001${fragment.string}\u0000${(attributes.font as unknown[]).map(fontId).join(",")}`;
     for (const name of LAYOUT) key += `|${attributes[name] ?? ""}`;
-    if (attachment) key += `|${attachment.width}x${attachment.height}`;
+    if (attachment) key += `|${attachment.width}x${attachment.height}@${srcId(attachment.src)}`;
   }
   return key;
 };
@@ -219,7 +227,8 @@ class Measurer {
       if (typeof run === "string") out.push({ string: transformed(run, style.textTransform), attributes } as Fragment);
       else if (run.kind === "image") {
         const fontSize = number(attributes.fontSize);
-        out.push({ string: "￼", attributes: { ...attributes, attachment: { width: set(run.style.width) ?? fontSize, height: set(run.style.height) ?? fontSize, image: {} } } } as unknown as Fragment);
+        // Its file goes with it (what's drawn from its lines draws it: drawing.ts), not to textkit, which only sizes it.
+        out.push({ string: "￼", attributes: { ...attributes, attachment: { width: set(run.style.width) ?? fontSize, height: set(run.style.height) ?? fontSize, image: {}, src: run.src } } } as unknown as Fragment);
       } else this.fragments(run.runs, { ...over(style, run.style), direction: run.style.direction }, run.kind === "link" ? run.href : link, out, true);
     }
     return out;
@@ -390,6 +399,8 @@ class Measurer {
     const used = at - y;
     const down = style.justifyContent === "center" ? (height - used) / 2 : style.justifyContent === "flex-end" ? height - used : 0;
     if (down) this.shift(from, this.frames.length, down);
+    // The layer itself, over all of the Layer (a block after the blocks inside it): what's drawn from it starts here.
+    this.frames.push({ block: layer, style: over(inherited, style), ...(layer.path !== undefined ? { path: layer.path } : {}), x, y, width, height });
   }
 
   /** The blocks placed from `from` up to `to` laid out again (`lay`, by a measurer of their own): as many, in their place. */

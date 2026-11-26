@@ -56,7 +56,7 @@ function item(drawn: Drawn): string {
       return out;
     }
     case "image": {
-      const aspect = drawn.fit === "cover" ? "xMidYMid slice" : drawn.fit === "contain" ? "xMidYMid meet" : "none";
+      const aspect = drawn.fit === "cover" ? "xMidYMid slice" : drawn.fit === "contain" ? (drawn.bottom ? "xMidYMax meet" : "xMidYMid meet") : "none";
       return `<image x="${n(drawn.x)}" y="${n(drawn.y)}" width="${n(drawn.width)}" height="${n(drawn.height)}" preserveAspectRatio="${aspect}" href="${escape(drawn.src)}"/>`;
     }
     case "drawing": {
@@ -64,7 +64,7 @@ function item(drawn: Drawn): string {
       return `<svg x="${n(drawn.x)}" y="${n(drawn.y)}" width="${n(drawn.width)}" height="${n(drawn.height)}" viewBox="${escape(drawn.viewBox)}">${shapes}</svg>`;
     }
     case "words": {
-      const font = `font-family="${escape(family(drawn.family))}" font-size="${n(drawn.size)}" font-weight="${drawn.weight}"${drawn.style === "italic" ? ' font-style="italic"' : ""} fill="${escape(drawn.color)}"${drawn.opacity !== undefined ? ` fill-opacity="${drawn.opacity}"` : ""}`;
+      const font = `font-family="${escape(family(drawn.family))}" font-size="${n(drawn.size)}" font-weight="${drawn.weight}"${drawn.style === "italic" ? ' font-style="italic"' : ""} fill="${escape(drawn.color)}"${drawn.opacity !== undefined ? ` fill-opacity="${drawn.opacity}"` : ""}${drawn.spacing ? ` letter-spacing="${n(drawn.spacing)}"` : ""}`;
       // Each word from where its characters are: one written left to right from its left, one written right to left (a
       // word of its own, so its letters join) from its right.
       const ltr = drawn.words.filter((word) => !word.rtl);
