@@ -8,7 +8,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { ReactElement } from "react";
-import { Button, Document, List, ListItem, PageHeader, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
+import { Button, Document, List, ListItem, PageFooter, PageHeader, PageNumber, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
 import { caretAt, caretBox, createPaginator, renderPdf, selectionBoxes, type DocumentLayout, type DocumentLine, type DocumentNode } from "../../src/pdf";
 import { arabic, arabicSentences } from "./arabic";
 import { glyphs } from "./operators";
@@ -91,8 +91,9 @@ describe("a paginator's layout with its lines", () => {
           const box = caretBox(layout, { path: node.path, offset, page: node.page })!;
           const back = caretAt(layout, { page: box.page, x: box.x, y: box.y + box.height / 2 })!;
           expect(back.path).toBe(node.path);
-          // The offset it's at, or one drawn in the same place (where a line's spaces end it, or a run meets the next).
-          expect(caretBox(layout, { ...back, page: box.page })!.x, `${node.path} at ${offset}`).toBeCloseTo(box.x, 1);
+          // The offset it's at, or one drawn in the same place (where a line's spaces end it, or a run meets the next),
+          // on the side it was found: caretBox() of it is the same box, on the same line.
+          expect(caretBox(layout, back), `${node.path} at ${offset}`).toEqual(box);
         }
       }
     }
@@ -168,6 +169,89 @@ describe("a paginator's layout with its lines", () => {
     expect(split.every((box) => box.y === line.y)).toBe(true);
     const pd = selectionBoxes(layout, { path: node.path, start: p, end: p + 2 })[0];
     expect(split.some((box) => box.x + box.width <= pd.x + 0.01) && split.some((box) => box.x >= pd.x + pd.width - 0.01)).toBe(true);
+  });
+
+  it("finds a caret on the side it's placed: the end of a line broken inside a word, where right-to-left text meets left-to-right", async () => {
+    // A word broken by a hyphen where its line ends (no space between): the end of a line is the next's start.
+    const long = await laidOut(
+      <Document style={{ fontFamily: "Liberation" }}>
+        <Text style={{ width: 200 }}>{"Internationalization ".repeat(6)}</Text>
+      </Document>
+    );
+    const [node] = lined(long);
+    const [first, second] = node.lineBoxes;
+    expect(first.end).toBe(second.start);
+    expect(node.text[first.end - 1]).not.toBe(" ");
+    // Right of its first line's last character: the end of that line, not the next's start.
+    const end = caretAt(long, { page: 1, x: first.x + first.width + 2, y: first.y + first.height / 2 })!;
+    expect(end).toMatchObject({ offset: first.end, affinity: "before" });
+    expect(caretBox(long, end)!.y).toBe(first.y);
+    // At the next line's start: that line's.
+    const start = caretAt(long, { page: 1, x: second.x, y: second.y + second.height / 2 })!;
+    expect(start).toMatchObject({ offset: second.start, affinity: "after" });
+    expect(caretBox(long, start)!.y).toBe(second.y);
+    // "PDF" in Arabic: its first offset at the Arabic word's end (before), and at P's left (after), drawn apart.
+    const words = `${arabicSentences(1)} PDF ${arabicSentences(1, 2)}`;
+    const bidi = await laidOut(
+      <Document dir="rtl" style={{ fontFamily: "Noto Arabic" }}>
+        <Text>{words}</Text>
+      </Document>
+    );
+    const [text] = lined(bidi);
+    const offset = words.indexOf("PDF");
+    for (const affinity of ["before", "after"] as const) {
+      const box = caretBox(bidi, { path: text.path, offset, affinity })!;
+      const hit = caretAt(bidi, { page: box.page, x: box.x, y: box.y + box.height / 2 })!;
+      expect(hit, affinity).toMatchObject({ offset, affinity });
+      expect(caretBox(bidi, hit)).toEqual(box);
+    }
+    expect(Math.abs(caretBox(bidi, { path: text.path, offset, affinity: "before" })!.x - caretBox(bidi, { path: text.path, offset })!.x)).toBeGreaterThan(10);
+  });
+
+  it("puts a caret in an empty text, and after a line break a text ends in, where its first character would go", async () => {
+    const layout = await laidOut(
+      <Document style={{ fontFamily: "Liberation" }}>
+        <Text id="empty">{""}</Text>
+        <Text id="centered" style={{ textAlign: "center" }}>{""}</Text>
+        <Text id="broken">{"A line\n"}</Text>
+        <Text id="next">Next</Text>
+      </Document>
+    );
+    const node = (id: string) => layout.nodes.find((node) => node.id === id)!;
+    const next = node("next").lineBoxes![0];
+    // An empty text: a line as tall as one of its text, with no characters, at its start (its alignment's).
+    for (const id of ["empty", "centered"]) {
+      const [line] = node(id).lineBoxes!;
+      expect(line, id).toMatchObject({ start: 0, end: 0, width: 0, height: next.height });
+      const box = caretBox(layout, { path: node(id).path, offset: 0 })!;
+      expect(caretAt(layout, { page: 1, x: box.x, y: box.y + box.height / 2 })!.path, id).toBe(node(id).path);
+    }
+    const content = node("empty");
+    expect(node("empty").lineBoxes![0].x).toBe(content.x);
+    expect(node("centered").lineBoxes![0].x).toBeCloseTo(content.x + content.width / 2, 0);
+    // After a line break it ends in: a line under its last, as tall.
+    const [line, after] = node("broken").lineBoxes!;
+    expect(node("broken").lineBoxes).toHaveLength(2);
+    expect(after).toMatchObject({ start: 7, end: 7, width: 0, y: line.y + line.height, height: line.height });
+    expect(caretBox(layout, { path: node("broken").path, offset: 7 })).toEqual({ page: 1, x: content.x, y: after.y, height: after.height });
+  });
+
+  it("has a footer's text on each page as that page draws it, its page number in it, on pages its content went on to", async () => {
+    const layout = await laidOut(
+      <Document>
+        <PageFooter>
+          <Text>Page <PageNumber /> of <PageNumber total /></Text>
+        </PageFooter>
+        <Text>{sentences(150, "a text that goes on")}</Text>
+      </Document>
+    );
+    const footers = lined(layout).filter((node) => node.text.startsWith("Page"));
+    expect(footers.map(({ page, text }) => ({ page, text }))).toEqual([
+      { page: 1, text: "Page 1 of 2" },
+      { page: 2, text: "Page 2 of 2" },
+    ]);
+    const [, second] = footers;
+    expect(caretBox(layout, { path: second.path, offset: 6, page: 2 })).toMatchObject({ page: 2, y: second.lineBoxes[0].y });
   });
 
   it("puts a caret between characters, never inside one: a letter and its accent, a pair of UTF-16 units", async () => {

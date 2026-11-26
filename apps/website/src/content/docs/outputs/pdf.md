@@ -193,12 +193,12 @@ A paginator's `paginate(design, { layout: true })` also gives its `layout`: `lay
 import { caretAt, caretBox, selectionBoxes } from "@hyper-elements/react/pdf";
 
 const { layout } = paginator.paginate(design, { layout: true });
-const caret = caretAt(layout, { page: 1, x: 120, y: 300 }); // the nearest: { path, offset, page }
+const caret = caretAt(layout, { page: 1, x: 120, y: 300 }); // the nearest: { path, offset, page, affinity }
 const box = caretBox(layout, caret); // where it's drawn: { page, x, y, height }
 const boxes = selectionBoxes(layout, { path: caret.path, start: 0, end: 20 });
 ```
 
-Each character is where the PDF draws its glyph. Text written right to left runs from its right, a caret never goes inside a character, and `affinity` says where an offset in two places goes: the end of a line or the start of the next.
+Each character is where the PDF draws its glyph. Text written right to left runs from its right, a caret never goes inside a character, and `affinity` says where an offset in two places goes: the end of a line or the start of the next. `caretAt()` gives the side it found, so `caretBox()` of it is where it was found. An empty text, and the end of one that ends in a line break, have a caret too, where the first character would go.
 
 ### Pages drawn for a page view
 

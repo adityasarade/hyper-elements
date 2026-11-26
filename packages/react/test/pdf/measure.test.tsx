@@ -141,13 +141,15 @@ it("measures each Document as react-pdf draws it, without drawing it", async () 
             const k = m.lines![j];
             if (l.text !== k.text || Math.abs(l.top - k.top) > 0.05 || Math.abs(l.width - k.width) > 0.05 || Math.abs(l.natural - k.natural) > 0.05) differences.push(`${label} ${b.path} line ${j + 1}: drawn ${JSON.stringify([l.text, +l.top.toFixed(2), +l.width.toFixed(2), +l.natural.toFixed(2)])}, measured ${JSON.stringify([k.text, +k.top.toFixed(2), +k.width.toFixed(2), +k.natural.toFixed(2)])}`);
           });
-          // Where each line's text is drawn, and each of its characters: its left and right edge across the page.
-          if ((b.boxes?.length ?? 0) !== (m.boxes?.length ?? 0)) {
-            differences.push(`${label} ${b.path}: ${b.boxes?.length} line boxes drawn, ${m.boxes?.length} measured`);
+          // Where each line's text is drawn, and each of its characters: its left and right edge across the page. A
+          // measured line with no characters (a caret's, in an empty text or after its line break) draws nothing.
+          const measuredBoxes = (m.boxes ?? []).filter((box) => !box.blank);
+          if ((b.boxes?.length ?? 0) !== measuredBoxes.length) {
+            differences.push(`${label} ${b.path}: ${b.boxes?.length} line boxes drawn, ${measuredBoxes.length} measured`);
             continue;
           }
           (b.boxes ?? []).forEach((l, j) => {
-            const k = m.boxes![j];
+            const k = measuredBoxes[j];
             boxes++;
             if (Math.abs(l.top - k.top) > 0.05 || Math.abs(l.height - k.height) > 0.05 || Math.abs(l.ascent - k.ascent) > 0.05) differences.push(`${label} ${b.path} line box ${j + 1}: drawn ${JSON.stringify([l.top, l.height, l.ascent])}, measured ${JSON.stringify([k.top, k.height, k.ascent])}`);
             if (!l.edges || !k.edges || l.edges.length !== k.edges.length) {

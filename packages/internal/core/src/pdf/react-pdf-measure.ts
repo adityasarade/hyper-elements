@@ -16,6 +16,7 @@ import type { Fragment } from "@react-pdf/textkit";
 import { lineEdges, type LaidOutLine, type LineEdges } from "./carets";
 import type { Block, DrawnDocument, Font as FontFile, Page, PlacedBlock, PlacedFrame, PlacedLine, PlacedPage, Run, Style } from "./model";
 import { faceOf, fontsOf } from "./react-pdf";
+import { runsText } from "./runs";
 
 const OPTIONS = { shrinkWhitespaceFactor: { before: -0.5, after: -0.5 } };
 
@@ -293,6 +294,14 @@ class Measurer {
         lines = laid.map((line) => ({ top: y + number(style.paddingTop) + line.y - first, height: line.height, text: line.text, width: line.width, natural: line.natural }));
         // react-pdf draws a text from its box's left and left padding (renderText), each line where textkit set it.
         boxes = laid.map((line, i) => ({ text: line.text, x: x + number(style.paddingLeft), top: lines![i].top, height: line.height, ascent: line.ascent, ...(line.edges ? { edges: line.edges } : {}), ...(line.decorations.length ? { decorations: line.decorations } : {}) }));
+        // Where a caret goes with no character to go by: in an empty block of text, or after the line break it ends in
+        // (textkit lays out no line after it). A line of its style with nothing in it (a zero-width space), taking no room.
+        const text = runsText(block.runs, style);
+        if (text !== undefined && (!laid.length || text.endsWith("\n"))) {
+          const blank = this.lines({ ...block, style, runs: ["\u200b"] }, Math.fround(inner))[0];
+          const last = boxes[boxes.length - 1];
+          if (blank) boxes.push({ text: "", x: x + number(style.paddingLeft) + blank.x, top: last ? last.top + last.height : y + number(style.paddingTop), height: blank.height, ascent: blank.ascent, blank: true });
+        }
         const content = laid.reduce((sum, line) => sum + line.height, 0);
         height = set(style.height) ?? tall ?? content + frame.top + frame.bottom;
         break;

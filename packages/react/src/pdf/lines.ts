@@ -40,19 +40,31 @@ export interface DocumentLine {
 /** A PDF point in px: a point is 1/72 of an inch, a px 1/96. */
 const px = (points: number) => Math.round((points / 0.75) * 100) / 100;
 
-/** Each node's text, as the page model holds it: its block of text's, or the text that's `of` it. */
-export function nodeTexts(document: DrawnDocument): Map<string, string> {
-  const out = new Map<string, string>();
-  const visit = (block: Block | undefined) => {
+/** A node's text on a page (from 0), or undefined. */
+export type NodeTexts = (path: string, page: number) => string | undefined;
+
+/**
+ * Each node's text, as the page model holds it: its block of text's, or the text that's `of` it. A page's content, as
+ * it was before it flowed (`written`: a part of a block of text that goes on has its lines in all of its text); its
+ * header and footer, as each page draws them (`drawn`: with that page's numbers).
+ */
+export function nodeTexts(written: DrawnDocument, drawn: DrawnDocument = written): NodeTexts {
+  const visit = (out: Map<string, string>) => (block: Block | undefined) => {
     if (!block) return;
     if (block.kind === "text") {
       const path = block.path ?? block.of;
       const text = runsText(block.runs, block.style);
       if (path !== undefined && text !== undefined && !out.has(path)) out.set(path, text);
-    } else if (block.kind === "box" || block.kind === "link") block.children.forEach(visit);
+    } else if (block.kind === "box" || block.kind === "link") block.children.forEach(visit(out));
   };
-  for (const page of document.pages) [page.header, ...page.content, page.footer].forEach(visit);
-  return out;
+  const content = new Map<string, string>();
+  for (const page of written.pages) page.content.forEach(visit(content));
+  const around = drawn.pages.map((page) => {
+    const out = new Map<string, string>();
+    [page.header, page.footer].forEach(visit(out));
+    return out;
+  });
+  return (path, page) => around[page]?.get(path) ?? content.get(path);
 }
 
 /** Whether the UTF-16 unit at `i` is inside a character: the second of a pair, a mark on a letter, or what a zero-width joiner joins. */
@@ -77,8 +89,13 @@ function inside(text: string, i: number): boolean {
  * lines, else matched to its text. Undefined where they can't be matched (a transform that changes its text's length).
  */
 export function documentLines(text: string, block: PlacedBlock, part: PlannedPart | undefined): DocumentLine[] | undefined {
-  const boxes = block.boxes ?? [];
-  if (!boxes.length) return undefined;
+  const all = block.boxes ?? [];
+  // A line with no characters (an empty block of text's, or the one after the line break it ends in): at its end.
+  const boxes = all.filter((box) => !box.blank);
+  const blank = all.find((box) => box.blank);
+  const end = part?.lines?.length ? part.lines[part.lines.length - 1].end : text.length;
+  const empty = blank && [{ start: end, end, x: px(blank.x), width: 0, y: px(blank.top), height: px(blank.height), baseline: px(blank.top + blank.ascent), runs: [] }];
+  if (!boxes.length) return empty || undefined;
   let ranges: Array<{ start: number; end: number; hyphenated: boolean }>;
   if (part?.lines && part.lines.length === boxes.length) {
     ranges = part.lines.map((line) => ({ start: line.start, end: line.end, hyphenated: line.hyphenated }));
@@ -87,7 +104,7 @@ export function documentLines(text: string, block: PlacedBlock, part: PlannedPar
     if (!ends) return undefined;
     ranges = ends.map((end, j) => ({ start: j === 0 ? 0 : ends[j - 1].next, end: end.end, hyphenated: end.hyphenated }));
   }
-  return boxes.map((box, j) => lineOf(text, box, ranges[j]));
+  return [...boxes.map((box, j) => lineOf(text, box, ranges[j])), ...(empty || [])];
 }
 
 function lineOf(text: string, box: PlacedLine, range: { start: number; end: number; hyphenated: boolean }): DocumentLine {

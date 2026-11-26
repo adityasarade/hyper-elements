@@ -20,7 +20,7 @@ import { nodeTexts } from "./lines";
 import { pageSvg } from "./svg";
 
 export type { DocumentLayout, DocumentLine, DocumentNode, DocumentPage, DocumentRun } from "./layout";
-export { caretAt, caretBox, selectionBoxes, type Caret, type CaretBox, type CaretOptions, type PagePoint, type SelectionBox } from "./caret";
+export { caretAt, caretBox, selectionBoxes, type Caret, type CaretBox, type CaretHit, type CaretOptions, type PagePoint, type SelectionBox } from "./caret";
 export { fontFaces } from "./svg";
 export type { Plan, PlannedLine, PlannedPage, PlannedPart } from "@hyper-elements/core";
 
@@ -175,7 +175,7 @@ function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snap
   return {
     plan,
     diagnostics,
-    ...(lines ? { layout: documentLayout(document.root, pages.pages, placed, diagnostics, plan, nodeTexts(document.written)) } : {}),
+    ...(lines ? { layout: documentLayout(document.root, pages.pages, placed, diagnostics, plan, nodeTexts(document.written, pages)) } : {}),
     ...(svg ? { svg: pages.pages.map((page, i) => pageSvg(drawPage(page, placed[i]) ?? [], page.width, page.height)) } : {}),
   };
 }

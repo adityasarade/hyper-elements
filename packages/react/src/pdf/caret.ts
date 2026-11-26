@@ -50,12 +50,24 @@ export interface SelectionBox {
 
 const lined = (node: DocumentNode): node is DocumentNode & { lineBoxes: DocumentLine[] } => node.lineBoxes !== undefined && node.lineBoxes.length > 0;
 
-/** The caret nearest a place on a page: in the line it's on (or the nearest), at the nearest edge between characters. */
-export function caretAt(layout: DocumentLayout, point: PagePoint): (Caret & { page: number }) | undefined {
+/** A caret found at a place on a page: on its page, with the affinity that puts it there (caretBox() of it is where it was found). */
+export interface CaretHit extends Caret {
+  page: number;
+  affinity: "before" | "after";
+}
+
+/**
+ * The caret nearest a place on a page: in the line it's on (or the nearest), at the nearest edge between characters.
+ * Its `affinity` is the side it was found on, where its offset is in two places (the end of a line and the start of the
+ * next, or where text written one way meets text written the other): caretBox() of it is where it was found.
+ */
+export function caretAt(layout: DocumentLayout, point: PagePoint): CaretHit | undefined {
   const nodes = layout.nodes.filter((node) => node.page === point.page && lined(node)) as Array<DocumentNode & { lineBoxes: DocumentLine[] }>;
   if (!nodes.length) return undefined;
-  // In a node whose box holds the place, the innermost; else any on its page.
-  const holding = nodes.filter((node) => point.x >= node.x && point.x <= node.x + node.width && point.y >= node.y && point.y <= node.y + node.height);
+  // In a node whose box holds the place (or one of its lines: an empty block of text's is taller than its box), the
+  // innermost; else any on its page. Of two as near, the first.
+  const holds = (x: number, y: number, width: number, height: number) => point.x >= x && point.x <= x + width && point.y >= y && point.y <= y + height;
+  const holding = nodes.filter((node) => holds(node.x, node.y, node.width, node.height) || node.lineBoxes.some((line) => holds(line.x, line.y, line.width, line.height)));
   const candidates = holding.length ? holding : nodes;
   let best: { node: DocumentNode; line: DocumentLine; down: number; across: number } | undefined;
   for (const node of candidates) {
@@ -69,17 +81,25 @@ export function caretAt(layout: DocumentLayout, point: PagePoint): (Caret & { pa
   const { node, line } = best;
   let offset = line.start;
   let distance = Infinity;
+  let x = line.x;
   for (const run of line.runs) {
-    run.carets.forEach((x, i) => {
-      const d = Math.abs(x - point.x);
+    run.carets.forEach((at, i) => {
+      const d = Math.abs(at - point.x);
       // The nearest; of two as near, the first (an offset inside a character has its character's caret).
       if (d < distance - 1e-9) {
         distance = d;
         offset = run.start + i;
+        x = at;
       }
     });
   }
-  return { path: node.path, offset, page: point.page };
+  // Its side: where caretBox() puts it, on this line at this place ("after" where either does).
+  const hit = { path: node.path, offset, page: point.page };
+  const there = (affinity: "before" | "after") => {
+    const box = caretBox(layout, { ...hit, affinity });
+    return box !== undefined && box.y === line.y && Math.abs(box.x - x) < 0.01;
+  };
+  return { ...hit, affinity: there("after") || !there("before") ? "after" : "before" };
 }
 
 /** The run of a line an offset is in, by its affinity where it's at a run's edge. */

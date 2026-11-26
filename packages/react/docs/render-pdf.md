@@ -136,7 +136,7 @@ A ListItem's, a TableCell's and a Button's text is their own. Three plain functi
 import { caretAt, caretBox, createPaginator, selectionBoxes } from "@hyper-elements/react/pdf";
 
 const { layout } = paginator.paginate(design, { layout: true });
-const caret = caretAt(layout, { page: 1, x: 120, y: 300 }); // { path, offset, page }: the nearest
+const caret = caretAt(layout, { page: 1, x: 120, y: 300 }); // { path, offset, page, affinity }: the nearest
 const box = caretBox(layout, caret); // { page, x, y, height }: where it's drawn
 const boxes = selectionBoxes(layout, { path: caret.path, start: 0, end: 20 }); // a box for each stretch on each line
 ```
@@ -144,7 +144,8 @@ const boxes = selectionBoxes(layout, { path: caret.path, start: 0, end: 20 }); /
 - **Where the PDF draws it:** each character is where its glyph is, with the spaces justified or squeezed to fit; a glyph drawn for several characters (a ligature) shares its width between them.
 - **Right to left:** text written right to left runs from its right, and words written left to right in it from their left. A selection across them has a box for each stretch drawn apart.
 - **Between characters:** a caret never goes inside one (a UTF-16 pair, or a letter and its accent).
-- **Two places:** where an offset is in two (the end of a line and the start of the next, or where text written one way meets text written the other), `affinity` says which: `"after"` (by default) or `"before"`. A node in a PageHeader or PageFooter is on every page: give `page` for its caret on one.
+- **Two places:** where an offset is in two (the end of a line and the start of the next, or where text written one way meets text written the other), `affinity` says which: `"after"` (by default) or `"before"`. `caretAt()` gives the side it found the caret on, so `caretBox()` of it is where it was found. A node in a PageHeader or PageFooter is on every page, with that page's text (its page number): give `page` for its caret on one.
+- **No characters:** an empty text, and the end of one that ends in a line break, have a line with no characters, as tall as one of its text and where its first character would go, so a caret goes there too. The PDF draws nothing for it.
 
 A keystroke on a 28-page report is laid out again with its lines in about 12ms. To draw text where its carets are, draw it in the same font files.
 

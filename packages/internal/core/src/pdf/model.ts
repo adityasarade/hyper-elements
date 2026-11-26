@@ -135,6 +135,12 @@ export interface PlacedLine {
   edges?: LineEdges;
   /** Its underlines and strike-throughs, as textkit sets them: from `x` across and from its top down. */
   decorations?: Array<{ x: number; y: number; width: number; height: number; color: string; style: string }>;
+  /**
+   * A line with no characters, where a caret goes in an empty block of text or after the line break it ends in: as tall
+   * as a line of its text, where one would start (`x`, its alignment's). Nothing is drawn of it, and it isn't one of the
+   * block's `lines` (it takes no room).
+   */
+  blank?: true;
 }
 
 /** Where an engine drew a page's blocks, and the content's room on it: what's past the room's bottom is cut off. */

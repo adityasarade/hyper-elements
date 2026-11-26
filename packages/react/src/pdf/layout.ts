@@ -6,7 +6,7 @@
 import type { Plan, PlannedPart } from "@hyper-elements/core";
 import type { Page, PlacedBlock, PlacedPage } from "@hyper-elements/core/pdf";
 import type { Diagnostic, ResolvedNode } from "@hyper-elements/react";
-import { documentLines, type DocumentLine } from "./lines";
+import { documentLines, type DocumentLine, type NodeTexts } from "./lines";
 
 export type { DocumentLine, DocumentRun } from "./lines";
 
@@ -104,7 +104,7 @@ function partsOf(parts: PlannedPart[], out = new Map<string, PlannedPart>()): Ma
  * The Document as laid out: its pages, and each block on each; with the plan it was flowed by, where it was. `texts`,
  * each node's text (lines.ts's nodeTexts()): with its lines, where they were drawn with their characters.
  */
-export function documentLayout(root: ResolvedNode, pages: Page[], placed: PlacedPage[], diagnostics: Diagnostic[], plan?: Plan, texts?: ReadonlyMap<string, string>): DocumentLayout {
+export function documentLayout(root: ResolvedNode, pages: Page[], placed: PlacedPage[], diagnostics: Diagnostic[], plan?: Plan, texts?: NodeTexts): DocumentLayout {
   const nodes = byPath(root);
   return {
     pages: pages.map((page, i) => ({ page: i + 1, width: px(page.width), height: px(page.height), room: { top: px(placed[i].room.top), bottom: px(placed[i].room.bottom) } })),
@@ -117,7 +117,7 @@ export function documentLayout(root: ResolvedNode, pages: Page[], placed: Placed
         const cut = outside.some((path) => inside(block.path, path)) ? undefined : cutOf(block, room);
         const part = parts.get(block.path);
         const count = block.lines?.length ?? part?.lines?.length;
-        const text = texts?.get(block.path);
+        const text = texts?.(block.path, i);
         const lineBoxes = text !== undefined ? documentLines(text, block, part) : undefined;
         return {
           path: block.path,
