@@ -578,6 +578,34 @@ describe("a Document's content that doesn't fit its page", () => {
     expect((await paginate(design, { fonts })).plan).toEqual((await createPaginator({ fonts })).paginate(design).plan);
   });
 
+  it("measures a page number in a list item beside a list in it as it's drawn, so the list goes on whole", async () => {
+    const design = (
+      <Document size="A5" margin={{ top: 300, bottom: 300, left: 48, right: 48 }}>
+        {Array.from({ length: 6 }, (_, i) => (
+          <Text key={i}>Opening record {i + 1}</Text>
+        ))}
+        <List id="numbered-list" style={{ width: 92, fontFamily: "Courier" }}>
+          <ListItem>
+            Total <PageNumber total />
+            <List>
+              <ListItem>OK</ListItem>
+            </List>
+          </ListItem>
+        </List>
+        {Array.from({ length: 75 }, (_, i) => (
+          <Text key={i}>Closing record {i + 1}</Text>
+        ))}
+      </Document>
+    );
+    const layout = await layoutDocument(design);
+    expect(layout.pages.length).toBeGreaterThanOrEqual(10);
+    expect(layout.nodes.filter((node) => node.cut)).toEqual([]);
+    expect(layout.nodes.find((node) => node.id === "numbered-list")?.page).toBe(2);
+    const { plan } = await renderPdf(design);
+    expect((await createPaginator()).paginate(design).plan).toEqual(plan);
+    expect((await paginate(design)).plan).toEqual(plan);
+  });
+
   it("plans the same pages and hashes from every entry point where page numbers grow a digit", async () => {
     const design = (
       <Document size="A5">

@@ -355,6 +355,26 @@ describe("renderPdf", () => {
     expect(Buffer.from(replaced.pdf).equals(fresh.pdf)).toBe(true);
   });
 
+  it("sizes a whole JPEG with padding after its end as react-pdf draws it, with a width or without", async () => {
+    const original = readFileSync(new URL("../../../../templates/_assets/images/speaker.jpg", import.meta.url));
+    const url = "https://example.test/photo.jpg";
+    for (const width of [120, undefined]) {
+      const design = (
+        <Document size="A5" margin={{ top: 300, bottom: 300, left: 48, right: 48 }}>
+          <Image id="photo" src={url} alt="Speaker" style={{ width }} />
+          <Text>Caption</Text>
+        </Document>
+      );
+      const padded = { images: { [url]: Buffer.concat([original, Buffer.alloc(32)]) } };
+      const drawn = (await layoutDocument(design, padded)).nodes.find((node) => node.id === "photo")!.height;
+      expect(drawn, `width ${width}`).toBeGreaterThan(0);
+      const { pdf } = await renderPdf(design, padded);
+      expect(await images(await (await getDocument({ data: pdf.slice(), verbosity: 0 }).promise).getPage(1)), `width ${width}`).toHaveLength(1);
+      const preview = (await createPaginator(padded)).paginate(design, { layout: true });
+      expect(preview.layout!.nodes.find((node) => node.id === "photo")!.height, `width ${width}`).toBeCloseTo(drawn);
+    }
+  });
+
   it("measures a PNG cut short (its header whole) as react-pdf draws it, left out: the same plan without drawing", async () => {
     const bytes = Buffer.from(png(100, 700).split(",")[1], "base64").subarray(0, 33);
     const design = (

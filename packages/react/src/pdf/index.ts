@@ -396,13 +396,15 @@ interface Numbering {
 function numbersIn(document: DrawnDocument, of: (page: number) => PageNumbers): Map<string, PageNumbers> {
   const out = new Map<string, PageNumbers>();
   document.pages.forEach((page, i) => {
-    const visit = (block: Block) => {
+    // A text with no path of its own (a list item's, beside a list in it) by the nearest block around it that has one:
+    // the writer finds its numbers there (numbersAt()).
+    const visit = (block: Block, around: string | undefined) => {
+      const at = block.path ?? (block.kind === "text" ? block.of : undefined) ?? around;
       if (block.kind === "text") {
-        const path = block.path ?? block.of;
-        if (path !== undefined && markedRuns(block.runs) && !out.has(path)) out.set(path, of(i));
-      } else if (block.kind === "box" || block.kind === "link") block.children.forEach(visit);
+        if (at !== undefined && markedRuns(block.runs) && !out.has(at)) out.set(at, of(i));
+      } else if (block.kind === "box" || block.kind === "link") block.children.forEach((child) => visit(child, at));
     };
-    page.content.forEach(visit);
+    page.content.forEach((block) => visit(block, undefined));
   });
   return out;
 }
