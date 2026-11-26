@@ -6,6 +6,7 @@
  * named here: an engine's adapter draws what this writes (react-pdf.tsx).
  */
 import { assetParts, documentPages, htmlText, linkParts, pageBox, videoParts, type Asset, type BorderSide, type LinkValue, type ResolvedNode } from "../index";
+import { imageSize } from "./image-size";
 import { flowPage } from "./flow";
 import { Painter } from "./paint";
 import type { MeasuredPage, Plan, PlannedPage } from "../plan";
@@ -30,6 +31,11 @@ export const thumbnailOf = (video: ResolvedNode): string | undefined =>
   video.props.thumbnail ? assetParts(video.props.thumbnail as Asset).src : videoParts(String(video.props.src))?.thumbnail;
 
 const shown = (node: ResolvedNode) => !node.hidden?.desktop;
+/** An image file's own size, where its header can be read (image-size.ts). */
+const sized = (src: string): { size?: { width: number; height: number } } => {
+  const size = imageSize(src);
+  return size ? { size } : {};
+};
 const nodes = (node: ResolvedNode) => node.children.filter((child): child is ResolvedNode => typeof child !== "string" && shown(child));
 const present = <T>(items: Array<T | undefined>): T[] => items.filter((item): item is T => item !== undefined);
 
@@ -261,7 +267,7 @@ class Writer {
     if (cover !== undefined) Object.assign(style, { width: "100%", height: pt(cover), objectFit: "cover" });
     else if (typeof node.style.height !== "number" && drawn && width && height) style.height = pt((drawn * height) / width);
     const source = this.context.image(src);
-    if (source) return { kind: "image", src: source, style };
+    if (source) return { kind: "image", src: source, style, ...sized(source) };
     const alt = String(node.props.alt ?? "");
     return { kind: "box", style: { ...style, objectFit: undefined, overflow: "hidden" }, children: alt ? [{ kind: "text", style: this.text(node), runs: [alt] }] : [] };
   }
@@ -386,7 +392,7 @@ class Writer {
       kind: "link",
       href: src,
       style: { ...placed, textDecoration: "none" },
-      children: [image ? { kind: "image", src: image, style: { width: node.width !== null ? pt(node.width) : undefined } } : { kind: "text", style: this.text(node), runs: [String(node.props.title ?? "Video")] }],
+      children: [image ? { kind: "image", src: image, style: { width: node.width !== null ? pt(node.width) : undefined }, ...sized(image) } : { kind: "text", style: this.text(node), runs: [String(node.props.title ?? "Video")] }],
     };
   }
 }

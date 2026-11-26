@@ -10,13 +10,43 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createElement, type ReactElement } from "react";
-import { Column, Document, Heading, Image, List, ListItem, PageFooter, PageHeader, PageNumber, prepare, Row, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
+import { deflateSync } from "node:zlib";
+import { Button, Column, Document, Heading, Image, Layer, List, ListItem, PageFooter, PageHeader, PageNumber, prepare, Row, Section, Span, Table, TableCell, TableRow, Text, Video } from "@hyper-elements/react";
+import type { ResolvedNode } from "@hyper-elements/core";
 import { createLayout, flowDocument, reactPdf, reactPdfLayout, writeDocument, type DrawnDocument, type Layout, type PlacedPage } from "@hyper-elements/core/pdf";
 import { gallery } from "../../src/primitives/examples/gallery";
 import { stress } from "../../src/primitives/examples/stress";
 import { arabicFonts, arabicSentences } from "./arabic";
 const liberation = (name: string) => readFileSync(join(dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")), "standard_fonts", name));
 const PNG = `data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==`;
+/** A PNG `width` by `height` pixels, gray, as a data URI. */
+function png(width: number, height: number): string {
+  const chunk = (type: string, data: Buffer) => {
+    const out = Buffer.alloc(12 + data.length);
+    out.writeUInt32BE(data.length, 0);
+    out.write(type, 4, "latin1");
+    data.copy(out, 8);
+    let crc = ~0;
+    for (const byte of out.subarray(4, 8 + data.length)) {
+      crc ^= byte;
+      for (let k = 0; k < 8; k++) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    }
+    out.writeUInt32BE(~crc >>> 0, 8 + data.length);
+    return out;
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 0, 0, 0, 0], 8);
+  const rows = Buffer.alloc((width + 1) * height, 0x80);
+  for (let y = 0; y < height; y++) rows[y * (width + 1)] = 0;
+  const file = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", header), chunk("IDAT", deflateSync(rows)), chunk("IEND", Buffer.alloc(0))]);
+  return `data:image/png;base64,${file.toString("base64")}`;
+}
+const photo = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "../../../../templates/_assets/companies/nike/pick-1.jpg"));
+/** The photo turned on its side by its EXIF (orientation 6): an APP1 segment after its start. */
+const turned = Buffer.concat([photo.subarray(0, 2), Buffer.from([0xff, 0xe1, 0, 34, ...Buffer.from("Exif\0\0", "latin1"), 0x4d, 0x4d, 0, 42, 0, 0, 0, 8, 0, 1, 0x01, 0x12, 0, 3, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0]), photo.subarray(2)]);
+const jpeg = (bytes: Buffer) => `data:image/jpeg;base64,${bytes.toString("base64")}`;
 const para = (i: number) => `Paragraph ${i}: Elements writes the same design to email, the web, print and PDF, so this stands in for a section.`;
 const synthetic: Record<string, ReactElement> = {
   aligned: <Document>{(["left", "center", "right", "justify"] as const).map((a) => <Text key={a} style={{ textAlign: a }}>{Array.from({ length: 30 }, (_, i) => (i % 5 === 2 ? <Span key={i} style={{ fontWeight: 700 }}>{`Bold ${i}. `}</Span> : `Sentence ${i} of a paragraph. `))}</Text>)}</Document>,
@@ -46,6 +76,44 @@ const synthetic: Record<string, ReactElement> = {
           </TableRow>
         ))}
       </Table>
+    </Document>
+  ),
+  // Images sized by their files, where nothing gives their height: a wide PNG, a photo as wide as its page, one turned
+  // on its side by its EXIF, a video's thumbnail, and one taller than its page (no taller than its area).
+  sized: (
+    <Document style={{ gap: 8 }}>
+      <Image src={png(40, 10)} alt="Wide" style={{ width: 300 }} />
+      <Image src={jpeg(photo)} alt="A photo" />
+      <Row style={{ gap: 12 }}>
+        <Column style={{ width: 140 }}>
+          <Image src={jpeg(turned)} alt="Turned" style={{ width: 120 }} />
+        </Column>
+        <Column>
+          <Text>{para(1)}</Text>
+        </Column>
+      </Row>
+      <Video src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" thumbnail={png(16, 9)} style={{ width: 240 }} />
+      <Image src={png(2, 30)} alt="Taller than its page" style={{ width: 400 }} />
+      <Text>{para(2)}</Text>
+    </Document>
+  ),
+  // Buttons, as wide as their words: react-pdf lays a Button's words out at the width it's offered and keeps those lines,
+  // aligned back into its box.
+  buttons: (
+    <Document style={{ gap: 8 }}>
+      {["invoice", "$1,234.56 well-known quarterly:", "quarterly: incomprehensibilities, amount", "Read the whole report, with every chart and table in it, as it was sent to the board"].map((words, i) => (
+        <Button key={i} href="https://example.com">
+          {words}
+        </Button>
+      ))}
+      <Row style={{ gap: 12 }}>
+        <Column style={{ width: 120 }}>
+          <Button href="https://example.com">quarterly: incomprehensibilities, amount</Button>
+        </Column>
+        <Column>
+          <Button href="https://example.com">$1,234.56 well-known quarterly:</Button>
+        </Column>
+      </Row>
     </Document>
   ),
   embedded: <Document style={{ fontFamily: "Liberation" }}>{Array.from({ length: 12 }, (_, i) => <Text key={i} style={{ textAlign: i % 2 ? "justify" : "left" }}>{`AVATAR WAVE Type ${i}: ` + para(i)}</Text>)}</Document>,
@@ -95,92 +163,305 @@ const corpus = async (): Promise<Array<[string, ReactElement]>> => [
   ...Object.entries(synthetic),
 ];
 
-it("measures each Document as react-pdf draws it, without drawing it", async () => {
-  const cases = await corpus();
-  const differences: string[] = [];
-  let docs = 0;
-  let blocks = 0;
-  let lines = 0;
-  let boxes = 0;
-  let edges = 0;
-  let unmeasured = 0;
-  let flowed = 0;
-  for (const [name, design] of cases) {
-    const { root } = prepare(design as ReactElement);
-    if (root?.type !== "Document") continue;
-    docs++;
-    const files = given[name] ?? [];
-    const context = { families: new Set(files.map((font) => font.family)), fonts: files, image: (src: string) => (src.startsWith("data:") ? src : undefined), date: new Date(0) };
-    const written = writeDocument(root, context);
-    const compare = async (document: DrawnDocument, label: string): Promise<PlacedPage[]> => {
-      const drawless = await reactPdfLayout(document);
-      const drawn = (await reactPdf(document)).placed!;
-      if (!drawless) {
-        unmeasured++;
-        differences.push(`${label}: not measured without drawing`);
-        return drawn;
+/** What a comparison counted, and each difference it found. */
+interface Tally {
+  /** Blocks laid over a Layer that react-pdf's layout keeps no lines of (it lays them out again where it draws them). */
+  overlaid: number;
+  blocks: number;
+  lines: number;
+  boxes: number;
+  edges: number;
+  unmeasured: number;
+  differences: string[];
+}
+const tally = (): Tally => ({ overlaid: 0, blocks: 0, lines: 0, boxes: 0, edges: 0, unmeasured: 0, differences: [] });
+
+/**
+ * A Document's pages measured without drawing and as react-pdf draws them, each difference past 0.05 points in `out`:
+ * every box, every line and every character's edges. `strict`: one not measured without drawing is a difference too.
+ * `skew` moves what's measured down by it (a measurer that's off, to show the comparison finds one). Its pages as
+ * measured without drawing, or as drawn where they weren't.
+ */
+async function compare(document: DrawnDocument, label: string, out: Tally, strict = true, skew = 0, overlays: readonly string[] = []): Promise<PlacedPage[]> {
+  const drawless = await reactPdfLayout(document);
+  const drawn = (await reactPdf(document)).placed!;
+  if (!drawless) {
+    out.unmeasured++;
+    if (strict) out.differences.push(`${label}: not measured without drawing`);
+    return drawn;
+  }
+  drawn.forEach((page, i) => {
+    const d = drawless[i];
+    if (Math.abs(page.room.top - d.room.top) > 0.05 || Math.abs(page.room.bottom - d.room.bottom) > 0.05) out.differences.push(`${label} page ${i + 1}: its room`);
+    const byPath = new Map(d.blocks.map((b) => [b.path, { ...b, y: b.y + skew }]));
+    for (const b of page.blocks) {
+      const m = byPath.get(b.path);
+      // Text laid over a Layer: react-pdf's layout has it 0 tall with no lines, and lays it out again where it draws it
+      // (the browser test holds its glyphs to the PDF's). Counted, not compared.
+      if (overlays.some((path) => b.path === path || b.path.startsWith(`${path}.`)) && b.height === 0 && !b.lines?.length) {
+        out.overlaid++;
+        continue;
       }
-      drawn.forEach((page, i) => {
-        const d = drawless[i];
-        if (Math.abs(page.room.top - d.room.top) > 0.05 || Math.abs(page.room.bottom - d.room.bottom) > 0.05) differences.push(`${label} page ${i + 1}: its room`);
-        const byPath = new Map(d.blocks.map((b) => [b.path, b]));
-        for (const b of page.blocks) {
-          const m = byPath.get(b.path);
-          blocks++;
-          if (!m) {
-            differences.push(`${label} ${b.path}: not measured`);
-            continue;
+      out.blocks++;
+      if (!m) {
+        out.differences.push(`${label} ${b.path}: not measured`);
+        continue;
+      }
+      if (Math.abs(b.y - m.y) > 0.05 || Math.abs(b.height - m.height) > 0.05 || Math.abs(b.x - m.x) > 0.05 || Math.abs(b.width - m.width) > 0.05) out.differences.push(`${label} ${b.path}: drawn ${JSON.stringify([b.x, b.y, b.width, b.height].map((v) => +v.toFixed(2)))}, measured ${JSON.stringify([m.x, m.y, m.width, m.height].map((v) => +v.toFixed(2)))}`);
+      if ((b.lines?.length ?? 0) !== (m.lines?.length ?? 0)) {
+        out.differences.push(`${label} ${b.path}: ${b.lines?.length} lines drawn, ${m.lines?.length} measured`);
+        continue;
+      }
+      (b.lines ?? []).forEach((l, j) => {
+        out.lines++;
+        const k = m.lines![j];
+        if (l.text !== k.text || Math.abs(l.top - k.top) > 0.05 || Math.abs(l.width - k.width) > 0.05 || Math.abs(l.natural - k.natural) > 0.05) out.differences.push(`${label} ${b.path} line ${j + 1}: drawn ${JSON.stringify([l.text, +l.top.toFixed(2), +l.width.toFixed(2), +l.natural.toFixed(2)])}, measured ${JSON.stringify([k.text, +k.top.toFixed(2), +k.width.toFixed(2), +k.natural.toFixed(2)])}`);
+      });
+      // Where each line's text is drawn, and each of its characters: its left and right edge across the page. A
+      // measured line with no characters (a caret's, in an empty text or after its line break) draws nothing.
+      const measuredBoxes = (m.boxes ?? []).filter((box) => !box.blank);
+      if ((b.boxes?.length ?? 0) !== measuredBoxes.length) {
+        out.differences.push(`${label} ${b.path}: ${b.boxes?.length} line boxes drawn, ${measuredBoxes.length} measured`);
+        continue;
+      }
+      (b.boxes ?? []).forEach((l, j) => {
+        const k = measuredBoxes[j];
+        out.boxes++;
+        if (Math.abs(l.top - k.top) > 0.05 || Math.abs(l.height - k.height) > 0.05 || Math.abs(l.ascent - k.ascent) > 0.05) out.differences.push(`${label} ${b.path} line box ${j + 1}: drawn ${JSON.stringify([l.top, l.height, l.ascent])}, measured ${JSON.stringify([k.top, k.height, k.ascent])}`);
+        if (!l.edges || !k.edges || l.edges.length !== k.edges.length) {
+          out.differences.push(`${label} ${b.path} line box ${j + 1}: ${l.edges?.length} characters drawn, ${k.edges?.length} measured`);
+          return;
+        }
+        for (let c = 0; c < l.edges.edges.length; c++) {
+          out.edges++;
+          if (Math.abs(l.x + l.edges.edges[c] - (k.x + k.edges.edges[c])) > 0.05 || l.edges.rtl[c >> 1] !== k.edges.rtl[c >> 1]) {
+            out.differences.push(`${label} ${b.path} line box ${j + 1}: character ${c >> 1}'s ${c % 2 ? "right" : "left"} edge drawn at ${(l.x + l.edges.edges[c]).toFixed(2)}, measured at ${(k.x + k.edges.edges[c]).toFixed(2)}`);
+            break;
           }
-          if (Math.abs(b.y - m.y) > 0.05 || Math.abs(b.height - m.height) > 0.05 || Math.abs(b.x - m.x) > 0.05 || Math.abs(b.width - m.width) > 0.05) differences.push(`${label} ${b.path}: drawn ${JSON.stringify([b.x, b.y, b.width, b.height].map((v) => +v.toFixed(2)))}, measured ${JSON.stringify([m.x, m.y, m.width, m.height].map((v) => +v.toFixed(2)))}`);
-          if ((b.lines?.length ?? 0) !== (m.lines?.length ?? 0)) {
-            differences.push(`${label} ${b.path}: ${b.lines?.length} lines drawn, ${m.lines?.length} measured`);
-            continue;
-          }
-          (b.lines ?? []).forEach((l, j) => {
-            lines++;
-            const k = m.lines![j];
-            if (l.text !== k.text || Math.abs(l.top - k.top) > 0.05 || Math.abs(l.width - k.width) > 0.05 || Math.abs(l.natural - k.natural) > 0.05) differences.push(`${label} ${b.path} line ${j + 1}: drawn ${JSON.stringify([l.text, +l.top.toFixed(2), +l.width.toFixed(2), +l.natural.toFixed(2)])}, measured ${JSON.stringify([k.text, +k.top.toFixed(2), +k.width.toFixed(2), +k.natural.toFixed(2)])}`);
-          });
-          // Where each line's text is drawn, and each of its characters: its left and right edge across the page. A
-          // measured line with no characters (a caret's, in an empty text or after its line break) draws nothing.
-          const measuredBoxes = (m.boxes ?? []).filter((box) => !box.blank);
-          if ((b.boxes?.length ?? 0) !== measuredBoxes.length) {
-            differences.push(`${label} ${b.path}: ${b.boxes?.length} line boxes drawn, ${measuredBoxes.length} measured`);
-            continue;
-          }
-          (b.boxes ?? []).forEach((l, j) => {
-            const k = measuredBoxes[j];
-            boxes++;
-            if (Math.abs(l.top - k.top) > 0.05 || Math.abs(l.height - k.height) > 0.05 || Math.abs(l.ascent - k.ascent) > 0.05) differences.push(`${label} ${b.path} line box ${j + 1}: drawn ${JSON.stringify([l.top, l.height, l.ascent])}, measured ${JSON.stringify([k.top, k.height, k.ascent])}`);
-            if (!l.edges || !k.edges || l.edges.length !== k.edges.length) {
-              differences.push(`${label} ${b.path} line box ${j + 1}: ${l.edges?.length} characters drawn, ${k.edges?.length} measured`);
-              return;
-            }
-            for (let c = 0; c < l.edges.edges.length; c++) {
-              edges++;
-              if (Math.abs(l.x + l.edges.edges[c] - (k.x + k.edges.edges[c])) > 0.05 || l.edges.rtl[c >> 1] !== k.edges.rtl[c >> 1]) {
-                differences.push(`${label} ${b.path} line box ${j + 1}: character ${c >> 1}'s ${c % 2 ? "right" : "left"} edge drawn at ${(l.x + l.edges.edges[c]).toFixed(2)}, measured at ${(k.x + k.edges.edges[c]).toFixed(2)}`);
-                break;
-              }
-            }
-          });
         }
       });
-      return drawless;
-    };
-    const laid = await compare(written, name);
-    // Its pages as flowed and painted (split text drawn line by line), where they don't fit: measured as drawn too.
-    if (laid.some(({ room, blocks: placed }) => placed.some((block) => block.y + block.height > room.bottom + 0.5))) {
-      flowed++;
-      await compare(flowDocument(root, context, written, laid).document, `${name} (flowed)`);
     }
+  });
+  return drawless;
+}
+
+/** A Document measured as written, then as flowed and painted where it doesn't fit: whether it flowed. */
+async function compareFlowed(design: ReactElement, files: typeof fonts, label: string, out: Tally, strict = true, skew = 0): Promise<boolean | undefined> {
+  const { root } = prepare(design);
+  if (root?.type !== "Document") return undefined;
+  const context = { families: new Set(files.map((font) => font.family)), fonts: files, image: (src: string) => (src.startsWith("data:") ? src : undefined), date: new Date(0) };
+  const written = writeDocument(root, context);
+  // What's laid over each Layer: its children after its first.
+  const overlays: string[] = [];
+  const visit = (node: ResolvedNode, path: string) => {
+    node.children.forEach((child, i) => {
+      if (typeof child === "string") return;
+      if (node.type === "Layer" && i > 0) overlays.push(`${path}.children[${i}]`);
+      visit(child, `${path}.children[${i}]`);
+    });
+  };
+  visit(root, "root");
+  const laid = await compare(written, label, out, strict, skew, overlays);
+  // Its pages as flowed and painted (split text drawn line by line), where they don't fit: measured as drawn too.
+  if (!laid.some(({ room, blocks: placed }) => placed.some((block) => block.y + block.height > room.bottom + 0.5))) return false;
+  await compare(flowDocument(root, context, written, laid).document, `${label} (flowed)`, out, strict, skew, overlays);
+  return true;
+}
+
+it("measures each Document as react-pdf draws it, without drawing it", async () => {
+  const cases = await corpus();
+  const out = tally();
+  let docs = 0;
+  let flowed = 0;
+  for (const [name, design] of cases) {
+    const result = await compareFlowed(design as ReactElement, given[name] ?? [], name, out);
+    if (result === undefined) continue;
+    docs++;
+    if (result) flowed++;
   }
-  console.info(`Measured without drawing: ${docs} Documents (${flowed} flowed too), ${blocks} blocks, ${lines} lines, ${boxes} line boxes, ${edges / 2} characters; ${unmeasured} not measured, ${differences.length} different`);
-  expect(differences).toEqual([]);
+  console.info(`Measured without drawing: ${docs} Documents (${flowed} flowed too), ${out.blocks} blocks, ${out.lines} lines, ${out.boxes} line boxes, ${out.edges / 2} characters; ${out.unmeasured} not measured, ${out.differences.length} different`);
+  expect(out.differences).toEqual([]);
   // The corpus holds what it should: the templates, and enough of every kind.
   expect(docs).toBeGreaterThan(15);
-  expect(lines).toBeGreaterThan(300);
+  expect(out.lines).toBeGreaterThan(300);
   expect(flowed).toBeGreaterThan(0);
+});
+
+/** A number from 0 up to 1, the next of a seed's (mulberry32): the same seed, the same numbers. */
+function random(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const WORDS = "the a report of invoice total amount paid due date Elements writes design email web print PDF section international characterization incomprehensibilities, quarterly: results; (draft) “quoted” 2026 $1,234.56 100% A-B well-known e.g. Ω café naïve".split(" ");
+
+/** A Document made from a seed: text of every kind in Sections, Rows of Columns, Lists, Tables, Layers, images, a Button, a header and a footer, on a paper and margins of its own. */
+function generated(seed: number): ReactElement {
+  const next = random(seed);
+  const pick = <T,>(items: readonly T[]): T => items[Math.floor(next() * items.length)];
+  const int = (from: number, to: number) => from + Math.floor(next() * (to - from + 1));
+  const chance = (p: number) => next() < p;
+  let key = 0;
+  const words = (count: number) => Array.from({ length: count }, () => pick(WORDS)).join(" ");
+  const textStyle = () => ({
+    ...(chance(0.6) ? { textAlign: pick(["left", "center", "right", "justify"] as const) } : {}),
+    ...(chance(0.4) ? { fontSize: pick([9, 10, 12, 14, 18, 24]) } : {}),
+    ...(chance(0.2) ? { letterSpacing: pick([0.5, 1, 2.5]) } : {}),
+    ...(chance(0.25) ? { lineHeight: pick([1, 1.2, 1.6, 2]) } : {}),
+    ...(chance(0.15) ? { padding: pick([2, 6, 12]) } : {}),
+  });
+  const text = (): ReactElement => (
+    <Text key={key++} style={textStyle()}>
+      {Array.from({ length: int(1, 4) }, () =>
+        chance(0.3) ? (
+          <Span key={key++} style={{ ...(chance(0.5) ? { fontWeight: 700 } : { color: "#b91c1c" }), ...(chance(0.2) ? { backgroundColor: "#fef3c7" } : {}), ...(chance(0.2) ? { textDecoration: "underline" } : {}) }}>
+            {`${words(int(1, 6))} `}
+          </Span>
+        ) : (
+          `${words(int(1, 40))} `
+        )
+      )}
+    </Text>
+  );
+  const image = (sized: boolean): ReactElement => <Image key={key++} src={png(int(1, 40), int(1, 40))} alt="A picture" style={sized || chance(0.6) ? { width: int(20, 300) } : {}} />;
+  const block = (depth: number): ReactElement => {
+    const kind = depth > 2 ? pick(["text", "text", "image", "heading"]) : pick(["text", "text", "text", "heading", "section", "row", "list", "table", "image", "layer", "button"]);
+    switch (kind) {
+      case "heading":
+        return <Heading key={key++} level={pick([1, 2, 3, 4] as const)}>{words(int(1, 8))}</Heading>;
+      case "section":
+        return (
+          <Section key={key++} style={{ padding: pick([0, 8, 16, 32]), gap: pick([0, 4, 12]), ...(chance(0.5) ? { backgroundColor: "#f3f4f6" } : {}), ...(chance(0.3) ? { border: { top: { width: pick([1, 3]), style: "solid", color: "#2563eb" } } } : {}) }}>
+            {Array.from({ length: int(1, 4) }, () => block(depth + 1))}
+          </Section>
+        );
+      case "row":
+        return (
+          <Row key={key++} style={{ gap: pick([0, 8, 16]), ...(chance(0.3) ? { alignItems: pick(["stretch", "center", "start", "end"] as const) } : {}) }}>
+            {Array.from({ length: int(2, 3) }, () => (
+              <Column key={key++} style={{ ...(chance(0.4) ? { width: pick([120, 160, 200]) } : {}), ...(chance(0.4) ? { padding: pick([4, 12]) } : {}), ...(chance(0.3) ? { backgroundColor: "#e5e7eb" } : {}) }}>
+                {Array.from({ length: int(1, 3) }, () => (chance(0.15) ? image(true) : block(depth + 2)))}
+              </Column>
+            ))}
+          </Row>
+        );
+      case "list":
+        return (
+          <List key={key++} type={pick(["number", "bullet"] as const)}>
+            {Array.from({ length: int(1, 4) }, () => (
+              <ListItem key={key++}>{words(int(1, 30))}</ListItem>
+            ))}
+          </List>
+        );
+      case "table":
+        return (
+          <Table key={key++}>
+            <TableRow header>
+              <TableCell>Item</TableCell>
+              <TableCell>Amount</TableCell>
+            </TableRow>
+            {Array.from({ length: int(1, 8) }, () => (
+              <TableRow key={key++}>
+                <TableCell>{words(int(1, 20))}</TableCell>
+                <TableCell>{`$${int(1, 999)}.00`}</TableCell>
+              </TableRow>
+            ))}
+          </Table>
+        );
+      case "image":
+        return image(false);
+      case "layer":
+        return (
+          <Layer key={key++}>
+            {text()}
+            <Text style={{ textAlign: pick(["left", "right", "center"] as const), color: "#9ca3af" }}>{words(int(1, 5))}</Text>
+          </Layer>
+        );
+      case "button":
+        return <Button key={key++} href="https://example.com">{words(int(1, 3))}</Button>;
+      default:
+        return text();
+    }
+  };
+  const margin = pick([24, 36, 48, 72]);
+  return (
+    <Document key="document" size={pick(["A4", "A5", "Letter"] as const)} margin={{ top: margin, bottom: margin, left: pick([24, 48]), right: pick([24, 48]) }} style={{ gap: pick([0, 8, 12]), ...(chance(0.7) ? { fontFamily: "Liberation" } : {}) }}>
+      {chance(0.4) ? (
+        <PageHeader>
+          <Text style={{ fontSize: 10 }}>{words(int(1, 6))}</Text>
+        </PageHeader>
+      ) : null}
+      {chance(0.4) ? (
+        <PageFooter>
+          <Text style={{ fontSize: 10, textAlign: "right" }}>
+            Page <PageNumber /> of <PageNumber total />
+          </Text>
+        </PageFooter>
+      ) : null}
+      {Array.from({ length: int(2, 14) }, () => block(0))}
+    </Document>
+  );
+}
+
+// MEASURE_SEEDS=5000 for more: a seed that fails is named, and is the same Document each time.
+const seeds = Number(process.env.MEASURE_SEEDS ?? 200);
+
+it("measures Documents made at random as react-pdf draws them, or doesn't measure them: never otherwise", async () => {
+  const out = tally();
+  let flowed = 0;
+  for (let seed = 1; seed <= seeds; seed++) if (await compareFlowed(generated(seed), fonts, `seed ${seed}`, out, false)) flowed++;
+  console.info(`Made at random and measured: ${seeds} Documents (${flowed} flowed too), ${out.blocks} blocks, ${out.lines} lines, ${out.edges / 2} characters; ${out.overlaid} laid over a Layer, ${out.unmeasured} not measured, ${out.differences.length} different`);
+  expect(out.differences).toEqual([]);
+  // Most are measured: one that isn't is drawn to measure it, which is slower, not wrong.
+  expect(out.unmeasured).toBeLessThan(seeds * 0.25);
+  expect(flowed).toBeGreaterThan(seeds / 4);
+}, 30_000 + seeds * 40);
+
+it("doesn't measure what it doesn't follow: text laid over a Layer that wraps, padding wider than its box", async () => {
+  const written = (design: ReactElement) => writeDocument(prepare(design).root!, { families: new Set(), fonts: [], image: (src: string) => src, date: new Date(0) });
+  const wraps = (
+    <Document>
+      <Layer>
+        <Text>Under the layer.</Text>
+        <Text style={{ textAlign: "center" }}>{para(1)}</Text>
+      </Layer>
+    </Document>
+  );
+  const narrow = (
+    <Document>
+      <Row>
+        <Column style={{ width: 24, padding: 12 }}>
+          <Text style={{ padding: 12 }}>{para(2)}</Text>
+        </Column>
+      </Row>
+    </Document>
+  );
+  for (const design of [wraps, narrow]) expect(await reactPdfLayout(written(design))).toBeUndefined();
+  // A line laid over a Layer on its own is measured.
+  const line = (
+    <Document>
+      <Layer>
+        <Text>{para(1)}</Text>
+        <Text style={{ textAlign: "right" }}>Draft</Text>
+      </Layer>
+    </Document>
+  );
+  expect(await reactPdfLayout(written(line))).toBeDefined();
+});
+
+it("finds a measurer that's off: what's measured a tenth of a point down is different, for every Document made at random", async () => {
+  for (let seed = 1; seed <= 5; seed++) {
+    const out = tally();
+    await compareFlowed(generated(seed), fonts, `seed ${seed}`, out, false, 0.1);
+    expect(out.unmeasured > 0 || out.differences.length > 0, `seed ${seed}`).toBe(true);
+    if (!out.unmeasured) expect(out.differences.length).toBeGreaterThan(0);
+  }
 });
 
 it("measures each Document with a Layout made once as without one, laying out again only the text that's changed", async () => {

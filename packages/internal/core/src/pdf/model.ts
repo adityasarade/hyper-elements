@@ -22,6 +22,8 @@ export interface Picture {
   /** The image's file, as a data URI (nothing is fetched). */
   src: string;
   style: Style;
+  /** Its file's own size in pixels, where its header can be read (a PNG's or a JPEG's): what an engine sizes it by where its style gives no height. */
+  size?: { width: number; height: number };
 }
 
 export interface Shape {

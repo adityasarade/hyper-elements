@@ -183,11 +183,22 @@ const keyOf = (fragments: Fragment[], width: number): string => {
 class Measurer {
   /** Every block as it's laid out, with a path or not (a block after the blocks inside it). */
   readonly frames: PlacedFrame[] = [];
+  /**
+   * The tallest an image sized by its file is drawn: its page's height inside its margins, less react-pdf's 10 points
+   * to spare (its measureImage's page area, before an image's own margins).
+   */
+  area = Infinity;
 
   constructor(
     readonly styled: (style: Style) => Style,
     private readonly kit: Textkit,
-    private readonly cache?: LineCache
+    private readonly cache?: LineCache,
+    /**
+     * The width each block of text was first offered to shrink to (as Yoga measures it at most that wide, in a box that's
+     * as wide as what it holds): react-pdf lays out its lines at that width and keeps them (measureText), whatever its
+     * box ends up as. Shared with the measurers that lay its blocks out again.
+     */
+    private readonly offered = new Map<Block, number>()
   ) {}
 
   /**
@@ -283,17 +294,24 @@ class Measurer {
     if (own === undefined) throw new Unmeasured();
     const frame = edges(style);
     const inner = own - frame.left - frame.right;
+    // Padding and borders wider than its box: Yoga's clamping of it isn't followed here.
+    if (inner < -0.001) throw new Unmeasured();
     let height: number;
     let lines: PlacedBlock["lines"];
     let boxes: PlacedLine[] | undefined;
     switch (block.kind) {
       case "text": {
-        // At the width react-pdf's flexbox hands its text layout: held in a 32-bit float.
-        const laid = this.lines({ ...block, style }, Math.fround(inner));
+        // At the width react-pdf's flexbox hands its text layout, held in a 32-bit float: the width it was first offered
+        // to shrink to, where it was (its lines kept from then, and moved back by what aligning them in it moved them:
+        // measureText's alignOffset), else its own.
+        const offered = this.offered.get(block);
+        const laid = this.lines({ ...block, style }, Math.fround(offered ?? inner));
+        const widest = Math.max(0, ...laid.map((line) => line.advance));
+        const alignOffset = offered === undefined ? 0 : (offered - widest) * (style.textAlign === "center" ? 0.5 : style.textAlign === "right" ? 1 : 0);
         const first = laid[0]?.y ?? 0;
         lines = laid.map((line) => ({ top: y + number(style.paddingTop) + line.y - first, height: line.height, text: line.text, width: line.width, natural: line.natural }));
         // react-pdf draws a text from its box's left and left padding (renderText), each line where textkit set it.
-        boxes = laid.map((line, i) => ({ text: line.text, x: x + number(style.paddingLeft), top: lines![i].top, height: line.height, ascent: line.ascent, ...(line.edges ? { edges: line.edges } : {}), ...(line.decorations.length ? { decorations: line.decorations } : {}) }));
+        boxes = laid.map((line, i) => ({ text: line.text, x: x + number(style.paddingLeft) - alignOffset, top: lines![i].top, height: line.height, ascent: line.ascent, ...(line.edges ? { edges: line.edges } : {}), ...(line.decorations.length ? { decorations: line.decorations } : {}) }));
         // Where a caret goes with no character to go by: in an empty block of text, or after the line break it ends in
         // (textkit lays out no line after it). A line of its style with nothing in it (a zero-width space), taking no room.
         const text = runsText(block.runs, style);
@@ -306,9 +324,24 @@ class Measurer {
         height = set(style.height) ?? tall ?? content + frame.top + frame.bottom;
         break;
       }
-      case "image":
-        height = set(style.height) ?? tall ?? frame.top + frame.bottom;
+      case "image": {
+        const given = set(style.height) ?? tall;
+        if (given !== undefined) {
+          height = given;
+          break;
+        }
+        // No height of its own: as react-pdf sizes it (measureImage). With no width either, it's offered its room across
+        // and takes it all, with no height: drawn 0 tall. With a width, its width over its file's ratio, no taller than
+        // its page's area. A file whose size can't be read isn't measured (react-pdf sizes it by its decoded size).
+        if (set(style.width) === undefined) {
+          height = frame.top + frame.bottom;
+          break;
+        }
+        if (!block.size) throw new Unmeasured();
+        const room = this.area - number(style.marginTop) - number(style.marginBottom);
+        height = Math.min(room, Math.fround(inner) / (block.size.width / block.size.height)) + frame.top + frame.bottom;
         break;
+      }
       case "drawing":
         height = block.height + frame.top + frame.bottom;
         break;
@@ -405,6 +438,9 @@ class Measurer {
       const across = align === "center" ? (width - own) / 2 : align === "flex-end" ? width - own : 0;
       at += this.block(child, x + across, at, own, true, inside);
     }
+    // Text laid over a Layer that wraps: react-pdf lays an absolute layer's text out at a width of its own (and keeps its
+    // lines), which this doesn't follow. A line on its own is the same at any width.
+    if (this.frames.slice(from).some((placed) => placed.block.kind === "text" && (placed.lines?.length ?? 0) > 1)) throw new Unmeasured();
     const used = at - y;
     const down = style.justifyContent === "center" ? (height - used) / 2 : style.justifyContent === "flex-end" ? height - used : 0;
     if (down) this.shift(from, this.frames.length, down);
@@ -414,7 +450,8 @@ class Measurer {
 
   /** The blocks placed from `from` up to `to` laid out again (`lay`, by a measurer of their own): as many, in their place. */
   again(from: number, to: number, lay: (measurer: Measurer) => void): void {
-    const measurer = new Measurer(this.styled, this.kit, this.cache);
+    const measurer = new Measurer(this.styled, this.kit, this.cache, this.offered);
+    measurer.area = this.area;
     lay(measurer);
     this.frames.splice(from, to - from, ...measurer.frames);
   }
@@ -440,6 +477,9 @@ class Measurer {
     const gap = number(style.gap);
     const children = block.children;
     const grows = (child: Block) => "style" in child && set(child.style.width) === undefined && number(child.style.flexGrow) > 0;
+    // An image with no width across a Row is sized by Yoga's flexbox and react-pdf's measureImage together, which
+    // this doesn't follow: not measured.
+    if (children.some((child) => child.kind === "image" && set(child.style.width) === undefined)) throw new Unmeasured();
     const widths = children.map((child) => (grows(child) ? 0 : ("style" in child ? set(child.style.width) : undefined) ?? this.intrinsic(child, width)));
     const gaps = gap * Math.max(0, children.length - 1);
     const fixed = widths.reduce((sum, w) => sum + w, 0);
@@ -491,11 +531,19 @@ class Measurer {
     const room = available - frame.left - frame.right;
     switch (block.kind) {
       case "text": {
-        const widest = Math.max(0, ...this.lines(block, room).map((line) => line.advance));
+        // Laid out at the room it's offered, as react-pdf lays it out once (measureText): its lines are those from then.
+        if (!this.offered.has(block)) this.offered.set(block, room);
+        const widest = Math.max(0, ...this.lines(block, this.offered.get(block)!).map((line) => line.advance));
         return Math.min(room, widest) + frame.left + frame.right;
       }
-      case "image":
-        return frame.left + frame.right;
+      case "image": {
+        // As react-pdf's measureImage offers it `room` at most: all of it, where it has no height; else its height
+        // times its file's ratio, no wider.
+        const height = set(style.height);
+        if (height === undefined) return available;
+        if (!block.size) throw new Unmeasured();
+        return Math.min((height - frame.top - frame.bottom) * (block.size.width / block.size.height), room) + frame.left + frame.right;
+      }
       case "drawing":
         return block.width + frame.left + frame.right;
       case "box":
@@ -540,12 +588,16 @@ function named(blocks: Array<Block | undefined>, styled: (style: Style) => Style
 
 /** A page measured: its header, its content from below the header (its gap between), its footer at the bottom of its room. */
 function measurePage(page: Page, styled: (style: Style) => Style, kit: Textkit, cache?: LineCache): PlacedPage {
+  const area = page.height - page.margin.top - page.margin.bottom - 10;
   const measurer = new Measurer(styled, kit, cache);
+  measurer.area = area;
   const left = page.margin.left;
   const width = page.width - page.margin.left - page.margin.right;
   const header = page.header ? measurer.block(page.header, left, page.margin.top, width) : 0;
   // The footer's height first (measured aside), to know where the room ends and the footer starts.
-  const footer = page.footer ? new Measurer(styled, kit, cache).block(page.footer, left, 0, width) : 0;
+  const aside = new Measurer(styled, kit, cache);
+  aside.area = area;
+  const footer = page.footer ? aside.block(page.footer, left, 0, width) : 0;
   const top = page.margin.top + header;
   const bottom = page.margin.top + page.contentHeight - footer;
   // Its content a column at least as tall as the room (react-pdf.tsx), so a part that goes on to the next page fills it.
