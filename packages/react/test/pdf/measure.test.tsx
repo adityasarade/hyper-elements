@@ -11,7 +11,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createElement, type ReactElement } from "react";
 import { Button, Column, Document, Heading, Image, Layer, List, ListItem, PageFooter, PageHeader, PageNumber, prepare, Row, Section, Span, Table, TableCell, TableRow, Text, Video } from "@hyper-elements/react";
-import { createLayout, flowDocument, reactPdf, reactPdfLayout, textkitAgrees, writeDocument, type DrawnDocument, type Layout, type PlacedPage, type Textkit } from "@hyper-elements/core/pdf";
+import type { PlannedPart } from "@hyper-elements/core";
+import { createLayout, flowDocument, reactPdf, reactPdfLayout, textkitAgrees, writeDocument, type Block, type DrawnDocument, type Layout, type PlacedPage, type Textkit } from "@hyper-elements/core/pdf";
 import { gallery } from "../../src/primitives/examples/gallery";
 import { stress } from "../../src/primitives/examples/stress";
 import { arabicFonts, arabicSentences } from "./arabic";
@@ -225,7 +226,42 @@ async function compareFlowed(design: ReactElement, files: typeof fonts, label: s
   const laid = await compare(written, label, out, strict, skew);
   // Its pages as flowed and painted (split text drawn line by line), where they don't fit: measured as drawn too.
   if (!laid.some(({ room, blocks: placed }) => placed.some((block) => block.y + block.height > room.bottom + 0.5))) return false;
-  await compare(flowDocument(root, context, written, laid).document, `${label} (flowed)`, out, strict, skew);
+  const { document, plan } = flowDocument(root, context, written, laid);
+  const flowed = await compare(document, `${label} (flowed)`, out, strict, skew);
+  // Each page as planned fits its room, as drawn, but where no plan could: a block placed whole on it is taller than
+  // the room, or what runs past starts at the room's top and holds one block placed whole (with the padding and borders
+  // below, it fits no page). Else, what runs past fits a page; or only the padding and borders below its last part run
+  // past, which moving its last block or line on would have left room for.
+  const flat = (part: PlannedPart): PlannedPart[] => [part, ...(part.children ?? []).flatMap(flat)];
+  const edge = (block?: Block) => (block && "style" in block ? Number(block.style.paddingBottom ?? 0) + Number(block.style.borderBottomWidth ?? 0) : 0);
+  const alone = (part: PlannedPart): boolean => {
+    const inside = (part.children ?? []).filter((child) => !child.empty);
+    return inside.length === 1 && ((inside[0].first && inside[0].last) || alone(inside[0]));
+  };
+  flowed.forEach(({ room, blocks }, i) => {
+    const parts = plan.pages[i]?.parts ?? [];
+    const over = blocks.find((block) => parts.some((part) => part.path === block.path) && block.y + block.height > room.bottom + 0.5);
+    if (!over) return;
+    const height = new Map(blocks.map((block) => [block.path, block.height]));
+    const tall = parts.flatMap(flat).some((part) => part.first && part.last && (height.get(part.path) ?? 0) > room.bottom - room.top + 0.5);
+    const part = parts.find((p) => p.path === over.path)!;
+    if (tall || (Math.abs(over.y - room.top) < 0.5 && alone(part))) return;
+    const written = new Map<string, Block>();
+    const walk = (block: Block) => {
+      if (block.path !== undefined) written.set(block.path, block);
+      if ("children" in block) block.children.forEach(walk);
+    };
+    document.pages[i].content.forEach(walk);
+    // The padding and borders below its part, and below its last block's, and so on down.
+    let edges = 0;
+    for (let at: PlannedPart | undefined = part; at; ) {
+      edges += edge(written.get(at.path));
+      const inside: PlannedPart[] = (at.children ?? []).filter((child) => !child.empty);
+      at = inside.length ? inside[inside.length - 1] : undefined;
+    }
+    const past = over.y + over.height - room.bottom;
+    if (over.height <= room.bottom - room.top + 0.5 || past <= edges + 0.5) out.differences.push(`${label} (flowed) page ${i + 1}: ${over.path} ends ${past.toFixed(2)} past its room`);
+  });
   return true;
 }
 

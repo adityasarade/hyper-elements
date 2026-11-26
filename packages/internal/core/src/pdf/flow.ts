@@ -6,7 +6,8 @@
  *   line that ends in a word broken by a hyphen.
  * - A stack of blocks (a Section, a Column, a List) is split between and inside them; a table between its rows, with
  *   its header rows on top of each page it goes on to. A stack that's cut has its top edge on its first part only, its
- *   bottom edge on its last (paint.ts slices its style).
+ *   bottom edge on its last (paint.ts slices its style); what it ends with goes on with that edge where the edge
+ *   doesn't fit below it.
  * - A Row of Columns taller than a page is split by its columns: each goes on to the next page in its own place, split
  *   its own way; one that has ended, or can't start on a page, keeps its room there empty. One that fits on a page goes
  *   on to the next whole, as side-by-side blocks read best together. A Row in a Row that's split stays whole.
@@ -146,27 +147,40 @@ class Planner {
     if (piece.whole && !fresh && heightOf(piece) <= this.room + SLACK) return undefined;
     const style = styleOf(piece.block);
     const top = piece.whole ? edgeTop(style) : 0;
-    const space = room - top;
-    const parts: PlannedPart[] = [];
-    const left: Piece[] = [];
-    let tallest = 0;
-    const place = (part: PlannedPart, height: number, next: Piece) => {
-      parts.push(part);
-      tallest = Math.max(tallest, height);
-      left.push(next);
-    };
-    for (const child of piece.children!) {
-      const height = heightOf(child);
-      if (child.ended) place(empty(child), 0, child);
-      else if (height <= space + SLACK) place(rest(child), height, ended(child));
-      else {
-        const taken = this.take(child, space, force);
-        if (taken) place(taken.part, taken.height, taken.rest ?? ended(child));
-        // A block that can't be split and is taller than any page: it's cut off wherever it goes, so it stays here.
-        else if (!child.text && !child.children && height > this.room + SLACK) place(rest(child), height, ended(child));
-        else place(empty(child), 0, child);
+    const bottom = edgeBottom(style);
+    const columns = (space: number) => {
+      const parts: PlannedPart[] = [];
+      const left: Piece[] = [];
+      let tallest = 0;
+      const place = (part: PlannedPart, height: number, next: Piece) => {
+        parts.push(part);
+        tallest = Math.max(tallest, height);
+        left.push(next);
+      };
+      for (const child of piece.children!) {
+        const height = heightOf(child);
+        if (child.ended) place(empty(child), 0, child);
+        else if (height <= space + SLACK) place(rest(child), height, ended(child));
+        else {
+          const taken = this.take(child, space, force);
+          if (taken) place(taken.part, taken.height, taken.rest ?? ended(child));
+          // A block that can't be split and is taller than any page: it's cut off wherever it goes, so it stays here.
+          else if (!child.text && !child.children && height > this.room + SLACK) place(rest(child), height, ended(child));
+          else place(empty(child), 0, child);
+        }
       }
+      return { parts, left, tallest };
+    };
+    let laid = columns(room - top);
+    // Every column ends here, but the Row's bottom edge doesn't fit below them: placed again, leaving it room, so that
+    // what doesn't fit then goes on with the edge. Where that leaves nothing less to go on (a column that can't be split
+    // so), they end here, the edge past the room, as on any page.
+    if (bottom > 0 && laid.left.every((child) => child.ended) && top + laid.tallest + bottom > room + SLACK) {
+      const again = columns(room - top - bottom);
+      const after = heightOf({ ...piece, whole: false, children: again.left });
+      if (!again.parts.every((part) => part.empty) && after < heightOf(piece) - SLACK) laid = again;
     }
+    const { parts, left, tallest } = laid;
     if (parts.every((part) => part.empty)) return undefined;
     const { path } = piece.measured;
     if (left.every((child) => child.ended)) return { part: { path, part: piece.parts, first: piece.whole, last: true, children: parts }, height: top + tallest + edgeBottom(style) };
@@ -228,13 +242,22 @@ class Planner {
       const child = children[i];
       const space = room - used() - (placed.length ? gap : 0);
       const height = heightOf(child);
-      if (height <= space + SLACK) {
+      // The last block placed whole ends the stack on this page: its bottom edge goes below it, here.
+      const edge = i === children.length - 1 ? edgeBottom(style) : 0;
+      if (height <= space - edge + SLACK) {
         placed.push({ part: rest(child), height, whole: child });
         continue;
       }
       // Fresh: nothing's placed before it on this page but headings kept with what follows.
       const fresh = force && placed.every((entry) => entry.whole !== undefined && keptWithNext(entry.whole));
-      const part = this.take(child, space, force && placed.length === 0, fresh);
+      const first = force && placed.length === 0;
+      // A last block that fits only without the edge below it is split leaving the edge room, so that what's left of it
+      // goes on with the edge. One that doesn't fit either way is split as it would be: the stack doesn't end here.
+      const within = edge > 0 && height <= space + SLACK;
+      let part = this.take(child, within ? space - edge : space, first, fresh);
+      // At the top of a page, all that's left of the stack: where it can't be split so (nothing of it goes on before the
+      // edge), it ends here, its edge past the room, as on any page.
+      if (within && first && (!part || (part.rest && heightOf(part.rest) >= height - SLACK))) part = { part: rest(child), height };
       if (part) {
         placed.push({ part: part.part, height: part.height });
         left = part.rest ? [part.rest, ...children.slice(i + 1)] : children.slice(i + 1);
@@ -290,8 +313,12 @@ export function flowPage(page: Page, measured: MeasuredPage, from: number): Plan
   };
   const planner = new Planner(room);
   const pages: PlannedPage[] = [];
+  // Each page takes a block or a line of what's left at least, so no plan needs more pages than there are of both.
+  // Past that, planning has gone round without placing anything (a fault here): what's left is cut off on the last page,
+  // as content too tall for one is, rather than planned without end.
+  const most = measured.blocks.reduce((sum, block) => sum + 1 + (block.lines?.length ?? 0), 1);
   while (left) {
-    if (heightOf(left) <= room + SLACK) {
+    if (heightOf(left) <= room + SLACK || pages.length >= most) {
       pages.push({ from, parts: rest(left).children ?? left.children!.map(rest) });
       left = undefined;
     } else {

@@ -312,6 +312,85 @@ describe("a Document's content that doesn't fit its page", () => {
     expect(section[1].y + section[1].height - (last.y + last.height)).toBeCloseTo(24, 1);
   });
 
+  it("ends a Section or a Row with its bottom padding and border on its page: what's last goes on with them where they don't fit after it", async () => {
+    const line = (i: number) => (
+      <Text key={i} style={{ fontSize: 14, lineHeight: 1.5 }}>
+        Line {i + 1}
+      </Text>
+    );
+    const footer = (
+      <PageFooter>
+        <Text style={{ fontSize: 11 }}>
+          Page <PageNumber /> of <PageNumber total />
+        </Text>
+      </PageFooter>
+    );
+    // As many lines as end anywhere in the last 60px of a page: some of them within its bottom padding and border.
+    const sections = Array.from({ length: 11 }, (_, n) => (
+      <Document size="A4" margin={48}>
+        {footer}
+        <Section style={{ padding: 40, border: "2px solid #336", backgroundColor: "#eef" }}>{Array.from({ length: 40 + n }, (_, i) => line(i))}</Section>
+      </Document>
+    ));
+    const rows = Array.from({ length: 11 }, (_, n) => (
+      <Document size="A4" margin={48}>
+        <Row style={{ padding: 40, gap: 16, backgroundColor: "#eef" }}>
+          <Column>{Array.from({ length: 88 + n }, (_, i) => line(i))}</Column>
+          <Column>{Array.from({ length: 5 }, (_, i) => line(i))}</Column>
+        </Row>
+      </Document>
+    ));
+    for (const [i, design] of [...sections, ...rows].entries()) {
+      const { pages, nodes, diagnostics } = await layoutDocument(design);
+      const label = i < sections.length ? `a Section of ${40 + i} lines` : `a Row of ${88 + i - sections.length} lines`;
+      expect(diagnostics.filter((d) => d.code === "document/overflow"), label).toEqual([]);
+      const parts = nodes.filter((node) => node.path === "root.children[0]" || node.path === "root.children[1]").filter((node) => node.type === "Section" || node.type === "Row");
+      for (const part of parts) {
+        const { room } = pages.find((page) => page.page === part.page)!;
+        expect(part.y + part.height, `${label}, page ${part.page}`).toBeLessThanOrEqual(room.bottom + 0.5);
+      }
+      // Its last part ends with its bottom padding below its last line.
+      const last = parts[parts.length - 1];
+      const lines = nodes.filter((node) => node.page === last.page && node.type === "Text" && node.path.startsWith(`${last.path}.children[`));
+      const bottom = Math.max(...lines.map((node) => node.y + node.height));
+      expect(last.y + last.height - bottom, label).toBeGreaterThanOrEqual(40 - 0.5);
+    }
+  });
+
+  it("goes on with a table in a padded Column that ends past its page, its padding where the Column ends: each row once, without end", async () => {
+    // A page's room is 1,026.5px; the header row is 24px. Rows from 950px to 1,010px tall: below the header row, some fit
+    // a page only without the Column's bottom padding (12px), which goes where the Column ends, not where the table goes
+    // on; others fit only without the header row.
+    for (let height = 950; height <= 1010; height += 5) {
+      const design = (
+        <Document size="A4" margin={48}>
+          <Column style={{ padding: 12, backgroundColor: "#eef" }}>
+            <Table>
+              <TableRow header>
+                <TableCell>Item</TableCell>
+              </TableRow>
+              {Array.from({ length: 3 }, (_, i) => (
+                <TableRow key={i} style={{ height }}>
+                  <TableCell>{`Row ${i + 1}`}</TableCell>
+                </TableRow>
+              ))}
+            </Table>
+          </Column>
+        </Document>
+      );
+      const { plan, diagnostics } = await paginate(design);
+      const parts = plan.pages.flatMap((page) => page.parts).flatMap(function all(part: PlannedPart): PlannedPart[] {
+        return [part, ...(part.children ?? []).flatMap(all)];
+      });
+      // Each row once, on a page of its own (with the header row again where it fits), on 4 pages at most.
+      for (let i = 1; i <= 3; i++) expect(parts.filter((part) => part.path === `root.children[0].children[0].children[${i}]`), `row ${i}, rows ${height}px`).toHaveLength(1);
+      expect(plan.pages.length, `rows ${height}px`).toBeLessThanOrEqual(4);
+      // Nothing cut off where a row fits a page with the header row above it and the Column's padding below (past that,
+      // its last page is a few pixels short, as it is on any page).
+      if (24 + height + 12 <= 1026) expect(diagnostics.filter((d) => d.code === "document/overflow"), `rows ${height}px`).toEqual([]);
+    }
+  });
+
   it("fills the rest of a page with a part that goes on to the next, as a browser does: its background to the room's foot", async () => {
     const { pages, nodes } = await layoutDocument(
       <Document>
