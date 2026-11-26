@@ -9,5 +9,6 @@ export { assetParts, LAYOUT_VERSION, type Asset, type FontFace } from "../index"
 export { pdfFamily } from "./styles";
 export { reactPdf } from "./react-pdf";
 export { reactPdfLayout } from "./react-pdf-measure";
+export { base64, sha256 } from "./bytes";
 export { flowDocument, thumbnailOf, writeDocument, type WriteContext } from "./write";
 export { blocksOf, measure } from "./measure";

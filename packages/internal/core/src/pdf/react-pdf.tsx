@@ -6,15 +6,21 @@
  * react-pdf lays out the boxes (Yoga's flexbox) at the widths the writer gives them and breaks the lines, and says
  * where it laid each block out (placed(), from the layout its render hands a Document's onRender).
  */
-import { createHash } from "node:crypto";
 import { Circle, Document, Ellipse, Font, Image, Line, Link, Page, Path, Polygon, Rect, Svg, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { createElement, type ReactElement, type ReactNode } from "react";
+import { base64, sha256 } from "./bytes";
 import type { Block, Engine, Font as FontFile, PlacedBlock, PlacedPage, Run, Shape, Style } from "./model";
 
 /** The names fonts are registered under with react-pdf (whose registry is the process's, shared by every render). */
 const registered = new Set<string>();
 
-const base64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
+/** A font file as base64 and its digest, made once a file (a server gives the same file's bytes to every render). */
+const encoded = new WeakMap<Uint8Array, { data: string; digest: string }>();
+const encode = (bytes: Uint8Array) => {
+  let out = encoded.get(bytes);
+  if (!out) encoded.set(bytes, (out = { data: base64(bytes), digest: sha256(bytes) }));
+  return out;
+};
 
 /**
  * Each family registered under a name made from its files (so a render draws a family from the files it was given,
@@ -22,13 +28,11 @@ const base64 = (bytes: Uint8Array) => Buffer.from(bytes).toString("base64");
  * its files are in: by family.
  */
 function register(fonts: readonly FontFile[]): Map<string, { name: string; styles: Set<string>; files: Array<{ weight: number; style: string }> }> {
-  const byFamily = new Map<string, Array<{ data: string; weight: number; style: string }>>();
-  for (const font of fonts) byFamily.set(font.family, [...(byFamily.get(font.family) ?? []), { data: base64(font.data), weight: font.weight, style: font.style }]);
+  const byFamily = new Map<string, Array<{ data: string; digest: string; weight: number; style: string }>>();
+  for (const font of fonts) byFamily.set(font.family, [...(byFamily.get(font.family) ?? []), { ...encode(font.data), weight: font.weight, style: font.style }]);
   const names = new Map<string, { name: string; styles: Set<string>; files: Array<{ weight: number; style: string }> }>();
   for (const [family, files] of byFamily) {
-    const hash = createHash("sha256");
-    for (const file of files) hash.update(`${file.weight}|${file.style}|${file.data}\n`);
-    const name = `elements-${hash.digest("hex").slice(0, 32)}`;
+    const name = `elements-${sha256(new TextEncoder().encode(files.map((file) => `${file.weight}|${file.style}|${file.digest}\n`).join(""))).slice(0, 32)}`;
     if (!registered.has(name)) {
       for (const file of files) Font.register({ family: name, src: `data:font/ttf;base64,${file.data}`, fontWeight: file.weight, fontStyle: file.style as "normal" | "italic" });
       registered.add(name);

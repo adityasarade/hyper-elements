@@ -10,7 +10,7 @@
  * given in `fonts`. A template that needs one it isn't given is an error (an image) or drawn in a standard PDF font (a
  * font), and says so. templateAssets() lists the fonts and images a template names, for a tool that loads them.
  */
-import { assetParts, flowDocument, LAYOUT_VERSION, pdfFamily, reactPdf, reactPdfLayout, thumbnailOf, writeDocument, type Asset, type Font, type PlacedPage } from "@hyper-elements/core/pdf";
+import { assetParts, base64, flowDocument, LAYOUT_VERSION, pdfFamily, reactPdf, reactPdfLayout, thumbnailOf, writeDocument, type Asset, type Font, type PlacedPage } from "@hyper-elements/core/pdf";
 import type { FontFace, Plan } from "@hyper-elements/core";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode, type Snapshot } from "@hyper-elements/react";
 import type { ReactElement } from "react";
@@ -179,8 +179,14 @@ function readable(layout: unknown, output: "pdf" | "image"): void {
 
 // ─── Fonts ─────────────────────────────────────────────────────────────────
 
-function base64(bytes: Uint8Array | ArrayBuffer): string {
-  return Buffer.from(bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes).toString("base64");
+/** An image file as base64, made once a file (a server and a paginator give the same file's bytes each time). */
+const encoded = new WeakMap<Uint8Array | ArrayBuffer, string>();
+function encode(bytes: Uint8Array | ArrayBuffer): string {
+  const known = encoded.get(bytes);
+  if (known !== undefined) return known;
+  const out = base64(bytes instanceof ArrayBuffer ? new Uint8Array(bytes) : bytes);
+  encoded.set(bytes, out);
+  return out;
 }
 
 /** A WOFF2 file, by its first bytes: a PDF draws TTF, OTF and WOFF files, not these. */
@@ -308,7 +314,7 @@ function imageSources(root: ResolvedNode, given: Record<string, Uint8Array | Arr
     else if (given[src]) {
       const type = mime(bytes(src)!);
       if (type === "image/svg+xml") return "svg";
-      if (type) out.set(src, `data:${type};base64,${base64(bytes(src)!)}`);
+      if (type) out.set(src, `data:${type};base64,${encode(given[src])}`);
     }
     return out.get(src);
   };
