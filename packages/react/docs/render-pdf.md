@@ -69,7 +69,7 @@ Text whose `fontFamily` has no file given is drawn in a standard PDF font: Helve
 | `pdf/root` | error | The design isn't a Document |
 | `pdf/version` | error | The `@hyper-elements/react` loaded lays the design out in another layout version than `/pdf` reads |
 | `pdf/image` | error | An image isn't given, or its file isn't a PNG or JPEG |
-| `pdf/image` | warning | An image is SVG: its alt text is shown in its box |
+| `pdf/image` | warning | An image is SVG: its alt text is shown in its box (in a line of text, its room is left empty) |
 | `pdf/font` | warning | A font in the Document's `fonts` isn't given; a file given is WOFF2; or text in a standard PDF font has characters it can't draw (it draws Western European ones only) |
 | `pdf/font-weight` | warning | Text in a weight or style of a family that isn't given: it's drawn in the nearest file given |
 | `pdf/unsupported` | warning | What a PDF can't show that the HTML can: a hover, a Video's player |

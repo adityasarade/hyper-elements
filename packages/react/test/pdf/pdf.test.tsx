@@ -210,22 +210,27 @@ describe("renderPdf", () => {
     });
   });
 
-  it("says an SVG image isn't drawn (react-pdf draws PNG and JPEG), and shows its alt text in its box", async () => {
+  it("says an SVG image isn't drawn (react-pdf draws PNG and JPEG), and shows its alt text in its box, or in a line leaves its room", async () => {
     const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="#ff0000"/></svg>';
     const template = (
       <Document>
         <Image src={{ src: "https://cdn.acme.test/logo.svg", width: 80, height: 40 }} alt="Acme logo" />
         <Image src={{ src: `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`, width: 40, height: 40 }} alt="" />
         <Text>Below</Text>
+        <Text>
+          Status <Image src={{ src: `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`, width: 16, height: 16 }} alt="OK" /> ready
+        </Text>
       </Document>
     );
     const { pdf, diagnostics } = await renderPdf(template, { images: { "https://cdn.acme.test/logo.svg": new TextEncoder().encode(svg) } });
-    const message = "A PDF draws PNG and JPEG images, not SVG: give this one as a PNG or JPEG (its file in renderPdf's images option, by its URL, or a data: URI). Its alt text is shown in its box meanwhile";
+    const message = "A PDF draws PNG and JPEG images, not SVG: give this one as a PNG or JPEG (its file in renderPdf's images option, by its URL, or a data: URI). Meanwhile its alt text is shown in its box, or, in a line of text, its room is left empty";
     expect(diagnostics.map((d) => [d.code, d.severity, d.path, d.message])).toEqual([
       ["pdf/image", "warning", "root.children[0].props.src", message],
       ["pdf/image", "warning", "root.children[1].props.src", message],
+      ["pdf/image", "warning", "root.children[3].children[1].props.src", message],
     ]);
-    expect((await read(pdf)).pages[0].words).toBe("Acme logo Below");
+    // In a line, its room (one character of the line, as the print HTML counts it), with nothing in it.
+    expect((await read(pdf)).pages[0].words).toBe("Acme logo Below Status ready");
     // Each in a box of the image's size (40px tall: 30 points), so what's around it is where it was.
     const { root } = prepare(template);
     const { content } = writeDocument(root!, { families: new Set(), fonts: [], image: () => undefined, date: new Date(0) }).pages[0];
@@ -233,6 +238,8 @@ describe("renderPdf", () => {
       ["box", [60, 30]],
       ["box", [30, 30]],
     ]);
+    const line = content[3];
+    expect(line.kind === "text" && line.runs.map((run) => (typeof run === "string" ? run : [run.kind, run.style.width, run.style.height]))).toEqual(["Status ", ["image", 12, 12], " ready"]);
   });
 
   it("draws a Video's thumbnail given in images: its own, or a YouTube video's by the URL it's derived from", async () => {

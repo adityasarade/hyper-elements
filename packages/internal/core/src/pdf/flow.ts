@@ -194,6 +194,8 @@ class Planner {
       while (to + 1 < lines.length && fits(to + 1)) to += 1;
     }
     if (to < 0) return undefined;
+    // Forced to take its last line (a page with less room than a line): its last part, nothing left to go on.
+    if (to >= lines.length) return { part: { path: measured.path, part: piece.parts, first: from === 0, last: true, lines: lines.slice(from).map(planned) }, height: bottom(lines.length) };
     return {
       part: { path: measured.path, part: piece.parts, first: from === 0, last: false, lines: lines.slice(from, to).map(planned) },
       height: bottom(to),

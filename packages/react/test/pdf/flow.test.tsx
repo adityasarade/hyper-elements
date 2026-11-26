@@ -3,7 +3,7 @@
  * each page) and laid out with layoutDocument() (where each block landed).
  */
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { Column, Document, Heading, Image, List, ListItem, PageFooter, PageNumber, prepare, render, Row, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
+import { Column, Document, Heading, Image, List, ListItem, PageFooter, PageNumber, prepare, render, Row, Section, Span, Table, TableCell, TableRow, Text, Video } from "@hyper-elements/react";
 import type { PlannedPart } from "@hyper-elements/core";
 import { reactPdf, writeDocument } from "@hyper-elements/core/pdf";
 import { createPaginator, layoutDocument, paginate, renderPdf } from "../../src/pdf";
@@ -484,5 +484,50 @@ describe("a Document's content that doesn't fit its page", () => {
     expect((await paginate(design)).plan).toEqual(plan);
     const paginator = await createPaginator();
     expect(paginator.paginate(design, { diagnostics: false }).plan).toEqual(plan);
+  });
+
+  it("is planned the same without drawing where an image is sized by its file: a video's thumbnail", async () => {
+    const thumbnail = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const design = (
+      <Document size="A5">
+        <Video src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" thumbnail={{ src: thumbnail, width: 1, height: 1 }} style={{ width: 300 }} />
+        {Array.from({ length: 24 }, (_, i) => (
+          <Text key={i}>Details row {i + 1}</Text>
+        ))}
+      </Document>
+    );
+    const drawn = await renderPdf(design);
+    expect(drawn.plan.pages).toHaveLength(2);
+    expect((await paginate(design)).plan).toEqual(drawn.plan);
+  });
+
+  it("keeps an SVG in a line of text one character of it, so the print HTML's pages have the PDF's words", async () => {
+    const src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjwvc3ZnPg==";
+    const design = (
+      <Document size="A5">
+        <Text>
+          <Image src={{ src, width: 16, height: 16 }} alt="An inline icon" /> {Array.from({ length: 115 }, (_, i) => `The report entry ${i + 1} continues onto another page. `).join("")}
+          THE-END
+        </Text>
+      </Document>
+    );
+    const { plan, pdf } = await renderPdf(design);
+    expect(plan.pages.length).toBeGreaterThan(1);
+    const pdfPages = await words(pdf);
+    const { body } = await render(design, { plan });
+    const htmlPages = body.match(/<section [\s\S]*?<\/section>/g)!.map((page) => page.replace(/<[^>]+>/g, "").replace(/\s/g, ""));
+    expect(htmlPages).toEqual(pdfPages.map((page) => page.replace(/\s/g, "")));
+  });
+
+  it("goes on with a line a page where not even one fits, and says what's cut off", async () => {
+    const design = (
+      <Document size="A5" margin={{ top: 388, bottom: 388, left: 48, right: 48 }}>
+        <Text>{Array.from({ length: 5 }, (_, i) => `Record ${i + 1}`).join("\n")}</Text>
+      </Document>
+    );
+    const { plan, diagnostics } = await renderPdf(design);
+    expect(plan.pages).toHaveLength(5);
+    expect(diagnostics.map(({ code }) => code)).toContain("document/overflow");
+    expect((await paginate(design)).plan).toEqual(plan);
   });
 });

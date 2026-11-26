@@ -31,6 +31,8 @@ export const thumbnailOf = (video: ResolvedNode): string | undefined =>
   video.props.thumbnail ? assetParts(video.props.thumbnail as Asset).src : videoParts(String(video.props.src))?.thumbnail;
 
 const shown = (node: ResolvedNode) => !node.hidden?.desktop;
+/** A transparent pixel: an image's room in a line, with nothing drawn in it. */
+const BLANK = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
 /** An image file's own size, where its header can be read (image-size.ts). */
 const sized = (src: string): { size?: { width: number; height: number } } => {
   const size = imageSize(src);
@@ -299,9 +301,10 @@ class Writer {
           case "Link":
             return { kind: "link", href: linkParts(child.props.href as LinkValue).href, style: { ...runStyle(child, this.context.families), ...direction }, runs: this.runs(child, direction) };
           case "Image": {
-            // In a line, an image the PDF can't draw is its alt text.
+            // In a line, an image the PDF can't draw (an SVG) keeps its room, left empty: one character of the line, as
+            // the print HTML a plan draws counts it (and draws the image there).
             const image = this.image(child, {});
-            return image.kind === "image" ? image : String(child.props.alt ?? "");
+            return image.kind === "image" ? image : { kind: "image", src: BLANK, style: { width: image.style.width, height: image.style.height } };
           }
           default:
             return { kind: "span", style: { ...runStyle(child, this.context.families), ...direction }, runs: this.runs(child, direction) };

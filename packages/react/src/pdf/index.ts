@@ -504,7 +504,7 @@ function imageSources(root: ResolvedNode, given: Record<string, Uint8Array | Arr
       found.push({
         code: "pdf/image",
         severity: "warning",
-        message: "A PDF draws PNG and JPEG images, not SVG: give this one as a PNG or JPEG (its file in renderPdf's images option, by its URL, or a data: URI). Its alt text is shown in its box meanwhile",
+        message: "A PDF draws PNG and JPEG images, not SVG: give this one as a PNG or JPEG (its file in renderPdf's images option, by its URL, or a data: URI). Meanwhile its alt text is shown in its box, or, in a line of text, its room is left empty",
         ...where,
       });
     } else if (!source) {

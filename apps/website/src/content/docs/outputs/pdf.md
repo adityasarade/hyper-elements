@@ -142,7 +142,7 @@ A `Video` shows its thumbnail where its file is given (its own, or a YouTube vid
 | `pdf/root` | error | The design isn't a Document |
 | `pdf/version` | error | A second copy of `@hyper-elements/react` lays the design out in another version |
 | `pdf/image` | error | An image isn't given, or its file isn't a PNG or JPEG |
-| `pdf/image` | warning | An image is SVG: its alt text is shown in its box |
+| `pdf/image` | warning | An image is SVG: its alt text is shown in its box (in a line of text, its room is left empty) |
 | `pdf/font` | warning | A font in the Document's `fonts` isn't given, a file given is WOFF2, or text in a standard PDF font has characters it can't draw |
 | `pdf/font-weight` | warning | Text in a weight or style of a family that isn't given. It's drawn in the nearest file given |
 | `pdf/unsupported` | warning | What a PDF can't show that the HTML can: a hover, a Video's player, an `Html` block's markup (its plain text is drawn), a line too wide to wrap (it goes past the edge) |
