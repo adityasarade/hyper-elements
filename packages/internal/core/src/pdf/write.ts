@@ -96,9 +96,12 @@ export function flowDocument(root: ResolvedNode, context: WriteContext, document
   });
   const { header, footer } = documentPages(root);
   const write = new Writer(context, root);
+  // One painter for each page as written: its blocks indexed once, however many pages it goes on to.
+  const painters = new Map<number, Painter>();
   const pages = planned.map(({ from, parts }, index): Page => {
     const page = document.pages[from];
-    const painter = new Painter(blocksOf(page));
+    let painter = painters.get(from);
+    if (!painter) painters.set(from, (painter = new Painter(blocksOf(page))));
     write.page = { number: index + 1, total: planned.length };
     // Its content's page numbers too, as its header's: this page's, of the pages there are now. A split text is cut where
     // it was measured with the numbers it was written with (as the print HTML cuts it), then numbered.

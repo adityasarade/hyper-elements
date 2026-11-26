@@ -214,20 +214,23 @@ function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snap
   let { plan, pages } = planned(document, laid);
   // Its pages as they're drawn, measured: what's cut off, where everything landed, and what draws them; and, where a
   // page's header or footer has page numbers, whether it's as tall as measured.
-  // All of them where it says what's cut off, or checks its pages' rooms; else the pages asked for only.
-  const all = check || (pages !== document.written && numberedAround(document.written));
+  // All of them where it says what's cut off; else the pages asked for only.
   const asked = (n: number) => wants(lines, n) || wants(svg, n);
-  let placed: Array<PlacedPage | undefined> | undefined = pages === document.written ? laid : all ? measure(pages) : lines || svg ? measureSome(measure, pages, asked) : undefined;
+  const measured = (): Array<PlacedPage | undefined> | undefined => (pages === document.written ? laid : check ? measure(pages) : lines || svg ? measureSome(measure, pages, asked) : undefined);
+  let placed = measured();
+  // Each page's room, where a header or footer has page numbers: its header and footer alone measured (they set it).
+  const rooms = (): ReadonlyArray<PlacedPage | undefined> | undefined =>
+    pages === document.written ? undefined : check ? placed : numberedAround(document.written) ? measure({ ...pages, pages: pages.pages.map((page) => ({ ...page, content: [] })) }) : undefined;
   // The pages as written that were measured: the Document's, or, planned again, with its page numbers the widest.
   let measuredFrom = document.written;
-  for (let again = 0; again < 3 && pages !== document.written && (renumbers(document.written, plan) || (placed && shrank(plan, laid, placed))); again++) {
+  for (let again = 0; again < 3 && pages !== document.written && (renumbers(document.written, plan) || shrankIn(plan, laid, rooms())); again++) {
     const reserved = writeDocument(document.root, document.context, plan.pages.length);
     const relaid = measure(reserved);
     if (!relaid) break;
     laid = relaid;
     measuredFrom = reserved;
     ({ pages, plan } = flowed(document, reserved, laid, plan.pages.length));
-    placed = measure(pages);
+    placed = measured();
   }
   plan = hashed(plan, pages);
   const guesses = guessedOf(guessed);
@@ -365,6 +368,9 @@ function shrank(plan: Plan, laid: readonly PlacedPage[], placed: ReadonlyArray<P
     return drawn !== undefined && planned !== undefined && (drawn.bottom < planned.bottom - 0.01 || drawn.top > planned.top + 0.01);
   });
 }
+
+/** shrank(), where the rooms were measured. */
+const shrankIn = (plan: Plan, laid: readonly PlacedPage[], rooms: ReadonlyArray<PlacedPage | undefined> | undefined): boolean => !!rooms && shrank(plan, laid, rooms);
 
 /** Whether a block has a page number in it (a marked run: write.ts). */
 const numberedBlock = (block: Block | undefined): boolean =>

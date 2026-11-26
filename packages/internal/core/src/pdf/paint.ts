@@ -68,6 +68,44 @@ function spaced(runs: Run[], spacing: number): Run[] {
 /** The runs between two characters of their text. */
 const runsBetween = (runs: Run[], from: number, to: number): Run[] => splitRuns(splitRuns(runs, to)[0], from)[1];
 
+const lengthOf = (run: Run): number => (typeof run === "string" ? run.length : run.kind === "image" ? 1 : run.runs.reduce((sum, child) => sum + lengthOf(child), 0));
+
+/**
+ * A text's runs cut into its lines' (each from its start up to its end, in order): one pass through them, each run cut
+ * where a line starts or ends in it, not the whole text for each line.
+ */
+function linesOf(runs: Run[], lines: readonly PlannedLine[]): Run[][] {
+  const lengths = runs.map(lengthOf);
+  let i = 0;
+  // Where the pass is: its run, and how far into it; and how far into the text.
+  let into = 0;
+  let at = 0;
+  const to = (target: number, take?: Run[]) => {
+    while (at < target && i < runs.length) {
+      const left = lengths[i] - into;
+      const step = Math.min(left, target - at);
+      if (take && step > 0) {
+        const run = runs[i];
+        if (typeof run === "string") take.push(run.slice(into, into + step));
+        else if (run.kind === "image") take.push(run);
+        else take.push({ ...run, runs: runsBetween(run.runs, into, into + step) });
+      }
+      at += step;
+      into += step;
+      if (into >= lengths[i]) {
+        i++;
+        into = 0;
+      }
+    }
+  };
+  return lines.map((line) => {
+    to(line.start);
+    const out: Run[] = [];
+    to(line.end, out);
+    return out;
+  });
+}
+
 /** The runs less the spaces they end in: a line's trailing space, which takes no room where it ends a line. */
 function trimEnd(runs: Run[]): Run[] {
   const out = [...runs];
@@ -132,8 +170,9 @@ export class Painter {
         kind: "box",
         path: part.path,
         style: { ...slice(block.style, part.first, part.last), flexDirection: "column" },
-        children: lines.map((line, i): Block => {
-          const runs = trimEnd(runsBetween(block.runs, line.start, line.end));
+        children: linesOf(block.runs, lines).map((cut, i): Block => {
+          const line = lines[i];
+          const runs = trimEnd(cut);
           return { kind: "text", of: part.path, style: styleOf(line, i), runs: spaced(line.hyphenated ? withHyphen(runs) : runs, line.wordSpacing) };
         }),
       };

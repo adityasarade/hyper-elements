@@ -182,10 +182,21 @@ class Planner {
     const bottom = (to: number) => lines[to - 1].top + lines[to - 1].height - top;
     const fits = (to: number) => bottom(to) <= room + SLACK;
     let to = -1;
-    for (let end = lines.length - WIDOWS; end >= from + ORPHANS; end--) {
-      if (fits(end) && !lines[end - 1].hyphenated) {
-        to = end;
-        break;
+    // The most lines that fit (they're as tall as they go on: found by halves), then back from there past a line broken
+    // by a hyphen, two lines left at least.
+    let low = from + ORPHANS;
+    let high = lines.length - WIDOWS;
+    if (low <= high && fits(low)) {
+      while (low < high) {
+        const middle = (low + high + 1) >> 1;
+        if (fits(middle)) low = middle;
+        else high = middle - 1;
+      }
+      for (let end = low; end >= from + ORPHANS; end--) {
+        if (!lines[end - 1].hyphenated) {
+          to = end;
+          break;
+        }
       }
     }
     if (to < 0 && force) {
