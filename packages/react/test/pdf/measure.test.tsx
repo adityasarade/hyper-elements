@@ -455,6 +455,30 @@ it("doesn't measure what it doesn't follow: text laid over a Layer that wraps, p
   expect(await reactPdfLayout(written(line))).toBeDefined();
 });
 
+it("lays what's over a Layer over all of it where it has a height of its own, aligned where the PDF draws it", async () => {
+  const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const { glyphs } = await import("./operators");
+  const { createPaginator, renderPdf } = await import("../../src/pdf");
+  const paginator = await createPaginator();
+  for (const height of [24, 72]) {
+    const design = (
+      <Document style={{ fontFamily: "Courier" }}>
+        <Layer style={{ height, alignItems: "end" }}>
+          <Text>Background</Text>
+          <Text id="over" style={{ textAlign: "right" }}>Overlay</Text>
+        </Layer>
+      </Document>
+    );
+    const { layout } = paginator.paginate(design, { layout: true });
+    const [line] = layout!.nodes.find(({ id }) => id === "over")!.lineBoxes!;
+    const { pdf } = await renderPdf(design);
+    const drawn = await glyphs(await (await getDocument({ data: pdf.slice(), verbosity: 0 }).promise).getPage(1));
+    const o = drawn.find(({ text }) => text === "O")!;
+    expect(line.baseline * 0.75, `a ${height}px Layer`).toBeCloseTo(o.baseline, 1);
+    expect(line.x * 0.75, `a ${height}px Layer`).toBeCloseTo(o.x, 1);
+  }
+});
+
 it("finds a measurer that's off: what's measured a tenth of a point down is different, for every Document made at random", async () => {
   for (let seed = 1; seed <= 5; seed++) {
     const out = tally();

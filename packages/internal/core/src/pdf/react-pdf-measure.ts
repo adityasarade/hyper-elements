@@ -158,12 +158,19 @@ const fontId = (font: unknown): number => {
   if (id === undefined) fontIds.set(font, (id = ++fonted));
   return id;
 };
-/** An image file's number in a cache's keys: the same file, the same number. */
+/**
+ * An image file's number in a cache's keys: the same file, the same number. The last 1,000 files are kept (a server
+ * sees many); one seen again after is a number never given before, so no key is another file's.
+ */
 const srcIds = new Map<string, number>();
+let srcs = 0;
 const srcId = (src: string | undefined): number => {
   if (src === undefined) return 0;
   let id = srcIds.get(src);
-  if (id === undefined) srcIds.set(src, (id = srcIds.size + 1));
+  if (id === undefined) {
+    srcIds.set(src, (id = ++srcs));
+    if (srcIds.size > 1000) srcIds.delete(srcIds.keys().next().value!);
+  }
   return id;
 };
 /** What of a fragment's attributes lays it out or draws it (what's kept of its lines is drawn from too), in a fixed order. */
@@ -371,7 +378,8 @@ class Measurer {
       // A Layer: the block under its layers sets its height; each layer is laid over all of it, taking no room.
       const layered = (child: Block) => "style" in child && child.style.position === "absolute";
       const height = children.filter((child) => !layered(child)).reduce((max, child) => Math.max(max, this.block(child, x, y, width, false, inherited)), 0);
-      for (const layer of children.filter(layered)) this.overlay(layer as Extract<Block, { kind: "box" }>, x, y, width, height, inherited);
+      // Each layer over all of the Layer: as tall as its own room, where it has a height of its own.
+      for (const layer of children.filter(layered)) this.overlay(layer as Extract<Block, { kind: "box" }>, x, y, width, room ?? height, inherited);
       return height;
     }
     if (style.flexDirection === "row") return this.row(block, x, y, width, inherited, room);

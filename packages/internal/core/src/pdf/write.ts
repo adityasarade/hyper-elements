@@ -310,7 +310,8 @@ class Writer {
     if (cover !== undefined) Object.assign(style, { width: "100%", height: pt(cover), objectFit: "cover" });
     else if (typeof node.style.height !== "number" && drawn && width && height) style.height = pt((drawn * height) / width);
     const source = this.context.image(src);
-    if (source) return { kind: "image", src: source, style, ...sized(source) };
+    // Its file's size, where its height isn't given: what an engine sizes it by.
+    if (source) return { kind: "image", src: source, style, ...(style.height === undefined ? sized(source) : {}) };
     const alt = String(node.props.alt ?? "");
     return { kind: "box", style: { ...style, objectFit: undefined, overflow: "hidden" }, children: alt ? [{ kind: "text", style: this.text(node), runs: [alt] }] : [] };
   }

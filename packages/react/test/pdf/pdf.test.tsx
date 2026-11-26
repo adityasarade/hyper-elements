@@ -242,6 +242,15 @@ describe("renderPdf", () => {
     expect(line.kind === "text" && line.runs.map((run) => (typeof run === "string" ? run : [run.kind, run.style.width, run.style.height]))).toEqual(["Status ", ["image", 12, 12], " ready"]);
   });
 
+  it("draws a Document whose JPEG is cut short, leaving the image out as react-pdf does, its size given or not", async () => {
+    // A JPEG cut off just after its APP1 segment's length.
+    const src = "data:image/jpeg;base64,/9j/4QAi";
+    for (const image of [<Image key="given" src={{ src, width: 40, height: 40 }} alt="Uploaded" />, <Image key="width" src={src} alt="Uploaded" style={{ width: 40 }} />]) {
+      const { pdf } = await renderPdf(<Document>{image}<Text>The rest of the report</Text></Document>);
+      expect((await read(pdf)).pages[0].words).toContain("The rest of the report");
+    }
+  });
+
   it("draws a Video's thumbnail given in images: its own, or a YouTube video's by the URL it's derived from", async () => {
     // The images a PDF draws, as pdf.js reads its drawing operators.
     const images = async (pdf: Uint8Array) => {

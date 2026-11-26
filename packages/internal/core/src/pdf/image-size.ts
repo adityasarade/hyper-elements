@@ -4,12 +4,14 @@
  * where its style gives no height: its width over this ratio. Plain bytes, no DOM: the same in Node and a browser.
  */
 
-/** A data URI's bytes (base64), or undefined where it isn't one. */
-function bytesOf(src: string): Uint8Array | undefined {
+/** A data URI's bytes (base64), its first `limit` of them at most, or undefined where it isn't one. */
+function bytesOf(src: string, limit: number): Uint8Array | undefined {
   const comma = src.indexOf(",");
   if (!src.startsWith("data:") || comma < 0 || !src.slice(0, comma).endsWith(";base64")) return undefined;
   try {
-    const binary = atob(src.slice(comma + 1));
+    const data = src.slice(comma + 1);
+    // Whole groups of four characters (three bytes each), or all of it.
+    const binary = atob(data.length > (limit / 3) * 4 ? data.slice(0, Math.floor(limit / 3) * 4) : data);
     const out = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
     return out;
@@ -75,16 +77,32 @@ function jpeg(bytes: Uint8Array): { width: number; height: number } | undefined 
   return undefined;
 }
 
+/** A file's header read, or undefined where it's neither, or cut short (a truncated file isn't an error here: react-pdf leaves it out). */
+function read(bytes: Uint8Array): { width: number; height: number } | undefined {
+  try {
+    return png(bytes) ?? jpeg(bytes);
+  } catch {
+    return undefined;
+  }
+}
+
+/** The files read, the last 1,000 (a server sees many). */
 const sizes = new Map<string, { width: number; height: number } | null>();
 
 /** A PNG's or a JPEG's size in pixels (a data URI's), or undefined where it's neither or can't be read. Read once a file. */
 export function imageSize(src: string): { width: number; height: number } | undefined {
   let size = sizes.get(src);
   if (size === undefined) {
-    const bytes = bytesOf(src);
-    const read = bytes && (png(bytes) ?? jpeg(bytes));
-    size = read && read.width > 0 && read.height > 0 ? read : null;
+    // Its first 64KB (21,845 groups of three bytes), where its header is (a JPEG's frame after a large EXIF or color profile: all of it).
+    const head = bytesOf(src, 65_535);
+    let found = head && read(head);
+    if (!found && head && head.length === 65_535) {
+      const all = bytesOf(src, Infinity);
+      found = all && read(all);
+    }
+    size = found && found.width > 0 && found.height > 0 ? found : null;
     sizes.set(src, size);
+    if (sizes.size > 1000) sizes.delete(sizes.keys().next().value!);
   }
   return size ?? undefined;
 }
