@@ -10,7 +10,7 @@
  * given in `fonts`. A template that needs one it isn't given is an error (an image) or drawn in a standard PDF font (a
  * font), and says so. templateAssets() lists the fonts and images a template names, for a tool that loads them.
  */
-import { assetParts, base64, createLayout, drawPage, flowDocument, LAYOUT_VERSION, pageHash, pdfFamily, reactPdf, reactPdfLayout, thumbnailOf, writeDocument, type Asset, type Block, type DrawnDocument, type Font, type Layout, type PlacedPage, type Run } from "@hyper-elements/core/pdf";
+import { assetParts, base64, createLayout, drawPage, flowDocument, LAYOUT_VERSION, pageHash, pdfFamily, reactPdf, reactPdfLayout, runsText, thumbnailOf, writeDocument, type Asset, type Block, type DrawnDocument, type Font, type Layout, type PlacedPage, type Run } from "@hyper-elements/core/pdf";
 import { designPrint, type FontFace, type Plan } from "@hyper-elements/core";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode, type Snapshot } from "@hyper-elements/react";
 import type { ReactElement } from "react";
@@ -86,7 +86,7 @@ export async function renderPdf(element: ReactElement | Snapshot, options: PdfOp
 export async function paginate(element: ReactElement | Snapshot, options: PdfOptions = {}): Promise<PaginateResult> {
   const setup = setupOf(options);
   const layout = await createLayout(setup.fonts);
-  const paginated = layout && paginateWith(layout, setup, element, true);
+  const paginated = layout && paginateWith(layout, setup, element, true, false, false, true);
   if (paginated) return paginated;
   // Where it can't be measured without drawing it: drawn.
   const planned = await planDocument(element, options, false);
@@ -173,7 +173,7 @@ export async function createPaginator(options: PaginatorOptions = {}): Promise<P
     paginate(element, { diagnostics = true, layout: laidOut = false, svg = false } = {}) {
       const paginated = paginateWith(layout, setup, element, diagnostics, laidOut, svg);
       if (paginated) return paginated;
-      throw new ElementsError([{ code: "pdf/measure", severity: "error", message: "This Document holds a block that can't be measured without drawing it: paginate() it", path: "root" }]);
+      throw new ElementsError([{ code: "pdf/measure", severity: "error", message: "This Document's text is in fonts this paginator wasn't made with: make one with them (createPaginator({ fonts }))", path: "root" }]);
     },
   };
 }
@@ -198,9 +198,18 @@ const setupOf = (options: PdfOptions): Setup => {
  * A Document paginated by a Layout: undefined where it can't measure it so. `check`: with renderPdf()'s diagnostics;
  * `lines`: with its layout, each text node's lines in it.
  */
-function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snapshot, check: boolean, lines: boolean | PagesWanted = false, svg: boolean | SvgWanted = false): PaginateResult | undefined {
+function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snapshot, check: boolean, lines: boolean | PagesWanted = false, svg: boolean | SvgWanted = false, exact = false): PaginateResult | undefined {
   const document = written(element, setup, check);
-  let laid = layout.measure(document.written);
+  // Measured, what it doesn't follow exactly guessed: each such block said (pdf/measure), the editor kept working.
+  // `exact` (paginate()'s): not measured, undefined, so it's measured by drawing.
+  const guessed = new Set<string>();
+  const measure = (pages: DrawnDocument): PlacedPage[] | undefined => {
+    if (exact) return layout.measure(pages);
+    const out = layout.guess(pages);
+    out?.guesses.forEach((path) => guessed.add(path));
+    return out?.placed;
+  };
+  let laid = measure(document.written);
   if (!laid) return undefined;
   let { plan, pages } = planned(document, laid);
   // Its pages as they're drawn, measured: what's cut off, where everything landed, and what draws them; and, where a
@@ -208,21 +217,22 @@ function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snap
   // All of them where it says what's cut off, or checks its pages' rooms; else the pages asked for only.
   const all = check || (pages !== document.written && numberedAround(document.written));
   const asked = (n: number) => wants(lines, n) || wants(svg, n);
-  let placed: Array<PlacedPage | undefined> | undefined = pages === document.written ? laid : all ? layout.measure(pages) : lines || svg ? measureSome(layout, pages, asked) : undefined;
+  let placed: Array<PlacedPage | undefined> | undefined = pages === document.written ? laid : all ? measure(pages) : lines || svg ? measureSome(measure, pages, asked) : undefined;
   // The pages as written that were measured: the Document's, or, planned again, with its page numbers the widest.
   let measuredFrom = document.written;
   for (let again = 0; again < 3 && pages !== document.written && (renumbers(document.written, plan) || (placed && shrank(plan, laid, placed))); again++) {
     const reserved = writeDocument(document.root, document.context, plan.pages.length);
-    const relaid = layout.measure(reserved);
+    const relaid = measure(reserved);
     if (!relaid) break;
     laid = relaid;
     measuredFrom = reserved;
     ({ pages, plan } = flowed(document, reserved, laid, plan.pages.length));
-    placed = layout.measure(pages);
+    placed = measure(pages);
   }
   plan = hashed(plan, pages);
-  if (!check && !lines && !svg) return { plan, diagnostics: [] };
-  const diagnostics = check ? said({ ...document, pages }, placed as PlacedPage[] | undefined) : [];
+  const guesses = guessedOf(guessed);
+  if (!check && !lines && !svg) return { plan, diagnostics: guesses };
+  const diagnostics = [...(check ? said({ ...document, pages }, placed as PlacedPage[] | undefined) : []), ...guesses];
   if (!placed) return { plan, diagnostics };
   const only = (option: boolean | PagesWanted) => (option === true ? undefined : new Set(pages.pages.map((_, i) => i + 1).filter((n) => wants(option, n))));
   return {
@@ -244,10 +254,19 @@ function drawn(svg: true | SvgWanted, pages: DrawnDocument, placed: ReadonlyArra
 /** Whether a page (from 1) is asked for: every page with true, those listed with { pages }. */
 const wants = (option: boolean | { pages?: readonly number[] }, page: number): boolean => option === true || (typeof option === "object" && (option.pages === undefined || option.pages.includes(page)));
 
+/** Each block measured with a guess, said: where its pages may first differ from the PDF's. */
+const guessedOf = (paths: ReadonlySet<string>): Diagnostic[] =>
+  [...paths].map((path) => ({
+    code: "pdf/measure",
+    severity: "warning" as const,
+    message: "Measured without drawing, where this block goes is a guess (react-pdf may lay it out otherwise), so the pages from here on may differ from the PDF's. renderPdf() and paginate() measure it exactly, by drawing it",
+    path,
+  }));
+
 /** The pages asked for measured, the others left out (undefined): for a long Document, what a page view shows. */
-function measureSome(layout: Layout, document: DrawnDocument, asked: (page: number) => boolean): Array<PlacedPage | undefined> | undefined {
+function measureSome(measure: (document: DrawnDocument) => PlacedPage[] | undefined, document: DrawnDocument, asked: (page: number) => boolean): Array<PlacedPage | undefined> | undefined {
   const which = document.pages.map((_, i) => i).filter((i) => asked(i + 1));
-  const some = layout.measure({ ...document, pages: which.map((i) => document.pages[i]) });
+  const some = measure({ ...document, pages: which.map((i) => document.pages[i]) });
   if (!some) return undefined;
   const out: Array<PlacedPage | undefined> = document.pages.map(() => undefined);
   which.forEach((i, k) => (out[i] = some[k]));
@@ -362,7 +381,27 @@ function said(planned: { root: ResolvedNode; pages: ReturnType<typeof written>["
   const overflow = placed ? [...diagnostics.filter((d) => d.code !== "document/overflow"), ...measuredOverflow(root, pages.pages, placed)] : diagnostics;
   // Drawn, and react-pdf didn't say where (its private layout data gone in an update): nothing could flow.
   const unplaced: Diagnostic[] = "laid" in planned && !planned.laid ? [{ code: "pdf/layout", severity: "warning", message: "The installed @react-pdf/renderer doesn't say where it laid the PDF out, so content that doesn't fit a page isn't moved on to the next (it's cut off): update @react-pdf/renderer to a version Elements supports", path: "root" }] : [];
-  return [...overflow, ...unplaced, ...found];
+  return [...overflow, ...unplaced, ...(placed ? dropped(pages, placed) : []), ...found];
+}
+
+/**
+ * Text laid over a Layer that react-pdf doesn't draw: taller than the Layer (its first child), it's laid out 0 tall, with
+ * no lines. Said where it's so, as drawn (or measured as react-pdf draws it).
+ */
+function dropped(pages: DrawnDocument, placed: readonly PlacedPage[]): Diagnostic[] {
+  const out: Diagnostic[] = [];
+  pages.pages.forEach((page, i) => {
+    const byPath = new Map(placed[i]?.blocks.map((block) => [block.path, block]));
+    const visit = (block: Block | undefined, over: boolean) => {
+      if (!block) return;
+      if (block.kind === "text" && over && block.path !== undefined && runsText(block.runs, block.style)?.trim()) {
+        const at = byPath.get(block.path);
+        if (at && at.height === 0 && !at.lines?.length && !out.some((d) => d.path === block.path)) out.push({ code: "pdf/layer", severity: "warning", message: "Text laid over this Layer is taller than the Layer (its first child), so the PDF doesn't draw it: make the Layer's first child as tall, or the text shorter", path: block.path });
+      } else if (block.kind === "box" || block.kind === "link") block.children.forEach((child) => visit(child, over || block.style.position === "absolute"));
+    };
+    [page.header, ...page.content, page.footer].forEach((block) => visit(block, false));
+  });
+  return out;
 }
 
 /** The PDF: drawn once where its pages fit, and again, flowed, where they don't. */

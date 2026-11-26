@@ -147,6 +147,8 @@ A `Video` shows its thumbnail where its file is given (its own, or a YouTube vid
 | `pdf/font-weight` | warning | Text in a weight or style of a family that isn't given. It's drawn in the nearest file given |
 | `pdf/unsupported` | warning | What a PDF can't show that the HTML can: a hover, a Video's player, an `Html` block's markup (its plain text is drawn), a line too wide to wrap (it goes past the edge) |
 | `pdf/layout` | warning | The installed `@react-pdf/renderer` doesn't say where it laid the PDF out, so content that doesn't fit a page isn't moved on to the next: update it |
+| `pdf/layer` | warning | Text laid over a Layer is taller than the Layer (its first child), which the PDF doesn't draw |
+| `pdf/measure` | warning | A paginator measured a block without drawing it as a guess (react-pdf may lay it out otherwise): its pages from there on may differ from the PDF's. `renderPdf()` and `paginate()` measure it exactly |
 | `document/overflow` | warning | A page's content is taller than its room (the page less its margins, header and footer), measured with its fonts. Named at the first block cut off |
 
 `validate()` from `@hyper-elements/react` reports `pdf/unsupported` and `document/overflow` without rendering. Without the fonts its `document/overflow` is an estimate, and it can miss a page that's only a little too tall. The font and image checks need the files, so only `renderPdf()` makes them, and measures.

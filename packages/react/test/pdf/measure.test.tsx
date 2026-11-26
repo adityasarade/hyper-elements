@@ -11,7 +11,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createElement, type ReactElement } from "react";
 import { Button, Column, Document, Heading, Image, Layer, List, ListItem, PageFooter, PageHeader, PageNumber, prepare, Row, Section, Span, Table, TableCell, TableRow, Text, Video } from "@hyper-elements/react";
-import type { ResolvedNode } from "@hyper-elements/core";
 import { createLayout, flowDocument, reactPdf, reactPdfLayout, textkitAgrees, writeDocument, type DrawnDocument, type Layout, type PlacedPage, type Textkit } from "@hyper-elements/core/pdf";
 import { gallery } from "../../src/primitives/examples/gallery";
 import { stress } from "../../src/primitives/examples/stress";
@@ -142,8 +141,6 @@ const corpus = async (): Promise<Array<[string, ReactElement]>> => [
 
 /** What a comparison counted, and each difference it found. */
 interface Tally {
-  /** Blocks laid over a Layer that react-pdf's layout keeps no lines of (it lays them out again where it draws them). */
-  overlaid: number;
   blocks: number;
   lines: number;
   boxes: number;
@@ -151,7 +148,7 @@ interface Tally {
   unmeasured: number;
   differences: string[];
 }
-const tally = (): Tally => ({ overlaid: 0, blocks: 0, lines: 0, boxes: 0, edges: 0, unmeasured: 0, differences: [] });
+const tally = (): Tally => ({ blocks: 0, lines: 0, boxes: 0, edges: 0, unmeasured: 0, differences: [] });
 
 /**
  * A Document's pages measured without drawing and as react-pdf draws them, each difference past 0.05 points in `out`:
@@ -159,7 +156,7 @@ const tally = (): Tally => ({ overlaid: 0, blocks: 0, lines: 0, boxes: 0, edges:
  * `skew` moves what's measured down by it (a measurer that's off, to show the comparison finds one). Its pages as
  * measured without drawing, or as drawn where they weren't.
  */
-async function compare(document: DrawnDocument, label: string, out: Tally, strict = true, skew = 0, overlays: readonly string[] = []): Promise<PlacedPage[]> {
+async function compare(document: DrawnDocument, label: string, out: Tally, strict = true, skew = 0): Promise<PlacedPage[]> {
   const drawless = await reactPdfLayout(document);
   const drawn = (await reactPdf(document, { edges: true })).placed!;
   if (!drawless) {
@@ -173,12 +170,6 @@ async function compare(document: DrawnDocument, label: string, out: Tally, stric
     const byPath = new Map(d.blocks.map((b) => [b.path, { ...b, y: b.y + skew }]));
     for (const b of page.blocks) {
       const m = byPath.get(b.path);
-      // Text laid over a Layer: react-pdf's layout has it 0 tall with no lines, and lays it out again where it draws it
-      // (the browser test holds its glyphs to the PDF's). Counted, not compared.
-      if (overlays.some((path) => b.path === path || b.path.startsWith(`${path}.`)) && b.height === 0 && !b.lines?.length) {
-        out.overlaid++;
-        continue;
-      }
       out.blocks++;
       if (!m) {
         out.differences.push(`${label} ${b.path}: not measured`);
@@ -228,20 +219,10 @@ async function compareFlowed(design: ReactElement, files: typeof fonts, label: s
   if (root?.type !== "Document") return undefined;
   const context = { families: new Set(files.map((font) => font.family)), fonts: files, image: (src: string) => (src.startsWith("data:") ? src : undefined), date: new Date(0) };
   const written = writeDocument(root, context);
-  // What's laid over each Layer: its children after its first.
-  const overlays: string[] = [];
-  const visit = (node: ResolvedNode, path: string) => {
-    node.children.forEach((child, i) => {
-      if (typeof child === "string") return;
-      if (node.type === "Layer" && i > 0) overlays.push(`${path}.children[${i}]`);
-      visit(child, `${path}.children[${i}]`);
-    });
-  };
-  visit(root, "root");
-  const laid = await compare(written, label, out, strict, skew, overlays);
+  const laid = await compare(written, label, out, strict, skew);
   // Its pages as flowed and painted (split text drawn line by line), where they don't fit: measured as drawn too.
   if (!laid.some(({ room, blocks: placed }) => placed.some((block) => block.y + block.height > room.bottom + 0.5))) return false;
-  await compare(flowDocument(root, context, written, laid).document, `${label} (flowed)`, out, strict, skew, overlays);
+  await compare(flowDocument(root, context, written, laid).document, `${label} (flowed)`, out, strict, skew);
   return true;
 }
 
@@ -389,11 +370,44 @@ function generated(seed: number): ReactElement {
 // MEASURE_SEEDS=5000 for more: a seed that fails is named, and is the same Document each time.
 const seeds = Number(process.env.MEASURE_SEEDS ?? 200);
 
+/**
+ * Where a Document isn't measured exactly (a block it doesn't follow), a paginator guesses it and says where: measured
+ * guessing, it must be as react-pdf draws it up to the first block guessed, in the order drawn.
+ */
+async function attributed(design: ReactElement, files: typeof fonts, label: string, layout: Layout, out: string[]): Promise<boolean> {
+  const { root } = prepare(design);
+  if (root?.type !== "Document") return false;
+  const context = { families: new Set(files.map((font) => font.family)), fonts: files, image: (src: string) => (src.startsWith("data:") ? src : undefined), date: new Date(0) };
+  const written = writeDocument(root, context);
+  if (layout.measure(written)) return false;
+  const guessed = layout.guess(written)!;
+  expect(guessed.guesses.length, label).toBeGreaterThan(0);
+  const drawn = (await reactPdf(written, { edges: true })).placed!;
+  const order = drawn.flatMap((page, i) => page.blocks.map((block) => ({ page: i, block })));
+  const at = (path: string) => order.findIndex(({ block }) => block.path === path || block.path.startsWith(`${path}.`) || path.startsWith(`${block.path}.`));
+  const first = Math.min(...guessed.guesses.map((path) => (at(path) < 0 ? 0 : at(path))));
+  const differs = order.findIndex(({ page, block }) => {
+    const m = guessed.placed[page]?.blocks.find((other) => other.path === block.path);
+    return !m || Math.abs(m.y - block.y) > 0.05 || Math.abs(m.height - block.height) > 0.05 || Math.abs(m.x - block.x) > 0.05 || Math.abs(m.width - block.width) > 0.05 || (m.lines?.length ?? 0) !== (block.lines?.length ?? 0);
+  });
+  if (differs >= 0 && differs < first) out.push(`${label}: ${order[differs].block.path} differs before ${guessed.guesses[0]}, the first guessed`);
+  return true;
+}
+
 it("measures Documents made at random as react-pdf draws them, or doesn't measure them: never otherwise", async () => {
   const out = tally();
   let flowed = 0;
-  for (let seed = 1; seed <= seeds; seed++) if (await compareFlowed(generated(seed), fonts, `seed ${seed}`, out, false)) flowed++;
-  console.info(`Made at random and measured: ${seeds} Documents (${flowed} flowed too), ${out.blocks} blocks, ${out.lines} lines, ${out.edges / 2} characters; ${out.overlaid} laid over a Layer, ${out.unmeasured} not measured, ${out.differences.length} different`);
+  const layout = (await createLayout(fonts))!;
+  const early: string[] = [];
+  let guessed = 0;
+  for (let seed = 1; seed <= seeds; seed++) {
+    if (await compareFlowed(generated(seed), fonts, `seed ${seed}`, out, false)) flowed++;
+    if (await attributed(generated(seed), fonts, `seed ${seed}`, layout, early)) guessed++;
+  }
+  // Where it isn't measured exactly, guessed: as drawn up to the first block guessed.
+  expect(early).toEqual([]);
+  if (out.unmeasured) expect(guessed).toBeGreaterThan(0);
+  console.info(`Made at random and measured: ${seeds} Documents (${flowed} flowed too), ${out.blocks} blocks, ${out.lines} lines, ${out.edges / 2} characters; ${out.unmeasured} not measured (${guessed} as written, guessed: as drawn up to the first guess), ${out.differences.length} different`);
   expect(out.differences).toEqual([]);
   // Most are measured: one that isn't is drawn to measure it, which is slower, not wrong.
   expect(out.unmeasured).toBeLessThan(seeds * 0.25);

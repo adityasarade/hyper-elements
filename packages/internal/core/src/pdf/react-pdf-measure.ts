@@ -255,8 +255,19 @@ class Measurer {
      * as wide as what it holds): react-pdf lays out its lines at that width and keeps them (measureText), whatever its
      * box ends up as. Shared with the measurers that lay its blocks out again.
      */
-    private readonly offered = new Map<Block, number>()
+    private readonly offered = new Map<Block, number>(),
+    /**
+     * Where it measures what it doesn't follow exactly (a paginator's, for a page view): each such block's path, its best
+     * guess taken. Without, such a block isn't measured (Unmeasured: the page is measured by drawing it).
+     */
+    private readonly guesses?: string[]
   ) {}
+
+  /** A block this doesn't follow exactly: not measured (Unmeasured), or, guessing, said (its path) and guessed. */
+  refuse(path: string | undefined): void {
+    if (!this.guesses) throw new Unmeasured();
+    this.guesses.push(path ?? "root");
+  }
 
   /**
    * A text style's textkit attributes, as react-pdf builds them (layout's getFragments): `inner`, a run's inside its
@@ -347,12 +358,18 @@ class Measurer {
    */
   block(block: Block, x: number, y: number, width: number | undefined, exactly = false, inherited: Style = {}, tall?: number): number {
     const style = "style" in block ? over(inherited, block.style) : inherited;
-    const own = exactly ? width : (widthOf(style, width) ?? width);
-    if (own === undefined) throw new Unmeasured();
+    let own = exactly ? width : (widthOf(style, width) ?? width);
+    if (own === undefined) {
+      this.refuse(block.path);
+      own = 0;
+    }
     const frame = edges(style);
-    const inner = own - frame.left - frame.right;
+    let inner = own - frame.left - frame.right;
     // Padding and borders wider than its box: Yoga's clamping of it isn't followed here.
-    if (inner < -0.001) throw new Unmeasured();
+    if (inner < -0.001) {
+      this.refuse(block.path);
+      inner = 0;
+    }
     let height: number;
     let lines: PlacedBlock["lines"];
     let boxes: PlacedLine[] | undefined;
@@ -394,7 +411,11 @@ class Measurer {
           height = frame.top + frame.bottom;
           break;
         }
-        if (!block.size) throw new Unmeasured();
+        if (!block.size) {
+          this.refuse(block.path);
+          height = frame.top + frame.bottom;
+          break;
+        }
         const room = this.area - number(style.marginTop) - number(style.marginBottom);
         height = Math.min(room, Math.fround(inner) / (block.size.width / block.size.height)) + frame.top + frame.bottom;
         break;
@@ -496,10 +517,30 @@ class Measurer {
       const across = align === "center" ? (width - own) / 2 : align === "flex-end" ? width - own : 0;
       at += this.block(child, x + across, at, own, true, inside);
     }
-    // Text laid over a Layer that wraps: react-pdf lays an absolute layer's text out at a width of its own (and keeps its
-    // lines), which this doesn't follow. A line on its own is the same at any width.
-    if (this.frames.slice(from).some((placed) => placed.block.kind === "text" && (placed.lines?.length ?? 0) > 1)) throw new Unmeasured();
+    // Text laid over a Layer that wraps: react-pdf lays an absolute box's text out at a width of its own (wider, where
+    // the Layer is in a Row's column), and keeps its lines, which this doesn't follow. A line on its own is the same at
+    // any width.
+    const laid = this.frames.slice(from);
+    const said = laid.find((placed) => placed.path !== undefined)?.path;
+    if (laid.some((placed) => placed.block.kind === "text" && (placed.lines?.length ?? 0) > 1)) this.refuse(said);
     const used = at - y;
+    // As tall as the Layer, within its 32-bit rounding: react-pdf lays its text out again in its box's height, and a
+    // line a hair taller than that isn't drawn. Which way it goes isn't followed here.
+    if (Math.abs(used - height) <= 0.05 && laid.some((placed) => placed.block.kind === "text")) this.refuse(said);
+    // Taller than the Layer: react-pdf lays its text out again in its box, too short for it, and draws none of it (0
+    // tall, no lines). What else is in it (an image) isn't followed.
+    if (used > height + 0.05) {
+      if (laid.some((placed) => placed.block.kind === "image" || placed.block.kind === "drawing")) this.refuse(said);
+      for (const placed of this.frames.slice(from)) {
+        if (placed.block.kind === "text") {
+          placed.height = 0;
+          delete placed.lines;
+          delete placed.boxes;
+        }
+      }
+      this.frames.push({ block: layer, style: over(inherited, style), ...(layer.path !== undefined ? { path: layer.path } : {}), x, y, width, height });
+      return;
+    }
     const down = style.justifyContent === "center" ? (height - used) / 2 : style.justifyContent === "flex-end" ? height - used : 0;
     if (down) this.shift(from, this.frames.length, down);
     // The layer itself, over all of the Layer (a block after the blocks inside it): what's drawn from it starts here.
@@ -508,7 +549,7 @@ class Measurer {
 
   /** The blocks placed from `from` up to `to` laid out again (`lay`, by a measurer of their own): as many, in their place. */
   again(from: number, to: number, lay: (measurer: Measurer) => void): void {
-    const measurer = new Measurer(this.styled, this.kit, this.cache, this.offered);
+    const measurer = new Measurer(this.styled, this.kit, this.cache, this.offered, this.guesses);
     measurer.area = this.area;
     lay(measurer);
     this.frames.splice(from, to - from, ...measurer.frames);
@@ -537,7 +578,7 @@ class Measurer {
     const grows = (child: Block) => "style" in child && set(child.style.width) === undefined && number(child.style.flexGrow) > 0;
     // An image with no width across a Row is sized by Yoga's flexbox and react-pdf's measureImage together, which
     // this doesn't follow: not measured.
-    if (children.some((child) => child.kind === "image" && set(child.style.width) === undefined)) throw new Unmeasured();
+    for (const child of children) if (child.kind === "image" && set(child.style.width) === undefined) this.refuse(child.path);
     const widths = children.map((child) => (grows(child) ? 0 : ("style" in child ? widthOf(child.style, width) : undefined) ?? this.intrinsic(child, width)));
     const gaps = gap * Math.max(0, children.length - 1);
     const fixed = widths.reduce((sum, w) => sum + w, 0);
@@ -599,7 +640,10 @@ class Measurer {
         // times its file's ratio, no wider.
         const height = set(style.height);
         if (height === undefined) return available;
-        if (!block.size) throw new Unmeasured();
+        if (!block.size) {
+          this.refuse(block.path);
+          return available;
+        }
         return Math.min((height - frame.top - frame.bottom) * (block.size.width / block.size.height), room) + frame.left + frame.right;
       }
       case "drawing":
@@ -645,15 +689,15 @@ function named(blocks: Array<Block | undefined>, styled: (style: Style) => Style
 }
 
 /** A page measured: its header, its content from below the header (its gap between), its footer at the bottom of its room. */
-function measurePage(page: Page, styled: (style: Style) => Style, kit: Textkit, cache?: LineCache): PlacedPage {
+function measurePage(page: Page, styled: (style: Style) => Style, kit: Textkit, cache?: LineCache, guesses?: string[]): PlacedPage {
   const area = page.height - page.margin.top - page.margin.bottom - 10;
-  const measurer = new Measurer(styled, kit, cache);
+  const measurer = new Measurer(styled, kit, cache, undefined, guesses);
   measurer.area = area;
   const left = page.margin.left;
   const width = page.width - page.margin.left - page.margin.right;
   const header = page.header ? measurer.block(page.header, left, page.margin.top, width) : 0;
   // The footer's height first (measured aside), to know where the room ends and the footer starts.
-  const aside = new Measurer(styled, kit, cache);
+  const aside = new Measurer(styled, kit, cache, undefined, guesses);
   aside.area = area;
   const footer = page.footer ? aside.block(page.footer, left, 0, width) : 0;
   const top = page.margin.top + header;
@@ -682,9 +726,9 @@ function placedOf(frames: readonly PlacedFrame[]): PlacedBlock[] {
 }
 
 /** Each page measured; undefined where a page holds a block this can't measure so. */
-function measurePages(document: DrawnDocument, styled: (style: Style) => Style, kit: Textkit, cache?: LineCache): PlacedPage[] | undefined {
+function measurePages(document: DrawnDocument, styled: (style: Style) => Style, kit: Textkit, cache?: LineCache, guesses?: string[]): PlacedPage[] | undefined {
   try {
-    return document.pages.map((page) => measurePage(page, styled, kit, cache));
+    return document.pages.map((page) => measurePage(page, styled, kit, cache, guesses));
   } catch (error) {
     if (error instanceof Unmeasured) return undefined;
     throw error;
@@ -722,6 +766,12 @@ export interface Layout {
    * a block this can't measure so, or text in a font it wasn't made with.
    */
   measure(document: DrawnDocument): PlacedPage[] | undefined;
+  /**
+   * Each page measured as measure() does, and what it doesn't follow exactly guessed (`guesses`: each such block's
+   * path, the first where its pages may first differ from the PDF's); undefined only for text in a font it wasn't made
+   * with.
+   */
+  guess(document: DrawnDocument): { placed: PlacedPage[]; guesses: string[] } | undefined;
   /** How many blocks of text it has laid out with textkit, not found laid out before: for a test, or a profile. */
   readonly laid: number;
 }
@@ -739,15 +789,24 @@ export async function createLayout(files: readonly FontFile[], size?: number): P
     }
   }
   const cache = new LineCache(size);
+  // The fonts it was made with only: text in another can't be measured before it's loaded.
+  const loaded = (document: DrawnDocument) => {
+    const made = (font: FontFile) => files.some((file) => file.data === font.data && file.family === font.family && file.weight === font.weight && file.style === font.style);
+    if (!document.fonts.every(made)) return false;
+    for (const descriptor of named(document.pages.flatMap((page) => [page.header, ...page.content, page.footer]), styled).values()) {
+      if (!fontOf(descriptor)) return false;
+    }
+    return true;
+  };
   return {
     measure(document) {
-      // The fonts it was made with only: text in another can't be measured before it's loaded.
-      const made = (font: FontFile) => files.some((file) => file.data === font.data && file.family === font.family && file.weight === font.weight && file.style === font.style);
-      if (!document.fonts.every(made)) return undefined;
-      for (const descriptor of named(document.pages.flatMap((page) => [page.header, ...page.content, page.footer]), styled).values()) {
-        if (!fontOf(descriptor)) return undefined;
-      }
-      return measurePages(document, styled, kit, cache);
+      return loaded(document) ? measurePages(document, styled, kit, cache) : undefined;
+    },
+    guess(document) {
+      if (!loaded(document)) return undefined;
+      const guesses: string[] = [];
+      const placed = measurePages(document, styled, kit, cache, guesses);
+      return placed && { placed, guesses };
     },
     get laid() {
       return cache.laid;

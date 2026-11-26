@@ -47,7 +47,7 @@ import {
 import { reactPdf, writeDocument, type Block } from "@hyper-elements/core/pdf";
 import { images } from "./operators";
 import { png } from "./png";
-import { layoutDocument, renderPdf, templateAssets, type DocumentNode } from "../../src/pdf";
+import { createPaginator, type DocumentNode, layoutDocument, templateAssets, renderPdf } from "../../src/pdf";
 import { arabicFonts, arabicSentences } from "./arabic";
 import { toWoff, toWoff2 } from "./woff";
 
@@ -242,6 +242,24 @@ describe("renderPdf", () => {
     ]);
     const line = content[3];
     expect(line.kind === "text" && line.runs.map((run) => (typeof run === "string" ? run : [run.kind, run.style.width, run.style.height]))).toEqual(["Status ", ["image", 12, 12], " ready"]);
+  });
+
+  it("says where text laid over a Layer is taller than the Layer, which the PDF doesn't draw (nor its page in SVG)", async () => {
+    const design = (
+      <Document>
+        <Layer style={{ width: 160 }}>
+          <Text>Under</Text>
+          <Text>Laid over it, words that go on past the Layer's one line of height</Text>
+        </Layer>
+      </Document>
+    );
+    const { pdf, diagnostics } = await renderPdf(design);
+    expect(diagnostics.map((d) => [d.code, d.severity, d.path])).toContainEqual(["pdf/layer", "warning", "root.children[0].children[1]"]);
+    expect((await read(pdf)).pages[0].words).toBe("Under");
+    const paginated = (await createPaginator()).paginate(design, { svg: true });
+    expect(paginated.diagnostics.map((d) => d.code)).toContain("pdf/layer");
+    expect(paginated.svg![0]).toContain(">Under<");
+    expect(paginated.svg![0]).not.toContain("Laid");
   });
 
   it("draws an Image with no width given or known as wide as its file, no wider than its parent, as the print HTML does", async () => {

@@ -3,7 +3,7 @@
  * each page) and laid out with layoutDocument() (where each block landed).
  */
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { Column, Document, Heading, Image, List, ListItem, PageFooter, PageNumber, prepare, render, Row, Section, Span, Table, TableCell, TableRow, Text, Video } from "@hyper-elements/react";
+import { Column, Document, Heading, Image, Layer, List, ListItem, PageFooter, PageNumber, prepare, render, Row, Section, Span, Table, TableCell, TableRow, Text, Video } from "@hyper-elements/react";
 import type { PlannedPart } from "@hyper-elements/core";
 import { reactPdf, writeDocument } from "@hyper-elements/core/pdf";
 import { createPaginator, layoutDocument, paginate, renderPdf } from "../../src/pdf";
@@ -182,6 +182,37 @@ describe("a Document's content that doesn't fit its page", () => {
       </Document>
     );
     expect(() => paginator.paginate(broken, { diagnostics: false })).toThrow(/images option/);
+  });
+
+  it("keeps a page view going where a paginator can't measure a block exactly: its best guess, and a warning from that block on", async () => {
+    // Text laid over a Layer that wraps: react-pdf lays it out at a width of its own, which isn't followed.
+    const design = (
+      <Document>
+        <Text>{sentences(20, "before")}</Text>
+        <Row>
+          <Column style={{ width: 160 }}>
+            <Layer>
+              <Text>Under it.</Text>
+              <Text id="over">{sentences(3, "laid over")}</Text>
+            </Layer>
+          </Column>
+          <Column>
+            <Text>Beside it.</Text>
+          </Column>
+        </Row>
+        <Text>{sentences(200, "after")}</Text>
+      </Document>
+    );
+    const paginator = await createPaginator();
+    const { plan, diagnostics, layout } = paginator.paginate(design, { layout: true });
+    expect(plan.pages.length).toBeGreaterThan(1);
+    const warning = diagnostics.find((d) => d.code === "pdf/measure")!;
+    expect(warning).toMatchObject({ severity: "warning", path: "root.children[1].children[0].children[0].children[1]" });
+    expect(layout!.nodes.some((node) => node.id === "over")).toBe(true);
+    // paginate() and renderPdf() measure it by drawing: exact, nothing guessed.
+    const drawn = await paginate(design);
+    expect(drawn.diagnostics.map((d) => d.code)).not.toContain("pdf/measure");
+    expect(drawn.plan).toEqual((await renderPdf(design)).plan);
   });
 
   it("draws each family a paginator is given as that family, where another is given the same font file as another family", async () => {

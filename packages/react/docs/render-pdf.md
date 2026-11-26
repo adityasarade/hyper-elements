@@ -74,6 +74,8 @@ Text whose `fontFamily` has no file given is drawn in a standard PDF font: Helve
 | `pdf/font-weight` | warning | Text in a weight or style of a family that isn't given: it's drawn in the nearest file given |
 | `pdf/unsupported` | warning | What a PDF can't show that the HTML can: a hover, a Video's player |
 | `pdf/layout` | warning | The installed `@react-pdf/renderer` doesn't say where it laid the PDF out, so content that doesn't fit a page isn't moved on to the next: update it |
+| `pdf/layer` | warning | Text laid over a Layer is taller than the Layer (its first child), which the PDF doesn't draw |
+| `pdf/measure` | warning | A paginator measured a block without drawing it as a guess (react-pdf may lay it out otherwise): its pages from there on may differ from the PDF's. `renderPdf()` and `paginate()` measure it exactly |
 | `document/overflow` | warning | A page's content is taller than its room (the page less its margins, header and footer), measured with its fonts. Named at the first block cut off |
 
 `validate()` from `@hyper-elements/react` reports `pdf/unsupported` and `document/overflow` without rendering. Without the fonts its `document/overflow` is an estimate. The font and image checks need the files, so only `renderPdf` makes them, and measures.
@@ -104,6 +106,8 @@ const { html } = await render(design, { plan }); // the same pages, the same wor
 ```
 
 `paginate()` measures the pages with react-pdf's own text layout (`@react-pdf/textkit`, the same package react-pdf draws with) and its layout's arithmetic, without drawing them: the plan is the one `renderPdf()` makes from the PDF it draws, line for line. `renderPdf()` draws first: a Document that fits is drawn once, as it always was.
+
+A paginator measures a block it doesn't follow exactly (text laid over a Layer that wraps, an image whose file it can't read) as a guess, and says so with a `pdf/measure` warning naming it: a page view keeps working, its pages from that block on maybe not the PDF's. `paginate()` and `renderPdf()` measure it exactly, by drawing.
 
 A plan is drawn only for the Document it was made from: it carries a hash of it (`design`), and `render()` draws one made from another version (a page view's, a keystroke old) as written, with a `render/plan` warning. Where the installed `@react-pdf/textkit` isn't the one `@react-pdf/renderer` lays text out with (another version beside it), `paginate()` draws the PDF to measure it, and `createPaginator()` rejects.
 
