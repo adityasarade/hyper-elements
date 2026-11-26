@@ -134,7 +134,7 @@ export class Painter {
         style: { ...slice(block.style, part.first, part.last), flexDirection: "column" },
         children: lines.map((line, i): Block => {
           const runs = trimEnd(runsBetween(block.runs, line.start, line.end));
-          return { kind: "text", style: styleOf(line, i), runs: spaced(line.hyphenated ? withHyphen(runs) : runs, line.wordSpacing) };
+          return { kind: "text", of: part.path, style: styleOf(line, i), runs: spaced(line.hyphenated ? withHyphen(runs) : runs, line.wordSpacing) };
         }),
       };
     }

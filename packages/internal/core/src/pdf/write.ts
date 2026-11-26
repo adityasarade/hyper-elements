@@ -171,7 +171,7 @@ class Writer {
           kind: "link",
           href: linkParts(node.props.href as LinkValue).href,
           style: { ...placed, textDecoration: "none" },
-          children: [{ kind: "box", style: { ...boxStyle(node), width: node.width !== null ? pt(node.width) : undefined }, children: [{ kind: "text", style: { ...this.text(node), textAlign: "center" }, runs: this.runs(node) }] }],
+          children: [{ kind: "box", style: { ...boxStyle(node), width: node.width !== null ? pt(node.width) : undefined }, children: [{ kind: "text", of: node.path, style: { ...this.text(node), textAlign: "center" }, runs: this.runs(node) }] }],
         };
       case "Image":
         return this.image(node, placed);
@@ -321,6 +321,8 @@ class Writer {
       } else text.push(child);
     }
     flush();
+    // A list item that's one paragraph: its text is the item's (`of` it).
+    if (parts.length === 1 && parts[0].kind === "text") return [{ ...parts[0], of: item.path }];
     return parts;
   }
 
@@ -349,7 +351,7 @@ class Writer {
               kind: "box",
               path: cell.path,
               style: { ...padding, ...boxStyle(cell), width: width !== undefined ? pt(width) : undefined, flexGrow: width === undefined ? 1 : 0 },
-              children: [{ kind: "text", style: { ...this.text(cell), ...(row.props.header ? { fontWeight: 700 } : {}) }, runs: this.runs(cell) }],
+              children: [{ kind: "text", of: cell.path, style: { ...this.text(cell), ...(row.props.header ? { fontWeight: 700 } : {}) }, runs: this.runs(cell) }],
             };
           }),
         };

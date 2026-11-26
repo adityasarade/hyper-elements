@@ -13,7 +13,8 @@
  */
 import { Font } from "@react-pdf/renderer";
 import type { Fragment } from "@react-pdf/textkit";
-import type { Block, DrawnDocument, Font as FontFile, Page, PlacedBlock, PlacedPage, Run, Style } from "./model";
+import { lineEdges, type LaidOutLine, type LineEdges } from "./carets";
+import type { Block, DrawnDocument, Font as FontFile, Page, PlacedBlock, PlacedLine, PlacedPage, Run, Style } from "./model";
 import { fontsOf } from "./react-pdf";
 
 const OPTIONS = { shrinkWhitespaceFactor: { before: -0.5, after: -0.5 } };
@@ -94,13 +95,18 @@ const fontOf = (descriptor: object) => {
 
 /** A line of a block of text as textkit laid it out: what's kept of it (so a cache of them holds little). */
 interface Laid {
+  /** Where textkit set its text across its box (its alignment). */
+  x: number;
   y: number;
   width: number;
   height: number;
+  ascent: number;
   text: string;
   /** Its glyphs' own advances (natural()), and textkit's advance for it (spacing and justification in). */
   natural: number;
   advance: number;
+  /** Its characters' edges, from its box's left. */
+  edges?: LineEdges;
 }
 
 /**
@@ -154,6 +160,8 @@ const keyOf = (fragments: Fragment[], width: number): string => {
 
 class Measurer {
   readonly placed: PlacedBlock[] = [];
+  /** The lines of the texts with no path of their own in the block with a path being laid out (a part drawn line by line). */
+  private gathered?: PlacedLine[];
 
   constructor(
     readonly styled: (style: Style) => Style,
@@ -201,8 +209,8 @@ class Measurer {
     const cached = key === undefined ? undefined : this.cache!.get(key);
     if (cached) return cached;
     const paragraphs = this.kit.engine(this.kit.fromFragments(fragments), { x: 0, y: 0, width, height: Infinity }, OPTIONS);
-    const lines = paragraphs.flat() as unknown as Array<{ box: { y: number; width: number; height: number }; string: string; xAdvance?: number; runs: Array<{ glyphs?: Array<{ advanceWidth?: number }>; attributes?: Record<string, unknown> }> }>;
-    const laid = lines.map((line) => ({ y: line.box.y, width: line.box.width, height: line.box.height, text: line.string, natural: natural(line), advance: number(line.xAdvance) }));
+    const lines = paragraphs.flat() as unknown as Array<LaidOutLine & { box: { x: number; y: number; width: number; height: number }; ascent?: number; xAdvance?: number; runs: Array<{ glyphs?: Array<{ advanceWidth?: number }>; attributes?: Record<string, unknown> }> }>;
+    const laid = lines.map((line) => ({ x: line.box.x, y: line.box.y, width: line.box.width, height: line.box.height, ascent: number(line.ascent), text: line.string, natural: natural(line), advance: number(line.xAdvance), edges: lineEdges(line) }));
     if (key !== undefined) {
       this.cache!.set(key, laid);
       this.cache!.laid++;
@@ -223,12 +231,19 @@ class Measurer {
     const inner = own - frame.left - frame.right;
     let height: number;
     let lines: PlacedBlock["lines"];
+    let boxes: PlacedLine[] | undefined;
+    // A block with a path gathers the lines of the texts in it with none (each a line of a part drawn line by line).
+    const outer = this.gathered;
+    if (block.path !== undefined && block.kind !== "text") this.gathered = [];
     switch (block.kind) {
       case "text": {
         // At the width react-pdf's flexbox hands its text layout: held in a 32-bit float.
         const laid = this.lines({ ...block, style }, Math.fround(inner));
         const first = laid[0]?.y ?? 0;
         lines = laid.map((line) => ({ top: y + number(style.paddingTop) + line.y - first, height: line.height, text: line.text, width: line.width, natural: line.natural }));
+        // react-pdf draws a text from its box's left and left padding (renderText), each line where textkit set it.
+        boxes = laid.map((line, i) => ({ text: line.text, x: x + number(style.paddingLeft), top: lines![i].top, height: line.height, ascent: line.ascent, ...(line.edges ? { edges: line.edges } : {}) }));
+        if (block.path === undefined && block.of !== undefined) this.gathered?.push(...boxes);
         const content = laid.reduce((sum, line) => sum + line.height, 0);
         height = set(style.height) ?? tall ?? content + frame.top + frame.bottom;
         break;
@@ -248,7 +263,11 @@ class Measurer {
         break;
       }
     }
-    if (block.path !== undefined) this.placed.push({ path: block.path, x, y, width: own, height, ...(lines ? { lines } : {}) });
+    if (block.kind !== "text") {
+      boxes = this.gathered?.length && block.path !== undefined ? this.gathered : undefined;
+      if (block.path !== undefined) this.gathered = outer;
+    }
+    if (block.path !== undefined) this.placed.push({ path: block.path, x, y, width: own, height, ...(lines ? { lines } : {}), ...(boxes ? { boxes } : {}) });
     return height;
   }
 
@@ -349,6 +368,7 @@ class Measurer {
     for (const placed of this.placed.slice(from, to)) {
       placed.y += down;
       if (placed.lines) placed.lines = placed.lines.map((line) => ({ ...line, top: line.top + down }));
+      if (placed.boxes) placed.boxes = placed.boxes.map((line) => ({ ...line, top: line.top + down }));
     }
   }
 

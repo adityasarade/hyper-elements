@@ -12,3 +12,5 @@ export { createLayout, LineCache, reactPdfLayout, type Layout } from "./react-pd
 export { base64, sha256 } from "./bytes";
 export { flowDocument, thumbnailOf, writeDocument, type WriteContext } from "./write";
 export { blocksOf, measure } from "./measure";
+export { lineEnds, runsText } from "./runs";
+export type { LineEdges } from "./carets";

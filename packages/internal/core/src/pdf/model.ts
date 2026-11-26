@@ -8,6 +8,7 @@
  * lengths in PDF points. A font family is the template's (lowercased) where its file is given, else a standard PDF
  * font ("Helvetica", "Times-Roman", "Courier").
  */
+import type { LineEdges } from "./carets";
 
 export type Style = Record<string, string | number | undefined>;
 
@@ -45,7 +46,8 @@ export interface Flow {
 /** A block on a page; `path` is the design node it draws (its path in the laid-out tree), where it draws one. */
 export type Block =
   | ({ kind: "box"; path?: string; style: Style; children: Block[] } & Flow)
-  | ({ kind: "text"; path?: string; style: Style; runs: Run[] } & Flow)
+  /** `of`: a text with no path of its own that's the text of the block with this path (a ListItem's, a TableCell's, a Button's; a line of a part drawn line by line). */
+  | ({ kind: "text"; path?: string; of?: string; style: Style; runs: Run[] } & Flow)
   | Picture
   | { kind: "link"; path?: string; href: string; style: Style; children: Block[] }
   | { kind: "drawing"; path?: string; width: number; height: number; viewBox: string; style: Style; shapes: Shape[] };
@@ -97,6 +99,24 @@ export interface PlacedBlock {
    * engine squeezed its spaces between words to fit it, and a justified line's are stretched to fill it.
    */
   lines?: Array<{ top: number; height: number; text: string; width: number; natural: number }>;
+  /**
+   * Where its lines' text is drawn, each line's: `x`, where its text starts across the page (its box's left and left
+   * padding, from the page's left), its `top` and `height` (as `lines`), and its `ascent` (its baseline below its top);
+   * `edges`, its characters' (carets.ts), from `x`. A block whose text is a text of its own (a text that's `of` it: a
+   * ListItem's, a TableCell's, a Button's, or each line of a part drawn line by line) has that text's lines here.
+   */
+  boxes?: PlacedLine[];
+}
+
+/** A line of text as drawn: where (see PlacedBlock's `boxes`). */
+export interface PlacedLine {
+  /** Its characters as laid out (as `lines`' `text`). */
+  text: string;
+  x: number;
+  top: number;
+  height: number;
+  ascent: number;
+  edges?: LineEdges;
 }
 
 /** Where an engine drew a page's blocks, and the content's room on it: what's past the room's bottom is cut off. */

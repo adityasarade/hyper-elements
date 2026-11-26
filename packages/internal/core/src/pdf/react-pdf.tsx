@@ -9,7 +9,8 @@
 import { Circle, Document, Ellipse, Font, Image, Line, Link, Page, Path, Polygon, Rect, Svg, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { createElement, type ReactElement, type ReactNode } from "react";
 import { base64, sha256 } from "./bytes";
-import type { Block, Engine, Font as FontFile, PlacedBlock, PlacedPage, Run, Shape, Style } from "./model";
+import { lineEdges, type LaidOutLine } from "./carets";
+import type { Block, Engine, Font as FontFile, PlacedBlock, PlacedLine, PlacedPage, Run, Shape, Style } from "./model";
 
 /** The names fonts are registered under with react-pdf (whose registry is the process's, shared by every render). */
 const registered = new Set<string>();
@@ -118,7 +119,7 @@ export const reactPdf: Engine = async (document) => {
       case "box":
         return el(View, { key, ...path, style: styled(item.style) }, item.children.map(block));
       case "text":
-        return el(Text, { key, ...path, style: styled(item.style) }, item.runs.map(run));
+        return el(Text, { key, ...path, ...(item.of !== undefined && item.path === undefined ? { [OF]: item.of } : {}), style: styled(item.style) }, item.runs.map(run));
       case "image":
         return el(Image, { key, ...path, src: item.src, style: item.style });
       case "link":
@@ -168,6 +169,8 @@ export const reactPdf: Engine = async (document) => {
 /** The props that mark a block's path and the content's room on a page, read back from the layout. */
 const PATH = "elementsPath";
 const ROOM = "elementsRoom";
+/** The prop that marks a text that's the text of the block with a path it's in (model.ts's `of`). */
+const OF = "elementsOf";
 
 /**
  * A node as react-pdf lays it out (what its render hands a Document's onRender, as `_INTERNAL__LAYOUT__DATA_`): its box
@@ -176,8 +179,10 @@ const ROOM = "elementsRoom";
 interface LaidOutNode {
   type: string;
   props?: Record<string, unknown>;
-  box?: { top: number; left: number; width: number; height: number; paddingTop?: number };
-  lines?: Array<{ box: { y: number; width: number; height: number }; string?: string; runs?: LaidOutRun[] }>;
+  box?: { top: number; left: number; width: number; height: number; paddingTop?: number; paddingLeft?: number };
+  /** How far left of its box react-pdf draws a text it laid out wider than it is (one as wide as what it holds). */
+  alignOffset?: number;
+  lines?: Array<{ box: { x: number; y: number; width: number; height: number }; string?: string; ascent?: number; runs?: LaidOutRun[] }>;
   children?: LaidOutNode[];
 }
 
@@ -206,22 +211,37 @@ function placed(document: LaidOutNode): PlacedPage[] | undefined {
   for (const page of document.children) {
     let room: PlacedPage["room"] | undefined;
     const blocks: PlacedBlock[] = [];
-    const visit = (node: LaidOutNode, top: number, left: number) => {
+    /** `gathering`: the lines of the texts with no path in the block with a path they're in (a part drawn line by line). */
+    const visit = (node: LaidOutNode, top: number, left: number, gathering?: PlacedLine[]) => {
       if (!node.box) return;
       const y = top + node.box.top;
       const x = left + node.box.left;
       if (node.props?.[ROOM]) room = { top: y, bottom: y + node.box.height };
       const path = node.props?.[PATH];
+      // react-pdf draws a text's lines from its top, inside its padding, from its first line's y, and from its left,
+      // inside its padding, less its alignOffset, each line where textkit set it (renderText, renderLine).
+      const first = node.lines?.[0]?.box.y ?? 0;
+      const top0 = y + (node.box.paddingTop ?? 0) - first;
+      const boxes: PlacedLine[] | undefined = node.lines?.map((line) => {
+        const edges = line.runs && line.string !== undefined ? lineEdges(line as unknown as LaidOutLine) : undefined;
+        return { text: line.string ?? "", x: x + (node.box!.paddingLeft ?? 0) - (node.alignOffset ?? 0), top: top0 + line.box.y, height: line.box.height, ascent: line.ascent ?? 0, ...(edges ? { edges } : {}) };
+      });
+      let gathered = gathering;
       if (typeof path === "string") {
         const placedBlock: PlacedBlock = { path, x, y, width: node.box.width, height: node.box.height };
         if (node.lines?.length) {
-          // react-pdf draws a text's lines from its top, inside its padding, from its first line's y (renderText).
-          const first = node.lines[0].box.y;
-          placedBlock.lines = node.lines.map((line) => ({ top: y + (node.box!.paddingTop ?? 0) + line.box.y - first, height: line.box.height, text: line.string ?? "", width: line.box.width, natural: naturalWidth(line) }));
+          placedBlock.lines = node.lines.map((line) => ({ top: top0 + line.box.y, height: line.box.height, text: line.string ?? "", width: line.box.width, natural: naturalWidth(line) }));
+          placedBlock.boxes = boxes;
+        } else {
+          gathered = [];
         }
         blocks.push(placedBlock);
+        for (const child of node.children ?? []) visit(child, y, x, gathered);
+        if (gathered?.length && !node.lines?.length) placedBlock.boxes = gathered;
+        return;
       }
-      for (const child of node.children ?? []) visit(child, y, x);
+      if (boxes?.length && node.props?.[OF] !== undefined) gathering?.push(...boxes);
+      for (const child of node.children ?? []) visit(child, y, x, gathered);
     };
     visit(page, 0, 0);
     if (!room) return undefined;

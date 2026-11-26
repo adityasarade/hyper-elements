@@ -1257,6 +1257,7 @@
             "children": [
              {
               "kind": "text",
+              "of": "root.children[1].children[2].children[0].children[0]",
               "style": {
                "color": "#12242e",
                "fontFamily": "Helvetica",
@@ -1289,6 +1290,7 @@
             "children": [
              {
               "kind": "text",
+              "of": "root.children[1].children[2].children[0].children[1]",
               "style": {
                "color": "#12242e",
                "fontFamily": "Helvetica",
@@ -1333,6 +1335,7 @@
             "children": [
              {
               "kind": "text",
+              "of": "root.children[1].children[2].children[1].children[0]",
               "style": {
                "color": "#12242e",
                "fontFamily": "Helvetica",
@@ -1365,6 +1368,7 @@
             "children": [
              {
               "kind": "text",
+              "of": "root.children[1].children[2].children[1].children[1]",
               "style": {
                "color": "#12242e",
                "fontFamily": "Courier",
@@ -1409,6 +1413,7 @@
             "children": [
              {
               "kind": "text",
+              "of": "root.children[1].children[2].children[2].children[0]",
               "style": {
                "color": "#12242e",
                "fontFamily": "Helvetica",
@@ -1441,6 +1446,7 @@
             "children": [
              {
               "kind": "text",
+              "of": "root.children[1].children[2].children[2].children[1]",
               "style": {
                "color": "#12242e",
                "fontFamily": "Courier",
@@ -1485,6 +1491,7 @@
             "children": [
              {
               "kind": "text",
+              "of": "root.children[1].children[2].children[3].children[0]",
               "style": {
                "color": "#12242e",
                "fontFamily": "Helvetica",
@@ -1517,6 +1524,7 @@
             "children": [
              {
               "kind": "text",
+              "of": "root.children[1].children[2].children[3].children[1]",
               "style": {
                "color": "#12242e",
                "fontFamily": "Courier",
@@ -1555,6 +1563,7 @@
             "children": [
              {
               "kind": "text",
+              "of": "root.children[1].children[2].children[4].children[0]",
               "style": {
                "color": "#12242e",
                "fontFamily": "Helvetica",
@@ -1584,6 +1593,7 @@
             "children": [
              {
               "kind": "text",
+              "of": "root.children[1].children[2].children[4].children[1]",
               "style": {
                "color": "#12242e",
                "fontFamily": "Courier",
