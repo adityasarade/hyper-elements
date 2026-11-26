@@ -56,6 +56,8 @@ const jsonLd = {
   .prose :global(a) { color: var(--text); text-decoration: underline; text-decoration-color: var(--line-3); text-underline-offset: 3px; }
   .prose :global(a:hover) { text-decoration-color: var(--text); }
   .prose :global(strong) { color: var(--text); font-weight: 600; }
+  /* A command's output wraps, as in the docs: its long lines are messages to read, not code to keep on one line. */
+  .prose :global(pre[data-language="text"]), .prose :global(pre[data-language="text"] code) { white-space: pre-wrap; overflow-wrap: anywhere; }
   .prose > :global(pre) { margin: 0 0 22px; border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px !important; font: 400 13.5px/1.7 var(--mono); overflow: auto; background: #0e0e0e !important; }
   .prose :global(blockquote) { margin: 0 0 22px; padding: 14px 18px; border: 1px solid var(--line); border-left: 3px solid var(--line-3); border-radius: 10px; background: rgba(239, 70, 56, 0.05); color: var(--text-2); }
   .prose :global(blockquote p:last-child) { margin-bottom: 0; }
