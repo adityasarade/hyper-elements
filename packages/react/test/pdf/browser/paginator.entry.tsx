@@ -1,4 +1,4 @@
-/** What paginator.test.tsx runs in Chromium, bundled for a browser: each design paginated, and the report typed into. */
+/** What paginator.test.tsx runs in Chromium, bundled for a browser: each design paginated (and laid out, with its lines), and the report typed into. */
 import { createPaginator } from "../../../src/pdf";
 import { designs, report, typing } from "./paginated";
 
@@ -12,5 +12,6 @@ window.paginateAll = async (arabic) => {
   const paginator = await createPaginator({ fonts: [{ family: "Noto Arabic", src: new Uint8Array(arabic) }] });
   const plans = Object.fromEntries(Object.entries(designs).map(([name, design]) => [name, paginator.paginate(design)]));
   const typed = typing.map((text) => paginator.paginate(report(80, text), { diagnostics: false }).plan);
-  return JSON.stringify({ plans, typed });
+  const layouts = Object.fromEntries(Object.entries(designs).map(([name, design]) => [name, paginator.paginate(design, { diagnostics: false, layout: true }).layout]));
+  return JSON.stringify({ plans, typed, layouts });
 };

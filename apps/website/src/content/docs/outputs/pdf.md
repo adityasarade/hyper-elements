@@ -185,6 +185,21 @@ const { plan } = paginator.paginate(design, { diagnostics: false });
 
 It runs in Node, in a browser and in a Worker, to the same plan in each. On a laptop, a 28-page report is paginated again in about 7ms after a keystroke (12ms with its diagnostics). It needs `@react-pdf/textkit`.
 
+### Lines and carets
+
+A paginator's `paginate(design, { layout: true })` also gives its `layout`: `layoutDocument()`'s pages and nodes, each text node with its `text` and its `lineBoxes`, each line's characters in that text, its box, its baseline, and where a caret goes between its characters. `caretAt()`, `caretBox()` and `selectionBoxes()` read it:
+
+```tsx
+import { caretAt, caretBox, selectionBoxes } from "@hyper-elements/react/pdf";
+
+const { layout } = paginator.paginate(design, { layout: true });
+const caret = caretAt(layout, { page: 1, x: 120, y: 300 }); // the nearest: { path, offset, page }
+const box = caretBox(layout, caret); // where it's drawn: { page, x, y, height }
+const boxes = selectionBoxes(layout, { path: caret.path, start: 0, end: 20 });
+```
+
+Each character is where the PDF draws its glyph. Text written right to left runs from its right, a caret never goes inside a character, and `affinity` says where an offset in two places goes: the end of a line or the start of the next.
+
 ### Where everything landed
 
 `layoutDocument(design, { fonts, images })` takes `renderPdf()`'s options and gives the Document as its PDF lays it out:

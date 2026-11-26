@@ -16,8 +16,10 @@ import { ElementsError, prepare, type Diagnostic, type ResolvedNode, type Snapsh
 import type { ReactElement } from "react";
 import { documentLayout, measuredOverflow, type DocumentLayout } from "./layout";
 import { overflows } from "./flow";
+import { nodeTexts } from "./lines";
 
-export type { DocumentLayout, DocumentNode, DocumentPage } from "./layout";
+export type { DocumentLayout, DocumentLine, DocumentNode, DocumentPage, DocumentRun } from "./layout";
+export { caretAt, caretBox, selectionBoxes, type Caret, type CaretBox, type CaretOptions, type PagePoint, type SelectionBox } from "./caret";
 export type { Plan, PlannedLine, PlannedPage, PlannedPart } from "@hyper-elements/core";
 
 export interface PdfFont {
@@ -52,6 +54,8 @@ export interface PaginateResult {
   plan: Plan;
   /** renderPdf()'s diagnostics: what can't go on to another page and is cut off, measured. */
   diagnostics: Diagnostic[];
+  /** With a paginator's `layout: true`: where everything landed on its pages, as layoutDocument() says, each text node with its lines. */
+  layout?: DocumentLayout;
 }
 
 /** The date a PDF says it was made by default: fixed, so the same template makes the same bytes. */
@@ -90,6 +94,12 @@ export interface PaginateOptions {
    * empty, and a template with errors still throws). For pages kept up to date as a Document is edited. true by default.
    */
   diagnostics?: boolean;
+  /**
+   * true: with its `layout` too, where everything landed on its pages (layoutDocument()'s), each text node with its text
+   * and its lines (`lineBoxes`): where each is drawn, and where a caret goes between its characters. For caretAt(),
+   * caretBox() and selectionBoxes().
+   */
+  layout?: boolean;
 }
 
 /** Documents paginated with the same fonts and images, made ready once: createPaginator() makes one. */
@@ -114,8 +124,8 @@ export async function createPaginator(options: PaginatorOptions = {}): Promise<P
     throw new ElementsError([{ code: "pdf/textkit", severity: "error", message: "createPaginator() lays text out with @react-pdf/textkit, which can't be loaded: install it", path: "root" }]);
   }
   return {
-    paginate(element, { diagnostics = true } = {}) {
-      const paginated = paginateWith(layout, setup, element, diagnostics);
+    paginate(element, { diagnostics = true, layout: laidOut = false } = {}) {
+      const paginated = paginateWith(layout, setup, element, diagnostics, laidOut);
       if (paginated) return paginated;
       throw new ElementsError([{ code: "pdf/measure", severity: "error", message: "This Document holds a block that can't be measured without drawing it: paginate() it", path: "root" }]);
     },
@@ -138,15 +148,21 @@ const setupOf = (options: PdfOptions): Setup => {
   return { given, fonts: drawnFonts(given, notes), notes, images: options.images ?? {}, date: options.date ?? FIXED_DATE };
 };
 
-/** A Document paginated by a Layout: undefined where it can't measure it so. `check`: with renderPdf()'s diagnostics. */
-function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snapshot, check: boolean): PaginateResult | undefined {
+/**
+ * A Document paginated by a Layout: undefined where it can't measure it so. `check`: with renderPdf()'s diagnostics;
+ * `lines`: with its layout, each text node's lines in it.
+ */
+function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snapshot, check: boolean, lines = false): PaginateResult | undefined {
   const document = written(element, setup, check);
   const laid = layout.measure(document.written);
   if (!laid) return undefined;
   const { plan, pages } = planned(document, laid);
-  if (!check) return { plan, diagnostics: [] };
+  if (!check && !lines) return { plan, diagnostics: [] };
+  // Its pages as they're drawn, measured: what's cut off, and where everything landed.
   const placed = pages === document.written ? laid : layout.measure(pages);
-  return { plan, diagnostics: said({ ...document, pages }, placed) };
+  const diagnostics = check ? said({ ...document, pages }, placed) : [];
+  if (!lines || !placed) return { plan, diagnostics };
+  return { plan, diagnostics, layout: documentLayout(document.root, pages.pages, placed, diagnostics, plan, nodeTexts(document.written)) };
 }
 
 /**

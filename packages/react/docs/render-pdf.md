@@ -122,6 +122,32 @@ const { plan } = paginator.paginate(design, { diagnostics: false });
 - **Its fonts:** text in a font it wasn't given is drawn in a standard PDF font, as `renderPdf()` draws it. Make another paginator for other fonts.
 - `cacheSize` sets how many blocks of text it keeps laid out (10,000 by default).
 
+## Where each line is, and where a caret goes
+
+A paginator's `paginate(design, { layout: true })` gives its `layout` too, without drawing the PDF: `layoutDocument()`'s pages and nodes, each text node with its `text` (as its PDF draws it) and its `lineBoxes`. Each line has:
+
+- its characters in the node's `text`: `start` and `end`, in UTF-16 code units (as a JavaScript string counts them);
+- its box, in px from its page's top left: `x` and `width` (from its leftmost character to its rightmost), `y` and `height`, and its `baseline`;
+- its `runs`: its characters in runs each written one way (`rtl` where right to left), each with its `carets`, where a caret goes before each character and after its last.
+
+A ListItem's, a TableCell's and a Button's text is their own. Three plain functions of the layout read it, so a page view can paginate in a Worker and find a caret where the pointer is:
+
+```tsx
+import { caretAt, caretBox, createPaginator, selectionBoxes } from "@hyper-elements/react/pdf";
+
+const { layout } = paginator.paginate(design, { layout: true });
+const caret = caretAt(layout, { page: 1, x: 120, y: 300 }); // { path, offset, page }: the nearest
+const box = caretBox(layout, caret); // { page, x, y, height }: where it's drawn
+const boxes = selectionBoxes(layout, { path: caret.path, start: 0, end: 20 }); // a box for each stretch on each line
+```
+
+- **Where the PDF draws it:** each character is where its glyph is, with the spaces justified or squeezed to fit; a glyph drawn for several characters (a ligature) shares its width between them.
+- **Right to left:** text written right to left runs from its right, and words written left to right in it from their left. A selection across them has a box for each stretch drawn apart.
+- **Between characters:** a caret never goes inside one (a UTF-16 pair, or a letter and its accent).
+- **Two places:** where an offset is in two (the end of a line and the start of the next, or where text written one way meets text written the other), `affinity` says which: `"after"` (by default) or `"before"`. A node in a PageHeader or PageFooter is on every page: give `page` for its caret on one.
+
+A keystroke on a 28-page report is laid out again with its lines in about 12ms. To draw text where its carets are, draw it in the same font files.
+
 ## Where everything landed
 
 `layoutDocument(design, options)` takes `renderPdf`'s options and gives the Document as its PDF lays it out, in px:
