@@ -86,7 +86,10 @@ export function flowedPages(root: ResolvedNode, plan: Plan): FlowedPage[] {
   const nodes = byPath(root);
   // The numbers each page as written was measured with: its own, of as many as were written.
   const total = documentPages(root).pages.length;
-  return plan.pages.map(({ from, parts }) => ({ from, content: parts.map((part) => copy(part, nodes, { number: from + 1, total })).filter((node): node is ResolvedNode => node !== undefined) }));
+  return plan.pages.map(({ from, parts }) => {
+    const numbers = plan.numbers === undefined ? { number: from + 1, total } : { number: plan.numbers, total: plan.numbers };
+    return { from, content: parts.map((part) => copy(part, nodes, numbers)).filter((node): node is ResolvedNode => node !== undefined) };
+  });
 }
 
 /** How many characters a run counts for, as the PDF counts them; `numbers`, the page numbers it was measured with. */

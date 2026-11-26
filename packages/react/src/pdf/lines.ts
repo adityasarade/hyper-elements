@@ -40,13 +40,13 @@ export interface DocumentLine {
 /** A PDF point in px: a point is 1/72 of an inch, a px 1/96. */
 const px = (points: number) => Math.round((points / 0.75) * 100) / 100;
 
-/** A node's text on a page (from 0), or undefined. */
-export type NodeTexts = (path: string, page: number) => string | undefined;
+/** A node's text on a page (from 0), or undefined; `whole`, where it's all on that page (not a part of it that goes on). */
+export type NodeTexts = (path: string, page: number, whole?: boolean) => string | undefined;
 
 /**
- * Each node's text, as the page model holds it: its block of text's, or the text that's `of` it. A page's content, as
- * it was before it flowed (`written`: a part of a block of text that goes on has its lines in all of its text); its
- * header and footer, as each page draws them (`drawn`: with that page's numbers).
+ * Each node's text, as the page model holds it: its block of text's, or the text that's `of` it. A page's header and
+ * footer, and a block all on a page, as that page draws them (`drawn`: with that page's numbers); a part of a block of
+ * text that goes on, as it was measured before it flowed (`written`: its lines are in all of its text).
  */
 export function nodeTexts(written: DrawnDocument, drawn: DrawnDocument = written): NodeTexts {
   const visit = (out: Map<string, string>) => (block: Block | undefined) => {
@@ -64,7 +64,12 @@ export function nodeTexts(written: DrawnDocument, drawn: DrawnDocument = written
     [page.header, page.footer].forEach(visit(out));
     return out;
   });
-  return (path, page) => around[page]?.get(path) ?? content.get(path);
+  const whole = drawn.pages.map((page) => {
+    const out = new Map<string, string>();
+    page.content.forEach(visit(out));
+    return out;
+  });
+  return (path, page, all) => around[page]?.get(path) ?? (all ? whole[page]?.get(path) : undefined) ?? content.get(path);
 }
 
 /** Whether the UTF-16 unit at `i` is inside a character: the second of a pair, a mark on a letter, or what a zero-width joiner joins. */

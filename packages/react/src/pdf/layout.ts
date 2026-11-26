@@ -117,7 +117,8 @@ export function documentLayout(root: ResolvedNode, pages: Page[], placed: Placed
         const cut = outside.some((path) => inside(block.path, path)) ? undefined : cutOf(block, room);
         const part = parts.get(block.path);
         const count = block.lines?.length ?? part?.lines?.length;
-        const text = texts?.(block.path, i);
+        // All of it on this page (no part of it goes on): its text as this page draws it, with its page numbers.
+        const text = texts?.(block.path, i, part === undefined || (part.first && part.last && !part.lines));
         const lineBoxes = text !== undefined ? documentLines(text, block, part) : undefined;
         return {
           path: block.path,

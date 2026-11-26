@@ -254,6 +254,24 @@ describe("a paginator's layout with its lines", () => {
     expect(caretBox(layout, { path: second.path, offset: 6, page: 2 })).toMatchObject({ page: 2, y: second.lineBoxes[0].y });
   });
 
+  it("has a page number's text in the content as the page it went on to draws it, with its lines", async () => {
+    const layout = await laidOut(
+      <Document size="A5">
+        {Array.from({ length: 40 }, (_, i) => (
+          <Text key={i}>Record {i + 1}</Text>
+        ))}
+        <Text id="number">
+          Body page <PageNumber /> of <PageNumber total />
+        </Text>
+      </Document>
+    );
+    const node = layout.nodes.find(({ id }) => id === "number")!;
+    expect(node.page).toBe(2);
+    expect(node.text).toBe("Body page 2 of 2");
+    expect(node.lineBoxes).toHaveLength(1);
+    expect(caretBox(layout, { path: node.path, offset: 10, page: 2 })).toMatchObject({ page: 2, y: node.lineBoxes![0].y });
+  });
+
   it("puts a caret between characters, never inside one: a letter and its accent, a pair of UTF-16 units", async () => {
     // "é" as e and an acute accent, and "𝐀" (a pair of UTF-16 units), in a font with each.
     const words = "Café and 𝐀 bold";

@@ -43,9 +43,9 @@ const present = <T>(items: Array<T | undefined>): T[] => items.filter((item): it
 
 /**
  * A Document's pages as written: each page its content, header and footer, numbered for the pages there are.
- * `reserve`: a header's and a footer's page numbers written as the widest they get (each `reserve`, the count of pages a
- * plan has), so they're measured as tall as they're drawn on any page (a footer that wraps once its count grows a
- * digit); the pages are then flowed, which numbers each as it's drawn.
+ * `reserve`: its page numbers written as the widest they get (each `reserve`, the count of pages a plan has), so
+ * they're measured as tall as they're drawn on any page (a footer, or a text, that wraps once its count grows a
+ * digit); the pages are then flowed (flowDocument()'s `reserve`), which numbers each as it's drawn.
  */
 export function writeDocument(root: ResolvedNode, context: WriteContext, reserve?: number): DrawnDocument {
   const box = pageBox(root.props);
@@ -58,8 +58,7 @@ export function writeDocument(root: ResolvedNode, context: WriteContext, reserve
     date: context.date,
     fonts: context.fonts,
     pages: pages.map(({ page, children }, index): Page => {
-      write.page = { number: index + 1, total };
-      const around = reserve === undefined ? write.page : { number: reserve, total: reserve };
+      write.page = reserve === undefined ? { number: index + 1, total } : { number: reserve, total: reserve };
       const content = page ?? root;
       const margin = { top: pt(box.margin.top), right: pt(box.margin.right), bottom: pt(box.margin.bottom), left: pt(box.margin.left) };
       return {
@@ -73,10 +72,10 @@ export function writeDocument(root: ResolvedNode, context: WriteContext, reserve
         // thousandth: react-pdf warns that a box taller than the room can't wrap, and Yoga lays it out in 32-bit
         // floats (A4's 769.89 points is 769.8900146). The page box's contentHeight is a whole px (1027 for 1026.52).
         contentHeight: Math.floor((pt(box.height) - margin.bottom - margin.top - 0.001) * 1000) / 1000,
-        header: header && write.numbered(around, () => write.block(header, root)),
+        header: header && write.block(header, root),
         content: present(children.filter(shown).map((child) => write.block(child, content))),
         gap: typeof content.style.gap === "number" ? pt(content.style.gap) : undefined,
-        footer: footer && write.numbered(around, () => write.block(footer, root)),
+        footer: footer && write.block(footer, root),
       };
     }),
   };
@@ -88,7 +87,7 @@ export function writeDocument(root: ResolvedNode, context: WriteContext, reserve
  * pages as written (`document`) and where the engine laid them out (`placed`), measured (plan.ts), planned (flow.ts)
  * and painted (paint.ts), with the Plan and what it was made from.
  */
-export function flowDocument(root: ResolvedNode, context: WriteContext, document: DrawnDocument, placed: PlacedPage[]): { document: DrawnDocument; plan: Plan; measured: MeasuredPage[] } {
+export function flowDocument(root: ResolvedNode, context: WriteContext, document: DrawnDocument, placed: PlacedPage[], reserve?: number): { document: DrawnDocument; plan: Plan; measured: MeasuredPage[] } {
   const measured = measure(document, placed);
   const planned: PlannedPage[] = document.pages.flatMap((page, i) => {
     const pages = measured[i] ? flowPage(page, measured[i], i) : undefined;
@@ -106,7 +105,7 @@ export function flowDocument(root: ResolvedNode, context: WriteContext, document
     const content = parts.map((part) => numbered(painter.part(part), write.page));
     return { ...page, content, header: header && write.block(header, root), footer: footer && write.block(footer, root) };
   });
-  return { document: { ...document, pages }, plan: { pages: planned }, measured };
+  return { document: { ...document, pages }, plan: { pages: planned, ...(reserve !== undefined ? { numbers: reserve } : {}) }, measured };
 }
 
 const gap = (node: ResolvedNode): Style => (typeof node.style.gap === "number" ? { gap: pt(node.style.gap) } : {});
@@ -178,16 +177,6 @@ function rightToLeft(root: ResolvedNode): Set<string> {
 class Writer {
   page = { number: 1, total: 1 };
 
-  /** What `write` writes, with its page numbers `numbers`. */
-  numbered<T>(numbers: { number: number; total: number }, write: () => T): T {
-    const page = this.page;
-    this.page = numbers;
-    try {
-      return write();
-    } finally {
-      this.page = page;
-    }
-  }
   private readonly rtl: Set<string>;
 
   constructor(

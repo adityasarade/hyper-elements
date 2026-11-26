@@ -461,6 +461,33 @@ describe("a Document's content that doesn't fit its page", () => {
     expect(html.replace(/<[^>]+>/g, "")).toContain("Body page 2 of 2");
   });
 
+  it("measures a page number in the content as wide as it's drawn when its count grows a digit, so its line isn't cut off", async () => {
+    // "Total 1" fits its width; "Total 10" wraps: a line more than it was measured with, under the room's foot.
+    const design = (
+      <Document size="A5" margin={{ top: 300, bottom: 300, left: 48, right: 48 }}>
+        {Array.from({ length: 7 }, (_, i) => (
+          <Text key={i}>Opening record {i + 1}</Text>
+        ))}
+        <Text id="total" style={{ width: 68, fontFamily: "Courier" }}>
+          Total <PageNumber total />
+        </Text>
+        {Array.from({ length: 75 }, (_, i) => (
+          <Text key={i}>Closing record {i + 1}</Text>
+        ))}
+      </Document>
+    );
+    const layout = await layoutDocument(design);
+    expect(layout.pages.length).toBeGreaterThanOrEqual(10);
+    const total = layout.nodes.find(({ id }) => id === "total")!;
+    expect(total.lines).toBe(2);
+    expect(layout.nodes.filter((node) => node.cut)).toEqual([]);
+    const { pdf, plan } = await renderPdf(design);
+    expect((await words(pdf))[total.page - 1]).toContain(`Total ${layout.pages.length}`);
+    // Its page numbers measured as the widest they get, which the print HTML cuts its text by; the same without drawing.
+    expect(plan.numbers).toBe(plan.pages.length);
+    expect((await paginate(design)).plan).toEqual(plan);
+  });
+
   it("measures a footer as tall as it's drawn when its count of pages grows a digit, so nothing above it is cut off", async () => {
     // "Total 1" fits the footer's width; "Total 10" wraps, so every page's footer is a line taller than it was measured.
     const design = (

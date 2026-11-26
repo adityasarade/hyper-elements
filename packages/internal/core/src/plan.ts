@@ -78,6 +78,12 @@ export interface PlannedPage {
 
 export interface Plan {
   pages: PlannedPage[];
+  /**
+   * Where its page numbers were measured as the widest they get (a count of pages grown a digit since they were
+   * written): each one written as this, a split text's lines cut where they were then. Else each page's numbers were
+   * those of the page it was written on, of as many as were written.
+   */
+  numbers?: number;
 }
 
 /** A part that's its block whole, as written. */
