@@ -34,6 +34,7 @@ const outputs = [
   { id: "image", label: "Image", root: "Canvas", fn: "renderImage", comp: component(canvas), out: fileName(canvas), chrome: "image", file: canvas.file },
 ];
 ---
+<noscript><style>.prism .scaler { opacity: 1 !important; }</style></noscript>
 <div class="prism" data-prism>
   <div class="stage" data-stage>
     <!-- Input: the design, and which output to make of it -->
@@ -108,7 +109,7 @@ const outputs = [
             {o.html ? (
               <div class="sheet">
                 <div class="view-frame" data-fit={o.width} style="height:100%">
-                  <div class="scaler"><iframe title={`${o.label}, rendered by Hyper Elements`} tabindex="-1" srcdoc={previewHtml(o.html)} loading={i === 0 ? "eager" : "lazy"}></iframe></div>
+                  <div class="scaler"><iframe title={`${o.label}, rendered by Hyper Elements`} tabindex="-1" width={o.width} srcdoc={previewHtml(o.html)} loading={i === 0 ? "eager" : "lazy"}></iframe></div>
                 </div>
               </div>
             ) : (
@@ -352,6 +353,10 @@ const outputs = [
   .chrome-image .oc-bar { background: #24242f; border-bottom-color: #30303c; color: #c4c7d0; }
   .chrome-image .oc-bar .dim { color: #8b8fa0; }
   .out-card :global(.view-frame) { --frame-bg: #fff; }
+  /* A preview is drawn at its design's width and scaled to its card by the site's script (fit() in
+     src/scripts/site.ts). Until then it's hidden, so the first frames don't show it unscaled and then jump. */
+  .out-card :global(.view-frame .scaler) { transition: opacity 0.35s ease; }
+  .out-card :global(.view-frame:not([data-fitted]) .scaler) { opacity: 0; }
   .chrome-paper :global(.view-frame) { --frame-bg: #e5e7eb; }
 
   /* Switch */

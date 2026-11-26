@@ -67,6 +67,8 @@ function fit(view: HTMLElement) {
   const scale = Math.min(1, view.clientWidth / width);
   scaler.style.transform = `scale(${scale})`;
   frame.width = String(width);
+  // Scaled: a view that hides its preview until then (the home page's hero) can show it.
+  view.dataset.fitted = "";
   if (view.dataset.fitFull !== undefined) return fitFull(view, frame, width, scale);
   frame.height = String(Math.ceil(view.clientHeight / scale));
 }
