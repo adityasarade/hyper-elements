@@ -11,7 +11,7 @@
  * font), and says so. templateAssets() lists the fonts and images a template names, for a tool that loads them.
  */
 import { assetParts, base64, createLayout, drawPage, flowDocument, LAYOUT_VERSION, pdfFamily, reactPdf, reactPdfLayout, thumbnailOf, writeDocument, type Asset, type Block, type DrawnDocument, type Font, type Layout, type PlacedPage, type Run } from "@hyper-elements/core/pdf";
-import type { FontFace, Plan } from "@hyper-elements/core";
+import { designPrint, type FontFace, type Plan } from "@hyper-elements/core";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode, type Snapshot } from "@hyper-elements/react";
 import type { ReactElement } from "react";
 import { documentLayout, measuredOverflow, type DocumentLayout } from "./layout";
@@ -241,21 +241,21 @@ function written(element: ReactElement | Snapshot, setup: Setup, check: boolean)
   const families = new Set(fonts.map((font) => font.family));
   if (check) found.push(...missingFaces(root, fonts, setup.given), ...beyondStandard(root, families));
   const context = { families, fonts, image: (src: string) => images.get(src), date: setup.date };
-  return { root, context, written: writeDocument(root, context), diagnostics, found };
+  return { root, context, written: writeDocument(root, context), diagnostics, found, print: designPrint(root) };
 }
 
 /** A Document's pages planned from where they were laid out (`laid`): as written where they fit. */
 function planned(document: ReturnType<typeof written>, laid: PlacedPage[] | undefined) {
   const { root, context, written } = document;
   // A Document that fits: each page as written, each block whole on it.
-  let plan: Plan = { pages: written.pages.map((page, from) => ({ from, parts: page.content.map((block) => ({ path: block.path!, part: 0, first: true, last: true })) })) };
+  let plan: Plan = { pages: written.pages.map((page, from) => ({ from, parts: page.content.map((block) => ({ path: block.path!, part: 0, first: true, last: true })) })), design: document.print };
   let pages = written;
   // Content that doesn't fit its page goes on to the next, planned from where it was laid out, a split text's lines as
   // they were laid out (paint.ts).
   if (laid && overflows(written.pages, laid)) {
     const flowed = flowDocument(root, context, written, laid);
     pages = flowed.document;
-    plan = flowed.plan;
+    plan = { ...flowed.plan, design: document.print };
   }
   return { pages, plan };
 }
@@ -263,7 +263,7 @@ function planned(document: ReturnType<typeof written>, laid: PlacedPage[] | unde
 /** A Document's pages as written (`pages`, as laid out: `laid`) flowed, each page planned, even where all of it fits. */
 function flowed(document: ReturnType<typeof written>, pages: DrawnDocument, laid: PlacedPage[], reserve?: number): { pages: DrawnDocument; plan: Plan } {
   const { document: out, plan } = flowDocument(document.root, document.context, pages, laid, reserve);
-  return { pages: out, plan };
+  return { pages: out, plan: { ...plan, design: document.print } };
 }
 
 /**

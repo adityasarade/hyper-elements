@@ -436,6 +436,31 @@ describe("a Document's content that doesn't fit its page", () => {
     expect(pages.map((page) => /Page (\d+) of (\d+)$/.exec(page)?.slice(1).join("/"))).toEqual(pages.map((_, i) => `${i + 1}/${pages.length}`));
   });
 
+  it("draws a plan only for the Document it was made from: one made before an edit is set aside, with a warning", async () => {
+    const report = (typed: string) => (
+      <Document>
+        {Array.from({ length: 40 }, (_, i) => (
+          <Text key={i}>{sentences(10, `paragraph ${i}${i === 3 ? typed : ""}`)}</Text>
+        ))}
+      </Document>
+    );
+    const { plan } = await paginate(report(""));
+    expect(plan.pages.length).toBeGreaterThan(1);
+    expect(plan.design).toMatch(/^[0-9a-f]{16}$/);
+    // The same Document: its plan's pages, nothing said.
+    const same = await render(report(""), { plan });
+    expect(same.diagnostics.map((d) => d.code)).not.toContain("render/plan");
+    expect(same.body.match(/<section /g)).toHaveLength(plan.pages.length);
+    // Edited since: its pages as written (one), and a warning.
+    const edited = await render(report(" typed"), { plan });
+    expect(edited.diagnostics.map((d) => [d.code, d.severity])).toContainEqual(["render/plan", "warning"]);
+    expect(edited.body.match(/<section /g)).toHaveLength(1);
+    // A plan made without one (an older plan, or by hand) is drawn as before.
+    const { design, ...older } = plan;
+    expect(design).toBeDefined();
+    expect((await render(report(" typed"), { plan: older })).diagnostics.map((d) => d.code)).not.toContain("render/plan");
+  });
+
   it("numbers a page number in the content on the page it goes on to, in the PDF and the print HTML alike", async () => {
     const design = (
       <Document size="A5">

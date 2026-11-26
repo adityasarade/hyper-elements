@@ -9,6 +9,8 @@
  */
 
 /** A line of a block of text: its characters in the block's text, and where it is (from its page's top), in points. */
+import type { ResolvedNode } from "./resolve";
+
 export interface MeasuredLine {
   /** Its first character, and the character after its last; `next`, where the next line starts (after a line break that ends this one). */
   start: number;
@@ -84,6 +86,45 @@ export interface Plan {
    * those of the page it was written on, of as many as were written.
    */
   numbers?: number;
+  /**
+   * The Document it was planned from: a hash of it as laid out (designPrint()). render(design, { plan }) draws a plan
+   * only for the Document it was made from, so a page view's plan a keystroke old isn't drawn against what's changed.
+   */
+  design?: string;
+}
+
+/**
+ * A Document as laid out, as a hash: the same for the same design, different (all but certainly) for any change to its
+ * nodes, their props, styles, widths or text. 64 bits of FNV-1a, as hex.
+ */
+export function designPrint(root: ResolvedNode): string {
+  // Two 32-bit FNV-1a lanes, one over the text forward and one with another offset: 64 bits.
+  let a = 0x811c9dc5;
+  let b = 0x01000193 ^ 0x9e3779b9;
+  const add = (text: string) => {
+    for (let i = 0; i < text.length; i++) {
+      const c = text.charCodeAt(i);
+      a = Math.imul(a ^ c, 0x01000193);
+      b = Math.imul(b ^ c, 0x01000193) ^ (b >>> 15);
+    }
+    a = Math.imul(a ^ 0x1f, 0x01000193);
+    b = Math.imul(b ^ 0x1f, 0x01000193);
+  };
+  const visit = (node: ResolvedNode | string) => {
+    if (typeof node === "string") {
+      add(`"${node}`);
+      return;
+    }
+    add(node.type);
+    add(JSON.stringify(node.props));
+    add(JSON.stringify(node.style));
+    if (node.hidden) add(JSON.stringify(node.hidden));
+    add(String(node.width));
+    add(`(${node.children.length}`);
+    node.children.forEach(visit);
+  };
+  visit(root);
+  return (a >>> 0).toString(16).padStart(8, "0") + (b >>> 0).toString(16).padStart(8, "0");
 }
 
 /** A part that's its block whole, as written. */
