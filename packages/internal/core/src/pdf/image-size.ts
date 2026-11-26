@@ -86,6 +86,27 @@ function read(bytes: Uint8Array): { width: number; height: number } | undefined 
   }
 }
 
+const IEND = [0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82];
+
+/**
+ * Whether a file is whole: a PNG ends in its IEND chunk, a JPEG in its end marker. One cut short (an upload cut off)
+ * react-pdf can't decode, and leaves out (0 tall): its size isn't known here either, so it's measured as react-pdf
+ * draws it. Its last bytes only are read.
+ */
+function whole(src: string): boolean {
+  const data = src.slice(src.indexOf(",") + 1).trimEnd();
+  // Its last 24 characters or so, from a group of four's start: its last 15 bytes at least.
+  const start = Math.max(0, data.length - 24);
+  const end = bytesOf(`data:;base64,${data.slice(start - (start % 4))}`, Infinity);
+  if (!end) return false;
+  const head = bytesOf(src, 3);
+  if (!head) return false;
+  if (head[0] === 0x89) return IEND.every((byte, i) => end[end.length - IEND.length + i] === byte);
+  // A JPEG: its end marker last (a few bytes after it, some writers' padding, allowed).
+  for (let i = end.length - 2; i >= Math.max(0, end.length - 8); i--) if (end[i] === 0xff && end[i + 1] === 0xd9) return true;
+  return false;
+}
+
 /** The files read, the last 1,000 (a server sees many). */
 const sizes = new Map<string, { width: number; height: number } | null>();
 
@@ -100,7 +121,7 @@ export function imageSize(src: string): { width: number; height: number } | unde
       const all = bytesOf(src, Infinity);
       found = all && read(all);
     }
-    size = found && found.width > 0 && found.height > 0 ? found : null;
+    size = found && found.width > 0 && found.height > 0 && whole(src) ? found : null;
     sizes.set(src, size);
     if (sizes.size > 1000) sizes.delete(sizes.keys().next().value!);
   }

@@ -47,7 +47,7 @@ import {
 import { reactPdf, writeDocument, type Block } from "@hyper-elements/core/pdf";
 import { images } from "./operators";
 import { png } from "./png";
-import { createPaginator, type DocumentNode, layoutDocument, templateAssets, renderPdf } from "../../src/pdf";
+import { createPaginator, layoutDocument, paginate, renderPdf, templateAssets, type DocumentNode } from "../../src/pdf";
 import { arabicFonts, arabicSentences } from "./arabic";
 import { toWoff, toWoff2 } from "./woff";
 
@@ -284,6 +284,53 @@ describe("renderPdf", () => {
       const { pdf } = await renderPdf(<Document>{image}<Text>The rest of the report</Text></Document>);
       expect((await read(pdf)).pages[0].words).toContain("The rest of the report");
     }
+  });
+
+  it("draws a pill's rounded background inside its box in a paginator's SVG, its corners no rounder than react-pdf draws them", async () => {
+    const design = (
+      <Document>
+        <Text>Previous row</Text>
+        <Button id="pill" href="https://example.test/paid" style={{ width: 120, backgroundColor: "#345678", borderRadius: 999 }}>
+          Paid
+        </Button>
+      </Document>
+    );
+    const box = (await layoutDocument(design)).nodes.find((node) => node.id === "pill")!;
+    const svg = (await createPaginator()).paginate(design, { svg: true }).svg![0]!;
+    const path = /<path d="([^"]+)" fill="#345678"\/>/.exec(svg)![1];
+    // The x of each point it goes through: a move's, a line across's, an arc's end.
+    const xs = (path.match(/[MHVA][^MHVAZ]*/g) ?? []).flatMap((step) => {
+      const numbers = step.slice(1).trim().split(/[ ,]+/).map(Number);
+      return step[0] === "M" ? [numbers[0]] : step[0] === "H" ? [numbers[0]] : step[0] === "A" ? [numbers[5]] : [];
+    });
+    expect(Math.min(...xs), path).toBeGreaterThanOrEqual(box.x * 0.75 - 0.01);
+    expect(Math.max(...xs), path).toBeLessThanOrEqual((box.x + box.width) * 0.75 + 0.01);
+  });
+
+  it("measures an image on a page too short for it as react-pdf draws it: 0 tall, not less", async () => {
+    const design = (
+      <Document size="A5" margin={{ top: 391, bottom: 391, left: 48, right: 48 }}>
+        <Image id="image" src={png(10, 10)} alt="Logo" />
+        <Text>Caption</Text>
+      </Document>
+    );
+    const preview = (await createPaginator()).paginate(design, { layout: true });
+    const drawn = await layoutDocument(design);
+    expect((await paginate(design)).plan).toEqual((await renderPdf(design)).plan);
+    expect(preview.layout!.nodes.find((node) => node.id === "image")!.height).toBe(drawn.nodes.find((node) => node.id === "image")!.height);
+  });
+
+  it("measures a PNG cut short (its header whole) as react-pdf draws it, left out: the same plan without drawing", async () => {
+    const bytes = Buffer.from(png(100, 700).split(",")[1], "base64").subarray(0, 33);
+    const design = (
+      <Document size="A5">
+        <Image src={`data:image/png;base64,${bytes.toString("base64")}`} alt="A damaged upload" />
+        {Array.from({ length: 10 }, (_, i) => (
+          <Text key={i}>Record {i + 1}</Text>
+        ))}
+      </Document>
+    );
+    expect((await paginate(design)).plan.pages.map((page) => page.parts.length)).toEqual((await renderPdf(design)).plan.pages.map((page) => page.parts.length));
   });
 
   it("draws a Video's thumbnail given in images: its own, or a YouTube video's by the URL it's derived from", async () => {

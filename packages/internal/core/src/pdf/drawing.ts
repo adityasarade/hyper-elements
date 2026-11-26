@@ -50,11 +50,13 @@ function rect(frame: PlacedFrame): Drawn | undefined {
   const fill = typeof style.backgroundColor === "string" && style.backgroundColor !== "transparent" ? style.backgroundColor : undefined;
   if (!fill && !Object.keys(border).length) return undefined;
   const all = number(style.borderRadius);
+  // Each corner no rounder than half the box across and half down, as react-pdf draws it (a pill's 999).
+  const corner = (r: number) => Math.min(r, 0.5 * frame.width, 0.5 * frame.height);
   const radius: [number, number, number, number] = [
-    number(style.borderTopLeftRadius) || all,
-    number(style.borderTopRightRadius) || all,
-    number(style.borderBottomRightRadius) || all,
-    number(style.borderBottomLeftRadius) || all,
+    corner(number(style.borderTopLeftRadius) || all),
+    corner(number(style.borderTopRightRadius) || all),
+    corner(number(style.borderBottomRightRadius) || all),
+    corner(number(style.borderBottomLeftRadius) || all),
   ];
   return {
     kind: "rect",

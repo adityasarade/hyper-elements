@@ -423,7 +423,8 @@ class Measurer {
           break;
         }
         const room = this.area - number(style.marginTop) - number(style.marginBottom);
-        height = Math.min(room, Math.fround(inner) / (block.size.width / block.size.height)) + frame.top + frame.bottom;
+        // Never less than none: on a page too short for any of it, Yoga has it 0 tall.
+        height = Math.max(0, Math.min(room, Math.fround(inner) / (block.size.width / block.size.height))) + frame.top + frame.bottom;
         break;
       }
       case "drawing":
