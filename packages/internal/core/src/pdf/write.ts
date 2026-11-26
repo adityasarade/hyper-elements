@@ -39,7 +39,13 @@ const sized = (src: string): { size?: { width: number; height: number } } => {
 const nodes = (node: ResolvedNode) => node.children.filter((child): child is ResolvedNode => typeof child !== "string" && shown(child));
 const present = <T>(items: Array<T | undefined>): T[] => items.filter((item): item is T => item !== undefined);
 
-export function writeDocument(root: ResolvedNode, context: WriteContext): DrawnDocument {
+/**
+ * A Document's pages as written: each page its content, header and footer, numbered for the pages there are.
+ * `reserve`: a header's and a footer's page numbers written as the widest they get (each `reserve`, the count of pages a
+ * plan has), so they're measured as tall as they're drawn on any page (a footer that wraps once its count grows a
+ * digit); the pages are then flowed, which numbers each as it's drawn.
+ */
+export function writeDocument(root: ResolvedNode, context: WriteContext, reserve?: number): DrawnDocument {
   const box = pageBox(root.props);
   const { pages, header, footer } = documentPages(root);
   const total = pages.length;
@@ -51,6 +57,7 @@ export function writeDocument(root: ResolvedNode, context: WriteContext): DrawnD
     fonts: context.fonts,
     pages: pages.map(({ page, children }, index): Page => {
       write.page = { number: index + 1, total };
+      const around = reserve === undefined ? write.page : { number: reserve, total: reserve };
       const content = page ?? root;
       const margin = { top: pt(box.margin.top), right: pt(box.margin.right), bottom: pt(box.margin.bottom), left: pt(box.margin.left) };
       return {
@@ -64,10 +71,10 @@ export function writeDocument(root: ResolvedNode, context: WriteContext): DrawnD
         // thousandth: react-pdf warns that a box taller than the room can't wrap, and Yoga lays it out in 32-bit
         // floats (A4's 769.89 points is 769.8900146). The page box's contentHeight is a whole px (1027 for 1026.52).
         contentHeight: Math.floor((pt(box.height) - margin.bottom - margin.top - 0.001) * 1000) / 1000,
-        header: header && write.block(header, root),
+        header: header && write.numbered(around, () => write.block(header, root)),
         content: present(children.filter(shown).map((child) => write.block(child, content))),
         gap: typeof content.style.gap === "number" ? pt(content.style.gap) : undefined,
-        footer: footer && write.block(footer, root),
+        footer: footer && write.numbered(around, () => write.block(footer, root)),
       };
     }),
   };
@@ -91,14 +98,46 @@ export function flowDocument(root: ResolvedNode, context: WriteContext, document
   const pages = planned.map(({ from, parts }, index): Page => {
     const page = document.pages[from];
     const painter = new Painter(blocksOf(page));
-    const content = parts.map((part) => painter.part(part));
     write.page = { number: index + 1, total: planned.length };
+    // Its content's page numbers too, as its header's: this page's, of the pages there are now. A split text is cut where
+    // it was measured with the numbers it was written with (as the print HTML cuts it), then numbered.
+    const content = parts.map((part) => numbered(painter.part(part), write.page));
     return { ...page, content, header: header && write.block(header, root), footer: footer && write.block(footer, root) };
   });
   return { document: { ...document, pages }, plan: { pages: planned }, measured };
 }
 
 const gap = (node: ResolvedNode): Style => (typeof node.style.gap === "number" ? { gap: pt(node.style.gap) } : {});
+
+/** A block with its page numbers (PageNumber's runs) for `page`: itself where it has none, else a copy. */
+function numbered(block: Block, page: { number: number; total: number }): Block {
+  const runs = (list: Run[]): Run[] => {
+    let changed = false;
+    const out = list.map((run): Run => {
+      if (typeof run === "string" || run.kind === "image") return run;
+      if (run.kind === "span" && run.page) {
+        const text = String(run.page === "total" ? page.total : page.number);
+        if (run.runs.length === 1 && run.runs[0] === text) return run;
+        changed = true;
+        return { ...run, runs: [text] };
+      }
+      const inner = runs(run.runs);
+      if (inner === run.runs) return run;
+      changed = true;
+      return { ...run, runs: inner };
+    });
+    return changed ? out : list;
+  };
+  if (block.kind === "text") {
+    const next = runs(block.runs);
+    return next === block.runs ? block : { ...block, runs: next };
+  }
+  if (block.kind === "box" || block.kind === "link") {
+    const children = block.children.map((child) => numbered(child, page));
+    return children.every((child, i) => child === block.children[i]) ? block : { ...block, children };
+  }
+  return block;
+}
 
 const LETTER = /\p{L}/u;
 
@@ -136,6 +175,17 @@ function rightToLeft(root: ResolvedNode): Set<string> {
 
 class Writer {
   page = { number: 1, total: 1 };
+
+  /** What `write` writes, with its page numbers `numbers`. */
+  numbered<T>(numbers: { number: number; total: number }, write: () => T): T {
+    const page = this.page;
+    this.page = numbers;
+    try {
+      return write();
+    } finally {
+      this.page = page;
+    }
+  }
   private readonly rtl: Set<string>;
 
   constructor(
@@ -244,7 +294,8 @@ class Writer {
           case "MergeTag":
             return `{{${child.props.name}}}`;
           case "PageNumber":
-            return String(child.props.total ? this.page.total : this.page.number);
+            // Marked, so a page its text goes on to numbers it (flowDocument()).
+            return { kind: "span", style: {}, runs: [String(child.props.total ? this.page.total : this.page.number)], page: child.props.total ? "total" : "number" };
           case "Link":
             return { kind: "link", href: linkParts(child.props.href as LinkValue).href, style: { ...runStyle(child, this.context.families), ...direction }, runs: this.runs(child, direction) };
           case "Image": {

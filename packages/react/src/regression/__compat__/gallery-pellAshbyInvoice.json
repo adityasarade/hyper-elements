@@ -6560,9 +6560,23 @@
             "textAlign": "right"
            },
            "runs": [
-            "1",
+            {
+             "kind": "span",
+             "style": {},
+             "runs": [
+              "1"
+             ],
+             "page": "number"
+            },
             " of ",
-            "2"
+            {
+             "kind": "span",
+             "style": {},
+             "runs": [
+              "2"
+             ],
+             "page": "total"
+            }
            ],
            "path": "root.children[2].children[0].children[1].children[0]"
           }
@@ -8639,9 +8653,23 @@
             "textAlign": "right"
            },
            "runs": [
-            "2",
+            {
+             "kind": "span",
+             "style": {},
+             "runs": [
+              "2"
+             ],
+             "page": "number"
+            },
             " of ",
-            "2"
+            {
+             "kind": "span",
+             "style": {},
+             "runs": [
+              "2"
+             ],
+             "page": "total"
+            }
            ],
            "path": "root.children[2].children[0].children[1].children[0]"
           }

@@ -13,7 +13,12 @@ import type { LineEdges } from "./carets";
 export type Style = Record<string, string | number | undefined>;
 
 /** A run of text inside a block of text: words, a styled run, a link, an image in the line. */
-export type Run = string | { kind: "span"; style: Style; runs: Run[] } | { kind: "link"; href: string; style: Style; runs: Run[] } | Picture;
+export type Run =
+  | string
+  /** A styled run; `page`, a page number's (its page's, or the count of pages): renumbered on the page it's drawn on. */
+  | { kind: "span"; style: Style; runs: Run[]; page?: "number" | "total" }
+  | { kind: "link"; href: string; style: Style; runs: Run[] }
+  | Picture;
 
 export interface Picture {
   kind: "image";

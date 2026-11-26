@@ -1158,9 +1158,23 @@
            },
            "runs": [
             "Page ",
-            "1",
+            {
+             "kind": "span",
+             "style": {},
+             "runs": [
+              "1"
+             ],
+             "page": "number"
+            },
             " of ",
-            "3"
+            {
+             "kind": "span",
+             "style": {},
+             "runs": [
+              "3"
+             ],
+             "page": "total"
+            }
            ],
            "path": "root.children[0].children[0].children[1].children[0]"
           }
@@ -1645,9 +1659,23 @@
        },
        "runs": [
         "Printed from Elements · ",
-        "1",
+        {
+         "kind": "span",
+         "style": {},
+         "runs": [
+          "1"
+         ],
+         "page": "number"
+        },
         " / ",
-        "3"
+        {
+         "kind": "span",
+         "style": {},
+         "runs": [
+          "3"
+         ],
+         "page": "total"
+        }
        ],
        "path": "root.children[5].children[0]"
       }
@@ -1741,9 +1769,23 @@
            },
            "runs": [
             "Page ",
-            "2",
+            {
+             "kind": "span",
+             "style": {},
+             "runs": [
+              "2"
+             ],
+             "page": "number"
+            },
             " of ",
-            "3"
+            {
+             "kind": "span",
+             "style": {},
+             "runs": [
+              "3"
+             ],
+             "page": "total"
+            }
            ],
            "path": "root.children[0].children[0].children[1].children[0]"
           }
@@ -1802,7 +1844,14 @@
         },
         "runs": [
          "After a PageBreak: this is page ",
-         "2",
+         {
+          "kind": "span",
+          "style": {},
+          "runs": [
+           "2"
+          ],
+          "page": "number"
+         },
          ". Fair weather, and a following sea past the Shiants."
         ],
         "path": "root.children[3].children[1]"
@@ -1855,9 +1904,23 @@
        },
        "runs": [
         "Printed from Elements · ",
-        "2",
+        {
+         "kind": "span",
+         "style": {},
+         "runs": [
+          "2"
+         ],
+         "page": "number"
+        },
         " / ",
-        "3"
+        {
+         "kind": "span",
+         "style": {},
+         "runs": [
+          "3"
+         ],
+         "page": "total"
+        }
        ],
        "path": "root.children[5].children[0]"
       }
@@ -1951,9 +2014,23 @@
            },
            "runs": [
             "Page ",
-            "3",
+            {
+             "kind": "span",
+             "style": {},
+             "runs": [
+              "3"
+             ],
+             "page": "number"
+            },
             " of ",
-            "3"
+            {
+             "kind": "span",
+             "style": {},
+             "runs": [
+              "3"
+             ],
+             "page": "total"
+            }
            ],
            "path": "root.children[0].children[0].children[1].children[0]"
           }
@@ -2063,9 +2140,23 @@
        },
        "runs": [
         "Printed from Elements · ",
-        "3",
+        {
+         "kind": "span",
+         "style": {},
+         "runs": [
+          "3"
+         ],
+         "page": "number"
+        },
         " / ",
-        "3"
+        {
+         "kind": "span",
+         "style": {},
+         "runs": [
+          "3"
+         ],
+         "page": "total"
+        }
        ],
        "path": "root.children[5].children[0]"
       }

@@ -10,7 +10,7 @@
  * given in `fonts`. A template that needs one it isn't given is an error (an image) or drawn in a standard PDF font (a
  * font), and says so. templateAssets() lists the fonts and images a template names, for a tool that loads them.
  */
-import { assetParts, base64, createLayout, drawPage, flowDocument, LAYOUT_VERSION, pdfFamily, reactPdf, reactPdfLayout, thumbnailOf, writeDocument, type Asset, type Font, type Layout, type PlacedPage } from "@hyper-elements/core/pdf";
+import { assetParts, base64, createLayout, drawPage, flowDocument, LAYOUT_VERSION, pdfFamily, reactPdf, reactPdfLayout, thumbnailOf, writeDocument, type Asset, type Block, type DrawnDocument, type Font, type Layout, type PlacedPage, type Run } from "@hyper-elements/core/pdf";
 import type { FontFace, Plan } from "@hyper-elements/core";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode, type Snapshot } from "@hyper-elements/react";
 import type { ReactElement } from "react";
@@ -83,8 +83,17 @@ export async function paginate(element: ReactElement | Snapshot, options: PdfOpt
   // Where it can't be measured without drawing it: drawn.
   const planned = await planDocument(element, options, false);
   // Where what's on each planned page landed, without drawing it (or, where it can't be measured so, drawn).
-  const placed = planned.drawn && planned.pages === planned.written ? planned.drawn.placed : ((await reactPdfLayout(planned.pages)) ?? (await reactPdf(planned.pages)).placed);
-  return { plan: planned.plan, diagnostics: said(planned, placed) };
+  const measure = async (pages: DrawnDocument) => (await reactPdfLayout(pages)) ?? (await reactPdf(pages)).placed;
+  let { pages, plan, laid } = planned;
+  let placed = planned.drawn && pages === planned.written ? planned.drawn.placed : await measure(pages);
+  for (let again = 0; again < 3 && pages !== planned.written && laid && placed && shrank(plan, laid, placed); again++) {
+    const reserved = writeDocument(planned.root, planned.context, plan.pages.length);
+    laid = await measure(reserved);
+    if (!laid) break;
+    ({ pages, plan } = flowed(planned, reserved, laid));
+    placed = await measure(pages);
+  }
+  return { plan, diagnostics: said({ ...planned, pages }, placed) };
 }
 
 export interface PaginatorOptions extends PdfOptions {
@@ -164,12 +173,22 @@ const setupOf = (options: PdfOptions): Setup => {
  */
 function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snapshot, check: boolean, lines = false, svg = false): PaginateResult | undefined {
   const document = written(element, setup, check);
-  const laid = layout.measure(document.written);
+  let laid = layout.measure(document.written);
   if (!laid) return undefined;
-  const { plan, pages } = planned(document, laid);
+  let { plan, pages } = planned(document, laid);
+  // Its pages as they're drawn, measured: what's cut off, where everything landed, and what draws them; and, where a
+  // page's header or footer has page numbers, whether it's as tall as measured.
+  const measured = check || lines || svg || (pages !== document.written && numberedAround(document.written));
+  let placed = pages === document.written ? laid : measured ? layout.measure(pages) : undefined;
+  for (let again = 0; again < 3 && pages !== document.written && placed && shrank(plan, laid, placed); again++) {
+    const reserved = writeDocument(document.root, document.context, plan.pages.length);
+    const relaid = layout.measure(reserved);
+    if (!relaid) break;
+    laid = relaid;
+    ({ pages, plan } = flowed(document, reserved, laid));
+    placed = layout.measure(pages);
+  }
   if (!check && !lines && !svg) return { plan, diagnostics: [] };
-  // Its pages as they're drawn, measured: what's cut off, where everything landed, and what draws them.
-  const placed = pages === document.written ? laid : layout.measure(pages);
   const diagnostics = check ? said({ ...document, pages }, placed) : [];
   if (!placed) return { plan, diagnostics };
   return {
@@ -202,7 +221,8 @@ async function planDocument(element: ReactElement | Snapshot, options: PdfOption
   const document = written(element, setupOf(options), true);
   const measured = drawing ? undefined : await reactPdfLayout(document.written);
   const drawn = measured ? undefined : await reactPdf(document.written);
-  return { ...document, ...planned(document, measured ?? drawn?.placed), drawn };
+  const laid = measured ?? drawn?.placed;
+  return { ...document, ...planned(document, laid), drawn, laid };
 }
 
 /**
@@ -237,6 +257,33 @@ function planned(document: ReturnType<typeof written>, laid: PlacedPage[] | unde
   return { pages, plan };
 }
 
+/** A Document's pages as written (`pages`, as laid out: `laid`) flowed, each page planned, even where all of it fits. */
+function flowed(document: ReturnType<typeof written>, pages: DrawnDocument, laid: PlacedPage[]): { pages: DrawnDocument; plan: Plan } {
+  const { document: out, plan } = flowDocument(document.root, document.context, pages, laid);
+  return { pages: out, plan };
+}
+
+/**
+ * Whether a page as drawn has less room than the page it was planned on had as measured: its header or footer drawn
+ * taller with that page's numbers (a count of pages grown a digit, a footer that wraps) than with those it was
+ * measured with. It's planned again, its header's and footer's numbers measured as the widest they get.
+ */
+function shrank(plan: Plan, laid: readonly PlacedPage[], placed: readonly PlacedPage[]): boolean {
+  return plan.pages.some(({ from }, i) => {
+    const drawn = placed[i]?.room;
+    const planned = laid[from]?.room;
+    return drawn !== undefined && planned !== undefined && (drawn.bottom < planned.bottom - 0.01 || drawn.top > planned.top + 0.01);
+  });
+}
+
+/** Whether a page's header or footer has a page number in it (a marked run: write.ts). */
+function numberedAround(document: DrawnDocument): boolean {
+  const has = (block: Block | undefined): boolean =>
+    !!block && (block.kind === "text" ? marked(block.runs) : block.kind === "box" || block.kind === "link" ? block.children.some(has) : false);
+  const marked = (runs: Run[]): boolean => runs.some((run) => typeof run !== "string" && run.kind !== "image" && (("page" in run && !!run.page) || marked(run.runs)));
+  return document.pages.some((page) => has(page.header) || has(page.footer));
+}
+
 /** The diagnostics: prepare()'s, a page's content past its room measured (where it can be), and the files' and fonts'. */
 function said(planned: { root: ResolvedNode; pages: ReturnType<typeof written>["written"]; diagnostics: Diagnostic[]; found: Diagnostic[] }, placed: PlacedPage[] | undefined): Diagnostic[] {
   const { root, pages, diagnostics, found } = planned;
@@ -247,8 +294,17 @@ function said(planned: { root: ResolvedNode; pages: ReturnType<typeof written>["
 /** The PDF: drawn once where its pages fit, and again, flowed, where they don't. */
 async function draw(element: ReactElement | Snapshot, options: PdfOptions) {
   const planned = await planDocument(element, options, true);
-  const { pdf, placed } = planned.drawn && planned.pages === planned.written ? planned.drawn : await reactPdf(planned.pages);
-  return { root: planned.root, pages: planned.pages, placed, plan: planned.plan, pdf, diagnostics: said(planned, placed) };
+  let { pages, plan, laid } = planned;
+  let { pdf, placed } = planned.drawn && pages === planned.written ? planned.drawn : await reactPdf(pages);
+  // Planned again where a page drawn has less room than planned (its header's or footer's page numbers drawn taller).
+  for (let again = 0; again < 3 && pages !== planned.written && laid && placed && shrank(plan, laid, placed); again++) {
+    const reserved = writeDocument(planned.root, planned.context, plan.pages.length);
+    laid = (await reactPdf(reserved)).placed;
+    if (!laid) break;
+    ({ pages, plan } = flowed(planned, reserved, laid));
+    ({ pdf, placed } = await reactPdf(pages));
+  }
+  return { root: planned.root, pages, placed, plan, pdf, diagnostics: said({ ...planned, pages }, placed) };
 }
 
 export interface TemplateAssets {

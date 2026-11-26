@@ -3,7 +3,7 @@
  * each page) and laid out with layoutDocument() (where each block landed).
  */
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { Column, Document, Heading, Image, List, ListItem, PageFooter, PageNumber, prepare, Row, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
+import { Column, Document, Heading, Image, List, ListItem, PageFooter, PageNumber, prepare, render, Row, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
 import type { PlannedPart } from "@hyper-elements/core";
 import { reactPdf, writeDocument } from "@hyper-elements/core/pdf";
 import { createPaginator, layoutDocument, paginate, renderPdf } from "../../src/pdf";
@@ -434,5 +434,55 @@ describe("a Document's content that doesn't fit its page", () => {
     const pages = await words(pdf);
     expect(pages.length).toBeGreaterThan(1);
     expect(pages.map((page) => /Page (\d+) of (\d+)$/.exec(page)?.slice(1).join("/"))).toEqual(pages.map((_, i) => `${i + 1}/${pages.length}`));
+  });
+
+  it("numbers a page number in the content on the page it goes on to, in the PDF and the print HTML alike", async () => {
+    const design = (
+      <Document size="A5">
+        <PageFooter>
+          <Text>
+            Footer <PageNumber /> of <PageNumber total />
+          </Text>
+        </PageFooter>
+        {Array.from({ length: 40 }, (_, i) => (
+          <Text key={i}>Body row {i + 1}</Text>
+        ))}
+        <Text>
+          Body page <PageNumber /> of <PageNumber total />
+        </Text>
+      </Document>
+    );
+    const { pdf, plan } = await renderPdf(design);
+    expect(plan.pages).toHaveLength(2);
+    const pages = await words(pdf);
+    expect(pages[1]).toContain("Body page 2 of 2");
+    expect(pages[1]).toContain("Footer 2 of 2");
+    const { html } = await render(design, { plan });
+    expect(html.replace(/<[^>]+>/g, "")).toContain("Body page 2 of 2");
+  });
+
+  it("measures a footer as tall as it's drawn when its count of pages grows a digit, so nothing above it is cut off", async () => {
+    // "Total 1" fits the footer's width; "Total 10" wraps, so every page's footer is a line taller than it was measured.
+    const design = (
+      <Document size="A5">
+        <PageFooter>
+          <Text style={{ width: 68, fontFamily: "Courier" }}>
+            Total <PageNumber total />
+          </Text>
+        </PageFooter>
+        {Array.from({ length: 270 }, (_, i) => (
+          <Text key={i}>Record {i + 1}</Text>
+        ))}
+      </Document>
+    );
+    const layout = await layoutDocument(design);
+    expect(layout.pages.length).toBeGreaterThanOrEqual(10);
+    expect(layout.nodes.filter((node) => node.cut)).toEqual([]);
+    // Every record on a page, once, and the same plan without drawing.
+    const { plan } = await renderPdf(design);
+    expect(plan.pages.flatMap((page) => page.parts.map((part) => part.path))).toHaveLength(270);
+    expect((await paginate(design)).plan).toEqual(plan);
+    const paginator = await createPaginator();
+    expect(paginator.paginate(design, { diagnostics: false }).plan).toEqual(plan);
   });
 });
