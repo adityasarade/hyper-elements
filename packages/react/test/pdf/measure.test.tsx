@@ -161,7 +161,7 @@ const tally = (): Tally => ({ overlaid: 0, blocks: 0, lines: 0, boxes: 0, edges:
  */
 async function compare(document: DrawnDocument, label: string, out: Tally, strict = true, skew = 0, overlays: readonly string[] = []): Promise<PlacedPage[]> {
   const drawless = await reactPdfLayout(document);
-  const drawn = (await reactPdf(document)).placed!;
+  const drawn = (await reactPdf(document, { edges: true })).placed!;
   if (!drawless) {
     out.unmeasured++;
     if (strict) out.differences.push(`${label}: not measured without drawing`);

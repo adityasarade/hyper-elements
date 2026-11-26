@@ -54,6 +54,8 @@ export interface DocumentLayout {
   pages: DocumentPage[];
   /** Each block that draws a node of the design, page by page, in the order drawn (a block before those inside it). */
   nodes: DocumentNode[];
+  /** Laid out for some of its pages only (a paginator's `layout: { pages }`): those pages, whose nodes it has. */
+  only?: number[];
   /** renderPdf()'s diagnostics: a page whose content doesn't fit says so, measured. */
   diagnostics: Diagnostic[];
 }
@@ -104,11 +106,12 @@ function partsOf(parts: PlannedPart[], out = new Map<string, PlannedPart>()): Ma
  * The Document as laid out: its pages, and each block on each; with the plan it was flowed by, where it was. `texts`,
  * each node's text (lines.ts's nodeTexts()): with its lines, where they were drawn with their characters.
  */
-export function documentLayout(root: ResolvedNode, pages: Page[], placed: PlacedPage[], diagnostics: Diagnostic[], plan?: Plan, texts?: NodeTexts): DocumentLayout {
+export function documentLayout(root: ResolvedNode, pages: Page[], placed: PlacedPage[], diagnostics: Diagnostic[], plan?: Plan, texts?: NodeTexts, only?: ReadonlySet<number>): DocumentLayout {
   const nodes = byPath(root);
   return {
     pages: pages.map((page, i) => ({ page: i + 1, width: px(page.width), height: px(page.height), room: { top: px(placed[i].room.top), bottom: px(placed[i].room.bottom) } })),
     nodes: placed.flatMap(({ room, blocks }, i) => {
+      if (only && !only.has(i + 1)) return [];
       const outside = chrome(pages[i]);
       const planned = plan?.pages[i];
       const parts = planned ? partsOf(planned.parts) : new Map<string, PlannedPart>();
@@ -139,6 +142,7 @@ export function documentLayout(root: ResolvedNode, pages: Page[], placed: Placed
       });
     }),
     diagnostics,
+    ...(only ? { only: [...only] } : {}),
   };
 }
 

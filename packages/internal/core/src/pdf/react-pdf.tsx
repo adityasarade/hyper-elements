@@ -131,7 +131,7 @@ export async function fontsOf(fonts: readonly FontFile[]): Promise<(style: Style
   };
 }
 
-export const reactPdf: Engine = async (document) => {
+export const reactPdf: Engine = async (document, options = {}) => {
   const styled = await fontsOf(document.fonts);
   const run = (item: Run, key: number): ReactNode => {
     if (typeof item === "string") return item;
@@ -195,7 +195,7 @@ export const reactPdf: Engine = async (document) => {
   };
   const element = el(Document, { title: document.title, language: document.lang, creationDate: document.date, modificationDate: document.date, producer: "Hyper Elements", creator: "Hyper Elements", onRender }, pages);
   const pdf = new Uint8Array(await renderToBuffer(element as never));
-  return { pdf, placed: layout && placed(layout) };
+  return { pdf, placed: layout && placed(layout, options.edges === true) };
 };
 
 /** The props that mark a block's path and the content's room on a page, read back from the layout. */
@@ -237,7 +237,7 @@ function naturalWidth(line: NonNullable<LaidOutNode["lines"]>[number]): number {
  * Where each page's blocks were laid out, from react-pdf's layout: undefined where it has none or another shape (a
  * react-pdf that hands its onRender another layout), so the caller says what it can without it.
  */
-function placed(document: LaidOutNode): PlacedPage[] | undefined {
+function placed(document: LaidOutNode, withEdges: boolean): PlacedPage[] | undefined {
   if (!Array.isArray(document.children)) return undefined;
   const pages: PlacedPage[] = [];
   for (const page of document.children) {
@@ -255,7 +255,7 @@ function placed(document: LaidOutNode): PlacedPage[] | undefined {
       const first = node.lines?.[0]?.box.y ?? 0;
       const top0 = y + (node.box.paddingTop ?? 0) - first;
       const boxes: PlacedLine[] | undefined = node.lines?.map((line) => {
-        const edges = line.runs && line.string !== undefined ? lineEdges(line as unknown as LaidOutLine) : undefined;
+        const edges = withEdges && line.runs && line.string !== undefined ? lineEdges(line as unknown as LaidOutLine) : undefined;
         return { text: line.string ?? "", x: x + (node.box!.paddingLeft ?? 0) - (node.alignOffset ?? 0), top: top0 + line.box.y, height: line.box.height, ascent: line.ascent ?? 0, ...(edges ? { edges } : {}) };
       });
       let gathered = gathering;

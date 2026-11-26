@@ -272,6 +272,42 @@ describe("a paginator's layout with its lines", () => {
     expect(caretBox(layout, { path: node.path, offset: 10, page: 2 })).toMatchObject({ page: 2, y: node.lineBoxes![0].y });
   });
 
+  it("lays out and draws the pages a view asks for only, each as it is in the whole layout, and says which pages changed", async () => {
+    const report = (typed: string) => (
+      <Document>
+        <PageFooter>
+          <Text>
+            Page <PageNumber /> of <PageNumber total />
+          </Text>
+        </PageFooter>
+        {Array.from({ length: 50 }, (_, i) => (
+          <Text key={i}>{sentences(12, `paragraph ${i}${i === 45 ? typed : ""}`)}</Text>
+        ))}
+      </Document>
+    );
+    const paginator = await createPaginator({ fonts });
+    const whole = paginator.paginate(report(""), { layout: true, svg: true });
+    const pages = whole.plan.pages.length;
+    expect(pages).toBeGreaterThan(3);
+    const some = paginator.paginate(report(""), { layout: { pages: [2] }, svg: { pages: [2, 3] } });
+    expect(some.plan).toEqual(whole.plan);
+    // Its layout: page 2's nodes, each as in the whole layout; every page's paper and room.
+    expect(some.layout!.only).toEqual([2]);
+    expect(some.layout!.nodes).toEqual(whole.layout!.nodes.filter((node) => node.page === 2));
+    expect(some.layout!.pages).toEqual(whole.layout!.pages);
+    // Its SVG: pages 2 and 3, as in the whole; the others not drawn.
+    expect(some.svg!.map((svg, i) => (svg === undefined ? undefined : svg === whole.svg![i]))).toEqual(whole.svg!.map((_, i) => (i === 1 || i === 2 ? true : undefined)));
+    // A page it wasn't laid out for: said, not an empty answer.
+    expect(() => caretAt(some.layout!, { page: 1, x: 100, y: 100 })).toThrow(/pages 2 only, not page 1/);
+    // Each page's hash: the same where nothing on it changed. Typed into the paragraph on the last page, the pages before
+    // it are as they were; the page it's on isn't.
+    const typed = paginator.paginate(report(" and more"), { diagnostics: false });
+    expect(typed.plan.pages).toHaveLength(pages);
+    const last = typed.plan.pages.findIndex((page) => page.parts.some((part) => part.path === "root.children[46]"));
+    expect(last).toBeGreaterThan(2);
+    typed.plan.pages.forEach((page, i) => expect(page.hash === whole.plan.pages[i].hash, `page ${i + 1}`).toBe(i < last && !whole.plan.pages[i].parts.some((part) => part.path === "root.children[46]")));
+  });
+
   it("puts a caret between characters, never inside one: a letter and its accent, a pair of UTF-16 units", async () => {
     // "é" as e and an acute accent, and "𝐀" (a pair of UTF-16 units), in a font with each.
     const words = "Café and 𝐀 bold";

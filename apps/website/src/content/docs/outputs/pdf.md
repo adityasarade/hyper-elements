@@ -211,6 +211,8 @@ style.textContent = fontFaces(fonts);
 view.innerHTML = svg.join("");
 ```
 
+For a long Document, ask for the pages a view shows: `paginate(design, { layout: { pages: [4, 5] }, svg: { pages: [4, 5] } })` lays out and draws those only, and the plan is still all of it. Each plan page has a `hash` of what's drawn on it: draw again only the pages whose hash changed.
+
 ### Where everything landed
 
 `layoutDocument(design, { fonts, images })` takes `renderPdf()`'s options and gives the Document as its PDF lays it out:

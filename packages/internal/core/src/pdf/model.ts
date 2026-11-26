@@ -167,4 +167,5 @@ export interface Drawn {
 }
 
 /** An engine that writes a PDF file from a Document's pages. */
-export type Engine = (document: DrawnDocument) => Promise<Drawn>;
+/** An engine: a Document's pages drawn, and where it laid each block out. `edges`: with each line's characters' edges too (a test's). */
+export type Engine = (document: DrawnDocument, options?: { edges?: boolean }) => Promise<Drawn>;

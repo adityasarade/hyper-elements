@@ -107,7 +107,7 @@ describe("a Document's pages drawn as SVG", () => {
     const { svg, plan } = paginator.paginate(report, { svg: true });
     expect(svg).toHaveLength(plan.pages.length);
     expect(plan.pages.length).toBeGreaterThan(1);
-    const inChromium = await shown(svg!);
+    const inChromium = await shown(svg as string[]);
     const { pdf } = await renderPdf(report, { fonts });
     const document = await getDocument({ data: pdf.slice(), useSystemFonts: false, disableFontFace: true, verbosity: 0 }).promise;
     let checked = 0;
@@ -132,7 +132,7 @@ describe("a Document's pages drawn as SVG", () => {
   it("draws each box where its PDF has it: backgrounds, borders, the image, its content cut to its room", async () => {
     const paginator = await createPaginator({ fonts });
     const { svg, layout } = paginator.paginate(report, { svg: true, layout: true });
-    const page1 = svg![0];
+    const page1 = svg![0]!;
     const pt = (px: number) => Math.round(px * 0.75 * 100) / 100;
     const box = (type: string) => layout!.nodes.find((node) => node.page === 1 && node.type === type)!;
     // The Section's background, the Column's, the Image: each at its box (the layout's, in px; the SVG's in points).

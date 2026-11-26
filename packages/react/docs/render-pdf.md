@@ -168,7 +168,7 @@ view.innerHTML = svg.join(""); // a page view, each page as its PDF draws it
 
 - **The same fonts:** its text is drawn in the families the Document names. `fontFaces(fonts)` gives an @font-face for each file a paginator is given: in a page with them, Chromium draws each glyph where the PDF does (within a twentieth of a point, tested). Text in a standard PDF font is drawn in the browser's nearest (Arial has Helvetica's widths), so it's close, not exact.
 - **Text written right to left** is drawn a word at a time from its right, so its letters join as they do in the PDF.
-- **Every page each time:** a 28-page report is paginated, laid out and drawn in about 17ms on a laptop. In a page view, do it in a Worker.
+- **The pages a view shows:** `layout: { pages: [4, 5] }` and `svg: { pages: [4, 5] }` lay out and draw those pages only (from 1, as planned); the plan is always all of it. Each plan page has a `hash` of what's drawn on it, the same where nothing on it changed: draw again only the pages whose hash did. A layout of some pages has `only`, and `caretAt()` asked of another page says so. A 108-page report is paginated with two pages laid out and drawn in about 55ms on a laptop (the whole of it, about 100ms). In a page view, do it in a Worker.
 
 ## Where everything landed
 

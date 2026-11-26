@@ -10,7 +10,7 @@
  * given in `fonts`. A template that needs one it isn't given is an error (an image) or drawn in a standard PDF font (a
  * font), and says so. templateAssets() lists the fonts and images a template names, for a tool that loads them.
  */
-import { assetParts, base64, createLayout, drawPage, flowDocument, LAYOUT_VERSION, pdfFamily, reactPdf, reactPdfLayout, thumbnailOf, writeDocument, type Asset, type Block, type DrawnDocument, type Font, type Layout, type PlacedPage, type Run } from "@hyper-elements/core/pdf";
+import { assetParts, base64, createLayout, drawPage, flowDocument, LAYOUT_VERSION, pageHash, pdfFamily, reactPdf, reactPdfLayout, thumbnailOf, writeDocument, type Asset, type Block, type DrawnDocument, type Font, type Layout, type PlacedPage, type Run } from "@hyper-elements/core/pdf";
 import { designPrint, type FontFace, type Plan } from "@hyper-elements/core";
 import { ElementsError, prepare, type Diagnostic, type ResolvedNode, type Snapshot } from "@hyper-elements/react";
 import type { ReactElement } from "react";
@@ -56,10 +56,16 @@ export interface PaginateResult {
   plan: Plan;
   /** renderPdf()'s diagnostics: what can't go on to another page and is cut off, measured. */
   diagnostics: Diagnostic[];
-  /** With a paginator's `layout: true`: where everything landed on its pages, as layoutDocument() says, each text node with its lines. */
+  /**
+   * With a paginator's `layout`: where everything landed on its pages, as layoutDocument() says, each text node with its
+   * lines; with `layout: { pages }`, the nodes on those pages only (its `only`).
+   */
   layout?: DocumentLayout;
-  /** With a paginator's `svg: true`: each page drawn as an SVG, everything where its PDF draws it (its text in the fonts fontFaces() gives). */
-  svg?: string[];
+  /**
+   * With a paginator's `svg`: each page drawn as an SVG, everything where its PDF draws it (its text in the fonts
+   * fontFaces() gives), by page (svg[0] is page 1); with `svg: { pages }`, those pages only, the others undefined.
+   */
+  svg?: Array<string | undefined>;
 }
 
 /** The date a PDF says it was made by default: fixed, so the same template makes the same bytes. */
@@ -93,7 +99,7 @@ export async function paginate(element: ReactElement | Snapshot, options: PdfOpt
     ({ pages, plan } = flowed(planned, reserved, laid, plan.pages.length));
     placed = await measure(pages);
   }
-  return { plan, diagnostics: said({ ...planned, pages }, placed) };
+  return { plan: hashed(plan, pages), diagnostics: said({ ...planned, pages }, placed) };
 }
 
 export interface PaginatorOptions extends PdfOptions {
@@ -112,13 +118,21 @@ export interface PaginateOptions {
    * and its lines (`lineBoxes`): where each is drawn, and where a caret goes between its characters. For caretAt(),
    * caretBox() and selectionBoxes().
    */
-  layout?: boolean;
+  layout?: boolean | PagesWanted;
   /**
    * true: with its `svg` too, each page drawn as an SVG where its PDF draws everything (each word from where its
    * characters are), for a page view: shown in px, its coordinates the PDF's points, so the layout's px are over it. Its
    * text is drawn in the families the Document names: put fontFaces(fonts) in the page's CSS.
    */
-  svg?: boolean;
+  svg?: boolean | PagesWanted;
+}
+
+/**
+ * Some of a Document's pages: those a page view shows (from 1, as planned: plan.pages[n - 1]). Its plan is always all
+ * of it; its layout and its SVG, for a long Document, only these. Each plan page's `hash` says which pages changed.
+ */
+export interface PagesWanted {
+  pages: readonly number[];
 }
 
 /** Documents paginated with the same fonts and images, made ready once: createPaginator() makes one. */
@@ -171,15 +185,17 @@ const setupOf = (options: PdfOptions): Setup => {
  * A Document paginated by a Layout: undefined where it can't measure it so. `check`: with renderPdf()'s diagnostics;
  * `lines`: with its layout, each text node's lines in it.
  */
-function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snapshot, check: boolean, lines = false, svg = false): PaginateResult | undefined {
+function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snapshot, check: boolean, lines: boolean | PagesWanted = false, svg: boolean | PagesWanted = false): PaginateResult | undefined {
   const document = written(element, setup, check);
   let laid = layout.measure(document.written);
   if (!laid) return undefined;
   let { plan, pages } = planned(document, laid);
   // Its pages as they're drawn, measured: what's cut off, where everything landed, and what draws them; and, where a
   // page's header or footer has page numbers, whether it's as tall as measured.
-  const measured = check || lines || svg || (pages !== document.written && numberedAround(document.written));
-  let placed = pages === document.written ? laid : measured ? layout.measure(pages) : undefined;
+  // All of them where it says what's cut off, or checks its pages' rooms; else the pages asked for only.
+  const all = check || (pages !== document.written && numberedAround(document.written));
+  const asked = (n: number) => wants(lines, n) || wants(svg, n);
+  let placed: Array<PlacedPage | undefined> | undefined = pages === document.written ? laid : all ? layout.measure(pages) : lines || svg ? measureSome(layout, pages, asked) : undefined;
   // The pages as written that were measured: the Document's, or, planned again, with its page numbers the widest.
   let measuredFrom = document.written;
   for (let again = 0; again < 3 && pages !== document.written && (renumbers(document.written, plan) || (placed && shrank(plan, laid, placed))); again++) {
@@ -191,16 +207,35 @@ function paginateWith(layout: Layout, setup: Setup, element: ReactElement | Snap
     ({ pages, plan } = flowed(document, reserved, laid, plan.pages.length));
     placed = layout.measure(pages);
   }
+  plan = hashed(plan, pages);
   if (!check && !lines && !svg) return { plan, diagnostics: [] };
-  const diagnostics = check ? said({ ...document, pages }, placed) : [];
+  const diagnostics = check ? said({ ...document, pages }, placed as PlacedPage[] | undefined) : [];
   if (!placed) return { plan, diagnostics };
+  const only = (option: boolean | PagesWanted) => (option === true ? undefined : new Set(pages.pages.map((_, i) => i + 1).filter((n) => wants(option, n))));
   return {
     plan,
     diagnostics,
-    ...(lines ? { layout: documentLayout(document.root, pages.pages, placed, diagnostics, plan, nodeTexts(measuredFrom, pages)) } : {}),
-    ...(svg ? { svg: pages.pages.map((page, i) => pageSvg(drawPage(page, placed[i]) ?? [], page.width, page.height)) } : {}),
+    // A page not measured (not asked for): its room as the page it goes on from was measured.
+    ...(lines ? { layout: documentLayout(document.root, pages.pages, placed.map((page, i) => page ?? { room: laid[plan.pages[i].from]?.room ?? { top: 0, bottom: 0 }, blocks: [] }), diagnostics, plan, nodeTexts(measuredFrom, pages), only(lines)) } : {}),
+    ...(svg ? { svg: pages.pages.map((page, i) => (wants(svg, i + 1) && placed[i] ? pageSvg(drawPage(page, placed[i]!) ?? [], page.width, page.height) : undefined)) } : {}),
   };
 }
+
+/** Whether a page (from 1) is asked for: every page with true, those listed with { pages }. */
+const wants = (option: boolean | PagesWanted, page: number): boolean => option === true || (typeof option === "object" && option.pages.includes(page));
+
+/** The pages asked for measured, the others left out (undefined): for a long Document, what a page view shows. */
+function measureSome(layout: Layout, document: DrawnDocument, asked: (page: number) => boolean): Array<PlacedPage | undefined> | undefined {
+  const which = document.pages.map((_, i) => i).filter((i) => asked(i + 1));
+  const some = layout.measure({ ...document, pages: which.map((i) => document.pages[i]) });
+  if (!some) return undefined;
+  const out: Array<PlacedPage | undefined> = document.pages.map(() => undefined);
+  which.forEach((i, k) => (out[i] = some[k]));
+  return out;
+}
+
+/** A plan with each page's hash: what's drawn on it (core's pageHash()). */
+const hashed = (plan: Plan, pages: DrawnDocument): Plan => ({ ...plan, pages: plan.pages.map((page, i) => (pages.pages[i] ? { ...page, hash: pageHash(pages.pages[i]) } : page)) });
 
 /**
  * A Document as its PDF lays it out, measured with its fonts: its pages, where each block landed on each, and what's
@@ -284,7 +319,7 @@ function renumbers(written: DrawnDocument, plan: Plan): boolean {
  * taller with that page's numbers (a count of pages grown a digit, a footer that wraps) than with those it was
  * measured with. It's planned again, its header's and footer's numbers measured as the widest they get.
  */
-function shrank(plan: Plan, laid: readonly PlacedPage[], placed: readonly PlacedPage[]): boolean {
+function shrank(plan: Plan, laid: readonly PlacedPage[], placed: ReadonlyArray<PlacedPage | undefined>): boolean {
   return plan.pages.some(({ from }, i) => {
     const drawn = placed[i]?.room;
     const planned = laid[from]?.room;
@@ -323,7 +358,7 @@ async function draw(element: ReactElement | Snapshot, options: PdfOptions) {
     ({ pages, plan } = flowed(planned, reserved, laid, plan.pages.length));
     ({ pdf, placed } = await reactPdf(pages));
   }
-  return { root: planned.root, pages, placed, plan, pdf, diagnostics: said({ ...planned, pages }, placed) };
+  return { root: planned.root, pages, placed, plan: hashed(plan, pages), pdf, diagnostics: said({ ...planned, pages }, placed) };
 }
 
 export interface TemplateAssets {

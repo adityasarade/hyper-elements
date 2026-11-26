@@ -76,6 +76,11 @@ export interface PlannedPart {
 export interface PlannedPage {
   from: number;
   parts: PlannedPart[];
+  /**
+   * What's drawn on it, as a hash (its page model as painted: its content, header and footer with its numbers, its
+   * paper): the same where nothing on it changed since the last plan, so a page view keeps the page it drew.
+   */
+  hash?: string;
 }
 
 export interface Plan {
@@ -93,38 +98,45 @@ export interface Plan {
   design?: string;
 }
 
+/** A 64-bit hash being made (two 32-bit FNV-1a lanes): text added piece by piece, read as hex. */
+export function hasher(): { add(text: string): void; hex(): string } {
+  let a = 0x811c9dc5;
+  let b = 0x01000193 ^ 0x9e3779b9;
+  return {
+    add(text: string) {
+      for (let i = 0; i < text.length; i++) {
+        const c = text.charCodeAt(i);
+        a = Math.imul(a ^ c, 0x01000193);
+        b = Math.imul(b ^ c, 0x01000193) ^ (b >>> 15);
+      }
+      a = Math.imul(a ^ 0x1f, 0x01000193);
+      b = Math.imul(b ^ 0x1f, 0x01000193);
+    },
+    hex: () => (a >>> 0).toString(16).padStart(8, "0") + (b >>> 0).toString(16).padStart(8, "0"),
+  };
+}
+
 /**
  * A Document as laid out, as a hash: the same for the same design, different (all but certainly) for any change to its
  * nodes, their props, styles, widths or text. 64 bits of FNV-1a, as hex.
  */
 export function designPrint(root: ResolvedNode): string {
-  // Two 32-bit FNV-1a lanes, one over the text forward and one with another offset: 64 bits.
-  let a = 0x811c9dc5;
-  let b = 0x01000193 ^ 0x9e3779b9;
-  const add = (text: string) => {
-    for (let i = 0; i < text.length; i++) {
-      const c = text.charCodeAt(i);
-      a = Math.imul(a ^ c, 0x01000193);
-      b = Math.imul(b ^ c, 0x01000193) ^ (b >>> 15);
-    }
-    a = Math.imul(a ^ 0x1f, 0x01000193);
-    b = Math.imul(b ^ 0x1f, 0x01000193);
-  };
+  const hash = hasher();
   const visit = (node: ResolvedNode | string) => {
     if (typeof node === "string") {
-      add(`"${node}`);
+      hash.add(`"${node}`);
       return;
     }
-    add(node.type);
-    add(JSON.stringify(node.props));
-    add(JSON.stringify(node.style));
-    if (node.hidden) add(JSON.stringify(node.hidden));
-    add(String(node.width));
-    add(`(${node.children.length}`);
+    hash.add(node.type);
+    hash.add(JSON.stringify(node.props));
+    hash.add(JSON.stringify(node.style));
+    if (node.hidden) hash.add(JSON.stringify(node.hidden));
+    hash.add(String(node.width));
+    hash.add(`(${node.children.length}`);
     node.children.forEach(visit);
   };
   visit(root);
-  return (a >>> 0).toString(16).padStart(8, "0") + (b >>> 0).toString(16).padStart(8, "0");
+  return hash.hex();
 }
 
 /** A part that's its block whole, as written. */

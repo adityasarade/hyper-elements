@@ -50,6 +50,11 @@ export interface SelectionBox {
 
 const lined = (node: DocumentNode): node is DocumentNode & { lineBoxes: DocumentLine[] } => node.lineBoxes !== undefined && node.lineBoxes.length > 0;
 
+/** A layout laid out for some pages only (a paginator's `layout: { pages }`) has no nodes on the others: asked of one, it says so. */
+function laidOut(layout: DocumentLayout, page: number): void {
+  if (layout.only && !layout.only.includes(page)) throw new Error(`[Elements] This layout has pages ${layout.only.join(", ")} only, not page ${page}: paginate with layout: { pages: [${page}] }`);
+}
+
 /** A caret found at a place on a page: on its page, with the affinity that puts it there (caretBox() of it is where it was found). */
 export interface CaretHit extends Caret {
   page: number;
@@ -62,6 +67,7 @@ export interface CaretHit extends Caret {
  * next, or where text written one way meets text written the other): caretBox() of it is where it was found.
  */
 export function caretAt(layout: DocumentLayout, point: PagePoint): CaretHit | undefined {
+  laidOut(layout, point.page);
   const nodes = layout.nodes.filter((node) => node.page === point.page && lined(node)) as Array<DocumentNode & { lineBoxes: DocumentLine[] }>;
   if (!nodes.length) return undefined;
   // In a node whose box holds the place (or one of its lines: an empty block of text's is taller than its box), the
@@ -111,6 +117,7 @@ function runOf(line: DocumentLine, offset: number, affinity: "before" | "after")
 
 /** Where a caret is drawn; undefined where its node or its offset isn't on a page (or its text isn't laid out by line). */
 export function caretBox(layout: DocumentLayout, caret: CaretOptions): CaretBox | undefined {
+  if (caret.page !== undefined) laidOut(layout, caret.page);
   const affinity = caret.affinity ?? "after";
   const found: Array<{ node: DocumentNode; line: DocumentLine }> = [];
   for (const node of layout.nodes) {
