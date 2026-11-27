@@ -44,7 +44,7 @@ import {
   validate,
   Video,
 } from "@hyper-elements/react";
-import { reactPdf, writeDocument, type Block } from "@hyper-elements/core/pdf";
+import { reactPdf, sourcesKept, writeDocument, type Block } from "@hyper-elements/core/pdf";
 import { images } from "./operators";
 import { png } from "./png";
 import { createPaginator, layoutDocument, paginate, renderPdf, templateAssets, type DocumentNode } from "../../src/pdf";
@@ -353,6 +353,28 @@ describe("renderPdf", () => {
     const fresh = await renderPdf(design, { images: { [uri]: replacement } });
     expect(fresh.pdf).not.toEqual(before.pdf);
     expect(Buffer.from(replaced.pdf).equals(fresh.pdf)).toBe(true);
+  });
+
+  it("keeps the last few large images it read and hashed, not the last 1,000: a server's memory stays level", async () => {
+    // 24 Documents, each with its own photo (1 MB, 1.4 million characters as base64), in a box and in a line, drawn
+    // and paginated with its pages in SVG: its size read, its bytes hashed for its page's hash and its SVG's id.
+    const paginator = await createPaginator();
+    for (let i = 0; i < 24; i++) {
+      const photo = png(1000 + i, 1000, true);
+      const design = (
+        <Document>
+          <Image src={{ src: photo, width: 200 }} alt="Photo" />
+          <Text>
+            Signed <Image src={{ src: photo, width: 16, height: 16 }} alt="" />
+          </Text>
+        </Document>
+      );
+      await renderPdf(design);
+      paginator.paginate(design, { diagnostics: false, svg: true });
+    }
+    // At most 16 million characters of them in any one cache (the last 11 or so), where it kept all 24 (34 million).
+    expect(sourcesKept()).toBeLessThanOrEqual(16_000_000);
+    expect(sourcesKept()).toBeGreaterThan(10_000_000);
   });
 
   it("sizes a whole JPEG with padding after its end as react-pdf draws it, with a width or without", async () => {

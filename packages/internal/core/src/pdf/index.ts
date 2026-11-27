@@ -10,6 +10,7 @@ export { pdfFamily } from "./styles";
 export { reactPdf } from "./react-pdf";
 export { designPrint, hasher } from "../plan";
 export { imageSize } from "./image-size";
+export { SourceCache, sourcesKept } from "./source-cache";
 export { fontsKey, pageHash } from "./page-hash";
 export { agrees as textkitAgrees, createLayout, LineCache, reactPdfLayout, type Layout, type Textkit } from "./react-pdf-measure";
 export { base64, fingerprint, sha256 } from "./bytes";

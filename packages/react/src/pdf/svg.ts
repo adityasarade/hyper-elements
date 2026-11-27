@@ -6,7 +6,7 @@
  * Its text is in the families the Document names: for its glyphs to be the PDF's, the page it's shown in has the same
  * font files (fontFaces()). Text in a standard PDF font is drawn in the browser's nearest (Arial has Helvetica's widths).
  */
-import { base64, hasher, imageSize, type Drawn } from "@hyper-elements/core/pdf";
+import { base64, hasher, imageSize, SourceCache, type Drawn } from "@hyper-elements/core/pdf";
 import type { PdfFont } from "./index";
 
 const escape = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -31,15 +31,14 @@ function outline(x: number, y: number, width: number, height: number, [tl, tr, b
 /** How an image fills its box, as SVG's preserveAspectRatio. */
 const aspectOf = (drawn: Extract<Drawn, { kind: "image" }>) => (drawn.fit === "cover" ? "xMidYMid slice" : drawn.fit === "contain" ? (drawn.bottom ? "xMidYMax meet" : "xMidYMid meet") : "none");
 
-/** An image file's hash, for its symbol's id: the last 1,000 files. */
-const hashes = new Map<string, string>();
+/** An image file's hash, for its symbol's id: the last used files (core's source-cache.ts). */
+const hashes = new SourceCache<string>();
 function fileHash(src: string): string {
   let hex = hashes.get(src);
   if (hex === undefined) {
     const hash = hasher();
     hash.add(src);
     hashes.set(src, (hex = hash.hex()));
-    if (hashes.size > 1000) hashes.delete(hashes.keys().next().value!);
   }
   return hex;
 }

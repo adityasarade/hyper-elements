@@ -6,19 +6,19 @@
 import { hasher } from "../plan";
 import { fingerprint } from "./bytes";
 import type { Block, Page, Run } from "./model";
+import { SourceCache } from "./source-cache";
 
 /**
- * An image file's own hash, in a page's (its data URI can be large: hashed once, the last 1,000 kept): from its bytes, so
- * the same page has the same hash in any process, and another file another.
+ * An image file's own hash, in a page's (its data URI can be large: hashed once, the last used kept, source-cache.ts):
+ * from its bytes, so the same page has the same hash in any process, and another file another.
  */
-const files = new Map<string, string>();
+const files = new SourceCache<string>();
 const fileOf = (src: string): string => {
   let hex = files.get(src);
   if (hex === undefined) {
     const file = hasher();
     file.add(src);
     files.set(src, (hex = file.hex()));
-    if (files.size > 1000) files.delete(files.keys().next().value!);
   }
   return `#${hex}`;
 };

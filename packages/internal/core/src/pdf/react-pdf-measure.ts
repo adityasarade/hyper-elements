@@ -17,6 +17,7 @@ import { lineEdges, type LaidOutLine, type LineEdges } from "./carets";
 import type { Block, DrawnDocument, Font as FontFile, Page, PlacedBlock, PlacedFrame, PlacedLine, PlacedPage, Run, Style } from "./model";
 import { faceOf, fontsOf, reactPdf } from "./react-pdf";
 import { runsText } from "./runs";
+import { SourceCache } from "./source-cache";
 
 const OPTIONS = { shrinkWhitespaceFactor: { before: -0.5, after: -0.5 } };
 
@@ -215,18 +216,15 @@ const fontId = (font: unknown): number => {
   return id;
 };
 /**
- * An image file's number in a cache's keys: the same file, the same number. The last 1,000 files are kept (a server
- * sees many); one seen again after is a number never given before, so no key is another file's.
+ * An image file's number in a cache's keys: the same file, the same number. The last used files are kept
+ * (source-cache.ts: a server sees many); one seen again after is a number never given before, so no key is another file's.
  */
-const srcIds = new Map<string, number>();
+const srcIds = new SourceCache<number>();
 let srcs = 0;
 const srcId = (src: string | undefined): number => {
   if (src === undefined) return 0;
   let id = srcIds.get(src);
-  if (id === undefined) {
-    srcIds.set(src, (id = ++srcs));
-    if (srcIds.size > 1000) srcIds.delete(srcIds.keys().next().value!);
-  }
+  if (id === undefined) srcIds.set(src, (id = ++srcs));
   return id;
 };
 /** What of a fragment's attributes lays it out or draws it (what's kept of its lines is drawn from too), in a fixed order. */

@@ -3,6 +3,7 @@
  * JPEG's frame, its width and height swapped where its EXIF turns it on its side. What react-pdf sizes an image by
  * where its style gives no height: its width over this ratio. Plain bytes, no DOM: the same in Node and a browser.
  */
+import { SourceCache } from "./source-cache";
 
 /** A data URI's bytes (base64), its first `limit` of them at most, or undefined where it isn't one. */
 function bytesOf(src: string, limit: number): Uint8Array | undefined {
@@ -106,8 +107,8 @@ function whole(src: string): boolean {
   return true;
 }
 
-/** The files read, the last 1,000 (a server sees many). */
-const sizes = new Map<string, { width: number; height: number } | null>();
+/** The files read, the last used (source-cache.ts: a server sees many). */
+const sizes = new SourceCache<{ width: number; height: number } | null>();
 
 /** A PNG's or a JPEG's size in pixels (a data URI's), or undefined where it's neither or can't be read. Read once a file. */
 export function imageSize(src: string): { width: number; height: number } | undefined {
@@ -122,7 +123,6 @@ export function imageSize(src: string): { width: number; height: number } | unde
     }
     size = found && found.width > 0 && found.height > 0 && whole(src) ? found : null;
     sizes.set(src, size);
-    if (sizes.size > 1000) sizes.delete(sizes.keys().next().value!);
   }
   return size ?? undefined;
 }
