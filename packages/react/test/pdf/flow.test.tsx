@@ -4,7 +4,7 @@
  */
 import { readFileSync } from "node:fs";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { Column, Document, Heading, Image, Layer, List, ListItem, PageBreak, PageFooter, PageHeader, PageNumber, prepare, render, Row, Section, Span, Table, TableCell, TableRow, Text, Video } from "@hyper-elements/react";
+import { Column, Document, Heading, Image, Layer, LineBreak, List, ListItem, PageBreak, PageFooter, PageHeader, PageNumber, prepare, render, Row, Section, Span, Table, TableCell, TableRow, Text, Video } from "@hyper-elements/react";
 import type { PlannedPart } from "@hyper-elements/core";
 import { reactPdf, writeDocument } from "@hyper-elements/core/pdf";
 import { createPaginator, designPages, layoutDocument, paginate, renderPdf } from "../../src/pdf";
@@ -83,6 +83,32 @@ describe("a Document's content that doesn't fit its page", () => {
         expect(Math.abs(line.start - whole[i].start), `${textAlign}, line ${i + 1}'s start`).toBeLessThan(2);
         expect(Math.abs(line.end - whole[i].end), `${textAlign}, line ${i + 1}'s end`).toBeLessThan(2);
       });
+    }
+  });
+
+  it("keeps a blank line in a split paragraph as tall as in a whole one: a letter's line between its greeting and its body", async () => {
+    // A letter on A4 fits its page; on A5 it goes on to a second. Between two line breaks, nothing (or spaces only).
+    const letter = (size: "A4" | "A5", blank: string) => (
+      <Document size={size}>
+        <Text>
+          Dear Ms Rivera,
+          <LineBreak />
+          {blank}
+          <LineBreak />
+          Thank you for your order. {sentences(size === "A5" ? 90 : 30, "the letter")}
+        </Text>
+      </Document>
+    );
+    for (const blank of ["", "   "]) {
+      const gap = async (size: "A4" | "A5") => {
+        const { pdf, plan } = await renderPdf(letter(size, blank));
+        expect(plan.pages, size).toHaveLength(size === "A4" ? 1 : 2);
+        const page = await lines(pdf);
+        return page.find((line) => line.words.startsWith("Dear"))!.y - page.find((line) => line.words.startsWith("Thank"))!.y;
+      };
+      // Two lines of 18 points: drawn with no text, the blank line was 0 tall, and the body 18 points higher.
+      expect(await gap("A4"), JSON.stringify(blank)).toBeCloseTo(36, 1);
+      expect(await gap("A5"), JSON.stringify(blank)).toBeCloseTo(36, 1);
     }
   });
 

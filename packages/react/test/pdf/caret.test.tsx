@@ -9,7 +9,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { ReactElement } from "react";
-import { Button, Document, Image, List, ListItem, PageFooter, PageHeader, PageNumber, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
+import { Button, Document, Image, LineBreak, List, ListItem, PageFooter, PageHeader, PageNumber, Section, Span, Table, TableCell, TableRow, Text } from "@hyper-elements/react";
 import { caretAt, caretBox, createPaginator, renderPdf, selectionBoxes, type DocumentLayout, type DocumentLine, type DocumentNode } from "../../src/pdf";
 import { arabic, arabicSentences } from "./arabic";
 import { glyphs } from "./operators";
@@ -236,6 +236,32 @@ describe("a paginator's layout with its lines", () => {
     expect(node("broken").lineBoxes).toHaveLength(2);
     expect(after).toMatchObject({ start: 7, end: 7, width: 0, y: line.y + line.height, height: line.height });
     expect(caretBox(layout, { path: node("broken").path, offset: 7 })).toEqual({ page: 1, x: content.x, y: after.y, height: after.height });
+  });
+
+  it("has a split paragraph's blank line where the paragraph drawn whole has it, with its carets", async () => {
+    // A letter on A4 fits its page; on A5 it goes on to a second, its first part drawn line by line.
+    const letter = (size: "A4" | "A5") => (
+      <Document size={size} style={{ fontFamily: "Liberation" }}>
+        <Text>
+          Dear Ms Rivera,
+          <LineBreak />
+          <LineBreak />
+          Thank you for your order. {sentences(size === "A5" ? 90 : 30, "the letter")}
+        </Text>
+      </Document>
+    );
+    const whole = await laidOut(letter("A4"));
+    const split = await laidOut(letter("A5"));
+    expect(split.nodes.filter((node) => node.path === "root.children[0]").map((node) => node.page)).toEqual([1, 2]);
+    // Its greeting (0 to 15), the blank line after its line break (16), the line its body starts on (from 17).
+    const first = (layout: DocumentLayout) => layout.nodes.find((node) => node.path === "root.children[0]" && node.page === 1)!.lineBoxes!.slice(0, 3);
+    expect(first(split).map(({ start, end, y, height }) => ({ start, y, height, end: start === 17 ? 17 : end }))).toEqual(
+      first(whole).map(({ start, end, y, height }) => ({ start, y, height, end: start === 17 ? 17 : end }))
+    );
+    expect(first(split).map((line) => line.start)).toEqual([0, 16, 17]);
+    for (const offset of [0, 15, 16, 17]) {
+      expect(caretBox(split, { path: "root.children[0]", offset, page: 1 }), `offset ${offset}`).toEqual(caretBox(whole, { path: "root.children[0]", offset }));
+    }
   });
 
   it("has a footer's text on each page as that page draws it, its page number in it, on pages its content went on to", async () => {

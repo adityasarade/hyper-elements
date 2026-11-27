@@ -173,6 +173,9 @@ export class Painter {
         children: linesOf(block.runs, lines).map((cut, i): Block => {
           const line = lines[i];
           const runs = trimEnd(cut);
+          // A line with nothing drawn in it (between two line breaks, or spaces only): a space, as tall as it was
+          // measured. With no text, the engine would lay out no line: drawn 0 tall, and no line for its carets.
+          if (!runs.length) return { kind: "text", of: part.path, style: { ...styleOf(line, i), height: line.height }, runs: [" "] };
           return { kind: "text", of: part.path, style: styleOf(line, i), runs: spaced(line.hyphenated ? withHyphen(runs) : runs, line.wordSpacing) };
         }),
       };
