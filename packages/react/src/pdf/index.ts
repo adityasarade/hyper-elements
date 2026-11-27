@@ -22,6 +22,7 @@ import { pageSvg, SharedImages } from "./svg";
 export type { DocumentLayout, DocumentLine, DocumentNode, DocumentPage, DocumentRun } from "./layout";
 export { caretAt, caretBox, selectionBoxes, type Caret, type CaretBox, type CaretHit, type CaretOptions, type PagePoint, type SelectionBox } from "./caret";
 export { fontFaces } from "./svg";
+export { designPages, type DesignPagePart } from "./design-pages";
 export type { Plan, PlannedLine, PlannedPage, PlannedPart } from "@hyper-elements/core";
 
 export interface PdfFont {

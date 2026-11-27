@@ -4,10 +4,11 @@
  */
 import { readFileSync } from "node:fs";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { Column, Document, Heading, Image, Layer, List, ListItem, PageFooter, PageNumber, prepare, render, Row, Section, Span, Table, TableCell, TableRow, Text, Video } from "@hyper-elements/react";
+import { Column, Document, Heading, Image, Layer, List, ListItem, PageBreak, PageFooter, PageHeader, PageNumber, prepare, render, Row, Section, Span, Table, TableCell, TableRow, Text, Video } from "@hyper-elements/react";
 import type { PlannedPart } from "@hyper-elements/core";
 import { reactPdf, writeDocument } from "@hyper-elements/core/pdf";
-import { createPaginator, layoutDocument, paginate, renderPdf } from "../../src/pdf";
+import { createPaginator, designPages, layoutDocument, paginate, renderPdf } from "../../src/pdf";
+import { fromDesign, toDesign } from "../../src/builder";
 import { arabic, arabicFonts, arabicGiven, arabicSentences } from "./arabic";
 
 /** Each page's words, joined by spaces. */
@@ -801,5 +802,95 @@ describe("a Document's content that doesn't fit its page", () => {
     expect(plan.pages).toHaveLength(5);
     expect(diagnostics.map(({ code }) => code)).toContain("document/overflow");
     expect((await paginate(design)).plan).toEqual(plan);
+  });
+});
+
+describe("a builder design's parts on each page", () => {
+  /** A builder design of a Document that runs to several pages: a long text, a band of two columns, a long table. */
+  const design = () =>
+    JSON.parse(
+      JSON.stringify(
+        toDesign(
+          <Document size="A5">
+            <PageHeader><Text>Acme</Text></PageHeader>
+            <Heading>Report</Heading>
+            <Text>{sentences(60, "the introduction")}</Text>
+            <Section style={{ backgroundColor: "#eeeeff" }}>
+              <Row><Column><Text>Left</Text></Column><Column><Text>Right</Text></Column></Row>
+            </Section>
+            <Table>
+              <TableRow header><TableCell>Item</TableCell><TableCell>Qty</TableCell></TableRow>
+              {Array.from({ length: 40 }, (_, i) => (
+                <TableRow key={i}><TableCell>Item {i + 1}</TableCell><TableCell>{i + 1}</TableCell></TableRow>
+              ))}
+            </Table>
+            <PageBreak />
+            <Text>After the break</Text>
+            <PageFooter><Text>Thanks</Text></PageFooter>
+          </Document>,
+        ).design,
+      ),
+    );
+
+  it("names a part of the design for every part of every page of the template read back", async () => {
+    const { element, parts } = fromDesign(design(), { displayMode: "document" });
+    const { plan } = await paginate(element);
+    expect(plan.pages.length).toBeGreaterThan(3);
+    const unnamed: string[] = [];
+    const visit = (part: PlannedPart) => {
+      if (!parts[part.path]) unnamed.push(part.path);
+      part.children?.forEach(visit);
+    };
+    plan.pages.forEach((page) => page.parts.forEach(visit));
+    expect(unnamed).toEqual([]);
+  });
+
+  it("lists each page's parts of the design in order, each once, and where each starts and ends", async () => {
+    const { element, parts } = fromDesign(design(), { displayMode: "document" });
+    const { plan } = await paginate(element);
+    const pages = designPages(plan, parts);
+    expect(pages).toHaveLength(plan.pages.length);
+    const on = (at: string) => pages.flatMap((page, n) => page.filter((part) => part.at === at).map((part) => ({ n, first: part.first, last: part.last })));
+    // The long text: its first part on one page, its last on the next.
+    const text = on("rows[0].columns[0].contents[1]");
+    expect(text).toEqual([{ n: 0, first: true, last: false }, { n: 1, first: false, last: true }]);
+    expect(pages[0][1]).toEqual({ at: "rows[0].columns[0].contents[1]", id: "u_content_paragraph_1", first: true, last: false });
+    // The band of two columns: the row, then each column, then its block.
+    const band = pages.flatMap((page) => page.map((part) => part.at)).filter((at) => at.startsWith("rows[1]"));
+    expect(band).toEqual(["rows[1]", "rows[1].columns[0]", "rows[1].columns[0].contents[0]", "rows[1].columns[1]", "rows[1].columns[1].contents[0]"]);
+    // The table: started on its first page, ended on its last; its header on each; each row on one page, whole.
+    const table = on("rows[2].columns[0].contents[0]");
+    expect(table.length).toBeGreaterThan(1);
+    expect(table.map(({ first, last }) => [first, last])).toEqual(table.map((_, i) => [i === 0, i === table.length - 1]));
+    expect(on("rows[2].columns[0].contents[0].values.table.headers[0]").map(({ n }) => n)).toEqual(table.map(({ n }) => n));
+    for (let i = 0; i < 40; i++) {
+      const row = on(`rows[2].columns[0].contents[0].values.table.rows[${i}]`);
+      expect(row).toHaveLength(1);
+      expect(row[0]).toMatchObject({ first: true, last: true });
+    }
+    // After the page break, its own page; the header and footer are on every page, and listed on none.
+    expect(pages[pages.length - 1]).toEqual([{ at: "rows[4].columns[0].contents[0]", id: "u_content_paragraph_4", first: true, last: true }]);
+    expect(pages.flat().filter((part) => /^(headers|footers)/.test(part.at))).toEqual([]);
+    pages.forEach((page) => expect(new Set(page.map((part) => part.at)).size).toBe(page.length));
+  });
+
+  it("lists a row's column on the pages it has something on: not on one after it ends, as its row goes on", async () => {
+    const { design } = toDesign(
+      <Document size="A5">
+        <Row>
+          <Column><Text>Short</Text></Column>
+          <Column><Text>{sentences(160, "the long column")}</Text></Column>
+        </Row>
+      </Document>,
+    );
+    const { element, parts } = fromDesign(design, { displayMode: "document" });
+    const pages = designPages((await paginate(element)).plan, parts);
+    expect(pages.length).toBeGreaterThan(1);
+    expect(pages[0].map((part) => part.at)).toEqual(["rows[0]", "rows[0].columns[0]", "rows[0].columns[0].contents[0]", "rows[0].columns[1]", "rows[0].columns[1].contents[0]"]);
+    expect(pages[1]).toEqual([
+      { at: "rows[0]", id: "u_row_1", first: false, last: pages.length === 2 },
+      { at: "rows[0].columns[1]", id: "u_column_2", first: false, last: pages.length === 2 },
+      { at: "rows[0].columns[1].contents[0]", id: "u_content_paragraph_2", first: false, last: pages.length === 2 },
+    ]);
   });
 });

@@ -215,6 +215,20 @@ view.innerHTML = svg.join("");
 
 For a long Document, ask for the pages a view shows: `paginate(design, { layout: { pages: [4, 5] }, svg: { pages: [4, 5] } })` lays out and draws those only, and the plan is still all of it. Each plan page has a `hash` of what's drawn on it: draw again only the pages whose hash changed. With `svg: { shareImages: true }`, each image is defined once in `svgImages`, which goes in the page before them, and the pages draw it from there.
 
+### A builder design's pages
+
+A Document made in the Unlayer editor can follow the same plan, so the editor shows the PDF's pages. `fromDesign()` returns `parts`, the part of the builder design each node of its `element` stands for, and `designPages(plan, parts)` lists each page's parts of the design: where each is in the design's body (`at`) and its id there, in the order they're drawn, each with whether it starts (`first`) and ends (`last`) on the page.
+
+```tsx
+import { fromDesign } from "@hyper-elements/react/builder";
+import { designPages, paginate } from "@hyper-elements/react/pdf";
+
+const { element, parts } = fromDesign(saved, { displayMode: "document" });
+const pages = designPages((await paginate(element, { fonts })).plan, parts);
+```
+
+The plan splits text between its lines and a Row between its columns: where an editor moves whole blocks to the next page instead, its pages differ there.
+
 ### Where everything landed
 
 `layoutDocument(design, { fonts, images })` takes `renderPdf()`'s options and gives the Document as its PDF lays it out:

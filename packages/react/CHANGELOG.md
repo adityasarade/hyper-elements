@@ -34,6 +34,15 @@ A Document whose pages fit is drawn as it was. See "Pages that flow" in `docs/re
   - `pdf/layout`: the installed react-pdf doesn't say where it laid the PDF out.
   - `render/plan`: a plan made from another version of the Document.
 
+### A builder design's pages
+
+- **`fromDesign()` returns `parts`:** the part of the builder design each node of its `element` stands for, by its
+  path: where it is in the design's body (`rows[2].columns[0].contents[1]`, a table's `….values.table.rows[3]`) and
+  its id there (`values._meta.htmlID`).
+- **`designPages(plan, parts)`** in `/pdf` turns a plan of that `element` into each page's parts of the design, in the
+  order they're drawn, each with whether it starts and ends on the page. An editor can show a Document's pages as its
+  PDF has them. See "A builder design's pages" in `docs/render-pdf.md`.
+
 ### The builder's Page Number block
 
 - **Read back.** `fromDesign()` reads the builder's Page Number block, which only documents have, as a `Text` in the

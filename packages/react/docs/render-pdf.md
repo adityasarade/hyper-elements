@@ -174,6 +174,26 @@ view.innerHTML = svg.join(""); // a page view, each page as its PDF draws it
 - **Text written right to left** is drawn a word at a time from its right, so its letters join as they do in the PDF.
 - **The pages a view shows:** `layout: { pages: [4, 5] }` and `svg: { pages: [4, 5] }` lay out and draw those pages only (from 1, as planned); the plan is always all of it. Each plan page has a `hash` of what's drawn on it, the same where nothing on it changed: draw again only the pages whose hash did. `svg: { shareImages: true }` defines each image once, in `svgImages` (an SVG of symbols to put in the page before the pages), and each page draws it from there: a long Document's header image is in the page once, not in every page (its ids come from its files, so a page drawn before still finds it). A layout of some pages has `only`, and `caretAt()` asked of another page says so. A 108-page report is paginated with two pages laid out and drawn in about 40ms on a laptop, or about 26ms given as a Snapshot (`snapshot(design)`): a React element is rendered to read it, each time. Each keystroke is the whole Document's work, so it grows with the Document. In a page view, do it in a Worker.
 
+## A builder design's pages
+
+A Document made in the Unlayer editor can be paginated by this plan too, so the editor and every output show the same pages. `fromDesign()` from `@hyper-elements/react/builder` returns `parts`: the part of the design each node of its `element` stands for, by its path. `designPages(plan, parts)` turns a plan of that `element` into each page's parts of the design:
+
+```tsx
+import { fromDesign } from "@hyper-elements/react/builder";
+import { designPages, paginate } from "@hyper-elements/react/pdf";
+
+const { element, parts } = fromDesign(saved, { displayMode: "document" });
+const { plan } = await paginate(element, { fonts });
+const pages = designPages(plan, parts);
+// pages[1]: [{ at: "rows[3].columns[0].contents[0]", id: "u_content_table_1", first: false, last: true },
+//            { at: "rows[3].columns[0].contents[0].values.table.headers[0]", first: true, last: true }, …]
+```
+
+- **Each part:** `at` is where it is in the design's body (a row `rows[3]`, a column, a block, a table's `….values.table.rows[12]`), and `id` its id there (`values._meta.htmlID`), where it has one.
+- **Each page** lists every part with something on it, in the order it's drawn (a row before its columns, a column before its blocks, a table before its rows), each once. `first` says the part starts on the page, `last` that it ends there; a part whole on the page is both. A table's header rows are on each page it runs to; the Document's header and footer are on every page and listed on none.
+- **The same design:** `parts` holds for that `element` and that design. A design written again by `toDesign()` has ids of its own.
+- **Where pages break inside a block:** the plan splits text between its lines and a Row between its columns. Where an editor moves whole blocks to the next page, its pages differ there.
+
 ## Where everything landed
 
 `layoutDocument(design, options)` takes `renderPdf`'s options and gives the Document as its PDF lays it out, in px:

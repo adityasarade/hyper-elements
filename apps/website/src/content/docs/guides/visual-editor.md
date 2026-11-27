@@ -97,6 +97,7 @@ const { html, text } = await render(element);
 - `element` renders the builder design. `render(element)` gives HTML and a plain-text body that match the edits, ready to [send](/docs/guides/sending).
 - `code` is the same design as JSX in the new elements.
 - `report` lists what the design can't hold.
+- `parts` names the part of the builder design each node of `element` stands for (its place and its id), by its path: a Document's [page plan](/docs/outputs/pdf#a-builder-designs-pages) names its blocks the same way.
 
 Pass the `displayMode` the builder design was made in: `email` gives an `Email`, `web` a `Page`, `document` a `Document`. Without one, a builder design with a header, a footer or a page break becomes a `Document`, any other an `Email`. `name` sets the component's name in `code`. `fromDesign()` reads builder designs made by `toDesign()`, edited in the builder, or made there from scratch. The builder's own HTML blocks come back as `Html` blocks.
 
