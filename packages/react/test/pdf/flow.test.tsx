@@ -880,9 +880,14 @@ describe("a builder design's parts on each page", () => {
     const single = (contents: Array<Record<string, unknown>>) => ({ body: { rows: [{ cells: [1], columns: [{ contents, values: {} }], values: {} }], values: {} } });
     // A text of two paragraphs, a node each, over three pages: it starts on the first and ends on the last.
     const text = fromDesign(single([{ type: "text", values: { _meta: { htmlID: "u_content_text_1" }, text: paragraphs } }]), { displayMode: "document" });
-    const textPages = designPages((await paginate(text.element)).plan, text.parts);
+    const textPlan = (await paginate(text.element)).plan;
+    const textPages = designPages(textPlan, text.parts);
     expect(textPages.length).toBeGreaterThan(2);
     expect(textPages.map((page) => page.map(({ first, last }) => ({ first, last })))).toEqual(textPages.map((_, i) => [{ first: i === 0, last: i === textPages.length - 1 }]));
+    // The same with `parts` in another order (stored, or sent and sorted): each path's place says which comes first.
+    const entries = Object.entries(text.parts);
+    expect(designPages(textPlan, Object.fromEntries([...entries].reverse()))).toEqual(textPages);
+    expect(designPages(textPlan, JSON.parse(JSON.stringify(Object.fromEntries([...entries].sort(([a], [b]) => (a < b ? -1 : 1))))))).toEqual(textPages);
     // A row with a band, split by a page break in its column: a band each side, the row's and its column's parts.
     const { design } = toDesign(<Document size="A5"><Text>Before</Text><Text>After</Text></Document>);
     const row = (design.body as any).rows[0];

@@ -1100,7 +1100,7 @@ describe("the parts of a design read back", () => {
     expect(parts["root.children[0]"]).toEqual({ at: "rows[0].columns[0].contents[0]", id: "u_content_image_1" });
   });
 
-  it("names a table's rows as the builder loads it: a table saved without its rows has the table tool's", () => {
+  it("names a table's rows as the builder loads it: a table saved without its table value has the table tool's rows", () => {
     const { parts } = fromDesign({ body: { values: {}, rows: [{ cells: [1], values: {}, columns: [{ values: {}, contents: [{ type: "table", values: { _meta: { htmlID: "u_content_table_1" } } }] }] }] } }, { displayMode: "document" });
     const rows = Object.values(parts).map((part) => part.at).filter((at) => at.includes(".values.table."));
     expect(new Set(rows).size).toBe((TableDefaults.table.headers?.length ?? 0) + TableDefaults.table.rows.length);

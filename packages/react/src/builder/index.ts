@@ -33,8 +33,8 @@ export interface TemplateResult {
    * around a block (its padding) stands for that block, and a block's text for it. With `designPages()` from
    * `@hyper-elements/react/pdf`, a plan of `element` says which of the design's parts go on each page. It holds for
    * this `element` and this design: a design written again by toDesign() has ids of its own. A place is in the design
-   * as the builder loads it, a value the design leaves out its tool's default (a table saved without its rows has the
-   * table tool's).
+   * as the builder loads it, a value the design leaves out its tool's default (a table saved without its `table`
+   * value has the table tool's rows).
    */
   parts: Record<string, DesignPart>;
 }

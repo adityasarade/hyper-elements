@@ -19,10 +19,19 @@ export interface DesignPagePart {
  */
 export function designPages(plan: Plan, parts: Readonly<Record<string, { at: string; id?: string }>>): DesignPagePart[][] {
   // What's in each node, and each part of the design's outermost nodes (a text of several paragraphs has one each, a
-  // row split by a page break a band each), both in the template's order: fromDesign() names each node before what's in it.
+  // row split by a page break a band each), both in the template's order: by each path's place, not the keys' order
+  // (which a copy of `parts` stored or sent can change).
   const inside = new Map<string, string[]>();
   const outermost = new Map<string, string[]>();
-  for (const [path, part] of Object.entries(parts)) {
+  const place = new Map(Object.keys(parts).map((path) => [path, [...path.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1]))]));
+  const before = (a: string, b: string) => {
+    const x = place.get(a)!;
+    const y = place.get(b)!;
+    for (let i = 0; i < Math.min(x.length, y.length); i++) if (x[i] !== y[i]) return x[i] - y[i];
+    return x.length - y.length;
+  };
+  for (const path of [...place.keys()].sort(before)) {
+    const part = parts[path];
     const around = path.replace(/\.children\[\d+\]$/, "");
     inside.set(around, [...(inside.get(around) ?? []), path]);
     if (parts[around]?.at !== part.at) outermost.set(part.at, [...(outermost.get(part.at) ?? []), path]);
