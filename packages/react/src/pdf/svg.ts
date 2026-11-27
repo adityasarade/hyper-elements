@@ -119,10 +119,12 @@ function item(drawn: Drawn, images?: SharedImages): string {
 
 /**
  * A page drawn as an SVG: `width` and `height` its paper in points, shown in px (96 to the inch). `images`: its images
- * drawn from symbols defined once (SharedImages), else each in it.
+ * drawn from symbols defined once (SharedImages), else each in it. Its text is drawn at the font's own advances
+ * (`geometricPrecision`): Chromium on Linux otherwise rounds each glyph's advance to a whole pixel, half a point off the
+ * PDF by a word's third letter.
  */
 export function pageSvg(drawn: Drawn[], width: number, height: number, images?: SharedImages): string {
-  return `<svg xmlns="http://www.w3.org/2000/svg"${images ? ' xmlns:xlink="http://www.w3.org/1999/xlink"' : ""} width="${n(width / 0.75)}" height="${n(height / 0.75)}" viewBox="0 0 ${n(width)} ${n(height)}">${drawn.map((inner) => item(inner, images)).join("")}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg"${images ? ' xmlns:xlink="http://www.w3.org/1999/xlink"' : ""} width="${n(width / 0.75)}" height="${n(height / 0.75)}" viewBox="0 0 ${n(width)} ${n(height)}" text-rendering="geometricPrecision">${drawn.map((inner) => item(inner, images)).join("")}</svg>`;
 }
 
 /** A font file's format, for its @font-face: by its first bytes. */
