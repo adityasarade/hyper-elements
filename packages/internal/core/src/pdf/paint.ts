@@ -71,10 +71,11 @@ const runsBetween = (runs: Run[], from: number, to: number): Run[] => splitRuns(
 const lengthOf = (run: Run): number => (typeof run === "string" ? run.length : run.kind === "image" ? 1 : run.runs.reduce((sum, child) => sum + lengthOf(child), 0));
 
 /**
- * A text's runs cut into its lines' (each from its start up to its end, in order): one pass through them, each run cut
- * where a line starts or ends in it, not the whole text for each line.
+ * A text's runs cut into its lines' (each from its start up to its end, in order), each with the character after it
+ * (`next()`: an empty line's line break): one pass through them, each run cut where a line starts or ends in it, not
+ * the whole text for each line.
  */
-function linesOf(runs: Run[], lines: readonly PlannedLine[]): Run[][] {
+function linesOf(runs: Run[], lines: readonly PlannedLine[]): Array<{ cut: Run[]; next: () => Run[] }> {
   const lengths = runs.map(lengthOf);
   let i = 0;
   // Where the pass is: its run, and how far into it; and how far into the text.
@@ -98,18 +99,26 @@ function linesOf(runs: Run[], lines: readonly PlannedLine[]): Run[][] {
       }
     }
   };
+  // The character at a place in the pass (its run, how far into it), as runs: none at the text's end.
+  const here = (run: number, into: number): Run[] => {
+    while (run < runs.length && into >= lengths[run]) [run, into] = [run + 1, 0];
+    const found = runs[run];
+    if (found === undefined) return [];
+    return [typeof found === "string" ? found.slice(into, into + 1) : found.kind === "image" ? found : { ...found, runs: runsBetween(found.runs, into, into + 1) }];
+  };
   return lines.map((line) => {
     to(line.start);
-    const out: Run[] = [];
-    to(line.end, out);
-    return out;
+    const cut: Run[] = [];
+    to(line.end, cut);
+    const [run, offset] = [i, into];
+    return { cut, next: () => here(run, offset) };
   });
 }
 
-/** The line break at `at` in a text's runs as a space, in its style: an empty line's height. A space where there's none. */
-function breakAsSpace(runs: Run[], at: number): Run[] {
+/** A line break (its runs) as a space, in its style: an empty line's height. A space where it isn't one. */
+function breakAsSpace(runs: Run[]): Run[] {
   const swap = (run: Run): Run => (typeof run === "string" ? run.replace(/\n/g, " ") : run.kind === "image" ? run : { ...run, runs: run.runs.map(swap) });
-  const found = runsBetween(runs, at, at + 1).map(swap);
+  const found = runs.map(swap);
   const blank = (run: Run): boolean => (typeof run === "string" ? run === " " : run.kind !== "image" && run.runs.every(blank));
   return found.length && found.every(blank) ? found : [" "];
 }
@@ -178,7 +187,7 @@ export class Painter {
         kind: "box",
         path: part.path,
         style: { ...slice(block.style, part.first, part.last), flexDirection: "column" },
-        children: linesOf(block.runs, lines).map((cut, i): Block => {
+        children: linesOf(block.runs, lines).map(({ cut, next }, i): Block => {
           const line = lines[i];
           const runs = trimEnd(cut);
           // A line with nothing drawn in it (between two line breaks, or spaces only): its spaces as they are, or, with
@@ -187,7 +196,7 @@ export class Painter {
           // lay out no line: drawn 0 tall, and no line for its carets.
           if (!runs.length) {
             const { marginLeft, marginRight, ...style } = styleOf(line, i);
-            return { kind: "text", of: part.path, style: { ...style, height: line.height }, runs: cut.length ? cut : breakAsSpace(block.runs, line.end) };
+            return { kind: "text", of: part.path, style: { ...style, height: line.height }, runs: cut.length ? cut : breakAsSpace(next()) };
           }
           return { kind: "text", of: part.path, style: styleOf(line, i), runs: spaced(line.hyphenated ? withHyphen(runs) : runs, line.wordSpacing) };
         }),
