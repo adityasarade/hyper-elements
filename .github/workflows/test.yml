@@ -180,13 +180,15 @@ jobs:
       # HTML drawn from its plan, in the writers it shares (4,575 bytes more, 526,690 measured); 527,900 bytes for its parts
       # that go on filling their page, and a Row's column with nothing on a page kept as its room (692 bytes more, 527,382
       # measured); 529,500 bytes for a plan's page numbers measured as the widest they get and a plan drawn only for the
-      # Document it was made from, in the writers it shares (1,571 bytes more, 528,953 measured).
+      # Document it was made from, in the writers it shares (1,571 bytes more, 528,953 measured); 531,500 bytes for
+      # fromDesign()'s parts, the part of the design each node of the template it reads stands for (1,740 bytes more,
+      # 531,070 measured).
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"
           test -s "$BUNDLE" && test -s "packages/react/dist/builder.cjs" || { echo "::error::$BUNDLE wasn't built"; exit 1; }
           SIZE=$(wc -c < "$BUNDLE" | tr -d ' ')
-          MAX_SIZE=529500
+          MAX_SIZE=531500
           echo "Size: $SIZE bytes (budget: $MAX_SIZE bytes)"
           if [ "$SIZE" -gt "$MAX_SIZE" ]; then
             echo "::error::/builder bundle size $SIZE exceeds budget of $MAX_SIZE bytes"
