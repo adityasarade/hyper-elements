@@ -44,7 +44,7 @@ import {
   validate,
   Video,
 } from "@hyper-elements/react";
-import { reactPdf, sourcesKept, writeDocument, type Block } from "@hyper-elements/core/pdf";
+import { reactPdf, SourceCache, sourcesKept, writeDocument, type Block } from "@hyper-elements/core/pdf";
 import { images } from "./operators";
 import { png } from "./png";
 import { createPaginator, layoutDocument, paginate, renderPdf, templateAssets, type DocumentNode } from "../../src/pdf";
@@ -357,24 +357,58 @@ describe("renderPdf", () => {
 
   it("keeps the last few large images it read and hashed, not the last 1,000: a server's memory stays level", async () => {
     // 24 Documents, each with its own photo (1 MB, 1.4 million characters as base64), in a box and in a line, drawn
-    // and paginated with its pages in SVG: its size read, its bytes hashed for its page's hash and its SVG's id.
+    // and paginated with its pages in SVG, each image defined once: its size read, its bytes hashed for its page's hash
+    // and its SVG symbol's id, its number in a line's key.
     const paginator = await createPaginator();
+    const options = { diagnostics: false, svg: { shareImages: true } } as const;
+    const signed = (photo: string) => (
+      <Document>
+        <Image src={{ src: photo, width: 200 }} alt="Photo" />
+        <Text>
+          Signed <Image src={{ src: photo, width: 16, height: 16 }} alt="" />
+        </Text>
+      </Document>
+    );
+    let last = "";
     for (let i = 0; i < 24; i++) {
-      const photo = png(1000 + i, 1000, true);
-      const design = (
-        <Document>
-          <Image src={{ src: photo, width: 200 }} alt="Photo" />
-          <Text>
-            Signed <Image src={{ src: photo, width: 16, height: 16 }} alt="" />
-          </Text>
-        </Document>
-      );
-      await renderPdf(design);
-      paginator.paginate(design, { diagnostics: false, svg: true });
+      last = png(1000 + i, 1000, true);
+      await renderPdf(signed(last));
+      paginator.paginate(signed(last), options);
     }
     // At most 16 million characters of them in any one cache (the last 11 or so), where it kept all 24 (34 million).
     expect(sourcesKept()).toBeLessThanOrEqual(16_000_000);
     expect(sourcesKept()).toBeGreaterThan(10_000_000);
+    const kept = vi.spyOn(SourceCache.prototype, "set");
+    try {
+      // The last is kept: paginated again, nothing of it is worked out again.
+      paginator.paginate(signed(last), options);
+      expect(kept.mock.calls.filter(([src]) => src === last)).toEqual([]);
+      // A logo too long to keep with them (a 12 MB file, 16.3 million characters), in the header of 16 pages, is kept
+      // apart: its size and its two hashes worked out once each, not on each page, and the photo is still kept.
+      const large = png(4000, 3050, true);
+      expect(large.length).toBeGreaterThan(16_000_000);
+      kept.mockClear();
+      const { plan } = paginator.paginate(
+        <Document>
+          <PageHeader>
+            <Image src={{ src: large, width: 48, height: 36 }} alt="Logo" />
+          </PageHeader>
+          {Array.from({ length: 16 }, (_, i) => (
+            <Document.Page key={i}>
+              <Text>{`Page ${i + 1}`}</Text>
+            </Document.Page>
+          ))}
+        </Document>,
+        options
+      );
+      expect(plan.pages).toHaveLength(16);
+      expect(kept.mock.calls.filter(([src]) => src === large)).toHaveLength(3);
+      kept.mockClear();
+      paginator.paginate(signed(last), options);
+      expect(kept.mock.calls.filter(([src]) => src === last)).toEqual([]);
+    } finally {
+      kept.mockRestore();
+    }
   });
 
   it("sizes a whole JPEG with padding after its end as react-pdf draws it, with a width or without", async () => {
