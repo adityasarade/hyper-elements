@@ -238,29 +238,45 @@ describe("a paginator's layout with its lines", () => {
     expect(caretBox(layout, { path: node("broken").path, offset: 7 })).toEqual({ page: 1, x: content.x, y: after.y, height: after.height });
   });
 
-  it("has a split paragraph's blank line where the paragraph drawn whole has it, with its carets", async () => {
-    // A letter on A4 fits its page; on A5 it goes on to a second, its first part drawn line by line.
-    const letter = (size: "A4" | "A5") => (
-      <Document size={size} style={{ fontFamily: "Liberation" }}>
-        <Text>
+  it("has a split paragraph's blank line where the paragraph drawn whole has it, with its carets, in every alignment", async () => {
+    // A letter that fits its page, or, with a deep bottom margin, goes on to a second, its first part drawn line by line.
+    // Between its greeting's line break and its body's: nothing, spaces, or spaces in a larger size (a line 72px tall).
+    const blanks = { nothing: "", spaces: "   ", large: <Span style={{ fontSize: 48 }}>{"   "}</Span> };
+    const letter = (split: boolean, textAlign: "left" | "center" | "right", blank: ReactElement | string) => (
+      <Document margin={{ top: 48, right: 48, bottom: split ? 900 : 48, left: 48 }} style={{ fontFamily: "Liberation" }}>
+        <Text style={{ textAlign }}>
           Dear Ms Rivera,
           <LineBreak />
+          {blank}
           <LineBreak />
-          Thank you for your order. {sentences(size === "A5" ? 90 : 30, "the letter")}
+          Thank you for your order. {sentences(20, "the letter")}
         </Text>
       </Document>
     );
-    const whole = await laidOut(letter("A4"));
-    const split = await laidOut(letter("A5"));
-    expect(split.nodes.filter((node) => node.path === "root.children[0]").map((node) => node.page)).toEqual([1, 2]);
-    // Its greeting (0 to 15), the blank line after its line break (16), the line its body starts on (from 17).
-    const first = (layout: DocumentLayout) => layout.nodes.find((node) => node.path === "root.children[0]" && node.page === 1)!.lineBoxes!.slice(0, 3);
-    expect(first(split).map(({ start, end, y, height }) => ({ start, y, height, end: start === 17 ? 17 : end }))).toEqual(
-      first(whole).map(({ start, end, y, height }) => ({ start, y, height, end: start === 17 ? 17 : end }))
-    );
-    expect(first(split).map((line) => line.start)).toEqual([0, 16, 17]);
-    for (const offset of [0, 15, 16, 17]) {
-      expect(caretBox(split, { path: "root.children[0]", offset, page: 1 }), `offset ${offset}`).toEqual(caretBox(whole, { path: "root.children[0]", offset }));
+    const paginator = await createPaginator({ fonts });
+    const cases = [...Object.entries(blanks).map(([name, blank]) => ["left", name, blank] as const), ["center", "nothing", ""] as const, ["right", "nothing", ""] as const];
+    for (const [textAlign, name, blank] of cases) {
+      const what = `${textAlign}, ${name}`;
+      const whole = paginator.paginate(letter(false, textAlign, blank), { layout: true }).layout!;
+      const split = paginator.paginate(letter(true, textAlign, blank), { layout: true }).layout!;
+      expect(split.nodes.filter((node) => node.path === "root.children[0]").length, what).toBeGreaterThan(1);
+      // Its greeting, the blank line after its line break, and the top of the line its body starts on (drawn with the
+      // room its spaces were given, it can sit a point or two across from where the paragraph whole sets it).
+      const first = (layout: DocumentLayout) =>
+        layout.nodes
+          .find((node) => node.path === "root.children[0]" && node.page === 1)!
+          .lineBoxes!.slice(0, 3)
+          .map(({ start, end, x, y, height }, i) => (i < 2 ? { start, end, x, y, height } : { start, y }));
+      expect(first(split), what).toEqual(first(whole));
+      const [, line] = first(whole) as Array<{ start: number; end: number; height: number }>;
+      expect(line.start, what).toBe(16);
+      expect(line.height, what).toBe(name === "large" ? 72 : 24);
+      for (let offset = 0; offset <= line.end; offset++) {
+        const { x, ...at } = caretBox(whole, { path: "root.children[0]", offset })!;
+        const { x: splitX, ...splitAt } = caretBox(split, { path: "root.children[0]", offset, page: 1 })!;
+        expect(splitAt, `${what}: offset ${offset}`).toEqual(at);
+        expect(splitX, `${what}: offset ${offset}`).toBeCloseTo(x, 1);
+      }
     }
   });
 

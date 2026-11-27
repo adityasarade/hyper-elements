@@ -106,6 +106,14 @@ function linesOf(runs: Run[], lines: readonly PlannedLine[]): Run[][] {
   });
 }
 
+/** The line break at `at` in a text's runs as a space, in its style: an empty line's height. A space where there's none. */
+function breakAsSpace(runs: Run[], at: number): Run[] {
+  const swap = (run: Run): Run => (typeof run === "string" ? run.replace(/\n/g, " ") : run.kind === "image" ? run : { ...run, runs: run.runs.map(swap) });
+  const found = runsBetween(runs, at, at + 1).map(swap);
+  const blank = (run: Run): boolean => (typeof run === "string" ? run === " " : run.kind !== "image" && run.runs.every(blank));
+  return found.length && found.every(blank) ? found : [" "];
+}
+
 /** The runs less the spaces they end in: a line's trailing space, which takes no room where it ends a line. */
 function trimEnd(runs: Run[]): Run[] {
   const out = [...runs];
@@ -173,9 +181,14 @@ export class Painter {
         children: linesOf(block.runs, lines).map((cut, i): Block => {
           const line = lines[i];
           const runs = trimEnd(cut);
-          // A line with nothing drawn in it (between two line breaks, or spaces only): a space, as tall as it was
-          // measured. With no text, the engine would lay out no line: drawn 0 tall, and no line for its carets.
-          if (!runs.length) return { kind: "text", of: part.path, style: { ...styleOf(line, i), height: line.height }, runs: [" "] };
+          // A line with nothing drawn in it (between two line breaks, or spaces only): its spaces as they are, or, with
+          // none, the line break after it as a space, as tall as it was measured and in the paragraph's room (spaces don't
+          // wrap): laid out as the paragraph lays it out, its carets where they are there. With no text, the engine would
+          // lay out no line: drawn 0 tall, and no line for its carets.
+          if (!runs.length) {
+            const { marginLeft, marginRight, ...style } = styleOf(line, i);
+            return { kind: "text", of: part.path, style: { ...style, height: line.height }, runs: cut.length ? cut : breakAsSpace(block.runs, line.end) };
+          }
           return { kind: "text", of: part.path, style: styleOf(line, i), runs: spaced(line.hyphenated ? withHyphen(runs) : runs, line.wordSpacing) };
         }),
       };
