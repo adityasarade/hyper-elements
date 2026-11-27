@@ -116,6 +116,32 @@ export const writtenId = (id: string) => !id.startsWith("u_");
 const drawn = (value: Json | undefined) => (typeof value === "number" ? value > 0 : typeof value === "string" && /^\d+(\.\d+)?(px|%)$/.test(value.trim()) && parseFloat(value) > 0);
 
 /**
+ * The Table as the builder's table takes it, and what it draws otherwise (`note`). In a Row its width is its
+ * column's share, as Elements draws it, not the table's own too; so is a max width in %, which Elements takes of the
+ * row: the column has it, and the table fills the column. A Document's row doesn't narrow, so there it's px of the
+ * row; an Email's or a Page's columns stack on phones, where Elements' table keeps that share of the screen and the
+ * builder's fills its column (an HTML block in the column would too).
+ */
+export function builderTableNode(node: Node, parent: ResolvedNode, place: TablePlace): { node: Node; note?: string } {
+  const style = { ...node.style };
+  let note: string | undefined;
+  if (parent.type === "Row") {
+    delete style.width;
+    const max = style.maxWidth;
+    if (typeof max === "string" && /^\d+(\.\d+)?%$/.test(max.trim()) && parseFloat(max) < 100) {
+      const row = parent.contentWidth ?? parent.available;
+      if (place.at("root").type === "Document" && row !== null) style.maxWidth = Math.round(((row * parseFloat(max)) / 100) * 100) / 100;
+      else {
+        delete style.maxWidth;
+        // (A Row that doesn't stack keeps its columns side by side on phones too, so the share is the same there.)
+        if (parent.props.stackOnMobile !== false) note = "a max width in % of a Table in a Row is its column's in the builder's table: on phones, where the columns stack, the table fills its column";
+      }
+    }
+  }
+  return { node: { ...node, style }, note };
+}
+
+/**
  * A Table's values for the builder's table, or why it can't be one (it's an HTML block then): no rows, an image in a
  * cell, a row or a cell hidden on a device, or, in an Email or a Page, anything the builder would draw otherwise.
  * `align` is where a block narrower than its place sits in it.

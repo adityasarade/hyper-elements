@@ -673,6 +673,61 @@ describe("a Table", () => {
     }
   });
 
+  it("leaves out a Table's own width in a Row, which is its column's share there as Elements draws it", () => {
+    for (const Root of [Email, Page]) {
+      const template = (
+        <Root width={600}>
+          <Row>
+            <Table style={{ width: "50%" }}>
+              <TableRow>
+                <TableCell>A</TableCell>
+              </TableRow>
+            </Table>
+            <Text>Beside</Text>
+          </Row>
+        </Root>
+      );
+      const { design, report } = toDesign(template);
+      expect(report, Root.name).toEqual([]);
+      const [table] = tables(design);
+      // The column is half the row, and the table fills it.
+      expect(design.body.rows[0].cells, Root.name).toEqual([300, 300]);
+      expect(table.values.width, Root.name).toBe("100%");
+      expect(table.values.maxWidth, Root.name).toBe("100%");
+    }
+  });
+
+  it("gives a Table in a Row with a max width in % its column, and says a phone draws it otherwise, but in a Document", () => {
+    const inRow = (Root: typeof Email | typeof Page | typeof Document, row: Record<string, unknown> = {}, stackOnMobile = true) => (
+      <Root>
+        <Row style={row} stackOnMobile={stackOnMobile}>
+          <Table style={{ width: "50%", maxWidth: "50%" }}>
+            <TableRow>
+              <TableCell>A</TableCell>
+            </TableRow>
+          </Table>
+          <Text>Beside</Text>
+        </Row>
+      </Root>
+    );
+    for (const Root of [Email, Page]) {
+      const { design, report } = toDesign(inRow(Root));
+      // The column is half the row, and the table fills it.
+      const [table] = tables(design);
+      expect(table.values.width, Root.name).toBe("100%");
+      expect(table.values.maxWidth, Root.name).toBe("100%");
+      expect(report, Root.name).toEqual(["root.children[0].children[0]: a max width in % of a Table in a Row is its column's in the builder's table: on phones, where the columns stack, the table fills its column"]);
+      // A Row that doesn't stack keeps the share on phones too: nothing to say.
+      expect(toDesign(inRow(Root, {}, false)).report, Root.name).toEqual([]);
+    }
+    // A Document's row doesn't narrow: half of it, in px, of the row's own width.
+    for (const [row, half] of [[{}, "349px"], [{ width: 1000 }, "500px"]] as const) {
+      const { design, report } = toDesign(inRow(Document, row));
+      expect(report, JSON.stringify(row)).toEqual([]);
+      expect(tables(design)[0].values.maxWidth, JSON.stringify(row)).toBe(half);
+    }
+  });
+
   it("is the builder's table at its default width and max width of 100% where it has none, and comes back with none", () => {
     for (const Root of [Email, Page]) {
       const template = (
