@@ -9,8 +9,8 @@ import type { Props, Component } from "./context";
 import { runsBetween } from "./flowed";
 import { box } from "./layout";
 
-/** Runs with nothing in them a browser draws: spaces only, or nothing (in a Span or not). */
-const blank = (runs: Array<ResolvedNode | string>): boolean => runs.every((run) => (typeof run === "string" ? !run.trim() : run.type === "Span" && blank(run.children)));
+/** Runs with nothing in them a browser draws: spaces only, or nothing (in a Span or a Link, or not). */
+const blank = (runs: Array<ResolvedNode | string>): boolean => runs.every((run) => (typeof run === "string" ? !run.trim() : (run.type === "Span" || run.type === "Link") && blank(run.children)));
 
 /** Points in px (a point is 4/3 px), to a thousandth. */
 const px = (points: number) => `${Math.round((points / 0.75) * 1000) / 1000}px`;

@@ -7,7 +7,7 @@
 import { chromium, type Browser } from "playwright";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { ReactElement } from "react";
-import { Column, Document, Heading, LineBreak, PageFooter, PageHeader, PageNumber, Row, Section, Span, Table, TableCell, TableRow, Text, render } from "@hyper-elements/react";
+import { Column, Document, Heading, LineBreak, Link, PageFooter, PageHeader, PageNumber, Row, Section, Span, Table, TableCell, TableRow, Text, render } from "@hyper-elements/react";
 import { renderPdf } from "../../../src/pdf";
 
 let browser: Browser;
@@ -130,8 +130,8 @@ describe("a Document's print HTML drawn from its plan", () => {
   });
 
   it("keeps a split paragraph's blank line as tall as its PDF does: a letter's line between its greeting and its body", async () => {
-    // Between two line breaks, nothing or spaces only: a line the browser would draw 0 tall.
-    for (const blank of ["", "   "]) {
+    // Between two line breaks, nothing or spaces only (in a Link too): a line the browser would draw 0 tall.
+    for (const blank of ["", "   ", <Link href="https://example.test/terms">{"   "}</Link>]) {
       const design = (
         <Document size="A5" style={font}>
           <Text id="letter">
@@ -143,17 +143,18 @@ describe("a Document's print HTML drawn from its plan", () => {
           </Text>
         </Document>
       );
+      const what = typeof blank === "string" ? JSON.stringify(blank) : "spaces in a Link";
       const { pdf, plan } = await renderPdf(design);
-      expect(plan.pages.length, JSON.stringify(blank)).toBeGreaterThan(1);
+      expect(plan.pages.length, what).toBeGreaterThan(1);
       // In the PDF, its greeting's baseline over its body's, in px: two lines of 24.
       const items = (await (await (await getDocument({ data: pdf.slice(), useSystemFonts: false, disableFontFace: true, verbosity: 0 }).promise).getPage(1)).getTextContent()).items;
       const baseline = (word: string) => (items.find((item) => "str" in item && item.str.startsWith(word)) as { transform: number[] }).transform[5];
-      expect((baseline("Dear") - baseline("Thank")) / 0.75, JSON.stringify(blank)).toBeCloseTo(48, 1);
+      expect((baseline("Dear") - baseline("Thank")) / 0.75, what).toBeCloseTo(48, 1);
       const page = await browser.newPage();
       await page.setContent((await render(design, { plan })).html);
       const lines = await page.locator("#letter").evaluate((paragraph) => [...paragraph.children].slice(0, 3).map((line) => line.getBoundingClientRect().top));
       await page.close();
-      expect(lines[2] - lines[0], JSON.stringify(blank)).toBeCloseTo(48, 1);
+      expect(lines[2] - lines[0], what).toBeCloseTo(48, 1);
     }
   });
 });
