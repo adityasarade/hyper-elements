@@ -14,41 +14,58 @@ export interface DesignPagePart {
  * fromDesign()'s, the plan is of its `element`. A page lists every part of the design with something on it, in the
  * order it's drawn (a row before its columns, a column before its blocks, a table before its rows), each once. A
  * part that goes on from the page before isn't `first`; one that goes on to the next isn't `last`. A table's header
- * rows are on every page it runs to. The Document's header and footer aren't listed: they're on every page.
+ * rows are on every page it runs to, whole on each. The Document's header and footer aren't listed: they're on every
+ * page.
  */
 export function designPages(plan: Plan, parts: Readonly<Record<string, { at: string; id?: string }>>): DesignPagePart[][] {
-  // What's in each node, in the template's order (fromDesign() names each node before what's in it).
+  // What's in each node, and each part of the design's outermost nodes (a text of several paragraphs has one each, a
+  // row split by a page break a band each), both in the template's order: fromDesign() names each node before what's in it.
   const inside = new Map<string, string[]>();
-  for (const path of Object.keys(parts)) {
+  const outermost = new Map<string, string[]>();
+  for (const [path, part] of Object.entries(parts)) {
     const around = path.replace(/\.children\[\d+\]$/, "");
     inside.set(around, [...(inside.get(around) ?? []), path]);
+    if (parts[around]?.at !== part.at) outermost.set(part.at, [...(outermost.get(part.at) ?? []), path]);
   }
-  return plan.pages.map((page) => {
-    const listed = new Map<string, DesignPagePart>();
-    const add = (path: string, first: boolean, last: boolean) => {
-      const of = parts[path];
-      const seen = of && listed.get(of.at);
-      // A part of the design made of several nodes (a block and the box made around it): first where any of them starts.
-      if (seen) {
-        seen.first ||= first;
-        seen.last ||= last;
-      } else if (of) listed.set(of.at, { at: of.at, ...(of.id !== undefined ? { id: of.id } : {}), first, last });
+  // Each page's nodes with something on it, each with whether its first and its last parts are there.
+  const pages = plan.pages.map((page) => {
+    const on = new Map<string, { first: boolean; last: boolean }>();
+    const note = (path: string, first: boolean, last: boolean) => {
+      const was = on.get(path);
+      on.set(path, { first: first || !!was?.first, last: last || !!was?.last });
     };
     // What's in a block planned as one part (whole on the page, or a text's lines) is there as it is.
     const within = (path: string, first: boolean, last: boolean) => {
       for (const child of inside.get(path) ?? []) {
-        add(child, first, last);
+        note(child, first, last);
         within(child, first, last);
       }
     };
     const visit = (part: PlannedPart) => {
       // A Row's column with nothing on this page keeps its room there and draws nothing.
       if (part.empty) return;
-      add(part.path, part.first, part.last);
+      note(part.path, part.first, part.last);
       if (part.children) part.children.forEach(visit);
       else within(part.path, part.first, part.last);
     };
     page.parts.forEach(visit);
+    return on;
+  });
+  // A part starts where its first drawn node does, and ends where its last drawn node does.
+  const drawn = new Set(pages.flatMap((on) => [...on.keys()]));
+  const ends = new Map<string, { from: string; to: string }>();
+  for (const [at, nodes] of outermost) {
+    const shown = nodes.filter((path) => drawn.has(path));
+    if (shown.length) ends.set(at, { from: shown[0], to: shown[shown.length - 1] });
+  }
+  return pages.map((on) => {
+    const listed = new Map<string, DesignPagePart>();
+    for (const path of on.keys()) {
+      const of = parts[path];
+      const end = of && ends.get(of.at);
+      if (!of || !end || listed.has(of.at)) continue;
+      listed.set(of.at, { at: of.at, ...(of.id !== undefined ? { id: of.id } : {}), first: !!on.get(end.from)?.first, last: !!on.get(end.to)?.last });
+    }
     return [...listed.values()];
   });
 }

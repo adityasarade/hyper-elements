@@ -191,7 +191,7 @@ const pages = designPages(plan, parts);
 
 - **Each part:** `at` is where it is in the design's body (a row `rows[3]`, a column, a block, a table's `….values.table.rows[12]`), and `id` its id there (`values._meta.htmlID`), where it has one.
 - **Each page** lists every part with something on it, in the order it's drawn (a row before its columns, a column before its blocks, a table before its rows), each once. `first` says the part starts on the page, `last` that it ends there; a part whole on the page is both. A table's header rows are on each page it runs to; the Document's header and footer are on every page and listed on none.
-- **The same design:** `parts` holds for that `element` and that design. A design written again by `toDesign()` has ids of its own.
+- **The same design:** `parts` holds for that `element` and that design. A design written again by `toDesign()` has ids of its own. A place is in the design as the builder loads it: a value the design leaves out is its tool's default (a table saved without its rows has the table tool's).
 - **Where pages break inside a block:** the plan splits text between its lines and a Row between its columns. Where an editor moves whole blocks to the next page, its pages differ there.
 
 ## Where everything landed

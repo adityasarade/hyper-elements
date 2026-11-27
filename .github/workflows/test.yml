@@ -181,8 +181,8 @@ jobs:
       # that go on filling their page, and a Row's column with nothing on a page kept as its room (692 bytes more, 527,382
       # measured); 529,500 bytes for a plan's page numbers measured as the widest they get and a plan drawn only for the
       # Document it was made from, in the writers it shares (1,571 bytes more, 528,953 measured); 531,500 bytes for
-      # fromDesign()'s parts, the part of the design each node of the template it reads stands for (1,740 bytes more,
-      # 531,070 measured).
+      # fromDesign()'s parts, the part of the design each node of the template it reads stands for (1,845 bytes more,
+      # 531,175 measured).
       - name: Check /builder bundle size
         run: |
           BUNDLE="packages/react/dist/builder.js"

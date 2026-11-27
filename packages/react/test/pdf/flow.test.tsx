@@ -862,7 +862,8 @@ describe("a builder design's parts on each page", () => {
     const table = on("rows[2].columns[0].contents[0]");
     expect(table.length).toBeGreaterThan(1);
     expect(table.map(({ first, last }) => [first, last])).toEqual(table.map((_, i) => [i === 0, i === table.length - 1]));
-    expect(on("rows[2].columns[0].contents[0].values.table.headers[0]").map(({ n }) => n)).toEqual(table.map(({ n }) => n));
+    const header = on("rows[2].columns[0].contents[0].values.table.headers[0]");
+    expect(header).toEqual(table.map(({ n }) => ({ n, first: true, last: true })));
     for (let i = 0; i < 40; i++) {
       const row = on(`rows[2].columns[0].contents[0].values.table.rows[${i}]`);
       expect(row).toHaveLength(1);
@@ -872,6 +873,28 @@ describe("a builder design's parts on each page", () => {
     expect(pages[pages.length - 1]).toEqual([{ at: "rows[4].columns[0].contents[0]", id: "u_content_paragraph_4", first: true, last: true }]);
     expect(pages.flat().filter((part) => /^(headers|footers)/.test(part.at))).toEqual([]);
     pages.forEach((page) => expect(new Set(page.map((part) => part.at)).size).toBe(page.length));
+  });
+
+  it("starts and ends a part made of several nodes where its first starts and its last ends", async () => {
+    const paragraphs = `<p>${sentences(160, "the first paragraph")}</p><p>${sentences(160, "the second paragraph")}</p>`;
+    const single = (contents: Array<Record<string, unknown>>) => ({ body: { rows: [{ cells: [1], columns: [{ contents, values: {} }], values: {} }], values: {} } });
+    // A text of two paragraphs, a node each, over three pages: it starts on the first and ends on the last.
+    const text = fromDesign(single([{ type: "text", values: { _meta: { htmlID: "u_content_text_1" }, text: paragraphs } }]), { displayMode: "document" });
+    const textPages = designPages((await paginate(text.element)).plan, text.parts);
+    expect(textPages.length).toBeGreaterThan(2);
+    expect(textPages.map((page) => page.map(({ first, last }) => ({ first, last })))).toEqual(textPages.map((_, i) => [{ first: i === 0, last: i === textPages.length - 1 }]));
+    // A row with a band, split by a page break in its column: a band each side, the row's and its column's parts.
+    const { design } = toDesign(<Document size="A5"><Text>Before</Text><Text>After</Text></Document>);
+    const row = (design.body as any).rows[0];
+    row.values.backgroundColor = "#eeeeff";
+    row.columns[0].values.backgroundColor = "#ffeeee";
+    row.columns[0].contents.splice(1, 0, { type: "page_break", values: {} });
+    const band = fromDesign(design, { displayMode: "document" });
+    const bandPages = designPages((await paginate(band.element)).plan, band.parts);
+    expect(bandPages.map((page) => page.filter((part) => !part.at.includes("contents")).map(({ at, first, last }) => ({ at, first, last })))).toEqual([
+      [{ at: "rows[0]", first: true, last: false }, { at: "rows[0].columns[0]", first: true, last: false }],
+      [{ at: "rows[0]", first: false, last: true }, { at: "rows[0].columns[0]", first: false, last: true }],
+    ]);
   });
 
   it("lists a row's column on the pages it has something on: not on one after it ends, as its row goes on", async () => {

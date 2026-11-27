@@ -1090,6 +1090,22 @@ describe("the parts of a design read back", () => {
     expect(at[`root.children[${after + 1}]`]).toBe("Column");
     expect(parts[`root.children[${after + 1}]`]).toEqual({ at: "rows[5]", id: "u_row_9" });
   });
+
+  it("names a block's part on what's left of it where a link Elements won't write is taken off it", () => {
+    const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const image = { type: "image", values: { _meta: { htmlID: "u_content_image_1" }, src: { url: png, width: 40, height: 40 }, action: { name: "web", values: { href: " ", target: "_self" } }, containerPadding: "0px", textAlign: "left" } };
+    const { element, parts, report } = fromDesign({ body: { values: {}, rows: [{ cells: [1], values: {}, columns: [{ values: {}, contents: [image] }] }] } }, { displayMode: "document" });
+    expect(report.join("\n")).toContain("what it holds without it");
+    expect(types(element)["root.children[0]"]).toBe("Image");
+    expect(parts["root.children[0]"]).toEqual({ at: "rows[0].columns[0].contents[0]", id: "u_content_image_1" });
+  });
+
+  it("names a table's rows as the builder loads it: a table saved without its rows has the table tool's", () => {
+    const { parts } = fromDesign({ body: { values: {}, rows: [{ cells: [1], values: {}, columns: [{ values: {}, contents: [{ type: "table", values: { _meta: { htmlID: "u_content_table_1" } } }] }] }] } }, { displayMode: "document" });
+    const rows = Object.values(parts).map((part) => part.at).filter((at) => at.includes(".values.table."));
+    expect(new Set(rows).size).toBe((TableDefaults.table.headers?.length ?? 0) + TableDefaults.table.rows.length);
+    expect(rows).toContain("rows[0].columns[0].contents[0].values.table.rows[0]");
+  });
 });
 
 describe("a line height", () => {
