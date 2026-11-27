@@ -34,6 +34,14 @@ A Document whose pages fit is drawn as it was. See "Pages that flow" in `docs/re
   - `pdf/layout`: the installed react-pdf doesn't say where it laid the PDF out.
   - `render/plan`: a plan made from another version of the Document.
 
+### The builder's Page Number block
+
+- **Read back.** `fromDesign()` reads the builder's Page Number block, which only documents have, as a `Text` in the
+  block's styles, its `{{page_number}}` and `{{page_count}}` tokens as `<PageNumber />` and `<PageNumber total />`.
+  Before, it left the block out.
+- **Written as before.** `toDesign()` still writes a `PageNumber` as the token in its text, which a document's PDF
+  prints as the page's number and the page count. Its report no longer says the builder prints the token as it is.
+
 ### A block map for every root
 
 `render(design, { blockMap: true })` now returns `blocks` for a Page, a Document (its print HTML) and a Canvas (as HTML),

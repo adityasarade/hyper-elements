@@ -107,7 +107,7 @@ describe("toDesign", () => {
     expect(body.headers[0].values._meta).toEqual({ htmlID: "u_header_1", htmlClassNames: "u_header" });
     expect(blocks(design).map((content) => content.type)).toEqual(["heading", "paragraph", "page_break", "paragraph", "page_break", "paragraph", "page_break", "paragraph"]);
     expect(textJsonHtml(blocks(design)[1].values.textJson).html).toContain(">Page {{page_number}} of {{page_count}}<");
-    expect(report).toEqual([expect.stringContaining("the builder has no page numbers yet")]);
+    expect(report).toEqual([]);
     // A margin that differs from side to side: the widest, the sides hidden.
     const sides = toDesign(<Document margin={[10, 20, 30, 40]}><Text>A</Text><PageBreak /><Text>B</Text></Document>).design.body.values;
     expect([sides.documentMargin, sides.margin]).toEqual(["40px", "10px 20px 30px 40px"]);
@@ -980,10 +980,34 @@ describe("a design read back", () => {
 });
 
 describe("a page number", () => {
-  it("says the editor's PDF prints its token, as the builder has no page numbers yet", () => {
-    const { report } = toDesign(<Document><PageFooter><Text>Page <PageNumber /></Text></PageFooter><Text>x</Text></Document>);
-    expect(report.join("\n")).toContain("the builder has no page numbers yet");
-    expect(toDesign(<Document><Text>x</Text></Document>).report.join("\n")).not.toContain("page numbers");
+  /** A Document's design with its footer's block the builder's Page Number block of these values. */
+  const footed = (values: Values) => {
+    const { design } = toDesign(<Document><PageFooter><Text>footer</Text></PageFooter><Text>x</Text></Document>);
+    const copy = JSON.parse(JSON.stringify(design));
+    copy.body.footers[0].columns[0].contents[0] = { type: "page_number", values };
+    return copy;
+  };
+
+  it("goes to the builder as its tokens, which a document's PDF prints, with nothing to say", () => {
+    const { design, report } = toDesign(<Document><PageFooter><Text>Page <PageNumber /> of <PageNumber total /></Text></PageFooter><Text>x</Text></Document>);
+    expect(report).toEqual([]);
+    expect(textJsonHtml((design.body as any).footers[0].columns[0].contents[0].values.textJson).html).toContain(">Page {{page_number}} of {{page_count}}<");
+  });
+
+  it("is read from the builder's Page Number block as a Text of PageNumbers, in the block's styles", () => {
+    const { code, report } = fromDesign(footed({ text: "Page {{page_number}} of {{page_count}}", fontSize: "11px", textAlign: "right", color: "#666666", containerPadding: "4px" }), { displayMode: "document" });
+    expect(report).toEqual([]);
+    expect(code).toMatch(/<PageFooter>[\s\S]*\{"Page "\}<PageNumber \/>\{" of "\}<PageNumber total \/>[\s\S]*<\/PageFooter>/);
+    expect(code).toContain("fontSize: 11");
+    expect(code).toContain('textAlign: "right"');
+    expect(code).toContain('color: "#666666"');
+  });
+
+  it("is read with the block's own line where it has no text, and its text kept as text", () => {
+    expect(fromDesign(footed({}), { displayMode: "document" }).code).toContain('{"Page "}<PageNumber />{" of "}<PageNumber total />');
+    const { code, report } = fromDesign(footed({ text: "<b>{{page_number}}</b> & co" }), { displayMode: "document" });
+    expect(report).toEqual([]);
+    expect(code).toContain('{"<b>"}<PageNumber />{"</b> & co"}');
   });
 });
 

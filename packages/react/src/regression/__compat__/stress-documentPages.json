@@ -1062,7 +1062,6 @@
    "schemaVersion": 28
   },
   "report": [
-   "root: a PageNumber goes to the builder as its token ({{page_number}}), which the editor's PDF prints as it is: the builder has no page numbers yet",
    "root.children[1].children[2]: the line between rows is drawn above the first row and below the last one too in the builder's table, which draws its lines around each row",
    "root.children[4]: the builder's row has no place for style.backgroundColor: left out"
   ]

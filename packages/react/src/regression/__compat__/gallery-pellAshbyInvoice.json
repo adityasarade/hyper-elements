@@ -4309,7 +4309,6 @@
    "schemaVersion": 28
   },
   "report": [
-   "root: a PageNumber goes to the builder as its token ({{page_number}}), which the editor's PDF prints as it is: the builder has no page numbers yet",
    "root.children[0].children[2]: the builder's row has no place for style.padding: left out",
    "root.children[0].children[3]: its cells' borders aren't one border around every cell, the only one the builder's table draws: left out",
    "root.children[0].children[3]: a cell spanning columns is a cell for each column in the builder's table, its words in the first: the builder's table has no cells across columns",
