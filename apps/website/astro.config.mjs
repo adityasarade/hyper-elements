@@ -1,6 +1,7 @@
 import { defineConfig } from "astro/config";
 import sitemap from "@astrojs/sitemap";
 import { hyperTheme } from "./src/lib/shiki-theme.mjs";
+import { outputHighlight } from "./src/lib/output-highlight.mjs";
 import playground from "./scripts/playground-integration.mjs";
 import ogCards from "./scripts/og-cards.mjs";
 import ogImage from "./scripts/og-image-integration.mjs";
@@ -49,6 +50,7 @@ export default defineConfig({
   // (scripts/og-image-integration.mjs).
   integrations: [sitemap(), playground(), ogCards(), ogImage(), galleryAssets()],
   markdown: {
-    shikiConfig: { theme: hyperTheme, wrap: false },
+    // A ```text block is command output: outputHighlight() colors what it recognizes in it (src/lib/output-highlight.mjs).
+    shikiConfig: { theme: hyperTheme, wrap: false, transformers: [outputHighlight()] },
   },
 });
