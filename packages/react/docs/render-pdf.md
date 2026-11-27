@@ -78,7 +78,7 @@ Text whose `fontFamily` has no file given is drawn in a standard PDF font: Helve
 | `pdf/measure` | warning | A paginator measured a block without drawing it as a guess (react-pdf may lay it out otherwise): its pages from there on may differ from the PDF's. `renderPdf()` and `paginate()` measure it exactly |
 | `document/overflow` | warning | A page's content is taller than its room (the page less its margins, header and footer), measured with its fonts. Named at the first block cut off |
 
-`validate()` from `@hyper-elements/react` reports `pdf/unsupported` and `document/overflow` without rendering. Without the fonts its `document/overflow` is an estimate. The font and image checks need the files, so only `renderPdf` makes them, and measures.
+`validate()` from `@hyper-elements/react` reports `pdf/unsupported` and `document/overflow` without rendering. Without the fonts its `document/overflow` is an estimate. The font and image checks need the files, so `renderPdf`, `paginate()` and a paginator make them, and measure.
 
 ## Pages that flow
 
@@ -91,7 +91,7 @@ Content that doesn't fit its page goes on to the next, with the Document's `Page
 - **A Heading** isn't left last on a page: it goes on with what follows it.
 - **A `Document.Page`** that's too long goes on to pages after it, with its background. A `PageBreak` still starts a new page.
 
-A Document whose pages fit is drawn as it always was; one that doesn't is drawn a second time, flowed, a paragraph split between pages drawn line by line as it was laid out.
+A Document whose pages fit is drawn once, as written; one that doesn't is drawn a second time, flowed, a paragraph split between pages drawn line by line as it was laid out.
 
 The print HTML has the same pages when it's drawn from the PDF's plan:
 
@@ -190,7 +190,7 @@ const pages = designPages(plan, parts);
 ```
 
 - **Each part:** `at` is where it is in the design's body (a row `rows[3]`, a column, a block, a table's `….values.table.rows[12]`), and `id` its id there (`values._meta.htmlID`), where it has one.
-- **Each page** lists every part with something on it, in the order it's drawn (a row before its columns, a column before its blocks, a table before its rows), each once. `first` says the part starts on the page, `last` that it ends there; a part whole on the page is both. A table's header rows are on each page it runs to; the Document's header and footer are on every page and listed on none.
+- **Each page** lists every part with something on it, in the order it's drawn (a row before its columns, a column before its blocks, a table before its rows), each once. A row or a column is listed where the template has a node for it: a row with several columns, a background or a look of its own, a column with a box of its own. A plain one-column row is its blocks in the template, so they're listed without the row and its column (each block's `at` still names them). `first` says the part starts on the page, `last` that it ends there; a part whole on the page is both. A table's header rows are on each page it runs to; the Document's header and footer are on every page and listed on none.
 - **The same design:** `parts` holds for that `element` and that design. A design written again by `toDesign()` has ids of its own. A place is in the design as the builder loads it: a value the design leaves out is its tool's default (a table saved without its `table` value has the table tool's rows).
 - **Where pages break inside a block:** the plan splits text between its lines and a Row between its columns. Where an editor moves whole blocks to the next page, its pages differ there.
 

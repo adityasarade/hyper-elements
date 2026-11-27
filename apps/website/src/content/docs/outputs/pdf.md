@@ -151,7 +151,7 @@ A `Video` shows its thumbnail where its file is given (its own, or a YouTube vid
 | `pdf/measure` | warning | A paginator measured a block without drawing it as a guess (react-pdf may lay it out otherwise): its pages from there on may differ from the PDF's. `renderPdf()` and `paginate()` measure it exactly |
 | `document/overflow` | warning | A page's content is taller than its room (the page less its margins, header and footer), measured with its fonts. Named at the first block cut off |
 
-`validate()` from `@hyper-elements/react` reports `pdf/unsupported` and `document/overflow` without rendering. Without the fonts its `document/overflow` is an estimate, and it can miss a page that's only a little too tall. The font and image checks need the files, so only `renderPdf()` makes them, and measures.
+`validate()` from `@hyper-elements/react` reports `pdf/unsupported` and `document/overflow` without rendering. Without the fonts its `document/overflow` is an estimate, and it can miss a page that's only a little too tall. The font and image checks need the files, so `renderPdf()`, `paginate()` and a paginator make them, and measure.
 
 ### Pages that flow
 
@@ -164,7 +164,7 @@ Content that doesn't fit its page goes on to the next, with the `PageHeader` and
 - **A Heading** isn't left last on a page: it goes on with what follows it.
 - **A `Document.Page`** that's too long goes on to pages after it, with its background. A `PageBreak` still starts a new page.
 
-A Document whose pages fit is drawn as it always was. One that doesn't is drawn a second time, flowed.
+A Document whose pages fit is drawn once, as written. One that doesn't is drawn a second time, flowed.
 
 For print HTML with the same pages, draw it from the PDF's plan:
 
@@ -217,7 +217,7 @@ For a long Document, ask for the pages a view shows: `paginate(design, { layout:
 
 ### A builder design's pages
 
-A Document made in the Unlayer editor can follow the same plan, so the editor shows the PDF's pages. `fromDesign()` returns `parts`, the part of the builder design each node of its `element` stands for, and `designPages(plan, parts)` lists each page's parts of the design: where each is in the design's body (`at`) and its id there, in the order they're drawn, each with whether it starts (`first`) and ends (`last`) on the page.
+A Document made in the Unlayer editor can follow the same plan, so the editor shows the PDF's pages. `fromDesign()` returns `parts`, the part of the builder design each node of its `element` stands for, and `designPages(plan, parts)` lists each page's parts of the design: where each is in the design's body (`at`) and its id there, in the order they're drawn, each with whether it starts (`first`) and ends (`last`) on the page. A row or a column is listed where the template has a node for it: a plain one-column row is its blocks, so they're listed without the row and its column (each block's `at` still names them).
 
 ```tsx
 import { fromDesign } from "@hyper-elements/react/builder";

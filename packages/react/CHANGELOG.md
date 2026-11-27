@@ -15,7 +15,10 @@ Versions before 0.3.0 were published as `@unlayer/react-elements`.
 - A Row of Columns taller than a page goes on by its columns.
 - A Heading goes on with what follows it.
 
-A Document whose pages fit is drawn as it was. See "Pages that flow" in `docs/render-pdf.md`.
+A Document whose pages fit has the same pages as before, with three changes: a list item's text stays inside the
+right margin (it ran up to 17 points into it), an SVG image in a line of text leaves its room empty instead of
+showing its alt text, and the print HTML clips a page's content above its footer. See "Pages that flow" in
+`docs/render-pdf.md`.
 
 - **The same pages everywhere:** `renderPdf()` returns its `plan`, and `render(design, { plan })` draws the print
   HTML with the PDF's pages.
