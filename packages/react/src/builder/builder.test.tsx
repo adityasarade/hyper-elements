@@ -673,6 +673,65 @@ describe("a Table", () => {
     }
   });
 
+  it("is the builder's table where its width or max width fills its place, wherever its place puts it", () => {
+    const lined = (style: Record<string, unknown>) => (
+      <Table style={style}>
+        <TableRow>
+          <TableCell>A</TableCell>
+        </TableRow>
+      </Table>
+    );
+    for (const style of [{ maxWidth: 600 }, { width: 600 }, { width: "100%", maxWidth: 800 }]) {
+      const { design, report } = toDesign(
+        <Email width={600}>
+          <Section style={{ alignItems: "center" }}>{lined(style)}</Section>
+        </Email>,
+      );
+      expect(report, JSON.stringify(style)).toEqual([]);
+      expect(blocks(design)[0].type, JSON.stringify(style)).toBe("table");
+    }
+    // One that fills its column only while the columns are side by side: on a phone they stack, and it doesn't.
+    const stacked = toDesign(
+      <Email width={600}>
+        <Row>
+          <Column style={{ alignItems: "center" }}>{lined({ maxWidth: 300 })}</Column>
+          <Column>
+            <Text>Beside</Text>
+          </Column>
+        </Row>
+      </Email>,
+    );
+    expect(stacked.report).toHaveLength(1);
+    expect(stacked.report[0]).toContain("a width, away from the left of its place");
+    // One narrower than its place is still at its left in the builder's.
+    expect(
+      toDesign(
+        <Email width={600}>
+          <Section style={{ alignItems: "center" }}>{lined({ maxWidth: 300 })}</Section>
+        </Email>,
+      ).report,
+    ).toEqual(["root.children[0].children[0]: the builder's table doesn't draw it as it is (a width, away from the left of its place): it's an HTML block of its own markup in the builder (it can be moved, not edited)"]);
+  });
+
+  it("counts a border of none around a Table as no border, which draws no line", () => {
+    const table = (
+      <Table style={{ border: "none", borderCollapse: "collapse" }}>
+        <TableRow>
+          <TableCell style={{ border: "1px solid #000000" }}>A</TableCell>
+        </TableRow>
+      </Table>
+    );
+    const page = toDesign(<Page>{table}</Page>);
+    expect(page.report).toEqual([]);
+    expect(blocks(page.design)[0].type).toBe("table");
+    expect(toDesign(<Document>{table}</Document>).report).toEqual([]);
+    // And back, with nothing to say about a border that isn't there.
+    for (const [Root, displayMode] of [[Email, "email"], [Page, "web"], [Document, "document"]] as const) {
+      const { design } = toDesign(<Root>{table}</Root>);
+      expect(fromDesign(JSON.parse(JSON.stringify(design)), { displayMode }).report, displayMode).toEqual([]);
+    }
+  });
+
   it("leaves out a Table's own width in a Row, which is its column's share there as Elements draws it", () => {
     for (const Root of [Email, Page]) {
       const template = (

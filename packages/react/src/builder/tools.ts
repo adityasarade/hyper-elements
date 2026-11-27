@@ -259,7 +259,7 @@ export function blockTool(node: Node, path: string, parent: ResolvedNode, around
     case "PageBreak":
       return place.put(block("page_break"));
     case "Table": {
-      const { node: table, note } = builderTableNode(node, parent, place);
+      const { node: table, note } = builderTableNode(node, path, place, parent);
       const values = tableValues(table, path, place, alignIn(parent));
       if (typeof values === "string") return place.locked(node, path, values, around);
       place.sayLeftOut("table", table, path, TABLE_FIELDS);

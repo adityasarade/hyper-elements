@@ -112,6 +112,18 @@ function unheld(node: Node, fields: readonly string[]): string[] {
 /** An id the builder's table writes in its HTML: one that isn't like the builder's own, which start with `u_`. */
 export const writtenId = (id: string) => !id.startsWith("u_");
 
+/** Whether a side of a border draws a line: a width, in a style that isn't none or hidden. */
+export const drawsLine = (line: BorderSide | undefined) => !!line && line.width > 0 && line.style !== "none" && (line.style as string) !== "hidden";
+
+/** A width or a max width in px, in a place `room` px wide; undefined for one in another unit. */
+const pxIn = (value: Json | undefined, room: number) => {
+  if (typeof value === "number") return value;
+  const text = typeof value === "string" ? value.trim() : "";
+  if (/^\d+(\.\d+)?px$/.test(text)) return parseFloat(text);
+  if (/^\d+(\.\d+)?%$/.test(text)) return (room * parseFloat(text)) / 100;
+  return undefined;
+};
+
 /** A width or a max width the builder's table draws: px, or a percentage of its place. */
 const drawn = (value: Json | undefined) => (typeof value === "number" ? value > 0 : typeof value === "string" && /^\d+(\.\d+)?(px|%)$/.test(value.trim()) && parseFloat(value) > 0);
 
@@ -120,9 +132,9 @@ const drawn = (value: Json | undefined) => (typeof value === "number" ? value > 
  * column's share, as Elements draws it, not the table's own too; so is a max width in %, which Elements takes of the
  * row: the column has it, and the table fills the column. A Document's row doesn't narrow, so there it's px of the
  * row; an Email's or a Page's columns stack on phones, where Elements' table keeps that share of the screen and the
- * builder's fills its column (an HTML block in the column would too).
+ * builder's fills its column (an HTML block in the column would too). A border that draws no line is no border.
  */
-export function builderTableNode(node: Node, parent: ResolvedNode, place: TablePlace): { node: Node; note?: string } {
+export function builderTableNode(node: Node, path: string, place: TablePlace, parent: ResolvedNode): { node: Node; note?: string } {
   const style = { ...node.style };
   let note: string | undefined;
   if (parent.type === "Row") {
@@ -138,6 +150,8 @@ export function builderTableNode(node: Node, parent: ResolvedNode, place: TableP
       }
     }
   }
+  const border = place.at(path).style.border as Border | undefined;
+  if (style.border !== undefined && !SIDES.some((side) => drawsLine(border?.[side]))) delete style.border;
   return { node: { ...node, style }, note };
 }
 
@@ -332,12 +346,21 @@ export function tableValues(node: Node, path: string, place: TablePlace, align: 
   // Document's, where their borders collapse, draw the two as one line.
   const around = (own.style.border as Border | undefined) ?? {};
   const edges = { top: cellsOf(rows[0]), bottom: cellsOf(rows[rows.length - 1]), left: rows.flatMap((row) => cellsOf(row).slice(0, 1)), right: rows.flatMap((row) => cellsOf(row).slice(-1)) };
-  if (place.at("root").type !== "Email" && own.style.borderCollapse === "collapse" && SIDES.some((side) => around[side] && edges[side].some((cell) => (cell.own.style.border as Border | undefined)?.[side]))) {
+  if (place.at("root").type !== "Email" && own.style.borderCollapse === "collapse" && SIDES.some((side) => drawsLine(around[side]) && edges[side].some((cell) => drawsLine((cell.own.style.border as Border | undefined)?.[side])))) {
     say(path, "the border around it and the lines of its cells at its edges are one line where a Table's borders collapse, two in the builder's table, which draws its border outside its cells'", "a border around it that collapses with its cells' lines");
   }
-  // The builder's table sits at the left of its place.
+  // The builder's table sits at the left of its place: one narrower than its place sits elsewhere in a Table.
   const narrow = ["width", "maxWidth"].filter((key) => node.style?.[key] !== undefined && node.style[key] !== "100%");
-  if (narrow.length && (align === "center" || align === "right")) say(path, `a table narrower than its place is at its left in the builder's, not ${align === "center" ? "in its middle" : "at its right"}`, "a width, away from the left of its place");
+  // (It fills its place only where it does at the widest its place gets: the root's width, where columns stack on phones.)
+  const widest = Math.max(own.available ?? 0, place.at("root").contentWidth ?? 0);
+  const fills =
+    own.available !== null &&
+    narrow.every((key) => {
+      const value = node.style?.[key];
+      if (typeof value === "string" && value.trim().endsWith("%")) return parseFloat(value) >= 100;
+      return (pxIn(value, own.available!) ?? 0) >= widest - 0.5;
+    });
+  if (narrow.length && !fills && (align === "center" || align === "right")) say(path, `a table narrower than its place is at its left in the builder's, not ${align === "center" ? "in its middle" : "at its right"}`, "a width, away from the left of its place");
   // It's never wider than its place either, where a Table of a width past it runs out of it.
   const wide = node.style?.width;
   if (typeof wide === "number" ? own.available !== null && wide > own.available : typeof wide === "string" && wide.trim().endsWith("%") && parseFloat(wide) > 100) {
